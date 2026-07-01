@@ -9,7 +9,6 @@
     "alarms",
     "scripting",
     "tabs",
-    "proxy",
     "privacy",
     "declarativeNetRequest"
   ],
@@ -22,6 +21,7 @@
   "action": {
     "default_popup": "popup.html"
   },
+  "options_page": "options.html",
   "icons": {
     "128": "icon.png"
   },
@@ -34,7 +34,7 @@
     "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval'; child-src 'none'; object-src 'none'"
   },
   "web_accessible_resources": [{
-    "resources": ["map.html", "images/*.svg"],
+    "resources": ["map.html", "test.html", "images/*.svg"],
     "matches": ["<all_urls>"]
   }]
 }

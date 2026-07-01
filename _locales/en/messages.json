@@ -1,18 +1,15 @@
 {
   "extName": {
-    "message": "IP Location and Local Proxy"
+    "message": "IP Location"
   },
   "extDescription": {
-    "message": "Update browser GPS location from IP geolocation and configure a local browser proxy."
+    "message": "Align language, IP geolocation, timezone, and WebRTC behavior on allowlisted sites."
   },
   "brandTitle": {
     "message": "IP Location"
   },
   "brandNote": {
-    "message": "Local Proxy"
-  },
-  "proxySectionTitle": {
-    "message": "Proxy"
+    "message": "Allowlist Mode"
   },
   "masterSectionTitle": {
     "message": "Extension"
@@ -89,17 +86,8 @@
   "timezoneManualMode": {
     "message": "Manual"
   },
-  "proxyEnableButton": {
-    "message": "Enable"
-  },
-  "proxyDisableButton": {
-    "message": "Disable"
-  },
   "saveEnableButton": {
     "message": "Enable"
-  },
-  "disableProxyButton": {
-    "message": "Disable"
   },
   "saveLanguageButton": {
     "message": "Save Language"
@@ -112,9 +100,6 @@
   },
   "refreshingButton": {
     "message": "Refreshing..."
-  },
-  "proxyLoading": {
-    "message": "Loading proxy status..."
   },
   "languageLoading": {
     "message": "Loading language status..."
@@ -145,27 +130,6 @@
   },
   "notAvailable": {
     "message": "N/A"
-  },
-  "proxyEnabledPrefix": {
-    "message": "Enabled"
-  },
-  "proxyDisabled": {
-    "message": "Proxy disabled"
-  },
-  "proxyReadFailed": {
-    "message": "Failed to read proxy config"
-  },
-  "proxySaving": {
-    "message": "Saving proxy config..."
-  },
-  "proxySaveFailed": {
-    "message": "Save failed"
-  },
-  "proxyDisabling": {
-    "message": "Disabling proxy..."
-  },
-  "proxyDisableFailed": {
-    "message": "Disable failed"
   },
   "languageEnabledPrefix": {
     "message": "Enabled"

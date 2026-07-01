@@ -1,18 +1,15 @@
 {
   "extName": {
-    "message": "IP定位与本地代理"
+    "message": "IP定位"
   },
   "extDescription": {
-    "message": "基于IP位置自动更新浏览器的GPS位置，并支持手动配置本地浏览器代理。"
+    "message": "在白名单网站上对齐语言、IP定位、时区和WebRTC行为。"
   },
   "brandTitle": {
     "message": "IP定位"
   },
   "brandNote": {
-    "message": "本地代理"
-  },
-  "proxySectionTitle": {
-    "message": "代理配置"
+    "message": "白名单模式"
   },
   "masterSectionTitle": {
     "message": "插件功能"
@@ -89,17 +86,8 @@
   "timezoneManualMode": {
     "message": "手动指定"
   },
-  "proxyEnableButton": {
-    "message": "启用"
-  },
-  "proxyDisableButton": {
-    "message": "关闭"
-  },
   "saveEnableButton": {
     "message": "启用"
-  },
-  "disableProxyButton": {
-    "message": "关闭"
   },
   "saveLanguageButton": {
     "message": "保存语言"
@@ -112,9 +100,6 @@
   },
   "refreshingButton": {
     "message": "刷新中..."
-  },
-  "proxyLoading": {
-    "message": "代理状态加载中..."
   },
   "languageLoading": {
     "message": "语言状态加载中..."
@@ -145,27 +130,6 @@
   },
   "notAvailable": {
     "message": "N/A"
-  },
-  "proxyEnabledPrefix": {
-    "message": "已启用"
-  },
-  "proxyDisabled": {
-    "message": "未启用代理"
-  },
-  "proxyReadFailed": {
-    "message": "读取代理配置失败"
-  },
-  "proxySaving": {
-    "message": "正在保存代理配置..."
-  },
-  "proxySaveFailed": {
-    "message": "保存失败"
-  },
-  "proxyDisabling": {
-    "message": "正在关闭代理..."
-  },
-  "proxyDisableFailed": {
-    "message": "关闭失败"
   },
   "languageEnabledPrefix": {
     "message": "已启用"

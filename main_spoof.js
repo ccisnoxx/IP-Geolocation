@@ -3,7 +3,7 @@
   window.__ipGeolocationSpoofReady = true;
 
   function normalizeTimezonePayload(payload) {
-    const timezoneConfig = payload.timezoneConfig || { enabled: true, mode: 'auto', timezone: '' };
+    const timezoneConfig = payload.timezoneConfig || { enabled: false, mode: 'auto', timezone: '' };
     const timezone = timezoneConfig.enabled === false
       ? null
       : timezoneConfig.mode === 'manual' && timezoneConfig.timezone
@@ -310,11 +310,16 @@
   }
 
   function applySpoof(payload) {
-    if (!payload || !payload.latitude || !payload.longitude) return;
+    if (!payload) return;
     if (payload.extensionEnabled === false || payload.enabled === false) return;
 
-    const latitude = Number(payload.latitude);
-    const longitude = Number(payload.longitude);
+    const geolocation = payload.geolocation || (
+      Number.isFinite(Number(payload.latitude)) && Number.isFinite(Number(payload.longitude))
+        ? { latitude: Number(payload.latitude), longitude: Number(payload.longitude) }
+        : null
+    );
+    const latitude = geolocation ? Number(geolocation.latitude) : NaN;
+    const longitude = geolocation ? Number(geolocation.longitude) : NaN;
     const { timezone, timezoneOffset } = normalizeTimezonePayload(payload);
     const languageConfig = payload.languageConfig && payload.languageConfig.enabled ? payload.languageConfig : null;
     const spoofLanguage = languageConfig && languageConfig.language ? languageConfig.language : null;
@@ -333,25 +338,27 @@
       });
     }
 
-    navigator.geolocation.getCurrentPosition = (successCallback) => {
-      successCallback({
-        coords: {
-          latitude,
-          longitude,
-          accuracy: 20 + Math.random() * 10,
-          altitude: null,
-          altitudeAccuracy: null,
-          heading: null,
-          speed: null
-        },
-        timestamp: Date.now()
-      });
-    };
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      navigator.geolocation.getCurrentPosition = (successCallback) => {
+        successCallback({
+          coords: {
+            latitude,
+            longitude,
+            accuracy: 20 + Math.random() * 10,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null
+          },
+          timestamp: Date.now()
+        });
+      };
 
-    navigator.geolocation.watchPosition = (successCallback, errorCallback, options) => {
-      navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
-      return Math.floor(Math.random() * 10000);
-    };
+      navigator.geolocation.watchPosition = (successCallback, errorCallback, options) => {
+        navigator.geolocation.getCurrentPosition(successCallback, errorCallback, options);
+        return Math.floor(Math.random() * 10000);
+      };
+    }
 
     const patchConfig = {
       timezone,

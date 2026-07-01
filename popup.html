@@ -4,489 +4,213 @@
   <meta charset="utf-8">
   <style>
     :root {
-      --paper: #fafafa;
-      --ink: #111111;
+      --paper: #f7f7f7;
+      --ink: #111;
       --subtle: #4a4a4a;
-      --muted: #6f6f6f;
-      --line: #e5e5e5;
-      --line-strong: #cfcfcf;
-      --field: #f3f3f3;
-      --white: #ffffff;
-      --danger: #111111;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .06);
+      --muted: #747474;
+      --line: #dedede;
+      --field: #fff;
+      --accent: #111;
+      --danger: #9b1c1c;
     }
 
     * { box-sizing: border-box; }
 
     body {
-      width: 372px;
+      width: 380px;
       margin: 0;
-      padding: 22px;
+      padding: 18px;
       color: var(--ink);
       background: var(--paper);
       font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
-      font-weight: 400;
-      line-height: 1.48;
-      letter-spacing: .015em;
-      text-rendering: geometricPrecision;
+      font-size: 13px;
+      line-height: 1.45;
     }
 
-    .masthead {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: end;
-      gap: 18px;
-      padding-bottom: 18px;
-      margin-bottom: 18px;
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      padding-bottom: 14px;
       border-bottom: 1px solid var(--ink);
+      margin-bottom: 14px;
     }
 
     .brand {
-      font-size: 25px;
+      font-size: 22px;
       font-weight: 700;
-      line-height: 1;
-      letter-spacing: .015em;
     }
 
-    .brand-note {
+    .note {
       color: var(--muted);
       font-size: 12px;
-      font-weight: 400;
-      letter-spacing: .02em;
-      text-align: right;
       white-space: nowrap;
     }
 
     .section {
-      padding: 18px;
-      margin-bottom: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      background: var(--field);
       border: 1px solid var(--line);
-      border-radius: 2px;
-      background: var(--white);
-      box-shadow: var(--shadow);
-      transition: border-color .2s ease, background-color .2s ease;
-    }
-
-    .section:hover {
-      border-color: var(--line-strong);
-      background: #fdfdfd;
+      border-radius: 4px;
     }
 
     .section-title {
-      margin-bottom: 16px;
-      font-size: 17px;
+      margin-bottom: 10px;
+      font-size: 15px;
       font-weight: 700;
-      letter-spacing: .025em;
     }
 
-    .proxy-grid {
+    .row {
       display: grid;
-      grid-template-columns: 66px 1fr;
-      gap: 14px 16px;
-      align-items: center;
-      font-size: 14px;
-      letter-spacing: .01em;
+      grid-template-columns: 92px 1fr;
+      gap: 8px 12px;
+      margin-bottom: 8px;
     }
 
-    .proxy-grid label {
+    .label {
       color: var(--subtle);
-      font-weight: 300;
     }
 
-    .proxy-grid input:not([type="checkbox"]),
-    .proxy-grid select {
-      width: 100%;
-      min-height: 38px;
-      padding: 8px 0;
-      border: 0;
-      border-bottom: 1px solid var(--line-strong);
-      border-radius: 0;
-      outline: none;
-      color: var(--ink);
-      background: transparent;
-      font: inherit;
-      font-weight: 300;
-      transition: border-color .2s ease, background-color .2s ease;
+    .value {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-weight: 600;
     }
 
-    .proxy-grid input:not([type="checkbox"]):hover,
-    .proxy-grid select:hover {
-      border-bottom-color: var(--ink);
-      background: var(--field);
-    }
-
-    .proxy-grid input:not([type="checkbox"]):focus,
-    .proxy-grid select:focus {
-      border-bottom-color: var(--ink);
-      background: var(--field);
-      box-shadow: 0 1px 0 var(--ink);
-    }
-
-    .proxy-grid select option {
-      color: var(--ink);
-      background: var(--white);
-    }
-
-    .proxy-grid input[type="checkbox"] {
-      appearance: none;
-      width: 22px;
-      height: 22px;
-      margin: 0;
-      border: 1px solid var(--line-strong);
-      border-radius: 2px;
-      cursor: pointer;
-      background: var(--white);
-      box-shadow: var(--shadow);
-      position: relative;
-      transition: background-color .2s ease, border-color .2s ease, opacity .2s ease;
-    }
-
-    .proxy-grid input[type="checkbox"]::after {
-      content: "";
-      position: absolute;
-      left: 6px;
-      top: 2px;
-      width: 6px;
-      height: 12px;
-      border: solid var(--white);
-      border-width: 0 2px 2px 0;
-      opacity: 0;
-      transform: rotate(45deg);
-    }
-
-    .proxy-grid input[type="checkbox"]:checked {
-      border-color: var(--ink);
-      background: var(--ink);
-    }
-
-    .proxy-grid input[type="checkbox"]:checked::after {
-      opacity: 1;
-    }
-
-    .proxy-grid input[type="checkbox"]:focus-visible {
-      outline: 1px solid var(--ink);
-      outline-offset: 3px;
-    }
-
-    .master-actions,
-    .proxy-actions {
+    .actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 18px;
+      gap: 8px;
+      margin-top: 12px;
     }
 
-    .webrtc-mode-grid {
-      display: grid;
+    .actions.three {
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-    }
-
-    .webrtc-option {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-
-    .webrtc-option {
-      color: var(--ink);
-      background: var(--white);
-      border-color: var(--line-strong);
-      transition: none;
-    }
-
-    .webrtc-option.is-active {
-      color: var(--white);
-      background: var(--ink);
-      border-color: var(--ink);
-    }
-
-    .webrtc-option.is-active:disabled {
-      color: var(--white);
-      background: var(--ink);
-      border-color: var(--ink);
-      opacity: 1;
-    }
-
-    .webrtc-option:not(.is-active):hover:not(:disabled) {
-      color: var(--ink);
-      background: var(--field);
-      border-color: var(--ink);
-    }
-
-    .webrtc-option.is-active:hover:not(:disabled) {
-      color: var(--white);
-      background: #2a2a2a;
-      border-color: var(--ink);
-    }
-
-    #master-status,
-    #proxy-status,
-    #timezone-status,
-    #language-status {
-      margin-top: 14px;
-      padding: 11px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 300;
-      word-break: break-all;
-      border-top: 1px solid var(--line);
-    }
-
-    iframe {
-      width: 100%;
-      height: 192px;
-      margin: 2px 0 14px;
-      border: 1px solid var(--line);
-      border-radius: 2px;
-      background: var(--white);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-
-    #info-grid {
-      display: grid;
-      grid-template-columns: 66px 1fr;
-      gap: 9px 16px;
-      padding: 16px 0;
-      margin: 0 0 14px;
-      color: var(--ink);
-      font-size: 13px;
-      border-top: 1px solid var(--ink);
-      border-bottom: 1px solid var(--line);
-    }
-
-    #info-grid strong {
-      color: var(--subtle);
-      font-weight: 300;
-    }
-
-    #info-grid span {
-      font-weight: 600;
     }
 
     button {
-      width: 100%;
-      min-height: 40px;
-      padding: 10px 14px;
-      border: 1px solid var(--ink);
-      border-radius: 2px;
+      min-height: 38px;
+      padding: 9px 10px;
+      color: #fff;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
       cursor: pointer;
-      color: var(--white);
-      background: var(--ink);
       font: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: .04em;
-      line-height: 1.35;
-      transition: color .2s ease, background-color .2s ease, border-color .2s ease, opacity .2s ease;
+      font-weight: 700;
     }
 
-    button:hover:not(:disabled) {
+    button.secondary {
       color: var(--ink);
-      background: var(--white);
-      border-color: var(--ink);
+      background: #fff;
+      border-color: var(--line);
     }
 
-    button:active:not(:disabled) {
-      opacity: .7;
-    }
-
-    button:focus-visible {
-      outline: 1px solid var(--ink);
-      outline-offset: 3px;
+    button.is-active {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
     }
 
     button:disabled {
       cursor: not-allowed;
       color: var(--muted);
-      background: var(--field);
+      background: #eee;
       border-color: var(--line);
-      opacity: .8;
     }
 
-    #disable-proxy-btn {
-      color: var(--ink);
-      background: var(--white);
-      border-color: var(--line-strong);
+    .status {
+      margin-top: 10px;
+      padding-top: 10px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      overflow-wrap: anywhere;
     }
 
-    #disable-proxy-btn:hover:not(:disabled) {
-      color: var(--white);
-      background: var(--ink);
-      border-color: var(--ink);
-    }
-
-    .master-option,
-    .proxy-option {
-      color: var(--ink);
-      background: var(--white);
-      border-color: var(--line-strong);
-      transition: none;
-    }
-
-    .master-option:not(.is-active):hover:not(:disabled),
-    .proxy-option:not(.is-active):hover:not(:disabled) {
-      color: var(--ink);
-      background: var(--field);
-      border-color: var(--ink);
-    }
-
-    .master-option.is-active,
-    .master-option.is-active:hover:not(:disabled),
-    .master-option.is-active:active:not(:disabled),
-    .master-option.is-active:focus-visible,
-    .proxy-option.is-active,
-    .proxy-option.is-active:hover:not(:disabled),
-    .proxy-option.is-active:active:not(:disabled),
-    .proxy-option.is-active:focus-visible,
-    #save-proxy-btn.proxy-option.is-active,
-    #save-proxy-btn.proxy-option.is-active:hover:not(:disabled),
-    #save-proxy-btn.proxy-option.is-active:active:not(:disabled),
-    #disable-proxy-btn.proxy-option.is-active,
-    #disable-proxy-btn.proxy-option.is-active:hover:not(:disabled),
-    #disable-proxy-btn.proxy-option.is-active:active:not(:disabled) {
-      color: var(--white);
-      background: var(--ink);
-      border-color: var(--ink);
-      opacity: 1;
-    }
-
-    .webrtc-option.is-active,
-    .webrtc-option.is-active:hover:not(:disabled),
-    .webrtc-option.is-active:active:not(:disabled),
-    .webrtc-option.is-active:focus-visible {
-      color: var(--white);
-      background: var(--ink);
-      border-color: var(--ink);
-      opacity: 1;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        transition: none !important;
-      }
+    .status.error {
+      color: var(--danger);
+      font-weight: 700;
     }
   </style>
 </head>
 <body>
-  <header class="masthead">
-    <div class="brand" data-i18n="brandTitle">IP定位</div>
-    <div class="brand-note" data-i18n="brandNote">本地代理</div>
+  <header>
+    <div class="brand">IP定位</div>
+    <div class="note">白名单模式</div>
   </header>
 
-  <div class="section master-section">
-    <div class="section-title" data-i18n="masterSectionTitle">插件功能</div>
-    <div class="master-actions">
-      <button id="master-enable-btn" class="master-option" data-i18n="masterEnableButton">启用</button>
-      <button id="master-disable-btn" class="master-option" data-i18n="masterDisableButton">关闭</button>
+  <div class="section">
+    <div class="section-title">插件功能</div>
+    <div class="actions">
+      <button id="master-enable-btn" class="secondary">启用</button>
+      <button id="master-disable-btn" class="secondary">关闭</button>
     </div>
-    <div id="master-status" data-i18n="masterLoading">插件状态加载中...</div>
+    <div id="master-status" class="status">加载中...</div>
   </div>
 
   <div class="section">
-    <div class="section-title" data-i18n="proxySectionTitle">代理配置</div>
-    <div class="proxy-grid">
-      <label for="proxy-scheme" data-i18n="labelScheme">协议</label>
-      <select id="proxy-scheme">
-        <option value="http" selected>HTTP / mixed</option>
-        <option value="https">HTTPS</option>
-        <option value="socks5">SOCKS5</option>
-        <option value="socks4">SOCKS4</option>
-      </select>
-
-      <label for="proxy-host" data-i18n="labelHost">地址</label>
-      <input id="proxy-host" type="text" value="127.0.0.1" spellcheck="false">
-
-      <label for="proxy-port" data-i18n="labelPort">端口</label>
-      <input id="proxy-port" type="number" min="1" max="65535" value="10808">
-
-      <label for="proxy-bypass" data-i18n="labelBypass">直连</label>
-      <input id="proxy-bypass" type="text" value="&lt;-loopback&gt;" spellcheck="false">
+    <div class="section-title">当前网站</div>
+    <div class="row">
+      <div class="label">域名</div>
+      <div id="current-domain" class="value">加载中...</div>
+      <div class="label">状态</div>
+      <div id="current-status" class="value">加载中...</div>
+      <div class="label">匹配规则</div>
+      <div id="matched-rule" class="value">-</div>
     </div>
-    <div class="proxy-actions">
-      <button id="save-proxy-btn" class="proxy-option" data-i18n="proxyEnableButton">启用</button>
-      <button id="disable-proxy-btn" class="proxy-option" data-i18n="proxyDisableButton">关闭</button>
+    <div class="actions three">
+      <button id="add-domain-btn">加入</button>
+      <button id="toggle-domain-btn" class="secondary">停用</button>
+      <button id="delete-domain-btn" class="secondary">删除</button>
     </div>
-    <div id="proxy-status" data-i18n="proxyLoading">代理状态加载中...</div>
+    <div id="domain-status" class="status">只对白名单域名应用页面级伪装。</div>
   </div>
 
   <div class="section">
-    <div class="section-title" data-i18n="webRtcSectionTitle">模式</div>
-    <div class="webrtc-mode-grid">
-      <button id="webrtc-strict-btn" class="webrtc-option" data-i18n="webRtcStrictMode">严格模式</button>
-      <button id="webrtc-compatible-btn" class="webrtc-option" data-i18n="webRtcCompatibleMode">兼容模式</button>
-      <button id="webrtc-off-btn" class="webrtc-option" data-i18n="webRtcOffMode">关闭</button>
+    <div class="section-title">当前生效配置</div>
+    <div class="row">
+      <div class="label">语言</div>
+      <div id="summary-language" class="value">-</div>
+      <div class="label">时区</div>
+      <div id="summary-timezone" class="value">-</div>
+      <div class="label">定位</div>
+      <div id="summary-geolocation" class="value">-</div>
     </div>
+    <div id="summary-status" class="status">未命中白名单时不会注入配置。</div>
   </div>
 
   <div class="section">
-    <div class="section-title" data-i18n="languageSectionTitle">语言伪装</div>
-    <div class="proxy-grid">
-      <label for="language-enabled" data-i18n="labelEnabled">启用</label>
-      <input id="language-enabled" type="checkbox">
-
-      <label for="language-preset" data-i18n="labelLanguage">语言</label>
-      <select id="language-preset">
-        <option value="en-US|en-US,en|en-US,en;q=0.9">English (US)</option>
-        <option value="en-GB|en-GB,en|en-GB,en;q=0.9">English (UK)</option>
-        <option value="zh-CN|zh-CN,zh,en|zh-CN,zh;q=0.9,en;q=0.8">中文 (简体)</option>
-        <option value="zh-TW|zh-TW,zh,en|zh-TW,zh;q=0.9,en;q=0.8">中文 (繁体)</option>
-        <option value="ja-JP|ja-JP,ja,en|ja-JP,ja;q=0.9,en;q=0.8">日本語</option>
-        <option value="ko-KR|ko-KR,ko,en|ko-KR,ko;q=0.9,en;q=0.8">한국어</option>
-        <option value="de-DE|de-DE,de,en|de-DE,de;q=0.9,en;q=0.8">Deutsch</option>
-        <option value="fr-FR|fr-FR,fr,en|fr-FR,fr;q=0.9,en;q=0.8">Français</option>
-      </select>
+    <div class="section-title">WebRTC 全局模式</div>
+    <div class="actions three">
+      <button id="webrtc-strict-btn" class="secondary">严格</button>
+      <button id="webrtc-compatible-btn" class="secondary">兼容</button>
+      <button id="webrtc-off-btn" class="secondary">关闭</button>
     </div>
-    <button id="save-language-btn" data-i18n="saveLanguageButton">保存语言</button>
-    <div id="language-status" data-i18n="languageLoading">语言状态加载中...</div>
+    <div class="status">WebRTC 是浏览器级设置，全局生效。</div>
   </div>
 
   <div class="section">
-    <div class="section-title" data-i18n="timezoneSectionTitle">时区伪装</div>
-    <div class="proxy-grid">
-      <label for="timezone-enabled" data-i18n="labelEnabled">启用</label>
-      <input id="timezone-enabled" type="checkbox">
-
-      <label for="timezone-mode" data-i18n="labelTimezoneMode">模式</label>
-      <select id="timezone-mode">
-        <option value="auto" data-i18n="timezoneAutoMode">跟随 IP</option>
-        <option value="manual" data-i18n="timezoneManualMode">手动指定</option>
-      </select>
-
-      <label for="timezone-select" data-i18n="labelTimezone">时区</label>
-      <select id="timezone-select">
-        <option value="UTC">UTC</option>
-        <option value="America/Los_Angeles">America/Los_Angeles</option>
-        <option value="America/New_York">America/New_York</option>
-        <option value="America/Chicago">America/Chicago</option>
-        <option value="Europe/London">Europe/London</option>
-        <option value="Europe/Berlin">Europe/Berlin</option>
-        <option value="Europe/Paris">Europe/Paris</option>
-        <option value="Asia/Shanghai">Asia/Shanghai</option>
-        <option value="Asia/Hong_Kong">Asia/Hong_Kong</option>
-        <option value="Asia/Tokyo">Asia/Tokyo</option>
-        <option value="Asia/Seoul">Asia/Seoul</option>
-        <option value="Asia/Singapore">Asia/Singapore</option>
-        <option value="Australia/Sydney">Australia/Sydney</option>
-      </select>
+    <div class="section-title">出口 IP 定位</div>
+    <div class="row">
+      <div class="label">国家</div>
+      <div id="last-country" class="value">-</div>
+      <div class="label">经纬度</div>
+      <div id="last-coordinates" class="value">-</div>
+      <div class="label">时区</div>
+      <div id="last-timezone" class="value">-</div>
+      <div class="label">更新于</div>
+      <div id="last-updated" class="value">-</div>
     </div>
-    <button id="save-timezone-btn" data-i18n="saveTimezoneButton">保存时区</button>
-    <div id="timezone-status" data-i18n="timezoneLoading">时区状态加载中...</div>
+    <div class="actions">
+      <button id="refresh-btn">刷新定位</button>
+      <button id="options-btn" class="secondary">完整配置</button>
+    </div>
+    <div id="refresh-status" class="status">自动定位用于全局默认配置。</div>
   </div>
 
-  <iframe id="map-frame" src="map.html"></iframe>
-  <div id="info-grid">
-    <strong data-i18n="fieldCountry">国家</strong> <span id="country" data-i18n="loading">加载中...</span>
-    <strong data-i18n="fieldLatitude">纬度</strong> <span id="latitude" data-i18n="loading">加载中...</span>
-    <strong data-i18n="fieldLongitude">经度</strong> <span id="longitude" data-i18n="loading">加载中...</span>
-    <strong data-i18n="fieldTimezone">时区</strong> <span id="timezone" data-i18n="loading">加载中...</span>
-    <strong data-i18n="fieldUpdatedAt">更新于</strong> <span id="updateTime" data-i18n="loading">加载中...</span>
-  </div>
-  <button id="refresh-btn" data-i18n="refreshButton">立即刷新</button>
+  <script src="config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
