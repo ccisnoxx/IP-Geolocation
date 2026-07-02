@@ -1,0 +1,30 @@
+{
+  "id": "project-optimization-planning",
+  "name": "project-optimization-planning",
+  "title": "项目优化规划",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-07-01",
+  "completedAt": "2026-07-02",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-01-phase1-behavior-smoke",
+    "07-01-phase2a-modularization-testability",
+    "07-01-phase2b-permission-injection-scope"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
