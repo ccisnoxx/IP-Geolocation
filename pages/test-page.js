@@ -8,6 +8,7 @@
     const summaryEl = doc.getElementById('summary');
     const intlDiagnosticsEl = doc.getElementById('intl-diagnostics');
     const frameDiagnosticsEl = doc.getElementById('frame-diagnostics');
+    const workerDiagnosticsEl = doc.getElementById('worker-diagnostics');
     const tabId = new URLSearchParams(doc.defaultView.location.search).get('tabId');
     const sendRuntimeMessage = root.IPGeoRuntime.createRuntimeMessageSender(chrome);
 
@@ -183,6 +184,85 @@
       };
     }
 
+    function renderWorkerDiagnostics(effective, livePage) {
+      const diagnostics = livePage && livePage.status === 'ok' && livePage.workerDiagnostics
+        ? livePage.workerDiagnostics
+        : null;
+
+      workerDiagnosticsEl.replaceChildren();
+
+      if (!diagnostics) {
+        const empty = doc.createElement('p');
+        empty.textContent = '当前页面未返回 Worker / SharedWorker 诊断结果。';
+        workerDiagnosticsEl.appendChild(empty);
+        return { comparableCount: 0, matchedCount: 0 };
+      }
+
+      const labels = {
+        classicWorker: 'classic Worker',
+        moduleWorker: 'module Worker',
+        sharedWorker: 'SharedWorker',
+        nestedWorker: 'nested worker',
+        serviceWorker: 'service worker'
+      };
+      let comparableCount = 0;
+      let matchedCount = 0;
+
+      Object.keys(labels).forEach((key) => {
+        const entry = diagnostics[key] || { status: 'not_attempted', result: null, error: '', note: '' };
+        const card = doc.createElement('div');
+        card.className = 'intl-card';
+        const title = doc.createElement('h3');
+        title.textContent = labels[key];
+        const dl = doc.createElement('dl');
+        const canCompare = Boolean(
+          entry.status === 'ok'
+          && entry.result
+          && effective
+          && effective.language
+          && effective.timezone
+          && entry.result.dateTimeFormatLocale
+          && entry.result.numberFormatLocale
+          && entry.result.timezone
+        );
+        const compareLocale = canCompare
+          && effective.language.language === entry.result.dateTimeFormatLocale
+          && effective.language.language === entry.result.numberFormatLocale;
+        const compareTimezone = canCompare && effective.timezone === entry.result.timezone;
+        const compareOffset = Boolean(
+          canCompare
+          && Number.isFinite(Number(entry.result.offsetMinutes))
+          && Number.isFinite(Number(livePage.offsetMinutes))
+          && Number(livePage.offsetMinutes) === Number(entry.result.offsetMinutes)
+        );
+        if (canCompare) {
+          comparableCount += 1;
+          if (compareLocale && compareTimezone && compareOffset) matchedCount += 1;
+        }
+
+        appendIntlRow(dl, 'status', entry.status || '-');
+        appendIntlRow(dl, 'language', entry.result ? entry.result.language : '-');
+        appendIntlRow(dl, 'languages', entry.result ? formatters.formatArray(entry.result.languages) : '-');
+        appendIntlRow(dl, 'DTF locale', entry.result ? entry.result.dateTimeFormatLocale : '-');
+        appendIntlRow(dl, 'NF locale', entry.result ? entry.result.numberFormatLocale : '-');
+        appendIntlRow(dl, 'timezone', entry.result ? entry.result.timezone : '-');
+        appendIntlRow(dl, 'offset', entry.result ? entry.result.offsetMinutes : '-');
+        appendIntlRow(
+          dl,
+          'Compare',
+          formatters.formatComparison(compareLocale && compareTimezone && compareOffset, canCompare)
+        );
+        appendIntlRow(dl, 'Error', entry.error || '-');
+        appendIntlRow(dl, 'Note', entry.note || '-');
+
+        card.appendChild(title);
+        card.appendChild(dl);
+        workerDiagnosticsEl.appendChild(card);
+      });
+
+      return { comparableCount, matchedCount };
+    }
+
     function render(state) {
       setText('captured-at', state.capturedAt);
       setText('tab-id', state.tabId);
@@ -198,6 +278,7 @@
       const livePage = state.livePage || null;
       const intlSummary = renderIntlDiagnostics(effective, livePage, state.matched);
       renderFrameDiagnostics(livePage);
+      const workerSummary = renderWorkerDiagnostics(effective, livePage);
       const requestHeaderProbe = livePage && livePage.status === 'ok'
         ? (livePage.requestHeaderProbe || null)
         : null;
@@ -300,6 +381,7 @@
         && Number(timezoneDiagnostic.currentOffsetMinutes) === Number(livePage.offsetMinutes);
       const hasExpectedIntl = Boolean(effective && effective.language && effective.language.language);
       const intlMatches = !hasExpectedIntl || intlSummary.allMatched;
+      const workerMatches = workerSummary.comparableCount === 0 || workerSummary.comparableCount === workerSummary.matchedCount;
       const requestOk = !state.matched || !requestComparable || requestMatches;
 
       if (requestParseError) {
@@ -308,21 +390,37 @@
       }
 
       setStatus(
-        timezoneMatches && offsetMatches && intlMatches && requestOk
+        timezoneMatches && offsetMatches && intlMatches && workerMatches && requestOk
           ? requestComparable
             ? hasExpectedIntl
-              ? '当前标签页的 Accept-Language、timezone、offset 和 7 个 Intl locale 与解析结果一致。'
-              : '当前标签页的 Accept-Language、timezone 与 offset 和解析结果一致。'
+              ? workerSummary.comparableCount > 0
+                ? '当前标签页的 Accept-Language、timezone、offset、7 个 Intl locale 与 Worker 诊断结果一致。'
+                : '当前标签页的 Accept-Language、timezone、offset 和 7 个 Intl locale 与解析结果一致。'
+              : workerSummary.comparableCount > 0
+                ? '当前标签页的 Accept-Language、timezone、offset 与 Worker 诊断结果一致。'
+                : '当前标签页的 Accept-Language、timezone 与 offset 和解析结果一致。'
             : hasExpectedIntl
-              ? '当前标签页的 timezone、offset 和 7 个 Intl locale 与解析结果一致；如需验证 Accept-Language，请切到支持的回显页。'
-              : '当前标签页的 timezone 与 offset 和解析结果一致；如需验证 Accept-Language，请切到支持的回显页。'
+              ? workerSummary.comparableCount > 0
+                ? '当前标签页的 timezone、offset、7 个 Intl locale 与 Worker 诊断结果一致；如需验证 Accept-Language，请切到支持的回显页。'
+                : '当前标签页的 timezone、offset 和 7 个 Intl locale 与解析结果一致；如需验证 Accept-Language，请切到支持的回显页。'
+              : workerSummary.comparableCount > 0
+                ? '当前标签页的 timezone、offset 与 Worker 诊断结果一致；如需验证 Accept-Language，请切到支持的回显页。'
+                : '当前标签页的 timezone 与 offset 和解析结果一致；如需验证 Accept-Language，请切到支持的回显页。'
           : requestComparable
             ? hasExpectedIntl
-              ? '已返回诊断数据；如果当前标签页在白名单内，请重点检查 Accept-Language、timezone、offset 和 7 个 Intl locale 是否一致。'
-              : '已返回诊断数据；如果当前标签页在白名单内，请重点检查 Accept-Language、timezone 与 offset 是否一致。'
+              ? workerSummary.comparableCount > 0
+                ? '已返回诊断数据；如果当前标签页在白名单内，请重点检查 Accept-Language、timezone、offset、Worker 与 7 个 Intl locale 是否一致。'
+                : '已返回诊断数据；如果当前标签页在白名单内，请重点检查 Accept-Language、timezone、offset 和 7 个 Intl locale 是否一致。'
+              : workerSummary.comparableCount > 0
+                ? '已返回诊断数据；如果当前标签页在白名单内，请重点检查 Accept-Language、timezone、offset 与 Worker 结果是否一致。'
+                : '已返回诊断数据；如果当前标签页在白名单内，请重点检查 Accept-Language、timezone 与 offset 是否一致。'
             : hasExpectedIntl
-              ? '已返回诊断数据；如果当前标签页在白名单内，请重点检查 timezone、offset 和 7 个 Intl locale；如需验证 Accept-Language，请切到支持的回显页。'
-              : '已返回诊断数据；如果当前标签页在白名单内，请重点检查 timezone 与 offset；如需验证 Accept-Language，请切到支持的回显页。'
+              ? workerSummary.comparableCount > 0
+                ? '已返回诊断数据；如果当前标签页在白名单内，请重点检查 timezone、offset、Worker 与 7 个 Intl locale；如需验证 Accept-Language，请切到支持的回显页。'
+                : '已返回诊断数据；如果当前标签页在白名单内，请重点检查 timezone、offset 和 7 个 Intl locale；如需验证 Accept-Language，请切到支持的回显页。'
+              : workerSummary.comparableCount > 0
+                ? '已返回诊断数据；如果当前标签页在白名单内，请重点检查 timezone、offset 与 Worker 结果；如需验证 Accept-Language，请切到支持的回显页。'
+                : '已返回诊断数据；如果当前标签页在白名单内，请重点检查 timezone 与 offset；如需验证 Accept-Language，请切到支持的回显页。'
       );
     }
 

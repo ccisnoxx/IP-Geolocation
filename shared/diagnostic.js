@@ -305,6 +305,33 @@
     };
   }
 
+  function normalizeWorkerDiagnosticEntry(entry, fallbackNote) {
+    const normalized = entry && typeof entry === 'object' ? entry : {};
+    return {
+      status: normalized.status || 'not_attempted',
+      result: normalized.result && typeof normalized.result === 'object' ? normalized.result : null,
+      error: normalized.error ? String(normalized.error) : '',
+      note: normalized.note ? String(normalized.note) : (fallbackNote || '')
+    };
+  }
+
+  function buildWorkerDiagnosticsSnapshot(input) {
+    const normalized = input && typeof input === 'object' ? input : {};
+    return {
+      classicWorker: normalizeWorkerDiagnosticEntry(normalized.classicWorker),
+      moduleWorker: normalizeWorkerDiagnosticEntry(normalized.moduleWorker),
+      sharedWorker: normalizeWorkerDiagnosticEntry(normalized.sharedWorker),
+      nestedWorker: normalizeWorkerDiagnosticEntry(
+        normalized.nestedWorker,
+        '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+      ),
+      serviceWorker: normalizeWorkerDiagnosticEntry(
+        normalized.serviceWorker,
+        '当前未 hook navigator.serviceWorker.register；第一轮只记录 service worker 边界。'
+      )
+    };
+  }
+
   async function resolveDiagnosticTab(chromeApi, tabId, savedTarget) {
     const tryTabId = async (candidate) => {
       if (!Number.isInteger(candidate)) return null;
@@ -320,7 +347,7 @@
     return savedTarget ? tryTabId(Number(savedTarget.tabId)) : null;
   }
 
-  function collectLivePageState() {
+  async function collectLivePageState() {
     const definitions = [
       ['numberFormat', 'NumberFormat', () => new Intl.NumberFormat(), (instance) => instance.format(123456.78)],
       ['collator', 'Collator', () => new Intl.Collator(), (instance) => ['ä', 'a', 'z'].slice().sort(instance.compare).join(' | ')],
@@ -403,6 +430,21 @@
         })()
       : null;
 
+    let workerDiagnostics = null;
+    if (isTopFrame && typeof window.runWorkerDiagnostics === 'function') {
+      try {
+        workerDiagnostics = buildWorkerDiagnosticsSnapshot(await window.runWorkerDiagnostics());
+      } catch (error) {
+        workerDiagnostics = buildWorkerDiagnosticsSnapshot({
+          classicWorker: {
+            status: 'error',
+            error: error && error.message ? error.message : String(error),
+            note: '运行 worker fixture 诊断时发生异常。'
+          }
+        });
+      }
+    }
+
     return {
       url: pageUrl,
       title: document.title || '',
@@ -416,7 +458,8 @@
       dateString: now.toString(),
       hasGeolocationApi: Boolean(navigator.geolocation),
       intlDiagnostics,
-      requestHeaderProbe
+      requestHeaderProbe,
+      workerDiagnostics
     };
   }
 
@@ -477,6 +520,7 @@
     buildIntlExpectedDiagnostics,
     buildRequestHeaderProbe,
     buildFrameProbeSnapshot,
+    buildWorkerDiagnosticsSnapshot,
     resolveDiagnosticTab,
     collectIframeTargets,
     collectLivePageState,

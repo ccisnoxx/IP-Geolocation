@@ -158,3 +158,27 @@ test('buildFrameProbeSnapshot separates top frame and child frames', () => {
   assert.equal(snapshot.frames[0].frameName, 'same-origin-child');
   assert.equal(snapshot.frameTargets.length, 2);
 });
+
+test('buildWorkerDiagnosticsSnapshot normalizes missing entries and notes', () => {
+  const snapshot = diagnostic.buildWorkerDiagnosticsSnapshot({
+    classicWorker: {
+      status: 'ok',
+      result: {
+        language: 'en-US',
+        timezone: 'America/Los_Angeles',
+        offsetMinutes: 420
+      }
+    },
+    sharedWorker: {
+      status: 'unsupported',
+      note: 'SharedWorker unavailable'
+    }
+  });
+
+  assert.equal(snapshot.classicWorker.status, 'ok');
+  assert.equal(snapshot.classicWorker.result.language, 'en-US');
+  assert.equal(snapshot.moduleWorker.status, 'not_attempted');
+  assert.equal(snapshot.sharedWorker.status, 'unsupported');
+  assert.match(snapshot.nestedWorker.note, /nested worker/);
+  assert.match(snapshot.serviceWorker.note, /service worker/);
+});
