@@ -202,9 +202,9 @@
           <select id="webrtc-mode">
             <option value="strict">严格模式</option>
             <option value="compatible">兼容模式</option>
-            <option value="off">关闭</option>
+            <option value="default">默认（恢复浏览器默认）</option>
           </select>
-          <div class="muted">WebRTC 是浏览器级设置，全局生效。</div>
+          <div class="muted">WebRTC 是浏览器级设置，全局生效；默认模式会恢复浏览器默认策略。</div>
         </div>
       </div>
     </section>
@@ -309,7 +309,12 @@
     <div id="status" class="status">配置加载中...</div>
   </main>
 
+  <script src="shared/config-base.js"></script>
+  <script src="shared/config-profile.js"></script>
   <script src="config.js"></script>
+  <script src="shared/runtime.js"></script>
+  <script src="shared/options-form.js"></script>
+  <script src="pages/options-page.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

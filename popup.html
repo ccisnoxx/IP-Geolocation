@@ -186,9 +186,9 @@
     <div class="actions three">
       <button id="webrtc-strict-btn" class="secondary">严格</button>
       <button id="webrtc-compatible-btn" class="secondary">兼容</button>
-      <button id="webrtc-off-btn" class="secondary">关闭</button>
+      <button id="webrtc-default-btn" class="secondary">默认</button>
     </div>
-    <div class="status">WebRTC 是浏览器级设置，全局生效。</div>
+    <div class="status">WebRTC 是浏览器级设置，全局生效；默认模式会恢复浏览器默认策略。</div>
   </div>
 
   <div class="section">
@@ -203,14 +203,20 @@
       <div class="label">更新于</div>
       <div id="last-updated" class="value">-</div>
     </div>
-    <div class="actions">
+    <div class="actions three">
       <button id="refresh-btn">刷新定位</button>
+      <button id="diagnostic-btn" class="secondary">诊断页</button>
       <button id="options-btn" class="secondary">完整配置</button>
     </div>
     <div id="refresh-status" class="status">自动定位用于全局默认配置。</div>
   </div>
 
+  <script src="shared/config-base.js"></script>
+  <script src="shared/config-profile.js"></script>
   <script src="config.js"></script>
+  <script src="shared/runtime.js"></script>
+  <script src="shared/page-formatters.js"></script>
+  <script src="pages/popup-page.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

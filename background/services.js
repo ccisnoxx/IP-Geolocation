@@ -39,7 +39,7 @@
   const WEBRTC_POLICY_VALUES = {
     strict: 'disable_non_proxied_udp',
     compatible: 'default_public_interface_only',
-    off: null
+    default: null
   };
   const REQUEST_RESOURCE_TYPES = [
     'main_frame',
