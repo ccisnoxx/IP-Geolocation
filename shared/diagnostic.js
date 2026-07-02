@@ -332,6 +332,18 @@
     };
   }
 
+  function buildGeolocationBehaviorSnapshot(input) {
+    const normalized = input && typeof input === 'object' ? input : {};
+    return {
+      status: normalized.status || 'not_attempted',
+      successResult: normalized.successResult || '',
+      watchResult: normalized.watchResult || '',
+      clearWatchResult: normalized.clearWatchResult || '',
+      errorResult: normalized.errorResult || '',
+      note: normalized.note || ''
+    };
+  }
+
   async function resolveDiagnosticTab(chromeApi, tabId, savedTarget) {
     const tryTabId = async (candidate) => {
       if (!Number.isInteger(candidate)) return null;
@@ -445,6 +457,22 @@
       }
     }
 
+    let geolocationBehavior = null;
+    if (isTopFrame && typeof window.runGeolocationDiagnostics === 'function') {
+      try {
+        geolocationBehavior = buildGeolocationBehaviorSnapshot({
+          status: 'ok',
+          ...(await window.runGeolocationDiagnostics())
+        });
+      } catch (error) {
+        geolocationBehavior = buildGeolocationBehaviorSnapshot({
+          status: 'error',
+          errorResult: error && error.message ? error.message : String(error),
+          note: '运行 geolocation fixture 诊断时发生异常。'
+        });
+      }
+    }
+
     return {
       url: pageUrl,
       title: document.title || '',
@@ -459,7 +487,8 @@
       hasGeolocationApi: Boolean(navigator.geolocation),
       intlDiagnostics,
       requestHeaderProbe,
-      workerDiagnostics
+      workerDiagnostics,
+      geolocationBehavior
     };
   }
 
@@ -521,6 +550,7 @@
     buildRequestHeaderProbe,
     buildFrameProbeSnapshot,
     buildWorkerDiagnosticsSnapshot,
+    buildGeolocationBehaviorSnapshot,
     resolveDiagnosticTab,
     collectIframeTargets,
     collectLivePageState,

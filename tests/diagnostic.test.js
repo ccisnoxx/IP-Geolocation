@@ -182,3 +182,17 @@ test('buildWorkerDiagnosticsSnapshot normalizes missing entries and notes', () =
   assert.match(snapshot.nestedWorker.note, /nested worker/);
   assert.match(snapshot.serviceWorker.note, /service worker/);
 });
+
+test('buildGeolocationBehaviorSnapshot normalizes partial fixture output', () => {
+  const snapshot = diagnostic.buildGeolocationBehaviorSnapshot({
+    status: 'ok',
+    successResult: '{"latitude":35.68}',
+    clearWatchResult: '{"watchId":1,"cleared":true}'
+  });
+
+  assert.equal(snapshot.status, 'ok');
+  assert.equal(snapshot.successResult, '{"latitude":35.68}');
+  assert.equal(snapshot.watchResult, '');
+  assert.equal(snapshot.clearWatchResult, '{"watchId":1,"cleared":true}');
+  assert.equal(snapshot.errorResult, '');
+});

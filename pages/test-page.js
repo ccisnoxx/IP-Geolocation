@@ -9,6 +9,7 @@
     const intlDiagnosticsEl = doc.getElementById('intl-diagnostics');
     const frameDiagnosticsEl = doc.getElementById('frame-diagnostics');
     const workerDiagnosticsEl = doc.getElementById('worker-diagnostics');
+    const geolocationDiagnosticsEl = doc.getElementById('geolocation-diagnostics');
     const tabId = new URLSearchParams(doc.defaultView.location.search).get('tabId');
     const sendRuntimeMessage = root.IPGeoRuntime.createRuntimeMessageSender(chrome);
 
@@ -263,6 +264,36 @@
       return { comparableCount, matchedCount };
     }
 
+    function renderGeolocationDiagnostics(livePage) {
+      const diagnostics = livePage && livePage.status === 'ok' && livePage.geolocationBehavior
+        ? livePage.geolocationBehavior
+        : null;
+
+      geolocationDiagnosticsEl.replaceChildren();
+
+      if (!diagnostics) {
+        const empty = doc.createElement('p');
+        empty.textContent = '当前页面未返回 geolocation 行为诊断结果。';
+        geolocationDiagnosticsEl.appendChild(empty);
+        return;
+      }
+
+      const card = doc.createElement('div');
+      card.className = 'intl-card';
+      const title = doc.createElement('h3');
+      title.textContent = 'geolocation behavior';
+      const dl = doc.createElement('dl');
+      appendIntlRow(dl, 'status', diagnostics.status || '-');
+      appendIntlRow(dl, 'success', diagnostics.successResult || '-');
+      appendIntlRow(dl, 'watch', diagnostics.watchResult || '-');
+      appendIntlRow(dl, 'clearWatch', diagnostics.clearWatchResult || '-');
+      appendIntlRow(dl, 'error', diagnostics.errorResult || '-');
+      appendIntlRow(dl, 'note', diagnostics.note || '-');
+      card.appendChild(title);
+      card.appendChild(dl);
+      geolocationDiagnosticsEl.appendChild(card);
+    }
+
     function render(state) {
       setText('captured-at', state.capturedAt);
       setText('tab-id', state.tabId);
@@ -279,6 +310,7 @@
       const intlSummary = renderIntlDiagnostics(effective, livePage, state.matched);
       renderFrameDiagnostics(livePage);
       const workerSummary = renderWorkerDiagnostics(effective, livePage);
+      renderGeolocationDiagnostics(livePage);
       const requestHeaderProbe = livePage && livePage.status === 'ok'
         ? (livePage.requestHeaderProbe || null)
         : null;
