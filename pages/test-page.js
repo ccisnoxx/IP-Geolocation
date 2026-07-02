@@ -7,6 +7,7 @@
     const refreshBtn = doc.getElementById('refresh');
     const summaryEl = doc.getElementById('summary');
     const intlDiagnosticsEl = doc.getElementById('intl-diagnostics');
+    const frameDiagnosticsEl = doc.getElementById('frame-diagnostics');
     const tabId = new URLSearchParams(doc.defaultView.location.search).get('tabId');
     const sendRuntimeMessage = root.IPGeoRuntime.createRuntimeMessageSender(chrome);
 
@@ -31,6 +32,18 @@
     function formatRequestProbeSource(source) {
       if (!source) return '-';
       return diagnostic.REQUEST_HEADER_PROBE_SOURCES[source] || source;
+    }
+
+    function formatFrameScenario(target) {
+      if (!target || !target.scenario) return 'frame';
+      const labels = {
+        'same-origin-child': 'same-origin child',
+        'allowlisted-child': 'allowlisted child',
+        'nonmatch-child': 'nonmatch child',
+        'srcdoc-child': 'srcdoc child',
+        'aboutblank-child': 'about:blank child'
+      };
+      return labels[target.scenario] || target.scenario;
     }
 
     function renderIntlDiagnostics(effective, livePage, matched) {
@@ -79,6 +92,97 @@
       };
     }
 
+    function renderFrameDiagnostics(livePage) {
+      const targets = livePage && livePage.status === 'ok' && Array.isArray(livePage.frameTargets)
+        ? livePage.frameTargets
+        : [];
+      const frames = livePage && livePage.status === 'ok' && Array.isArray(livePage.frames)
+        ? livePage.frames
+        : [];
+      const usedFrameIndexes = new Set();
+
+      frameDiagnosticsEl.replaceChildren();
+
+      if (!targets.length && !frames.length) {
+        const empty = doc.createElement('p');
+        empty.textContent = '当前页面未发现 iframe / subframe，或尚未返回 frame 级诊断结果。';
+        frameDiagnosticsEl.appendChild(empty);
+        return { targetCount: 0, matchedCount: 0, extraCount: 0 };
+      }
+
+      const findFrameResult = (target) => {
+        const directIndex = frames.findIndex((frame, index) => {
+          if (usedFrameIndexes.has(index)) return false;
+          if (target.name && frame.frameName && target.name === frame.frameName) return true;
+          if (target.resolvedUrl && frame.url && target.resolvedUrl === frame.url) return true;
+          if (target.hasSrcdoc && frame.url && frame.url.startsWith('about:srcdoc')) return true;
+          if (target.srcAttribute === 'about:blank' && frame.url === 'about:blank') return true;
+          return false;
+        });
+        if (directIndex < 0) return null;
+        usedFrameIndexes.add(directIndex);
+        return frames[directIndex];
+      };
+
+      const appendFrameCard = (heading, rows) => {
+        const card = doc.createElement('div');
+        card.className = 'intl-card';
+        const title = doc.createElement('h3');
+        title.textContent = heading;
+        const dl = doc.createElement('dl');
+        rows.forEach(([label, value]) => appendIntlRow(dl, label, value));
+        card.appendChild(title);
+        card.appendChild(dl);
+        frameDiagnosticsEl.appendChild(card);
+      };
+
+      targets.forEach((target) => {
+        const frame = findFrameResult(target);
+        const compareLanguage = Boolean(frame && livePage && livePage.language && frame.language);
+        const compareTimezone = Boolean(frame && livePage && livePage.timezone && frame.timezone);
+        const compareOffset = Boolean(
+          frame
+          && livePage
+          && Number.isFinite(Number(livePage.offsetMinutes))
+          && Number.isFinite(Number(frame.offsetMinutes))
+        );
+        appendFrameCard(formatFrameScenario(target), [
+          ['iframe name', target.name || '-'],
+          ['iframe id', target.id || '-'],
+          ['src', target.srcAttribute || '-'],
+          ['resolved URL', target.resolvedUrl || '-'],
+          ['srcdoc', target.hasSrcdoc ? '是' : '否'],
+          ['frame URL', frame ? frame.url : '未读取到结果'],
+          ['title', frame ? frame.title : '-'],
+          ['language', frame ? frame.language : '-'],
+          ['languages', frame ? formatters.formatArray(frame.languages) : '-'],
+          ['timezone', frame ? frame.timezone : '-'],
+          ['offset', frame ? frame.offsetMinutes : '-'],
+          ['language 对比', formatters.formatComparison(compareLanguage && livePage.language === frame.language, compareLanguage)],
+          ['timezone 对比', formatters.formatComparison(compareTimezone && livePage.timezone === frame.timezone, compareTimezone)],
+          ['offset 对比', formatters.formatComparison(compareOffset && Number(livePage.offsetMinutes) === Number(frame.offsetMinutes), compareOffset)]
+        ]);
+      });
+
+      frames.forEach((frame, index) => {
+        if (usedFrameIndexes.has(index)) return;
+        appendFrameCard(`未映射 frame #${index + 1}`, [
+          ['frame name', frame.frameName || '-'],
+          ['URL', frame.url || '-'],
+          ['title', frame.title || '-'],
+          ['language', frame.language || '-'],
+          ['timezone', frame.timezone || '-'],
+          ['offset', frame.offsetMinutes]
+        ]);
+      });
+
+      return {
+        targetCount: targets.length,
+        matchedCount: usedFrameIndexes.size,
+        extraCount: frames.length - usedFrameIndexes.size
+      };
+    }
+
     function render(state) {
       setText('captured-at', state.capturedAt);
       setText('tab-id', state.tabId);
@@ -93,6 +197,7 @@
       const timezoneDiagnostic = state.timezoneDiagnostic || null;
       const livePage = state.livePage || null;
       const intlSummary = renderIntlDiagnostics(effective, livePage, state.matched);
+      renderFrameDiagnostics(livePage);
       const requestHeaderProbe = livePage && livePage.status === 'ok'
         ? (livePage.requestHeaderProbe || null)
         : null;

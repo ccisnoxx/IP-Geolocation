@@ -257,6 +257,54 @@
     return unsupportedRequestHeaderProbe();
   }
 
+  function collectIframeTargets() {
+    return Array.from(document.querySelectorAll('iframe')).map((iframe, index) => {
+      let resolvedUrl = null;
+      try {
+        resolvedUrl = iframe.src || null;
+      } catch (error) {
+        resolvedUrl = null;
+      }
+
+      return {
+        index,
+        id: iframe.id || '',
+        name: iframe.name || '',
+        title: iframe.title || '',
+        scenario: iframe.dataset && iframe.dataset.scenario ? iframe.dataset.scenario : '',
+        srcAttribute: iframe.getAttribute('src') || '',
+        resolvedUrl,
+        hasSrcdoc: iframe.hasAttribute('srcdoc')
+      };
+    });
+  }
+
+  function buildFrameProbeSnapshot(executionResults, frameTargets) {
+    const normalizedResults = Array.isArray(executionResults)
+      ? executionResults.reduce((items, entry) => {
+          if (!entry || !entry.result) return items;
+          items.push({
+            frameId: Number.isInteger(entry.frameId) ? entry.frameId : null,
+            documentId: entry.documentId || null,
+            ...entry.result
+          });
+          return items;
+        }, [])
+      : [];
+
+    const top = normalizedResults.find((entry) => entry.isTopFrame || entry.frameId === 0) || normalizedResults[0] || null;
+    const frames = normalizedResults.filter((entry) => {
+      if (!top) return true;
+      return !(entry.frameId === top.frameId && entry.url === top.url && entry.frameName === top.frameName);
+    });
+
+    return {
+      top,
+      frames,
+      frameTargets: Array.isArray(frameTargets) ? frameTargets.slice() : []
+    };
+  }
+
   async function resolveDiagnosticTab(chromeApi, tabId, savedTarget) {
     const tryTabId = async (candidate) => {
       if (!Number.isInteger(candidate)) return null;
@@ -336,25 +384,30 @@
     }
 
     const pageUrl = location.href;
-    const requestHeaderProbe = (() => {
-      let parsedUrl = null;
-      try {
-        parsedUrl = new URL(pageUrl);
-      } catch (error) {
-        return buildRequestHeaderProbe({ url: pageUrl });
-      }
+    const isTopFrame = window.parent === window;
+    const requestHeaderProbe = isTopFrame
+      ? (() => {
+          let parsedUrl = null;
+          try {
+            parsedUrl = new URL(pageUrl);
+          } catch (error) {
+            return buildRequestHeaderProbe({ url: pageUrl });
+          }
 
-      const isBrowserleaksIp = parsedUrl.hostname.toLowerCase() === 'browserleaks.com' && parsedUrl.pathname === '/ip';
-      return buildRequestHeaderProbe({
-        url: pageUrl,
-        html: isBrowserleaksIp && document.documentElement ? document.documentElement.outerHTML : '',
-        bodyText: document.body ? (document.body.innerText || document.body.textContent || '') : ''
-      });
-    })();
+          const isBrowserleaksIp = parsedUrl.hostname.toLowerCase() === 'browserleaks.com' && parsedUrl.pathname === '/ip';
+          return buildRequestHeaderProbe({
+            url: pageUrl,
+            html: isBrowserleaksIp && document.documentElement ? document.documentElement.outerHTML : '',
+            bodyText: document.body ? (document.body.innerText || document.body.textContent || '') : ''
+          });
+        })()
+      : null;
 
     return {
       url: pageUrl,
       title: document.title || '',
+      frameName: window.name || '',
+      isTopFrame,
       language: navigator.language || '',
       languages: Array.isArray(navigator.languages) ? Array.from(navigator.languages) : [],
       timezone,
@@ -376,15 +429,33 @@
     }
 
     try {
-      const [result] = await chromeApi.scripting.executeScript({
+      const [frameTargetsResult] = await chromeApi.scripting.executeScript({
         target: { tabId: targetTab.id, allFrames: false },
+        world: 'MAIN',
+        injectImmediately: true,
+        func: collectIframeTargets
+      });
+      const frameResults = await chromeApi.scripting.executeScript({
+        target: { tabId: targetTab.id, allFrames: true },
         world: 'MAIN',
         injectImmediately: true,
         func: collectLivePageState
       });
+      const snapshot = buildFrameProbeSnapshot(
+        frameResults,
+        frameTargetsResult && Array.isArray(frameTargetsResult.result) ? frameTargetsResult.result : []
+      );
+      if (!snapshot.top) {
+        return {
+          status: 'error',
+          message: '未读取到顶层页面诊断结果。'
+        };
+      }
       return {
         status: 'ok',
-        ...(result && result.result ? result.result : {})
+        ...snapshot.top,
+        frameTargets: snapshot.frameTargets,
+        frames: snapshot.frames
       };
     } catch (error) {
       return {
@@ -405,7 +476,9 @@
     buildLastLocationSnapshot,
     buildIntlExpectedDiagnostics,
     buildRequestHeaderProbe,
+    buildFrameProbeSnapshot,
     resolveDiagnosticTab,
+    collectIframeTargets,
     collectLivePageState,
     probeLivePageState
   };

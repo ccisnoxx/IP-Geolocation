@@ -117,3 +117,44 @@ test('buildRequestHeaderProbe returns parse_error when supported source lacks he
   assert.equal(result.source, 'httpbin_headers');
   assert.equal(result.observedAcceptLanguage, null);
 });
+
+test('buildFrameProbeSnapshot separates top frame and child frames', () => {
+  const snapshot = diagnostic.buildFrameProbeSnapshot([
+    {
+      frameId: 0,
+      result: {
+        url: 'http://localhost:8765/fixtures/iframe/top.html',
+        frameName: '',
+        isTopFrame: true,
+        language: 'en-US'
+      }
+    },
+    {
+      frameId: 1,
+      result: {
+        url: 'http://localhost:8765/fixtures/iframe/child-same-origin.html',
+        frameName: 'same-origin-child',
+        isTopFrame: false,
+        language: 'en-US'
+      }
+    },
+    {
+      frameId: 2,
+      result: {
+        url: 'http://nonmatch.localhost:8765/fixtures/iframe/child-nonmatch.html',
+        frameName: 'nonmatch-child',
+        isTopFrame: false,
+        language: 'zh-CN'
+      }
+    }
+  ], [
+    { name: 'same-origin-child', scenario: 'same-origin-child' },
+    { name: 'nonmatch-child', scenario: 'nonmatch-child' }
+  ]);
+
+  assert.equal(snapshot.top.frameId, 0);
+  assert.equal(snapshot.top.language, 'en-US');
+  assert.equal(snapshot.frames.length, 2);
+  assert.equal(snapshot.frames[0].frameName, 'same-origin-child');
+  assert.equal(snapshot.frameTargets.length, 2);
+});
