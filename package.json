@@ -1,0 +1,28 @@
+{
+  "name": "vanishme",
+  "version": "1.0.0",
+  "description": "VanishMe - Browser privacy leak protection and environment consistency management tool",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "privacy",
+    "browser-extension",
+    "geolocation",
+    "webrtc",
+    "timezone",
+    "language"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10",
+    "vite-plugin-static-copy": "^1.0.4"
+  }
+}
