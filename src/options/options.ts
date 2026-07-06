@@ -10,10 +10,12 @@ import {
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
+import { formatCoordinate, formatLastLocationStatus } from '../shared/last-location-display';
 import { validateProfile } from '../shared/profile';
-import type { Profile, SiteRule, SiteSpoofConfig } from '../shared/types';
+import type { LastLocation, Profile, SiteRule, SiteSpoofConfig } from '../shared/types';
 
 let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
+let lastLocation: LastLocation | null = null;
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -26,6 +28,7 @@ const randomizeEl = document.getElementById('randomize') as HTMLInputElement;
 const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HTMLInputElement;
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
 const getFromIPBtn = document.getElementById('getFromIP') as HTMLButtonElement;
+const ipLocationStatusEl = document.getElementById('ipLocationStatus') as HTMLElement;
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
@@ -114,9 +117,19 @@ function populateForm(config: SiteSpoofConfig): void {
 
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
+  updateIpLocationDisplay(config);
 
   renderProfiles();
   renderSiteRules();
+}
+
+function updateIpLocationDisplay(config: SiteSpoofConfig): void {
+  ipLocationStatusEl.textContent = formatLastLocationStatus(lastLocation);
+  const followsIpGeolocation = config.globalProfile.geolocation.mode === 'auto';
+  const followsIpTimezone = config.globalProfile.timezone.mode === 'auto';
+  latitudeEl.placeholder = followsIpGeolocation && lastLocation ? formatCoordinate(lastLocation.latitude) : '';
+  longitudeEl.placeholder = followsIpGeolocation && lastLocation ? formatCoordinate(lastLocation.longitude) : '';
+  timezoneEl.placeholder = followsIpTimezone && lastLocation?.timezone ? lastLocation.timezone : 'UTC';
 }
 
 function readForm(): SiteSpoofConfig {
@@ -155,8 +168,9 @@ function readForm(): SiteSpoofConfig {
 }
 
 async function loadConfig(): Promise<void> {
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; lastLocation?: LastLocation | null }>({ action: 'getSiteConfig' });
   currentConfig = normalizeConfig(response.config);
+  lastLocation = response.lastLocation || null;
   populateForm(currentConfig);
 }
 
@@ -354,9 +368,13 @@ async function handleGetFromIP(): Promise<void> {
   getFromIPBtn.disabled = true;
   getFromIPBtn.textContent = '获取中...';
   try {
-    await sendRuntimeMessage({ action: 'manualUpdate' });
+    const response = await sendRuntimeMessage<{ geo: { ok: boolean; location?: LastLocation; error?: string } }>({ action: 'manualUpdate' });
+    if (!response.geo.ok) throw new Error(response.geo.error || '出口 IP 定位失败');
+    lastLocation = response.geo.location || lastLocation;
     await loadConfig();
     alert('出口 IP 定位已刷新；地理位置和时区为 auto 时会使用最新定位。语言仍由自定义配置控制。');
+  } catch (error) {
+    alert(`刷新出口 IP 定位失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {
     getFromIPBtn.disabled = false;
     getFromIPBtn.textContent = '刷新出口 IP 定位（地理位置 + 时区）';

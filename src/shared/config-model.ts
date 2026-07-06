@@ -13,6 +13,7 @@ import type {
 
 export const SITE_CONFIG_KEY = 'siteSpoofConfig';
 export const LAST_LOCATION_KEY = 'lastLocation';
+export const RULES_INITIALIZED_KEY = 'vanishgeoRulesInitialized';
 export const LEGACY_VANISHME_CONFIG_KEY = 'bpg_config';
 export const OLD_EXTENSION_ENABLED_KEY = 'extensionEnabled';
 export const OLD_LANGUAGE_KEY = 'languageConfig';

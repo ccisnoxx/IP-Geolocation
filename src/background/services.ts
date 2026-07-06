@@ -2,6 +2,7 @@ import { updateAcceptLanguageRules } from './dnr';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy } from './webrtc';
 import {
   LAST_LOCATION_KEY,
+  RULES_INITIALIZED_KEY,
   getEffectiveProfile,
   getContentScriptMatches,
   isUrlMatchedByEnabledRule,
@@ -108,8 +109,8 @@ export function createBackgroundServices(): BackgroundServices {
   async function getSiteConfig(): Promise<SiteSpoofConfig> {
     const data = await getStorageSnapshot();
     const config = migrateLegacyConfig(data);
-    if (!data.siteSpoofConfig) {
-      await chrome.storage.local.set({ siteSpoofConfig: config });
+    if (!data.siteSpoofConfig || data[RULES_INITIALIZED_KEY] !== true) {
+      await chrome.storage.local.set({ siteSpoofConfig: config, [RULES_INITIALIZED_KEY]: true });
     }
     return config;
   }

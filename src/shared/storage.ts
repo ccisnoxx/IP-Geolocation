@@ -1,6 +1,7 @@
 import {
   LAST_LOCATION_KEY,
   LEGACY_VANISHME_CONFIG_KEY,
+  RULES_INITIALIZED_KEY,
   SITE_CONFIG_KEY,
   migrateLegacyConfig,
   validateConfig
@@ -12,8 +13,8 @@ import type { LastLocation, SiteSpoofConfig } from './types';
 export async function getConfig(): Promise<SiteSpoofConfig> {
   const data = await chrome.storage.local.get(null);
   const config = migrateLegacyConfig(data);
-  if (!data[SITE_CONFIG_KEY] || data[LEGACY_VANISHME_CONFIG_KEY]) {
-    await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config });
+  if (!data[SITE_CONFIG_KEY] || data[LEGACY_VANISHME_CONFIG_KEY] || data[RULES_INITIALIZED_KEY] !== true) {
+    await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });
     if (data[LEGACY_VANISHME_CONFIG_KEY]) {
       await chrome.storage.local.remove(LEGACY_VANISHME_CONFIG_KEY);
     }

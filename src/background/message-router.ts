@@ -12,7 +12,7 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
       case 'setExtensionEnabled':
         return { status: 'ok', config: await services.setExtensionEnabled(Boolean(request.enabled)) };
       case 'getSiteConfig':
-        return { status: 'ok', config: await services.getSiteConfig() };
+        return { status: 'ok', config: await services.getSiteConfig(), lastLocation: await services.getLastLocation() };
       case 'setSiteConfig':
         return { status: 'ok', config: await services.saveSiteConfig(request.config || {}) };
       case 'resetSiteConfig':

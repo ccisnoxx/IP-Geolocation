@@ -10,6 +10,7 @@ import {
   OLD_LANGUAGE_KEY,
   OLD_TIMEZONE_KEY,
   OLD_WEBRTC_KEY,
+  RULES_INITIALIZED_KEY,
   SITE_CONFIG_KEY,
   clone,
   createRule,
@@ -312,10 +313,33 @@ function convertVanishMeConfig(input: Record<string, any>): SiteSpoofConfig {
   });
 }
 
+function withDefaultRules(config: SiteSpoofConfig): SiteSpoofConfig {
+  return normalizeConfig({ ...config, rules: undefined });
+}
+
+function shouldRepairUninitializedRules(storageData: Record<string, any>, config: SiteSpoofConfig): boolean {
+  const rawConfig = storageData[SITE_CONFIG_KEY] as Partial<SiteSpoofConfig> | undefined;
+  if (storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
+    return false;
+  }
+
+  return config.masterEnabled
+    && config.globalProfile.geolocation.enabled
+    && config.globalProfile.geolocation.mode === 'auto'
+    && config.globalProfile.geolocation.latitude === null
+    && config.globalProfile.geolocation.longitude === null
+    && config.globalProfile.timezone.enabled
+    && config.globalProfile.timezone.mode === 'auto'
+    && config.globalProfile.timezone.timezone === ''
+    && config.profile.activeProfileId === null
+    && config.profile.profiles.length === 0;
+}
+
 export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoofConfig {
   const input = storageData || {};
   if (input[SITE_CONFIG_KEY]) {
-    return normalizeConfig(input[SITE_CONFIG_KEY]);
+    const config = normalizeConfig(input[SITE_CONFIG_KEY]);
+    return shouldRepairUninitializedRules(input, config) ? withDefaultRules(config) : config;
   }
   if (input[LEGACY_VANISHME_CONFIG_KEY]) {
     return convertVanishMeConfig(input[LEGACY_VANISHME_CONFIG_KEY]);
@@ -327,14 +351,14 @@ export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoof
       timezone: normalizeTimezone(input[OLD_TIMEZONE_KEY] || DEFAULT_TIMEZONE),
       geolocation: clone(DEFAULT_GEOLOCATION)
     },
-    webRtc: normalizeWebRtc(input[OLD_WEBRTC_KEY] || DEFAULT_WEBRTC),
-    rules: []
+    webRtc: normalizeWebRtc(input[OLD_WEBRTC_KEY] || DEFAULT_WEBRTC)
   });
 }
 
 export {
   LAST_LOCATION_KEY,
   LEGACY_VANISHME_CONFIG_KEY,
+  RULES_INITIALIZED_KEY,
   SITE_CONFIG_KEY
 };
 

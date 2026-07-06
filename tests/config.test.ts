@@ -6,7 +6,14 @@ import {
   migrateLegacyConfig,
   validateConfig
 } from '../src/shared/config-resolver';
-import { DEFAULT_GEOLOCATION, DEFAULT_LANGUAGE, DEFAULT_TIMEZONE, DEFAULT_WEBRTC, normalizeConfig } from '../src/shared/config-model';
+import {
+  DEFAULT_GEOLOCATION,
+  DEFAULT_LANGUAGE,
+  DEFAULT_TIMEZONE,
+  DEFAULT_WEBRTC,
+  RULES_INITIALIZED_KEY,
+  normalizeConfig
+} from '../src/shared/config-model';
 
 test('default config uses IP-following mode without regional presets', () => {
   const config = normalizeConfig({});
@@ -16,6 +23,33 @@ test('default config uses IP-following mode without regional presets', () => {
   assert.equal(config.globalProfile.language.enabled, false);
   assert.equal(config.profile.activeProfileId, null);
   assert.deepEqual(config.profile.profiles, []);
+});
+
+test('fresh migration seeds default rules so IP-following signals can inject', () => {
+  const config = migrateLegacyConfig({});
+  const profile = getEffectiveProfile(config, 'chatgpt.com', {
+    latitude: 35.68,
+    longitude: 139.76,
+    country: 'Japan',
+    timezone: 'Asia/Tokyo'
+  });
+
+  assert.ok(config.rules.length > 0);
+  assert.equal(profile.matched, true);
+  assert.equal(profile.payload?.geolocation?.latitude, 35.68);
+  assert.equal(profile.payload?.geolocation?.longitude, 139.76);
+  assert.equal(profile.payload?.timezone, 'Asia/Tokyo');
+  assert.equal(profile.payload?.timezoneSource, 'lastLocation');
+});
+
+test('migration repairs previous empty-rule auto config once', () => {
+  const brokenAutoConfig = normalizeConfig({ rules: [] });
+
+  assert.ok(migrateLegacyConfig({ siteSpoofConfig: brokenAutoConfig }).rules.length > 0);
+  assert.equal(migrateLegacyConfig({
+    siteSpoofConfig: brokenAutoConfig,
+    [RULES_INITIALIZED_KEY]: true
+  }).rules.length, 0);
 });
 
 test('validateConfig rejects duplicate domains', () => {
