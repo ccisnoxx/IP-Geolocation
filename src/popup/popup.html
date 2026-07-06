@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VanishGeo</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div id="autoSaveToast" class="auto-save-toast">已自动保存</div>
+    <header>
+      <div class="header-content">
+        <h1>VanishGeo</h1>
+        <button id="openOptionsHeader" class="icon-btn" title="打开完整配置">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 12.5C11.3807 12.5 12.5 11.3807 12.5 10C12.5 8.61929 11.3807 7.5 10 7.5C8.61929 7.5 7.5 8.61929 7.5 10C7.5 11.3807 8.61929 12.5 10 12.5Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M16.6 10.8333C16.5 11.5 16.2333 12.1333 15.8333 12.6667L17.5 14.3333L16.1667 15.6667L14.5 14C13.9667 14.4 13.3333 14.6667 12.6667 14.7667V17H10.8333V14.7667C10.1667 14.6667 9.53333 14.4 9 14L7.33333 15.6667L6 14.3333L7.66667 12.6667C7.26667 12.1333 7 11.5 6.9 10.8333H4.66667V9H6.9C7 8.33333 7.26667 7.7 7.66667 7.16667L6 5.5L7.33333 4.16667L9 5.83333C9.53333 5.43333 10.1667 5.16667 10.8333 5.06667V2.83333H12.6667V5.06667C13.3333 5.16667 13.9667 5.43333 14.5 5.83333L16.1667 4.16667L17.5 5.5L15.8333 7.16667C16.2333 7.7 16.5 8.33333 16.6 9H18.8333V10.8333H16.6Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="global-toggle">
+        <label class="switch">
+          <input type="checkbox" id="globalEnabled">
+          <span class="slider"></span>
+        </label>
+        <span id="globalStatus">全局保护</span>
+      </div>
+      <div class="global-toggle" style="margin-top: 8px;">
+        <label class="switch">
+          <input type="checkbox" id="debugMode">
+          <span class="slider"></span>
+        </label>
+        <span>调试模式</span>
+      </div>
+    </header>
+
+    <section class="match-mode-section">
+      <h2>站点白名单</h2>
+      <div class="input-group" style="margin-top: 10px;">
+        <label>域名列表（每行一个，自动包含子域名）：</label>
+        <textarea id="ruleList" class="input" rows="6" placeholder="例如：&#10;chatgpt.com&#10;openai.com&#10;google.com"></textarea>
+        <div class="hint">提示：不要写通配符；example.com 会匹配 example.com 及其子域名。</div>
+      </div>
+    </section>
+
+    <section class="site-status">
+      <div class="site-info">
+        <span class="label">当前网站：</span>
+        <span id="currentSite">-</span>
+      </div>
+      <div class="site-actions">
+        <button id="disableSite" class="btn-secondary">不启用</button>
+        <button id="enableSite" class="btn-secondary">启用</button>
+      </div>
+    </section>
+
+    <section class="profile-section">
+      <h2>快速配置</h2>
+      <button id="getFromIP" class="btn-primary" style="width: 100%; margin-bottom: 12px;">🌐 从 IP 自动配置</button>
+      <div class="profile-cards">
+        <button class="profile-card" data-profile="singapore">
+          <div class="profile-card-name">新加坡</div>
+          <div class="profile-card-info">🇸🇬 Asia/Singapore</div>
+        </button>
+        <button class="profile-card" data-profile="japan">
+          <div class="profile-card-name">日本</div>
+          <div class="profile-card-info">🇯🇵 Asia/Tokyo</div>
+        </button>
+        <button class="profile-card" data-profile="germany">
+          <div class="profile-card-name">德国</div>
+          <div class="profile-card-info">🇩🇪 Europe/Berlin</div>
+        </button>
+        <button class="profile-card" data-profile="united-states">
+          <div class="profile-card-name">美国</div>
+          <div class="profile-card-info">🇺🇸 America/New_York</div>
+        </button>
+        <button class="profile-card" data-profile="china">
+          <div class="profile-card-name">中国</div>
+          <div class="profile-card-info">🇨🇳 Asia/Shanghai</div>
+        </button>
+      </div>
+    </section>
+
+    <section class="config-section">
+      <details open>
+        <summary>地理位置</summary>
+        <div class="config-content">
+          <label class="checkbox-label">
+            <input type="checkbox" id="geolocationEnabled">
+            <span>启用</span>
+          </label>
+          <div class="input-group">
+            <label>纬度：</label>
+            <input type="number" id="latitude" class="input" step="any" min="-90" max="90">
+          </div>
+          <div class="input-group">
+            <label>经度：</label>
+            <input type="number" id="longitude" class="input" step="any" min="-180" max="180">
+          </div>
+          <div class="input-group">
+            <label>精度 (米)：</label>
+            <input type="number" id="accuracy" class="input" step="1" min="1">
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="randomize">
+            <span>随机偏移</span>
+          </label>
+          <div class="input-group">
+            <label>随机半径 (米)：</label>
+            <input type="number" id="randomRadiusMeters" class="input" step="1" min="0">
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="spoofPermission">
+            <span>伪装权限</span>
+          </label>
+          <button id="saveCoordinate" class="btn-secondary btn-sm">保存当前坐标</button>
+        </div>
+      </details>
+
+      <details>
+        <summary>时区</summary>
+        <div class="config-content">
+          <label class="checkbox-label">
+            <input type="checkbox" id="timezoneEnabled">
+            <span>启用</span>
+          </label>
+          <div class="input-group">
+            <label>时区：</label>
+            <input type="text" id="timezone" class="input" placeholder="Asia/Singapore">
+          </div>
+          <div class="input-group">
+            <label>UTC 偏移 (小时)：</label>
+            <input type="number" id="utcOffset" class="input" step="0.5" placeholder="-7">
+            <small style="color: #888; display: block; margin-top: 4px;">例如：-7 表示 UTC-7 (洛杉矶)，+8 表示 UTC+8 (新加坡)</small>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>语言</summary>
+        <div class="config-content">
+          <label class="checkbox-label">
+            <input type="checkbox" id="languageEnabled">
+            <span>启用</span>
+          </label>
+          <div class="input-group">
+            <label>主语言：</label>
+            <input type="text" id="language" class="input" placeholder="en-US">
+          </div>
+          <div class="input-group">
+            <label>语言列表：</label>
+            <input type="text" id="languages" class="input" placeholder="en-US, en">
+          </div>
+          <div class="input-group">
+            <label>Accept-Language：</label>
+            <input type="text" id="acceptLanguage" class="input" placeholder="en-US,en;q=0.9">
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>WebRTC 防泄漏</summary>
+        <div class="config-content">
+          <label class="checkbox-label">
+            <input type="checkbox" id="webrtcEnabled">
+            <span>启用</span>
+          </label>
+          <div class="input-group">
+            <label>策略：</label>
+            <select id="webrtcPolicy" class="input">
+              <option value="default">默认</option>
+              <option value="default_public_interface_only">仅公网接口</option>
+              <option value="default_public_and_private_interfaces">公网和私网</option>
+              <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Canvas 字体伪装</summary>
+        <div class="config-content">
+          <label class="checkbox-label">
+            <input type="checkbox" id="canvasEnabled">
+            <span>启用字体反检测</span>
+          </label>
+          <div class="hint">隐藏已安装的中文字体，防止被 Canvas 指纹检测识别</div>
+          <button id="resetFonts" class="btn-secondary btn-sm" style="margin-top: 8px;">更新到最新字体列表</button>
+        </div>
+      </details>
+    </section>
+
+    <footer>
+      <button id="openOptions" class="btn-secondary">打开完整配置</button>
+      <button id="openLeakTest" class="btn-secondary">隐私检测</button>
+      <button id="reset" class="btn-secondary">重置</button>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

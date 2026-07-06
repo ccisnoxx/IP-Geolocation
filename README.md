@@ -1,15 +1,52 @@
-# IP Geolocation
+# VanishGeo
 
-<p align="center">
-  <img src="./icon.png" width="96" height="96" alt="IP Geolocation icon">
-</p>
+VanishGeo is a Chromium MV3 privacy extension based on
+[VanishMe](https://github.com/XiNian-dada/VanishMe). It keeps VanishMe's popup,
+options, profile, import/export, and canvas capabilities while using a single
+site configuration model and dynamic injection pipeline from the IP-Geolocation
+project.
 
-一个简单的浏览器插件，可以在白名单网站上对齐语言、时区、IP 定位和 WebRTC 行为，减少浏览器指纹检测中的不一致。
+## Core Capabilities
 
-A simple Chromium browser extension that helps browser fingerprint checkers pass online consistency checks on allowlisted sites by keeping language, IP geolocation, timezone, and WebRTC behavior aligned.
+- Per-domain allowlist rules with global profile inheritance and per-rule
+  overrides.
+- Dynamic MAIN-world runtime injection for language, timezone, geolocation, and
+  worker environments.
+- Dynamic DNR rules for per-domain `Accept-Language` request headers.
+- WebRTC IP leak policy control with strict, compatible, and browser-default
+  modes.
+- Automatic IP geolocation refresh with cached `lastLocation`.
+- Popup/options profile management, import/export, canvas font spoofing, and
+  diagnostic fixtures.
 
-如果有多种分流，请把
-ipwho.is
-ipapi.co
-ipinfo.io
-加入你想避免检测的网站所属的分流
+## Development
+
+```bash
+npm install
+npm test
+npm run build
+```
+
+The production extension is emitted to `dist/`. Load `dist/` as an unpacked
+extension in Chromium-based browsers for manual smoke testing.
+
+## Architecture
+
+VanishGeo intentionally has one authoritative source for configuration and
+matching:
+
+- `src/shared/config-model.ts` owns normalization, defaults, and primitive
+  validation.
+- `src/shared/config-resolver.ts` owns rule matching and effective payload
+  resolution.
+- `src/shared/storage.ts` owns storage migration and persistence.
+- `src/background/services.ts` owns runtime side effects: dynamic content script
+  registration, DNR, WebRTC, IP geolocation, and tab payload injection.
+- `src/injected/runtime.ts` owns all page-world spoofing.
+
+Do not add a second domain matcher, storage key, or static all-URL injection
+path.
+
+## License
+
+VanishGeo is distributed under the MIT License. See `LICENSE` and `NOTICE`.

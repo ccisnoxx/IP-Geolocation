@@ -1,37 +1,41 @@
 {
   "manifest_version": 3,
-  "name": "__MSG_extName__",
-  "version": "1.5",
-  "default_locale": "zh_CN",
-  "description": "__MSG_extDescription__",
+  "name": "VanishGeo",
+  "version": "1.0.0",
+  "description": "Privacy leak protection, IP geolocation, language, timezone, WebRTC, and canvas consistency tool",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "storage",
     "alarms",
     "scripting",
     "tabs",
+    "activeTab",
+    "contextMenus",
     "privacy",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background/service-worker.js",
+    "type": "module"
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
-  "options_page": "options.html",
-  "icons": {
-    "128": "icon.png"
-  },
-  "sandbox": {
-    "pages": [
-      "map.html"
-    ]
-  },
-  "content_security_policy": {
-    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval'; child-src 'none'; object-src 'none'"
-  },
+  "options_page": "options/options.html",
   "web_accessible_resources": []
 }
