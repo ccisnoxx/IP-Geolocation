@@ -5,15 +5,21 @@ import { createBackgroundServices } from './services';
 const services = createBackgroundServices();
 const router = createBackgroundMessageRouter(services);
 
+function runBackgroundTask(label: string, task: Promise<void>): void {
+  task.catch((error) => {
+    console.warn(`VanishGeo ${label} failed:`, error instanceof Error ? error.message : String(error));
+  });
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'loading' && tab.url) {
-    void services.injectScript(tabId, tab.url);
+    runBackgroundTask('tab injection', services.injectScript(tabId, tab.url));
   }
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === services.alarmName) {
-    void services.updateGeolocation();
+    runBackgroundTask('scheduled geolocation update', services.updateGeolocation().then(() => undefined));
   }
 });
 
@@ -27,18 +33,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(services.alarmName, { periodInMinutes: 1 });
   createContextMenus();
-  void services.initializeExtension();
+  runBackgroundTask('initialization', services.initializeExtension());
 });
 
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create(services.alarmName, { periodInMinutes: 1 });
   createContextMenus();
-  void services.initializeExtension();
+  runBackgroundTask('startup initialization', services.initializeExtension());
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.siteSpoofConfig) {
-    void services.initializeExtension();
+    runBackgroundTask('storage reinitialization', services.initializeExtension());
   }
 });
 

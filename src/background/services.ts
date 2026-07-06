@@ -35,6 +35,10 @@ function isScriptableUrl(url: string | undefined): boolean {
   return /^https?:\/\//i.test(String(url || ''));
 }
 
+function isDuplicateScriptIdError(error: unknown): boolean {
+  return /Duplicate script ID/i.test(error instanceof Error ? error.message : String(error));
+}
+
 export function parseGeoApiResponse(data: any): Omit<LastLocation, 'updateTime'> | null {
   if (!data || typeof data !== 'object') return null;
 
@@ -102,6 +106,8 @@ export interface BackgroundServices {
 }
 
 export function createBackgroundServices(): BackgroundServices {
+  let contentScriptRegistrationQueue: Promise<void> = Promise.resolve();
+
   async function getStorageSnapshot(): Promise<Record<string, any>> {
     return chrome.storage.local.get(null);
   }
@@ -132,15 +138,14 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
-  async function registerSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
-    if (!chrome.scripting?.registerContentScripts) return;
+  async function replaceSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
     const config = configOverride || await getSiteConfig();
     const matches = getContentScriptMatches(config);
 
     await unregisterSpoofContentScripts();
     if (!matches.length) return;
 
-    await chrome.scripting.registerContentScripts([
+    const scripts: chrome.scripting.RegisteredContentScript[] = [
       {
         id: MAIN_RUNTIME_SCRIPT_ID,
         matches,
@@ -159,7 +164,26 @@ export function createBackgroundServices(): BackgroundServices {
         world: 'ISOLATED',
         persistAcrossSessions: true
       }
-    ]);
+    ];
+
+    try {
+      await chrome.scripting.registerContentScripts(scripts);
+    } catch (error) {
+      if (!isDuplicateScriptIdError(error)) throw error;
+      await unregisterSpoofContentScripts();
+      await chrome.scripting.registerContentScripts(scripts);
+    }
+  }
+
+  async function registerSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
+    if (!chrome.scripting?.registerContentScripts) return;
+
+    const nextRegistration = contentScriptRegistrationQueue.then(
+      () => replaceSpoofContentScripts(configOverride),
+      () => replaceSpoofContentScripts(configOverride)
+    );
+    contentScriptRegistrationQueue = nextRegistration.catch(() => undefined);
+    return nextRegistration;
   }
 
   async function applyRuntimeSideEffects(config: SiteSpoofConfig): Promise<void> {
