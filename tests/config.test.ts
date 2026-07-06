@@ -8,6 +8,16 @@ import {
 } from '../src/shared/config-resolver';
 import { DEFAULT_GEOLOCATION, DEFAULT_LANGUAGE, DEFAULT_TIMEZONE, DEFAULT_WEBRTC, normalizeConfig } from '../src/shared/config-model';
 
+test('default config uses IP-following mode without regional presets', () => {
+  const config = normalizeConfig({});
+
+  assert.equal(config.globalProfile.geolocation.mode, 'auto');
+  assert.equal(config.globalProfile.timezone.mode, 'auto');
+  assert.equal(config.globalProfile.language.enabled, false);
+  assert.equal(config.profile.activeProfileId, null);
+  assert.deepEqual(config.profile.profiles, []);
+});
+
 test('validateConfig rejects duplicate domains', () => {
   const result = validateConfig({
     masterEnabled: true,

@@ -20,11 +20,11 @@ export const OLD_TIMEZONE_KEY = 'timezoneConfig';
 export const OLD_WEBRTC_KEY = 'webRtcConfig';
 
 export const DEFAULT_LANGUAGE: LanguageConfig = {
-  enabled: true,
+  enabled: false,
   mode: 'preset',
-  language: 'en-SG',
-  languages: ['en-SG', 'en-US', 'en'],
-  acceptLanguage: 'en-SG,en-US;q=0.9,en;q=0.8'
+  language: 'en-US',
+  languages: ['en-US', 'en'],
+  acceptLanguage: 'en-US,en;q=0.9'
 };
 
 export const DEFAULT_TIMEZONE: TimezoneConfig = {
@@ -71,7 +71,6 @@ export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
 };
 
 export const LANGUAGE_PRESETS = [
-  { label: 'English (Singapore)', language: 'en-SG', languages: ['en-SG', 'en-US', 'en'], acceptLanguage: 'en-SG,en-US;q=0.9,en;q=0.8' },
   { label: 'English (US)', language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
   { label: 'English (UK)', language: 'en-GB', languages: ['en-GB', 'en'], acceptLanguage: 'en-GB,en;q=0.9' },
   { label: 'Chinese (Simplified)', language: 'zh-CN', languages: ['zh-CN', 'zh', 'en'], acceptLanguage: 'zh-CN,zh;q=0.9,en;q=0.8' },
@@ -96,49 +95,6 @@ export const TIMEZONE_PRESETS = [
   'Asia/Seoul',
   'Asia/Singapore',
   'Australia/Sydney'
-];
-
-export const DEFAULT_PROFILES: Profile[] = [
-  {
-    id: 'singapore',
-    name: 'Singapore',
-    description: 'Singapore environment',
-    geolocation: { latitude: 1.3521, longitude: 103.8198, accuracy: 50, country: 'Singapore' },
-    language: { language: 'en-SG', languages: ['en-SG', 'en-US', 'en'], acceptLanguage: 'en-SG,en-US;q=0.9,en;q=0.8' },
-    timezone: { timezone: 'Asia/Singapore' }
-  },
-  {
-    id: 'japan',
-    name: 'Japan',
-    description: 'Japan environment',
-    geolocation: { latitude: 35.6895, longitude: 139.6917, accuracy: 50, country: 'Japan' },
-    language: { language: 'ja-JP', languages: ['ja-JP', 'ja', 'en-US', 'en'], acceptLanguage: 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7' },
-    timezone: { timezone: 'Asia/Tokyo' }
-  },
-  {
-    id: 'germany',
-    name: 'Germany',
-    description: 'Germany environment',
-    geolocation: { latitude: 52.52, longitude: 13.405, accuracy: 50, country: 'Germany' },
-    language: { language: 'de-DE', languages: ['de-DE', 'de', 'en-US', 'en'], acceptLanguage: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7' },
-    timezone: { timezone: 'Europe/Berlin' }
-  },
-  {
-    id: 'united-states',
-    name: 'United States',
-    description: 'United States environment',
-    geolocation: { latitude: 40.7128, longitude: -74.006, accuracy: 50, country: 'United States' },
-    language: { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-    timezone: { timezone: 'America/New_York' }
-  },
-  {
-    id: 'china',
-    name: 'China',
-    description: 'China environment',
-    geolocation: { latitude: 31.2304, longitude: 121.4737, accuracy: 50, country: 'China' },
-    language: { language: 'zh-CN', languages: ['zh-CN', 'zh', 'en-US', 'en'], acceptLanguage: 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7' },
-    timezone: { timezone: 'Asia/Shanghai' }
-  }
 ];
 
 const DEFAULT_RULE_DOMAINS = [
@@ -339,8 +295,8 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
   webRtc: DEFAULT_WEBRTC,
   canvas: DEFAULT_CANVAS,
   profile: {
-    activeProfileId: 'singapore',
-    profiles: clone(DEFAULT_PROFILES)
+    activeProfileId: null,
+    profiles: []
   },
   rules: defaultRules()
 };
@@ -395,8 +351,8 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
     webRtc: normalizeWebRtc(input.webRtc || DEFAULT_WEBRTC),
     canvas: normalizeCanvas(input.canvas || DEFAULT_CANVAS),
     profile: {
-      activeProfileId: normalizeString(profile.activeProfileId) || DEFAULT_CONFIG.profile.activeProfileId,
-      profiles: normalizeProfiles(profile.profiles).length ? normalizeProfiles(profile.profiles) : clone(DEFAULT_PROFILES)
+      activeProfileId: normalizeString(profile.activeProfileId) || null,
+      profiles: normalizeProfiles(profile.profiles)
     },
     rules: Array.isArray(input.rules) ? input.rules.map(normalizeRule) : defaultRules()
   };

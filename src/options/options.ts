@@ -1,7 +1,6 @@
 import './options.css';
 import {
   DEFAULT_CONFIG,
-  DEFAULT_PROFILES,
   createRule,
   getTimezoneOffsetMinutes,
   normalizeConfig,
@@ -36,7 +35,6 @@ const languagesEl = document.getElementById('languages') as HTMLInputElement;
 const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputElement;
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
-const defaultProfilesEl = document.getElementById('defaultProfiles') as HTMLElement;
 const customProfilesEl = document.getElementById('customProfiles') as HTMLElement;
 const siteRulesEl = document.getElementById('siteRules') as HTMLElement;
 const exportConfigBtn = document.getElementById('exportConfig') as HTMLButtonElement;
@@ -176,7 +174,7 @@ async function applyProfile(profileId: string): Promise<void> {
   populateForm(currentConfig);
 }
 
-function createPresetProfileCard(profile: Profile): HTMLElement {
+function createProfileCard(profile: Profile): HTMLElement {
   const card = document.createElement('div');
   card.className = 'profile-card';
   card.innerHTML = `
@@ -199,7 +197,7 @@ function createPresetProfileCard(profile: Profile): HTMLElement {
 }
 
 function createCustomProfileCard(profile: Profile): HTMLElement {
-  const card = createPresetProfileCard(profile);
+  const card = createProfileCard(profile);
   const actions = card.querySelector('.profile-actions')!;
   const exportBtn = document.createElement('button');
   exportBtn.className = 'btn-secondary btn-sm';
@@ -214,12 +212,8 @@ function createCustomProfileCard(profile: Profile): HTMLElement {
 }
 
 function renderProfiles(): void {
-  defaultProfilesEl.innerHTML = '';
-  DEFAULT_PROFILES.forEach((profile) => defaultProfilesEl.appendChild(createPresetProfileCard(profile)));
-
   customProfilesEl.innerHTML = '';
-  const defaultIds = new Set(DEFAULT_PROFILES.map((profile) => profile.id));
-  const customProfiles = currentConfig.profile.profiles.filter((profile) => !defaultIds.has(profile.id));
+  const customProfiles = currentConfig.profile.profiles;
   if (!customProfiles.length) {
     customProfilesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无自定义配置文件</p>';
     return;
@@ -362,10 +356,10 @@ async function handleGetFromIP(): Promise<void> {
   try {
     await sendRuntimeMessage({ action: 'manualUpdate' });
     await loadConfig();
-    alert('出口 IP 定位已刷新，auto 模式会使用最新定位。');
+    alert('出口 IP 定位已刷新；地理位置和时区为 auto 时会使用最新定位。语言仍由自定义配置控制。');
   } finally {
     getFromIPBtn.disabled = false;
-    getFromIPBtn.textContent = '🌐 从 IP 自动配置（地理位置 + 时区 + 语言）';
+    getFromIPBtn.textContent = '刷新出口 IP 定位（地理位置 + 时区）';
   }
 }
 

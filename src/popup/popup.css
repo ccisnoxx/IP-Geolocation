@@ -212,44 +212,6 @@ section {
   margin-bottom: 12px;
 }
 
-.profile-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.profile-card {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-}
-
-.profile-card:hover {
-  background: #2a2a2a;
-  border-color: #4caf50;
-  transform: translateY(-1px);
-}
-
-.profile-card:active {
-  transform: translateY(0);
-}
-
-.profile-card-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 4px;
-}
-
-.profile-card-info {
-  font-size: 11px;
-  color: #888;
-}
-
 .config-section details {
   background: #252525;
   border-radius: 6px;

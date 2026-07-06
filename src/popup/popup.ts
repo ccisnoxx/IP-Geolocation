@@ -190,14 +190,6 @@ async function loadConfig(): Promise<void> {
   populateForm(currentConfig);
 }
 
-async function handleApplyProfile(profileId: string): Promise<void> {
-  if (!profileId) return;
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'applyProfile', profileId });
-  currentConfig = normalizeConfig(response.config);
-  populateForm(currentConfig);
-  showAutoSaveToast();
-}
-
 async function handleEnableSite(): Promise<void> {
   if (!currentHostname) return;
   await sendRuntimeMessage({ action: 'addDomainRule', domain: currentHostname });
@@ -235,7 +227,7 @@ async function handleGetFromIP(): Promise<void> {
     showAutoSaveToast();
   } finally {
     getFromIPBtn.disabled = false;
-    getFromIPBtn.textContent = '从 IP 自动配置';
+    getFromIPBtn.textContent = '刷新出口 IP 定位';
   }
 }
 
@@ -275,12 +267,6 @@ resetBtn.addEventListener('click', () => {
   currentConfig = normalizeConfig(DEFAULT_CONFIG);
   populateForm(currentConfig);
   void saveChanges();
-});
-
-document.querySelectorAll('.profile-card').forEach((card) => {
-  card.addEventListener('click', () => {
-    void handleApplyProfile((card as HTMLElement).dataset.profile || '');
-  });
 });
 
 void loadConfig();

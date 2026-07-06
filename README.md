@@ -16,8 +16,9 @@ project.
 - WebRTC IP leak policy control with strict, compatible, and browser-default
   modes.
 - Automatic IP geolocation refresh with cached `lastLocation`.
-- Popup/options profile management, import/export, canvas font spoofing, and
-  diagnostic fixtures.
+- Popup/options custom profile management, import/export, canvas font spoofing,
+  and diagnostic fixtures. Built-in regional quick presets are intentionally
+  omitted; use IP-following defaults or save your own custom profiles.
 
 ## Development
 

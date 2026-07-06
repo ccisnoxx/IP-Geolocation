@@ -54,3 +54,14 @@ test('legacy VanishMe storage key is confined to migration code', () => {
     .filter((file) => read(file).includes('bpg_config'));
   assert.deepEqual(offenders, []);
 });
+
+test('extension UI does not expose regional preset quick settings', () => {
+  const popup = read('src/popup/popup.html');
+  const options = read('src/options/options.html');
+  const optionsScript = read('src/options/options.ts');
+
+  assert.equal(popup.includes('data-profile='), false);
+  assert.equal(options.includes('defaultProfiles'), false);
+  assert.equal(options.includes('预设配置'), false);
+  assert.equal(optionsScript.includes('DEFAULT_PROFILES'), false);
+});

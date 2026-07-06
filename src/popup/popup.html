@@ -56,30 +56,9 @@
     </section>
 
     <section class="profile-section">
-      <h2>快速配置</h2>
-      <button id="getFromIP" class="btn-primary" style="width: 100%; margin-bottom: 12px;">🌐 从 IP 自动配置</button>
-      <div class="profile-cards">
-        <button class="profile-card" data-profile="singapore">
-          <div class="profile-card-name">新加坡</div>
-          <div class="profile-card-info">🇸🇬 Asia/Singapore</div>
-        </button>
-        <button class="profile-card" data-profile="japan">
-          <div class="profile-card-name">日本</div>
-          <div class="profile-card-info">🇯🇵 Asia/Tokyo</div>
-        </button>
-        <button class="profile-card" data-profile="germany">
-          <div class="profile-card-name">德国</div>
-          <div class="profile-card-info">🇩🇪 Europe/Berlin</div>
-        </button>
-        <button class="profile-card" data-profile="united-states">
-          <div class="profile-card-name">美国</div>
-          <div class="profile-card-info">🇺🇸 America/New_York</div>
-        </button>
-        <button class="profile-card" data-profile="china">
-          <div class="profile-card-name">中国</div>
-          <div class="profile-card-info">🇨🇳 Asia/Shanghai</div>
-        </button>
-      </div>
+      <h2>跟随 IP</h2>
+      <button id="getFromIP" class="btn-primary" style="width: 100%; margin-bottom: 8px;">刷新出口 IP 定位</button>
+      <div class="hint">地理位置和时区保持 auto 时，会使用最新出口 IP 定位；语言请按需要自定义。</div>
     </section>
 
     <section class="config-section">
@@ -127,12 +106,12 @@
           </label>
           <div class="input-group">
             <label>时区：</label>
-            <input type="text" id="timezone" class="input" placeholder="Asia/Singapore">
+            <input type="text" id="timezone" class="input" placeholder="UTC">
           </div>
           <div class="input-group">
             <label>UTC 偏移 (小时)：</label>
             <input type="number" id="utcOffset" class="input" step="0.5" placeholder="-7">
-            <small style="color: #888; display: block; margin-top: 4px;">例如：-7 表示 UTC-7 (洛杉矶)，+8 表示 UTC+8 (新加坡)</small>
+            <small style="color: #888; display: block; margin-top: 4px;">例如：-7 表示 UTC-7，+8 表示 UTC+8</small>
           </div>
         </div>
       </details>

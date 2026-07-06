@@ -1,5 +1,4 @@
 import {
-  DEFAULT_PROFILES,
   normalizeConfig,
   normalizeGeolocation,
   normalizeLanguage,
@@ -23,8 +22,7 @@ export function validateProfile(profile: Partial<Profile>): boolean {
 
 export function applyProfileToConfig(config: SiteSpoofConfig, profileId: string): SiteSpoofConfig {
   const normalized = normalizeConfig(config);
-  const profile = normalized.profile.profiles.find((item) => item.id === profileId)
-    || DEFAULT_PROFILES.find((item) => item.id === profileId);
+  const profile = normalized.profile.profiles.find((item) => item.id === profileId);
 
   if (!profile) return normalized;
 
@@ -57,5 +55,3 @@ export function applyProfileToConfig(config: SiteSpoofConfig, profileId: string)
     }
   });
 }
-
-export { DEFAULT_PROFILES };
