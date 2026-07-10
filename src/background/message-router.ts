@@ -6,13 +6,18 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
   async function respond(request: any, sender: chrome.runtime.MessageSender): Promise<any> {
     switch (request?.action) {
       case 'manualUpdate':
-        return { status: 'ok', geo: await services.updateGeolocation(true) };
+        return { status: 'ok', geo: await services.updateGeolocation(true), ipLocationStatus: await services.getIpLocationStatus() };
       case 'getExtensionState':
         return { status: 'ok', state: await services.getExtensionState() };
       case 'setExtensionEnabled':
         return { status: 'ok', config: await services.setExtensionEnabled(Boolean(request.enabled)) };
       case 'getSiteConfig':
-        return { status: 'ok', config: await services.getSiteConfig(), lastLocation: await services.getLastLocation() };
+        return {
+          status: 'ok',
+          config: await services.getSiteConfig(),
+          lastLocation: await services.getLastLocation(),
+          ipLocationStatus: await services.getIpLocationStatus()
+        };
       case 'setSiteConfig':
         return { status: 'ok', config: await services.saveSiteConfig(request.config || {}) };
       case 'resetSiteConfig':
@@ -22,11 +27,13 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
       case 'getWebRtcConfig': {
         const config = await services.getSiteConfig();
         const webRtc = normalizeWebRtc(config.webRtc);
+        const policyState = await services.getWebRtcPolicyState();
         return {
           status: 'ok',
           state: {
             config: webRtc,
-            effectivePolicy: services.webRtcPolicies[webRtc.globalMode]
+            effectivePolicy: services.webRtcPolicies[webRtc.globalMode],
+            policyState
           }
         };
       }

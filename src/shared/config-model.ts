@@ -245,9 +245,19 @@ export function normalizeDomain(input: unknown): string {
   return parseHostname(input);
 }
 
+export function isIpv4Address(domain: string): boolean {
+  const parts = domain.split('.');
+  return parts.length === 4 && parts.every((part) => {
+    if (!/^\d{1,3}$/.test(part)) return false;
+    const value = Number(part);
+    return value >= 0 && value <= 255 && String(value) === String(Number(part));
+  });
+}
+
 export function isValidDomain(domain: string): boolean {
   if (!domain || domain.includes('*') || domain.length > 253) return false;
   if (domain === 'localhost') return true;
+  if (isIpv4Address(domain)) return true;
   const labels = domain.split('.');
   if (labels.length < 2) return false;
   return labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));

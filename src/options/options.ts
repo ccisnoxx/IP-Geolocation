@@ -1,5 +1,6 @@
 import './options.css';
 import {
+  DEFAULT_CANVAS,
   DEFAULT_CONFIG,
   createRule,
   getTimezoneOffsetMinutes,
@@ -11,11 +12,15 @@ import {
   normalizeWebRtc
 } from '../shared/config-model';
 import { formatCoordinate, formatLastLocationStatus } from '../shared/last-location-display';
+import { deriveIpLocationStatus } from '../shared/ip-location';
 import { validateProfile } from '../shared/profile';
+import { deriveEffectiveEnvironment, freezeIpLocationToManualConfig } from '../shared/ui-state';
 import type { LastLocation, Profile, SiteRule, SiteSpoofConfig } from '../shared/types';
+import type { IpLocationStatusSnapshot } from '../shared/ip-location';
 
 let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
 let lastLocation: LastLocation | null = null;
+let ipLocationStatus: IpLocationStatusSnapshot | null = null;
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -28,7 +33,14 @@ const randomizeEl = document.getElementById('randomize') as HTMLInputElement;
 const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HTMLInputElement;
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
 const getFromIPBtn = document.getElementById('getFromIP') as HTMLButtonElement;
+const freezeIpProfileBtn = document.getElementById('freezeIpProfile') as HTMLButtonElement;
 const ipLocationStatusEl = document.getElementById('ipLocationStatus') as HTMLElement;
+const effectiveGeolocationSourceEl = document.getElementById('effectiveGeolocationSource') as HTMLElement;
+const effectiveGeolocationValueEl = document.getElementById('effectiveGeolocationValue') as HTMLElement;
+const effectiveGeolocationDetailEl = document.getElementById('effectiveGeolocationDetail') as HTMLElement;
+const effectiveTimezoneSourceEl = document.getElementById('effectiveTimezoneSource') as HTMLElement;
+const effectiveTimezoneValueEl = document.getElementById('effectiveTimezoneValue') as HTMLElement;
+const effectiveTimezoneDetailEl = document.getElementById('effectiveTimezoneDetail') as HTMLElement;
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
@@ -38,6 +50,11 @@ const languagesEl = document.getElementById('languages') as HTMLInputElement;
 const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputElement;
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
+const webrtcPolicyStatusEl = document.getElementById('webrtcPolicyStatus') as HTMLElement;
+const canvasEnabledEl = document.getElementById('canvasEnabled') as HTMLInputElement;
+const canvasSpoofFontsEl = document.getElementById('canvasSpoofFonts') as HTMLInputElement;
+const canvasTargetFontsEl = document.getElementById('canvasTargetFonts') as HTMLTextAreaElement;
+const resetFontsBtn = document.getElementById('resetFonts') as HTMLButtonElement;
 const customProfilesEl = document.getElementById('customProfiles') as HTMLElement;
 const siteRulesEl = document.getElementById('siteRules') as HTMLElement;
 const exportConfigBtn = document.getElementById('exportConfig') as HTMLButtonElement;
@@ -45,6 +62,7 @@ const importConfigBtn = document.getElementById('importConfig') as HTMLButtonEle
 const importFileEl = document.getElementById('importFile') as HTMLInputElement;
 const resetAllBtn = document.getElementById('resetAll') as HTMLButtonElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
+const saveFooterBtn = document.getElementById('saveFooter') as HTMLButtonElement;
 const saveAsCustomBtn = document.getElementById('saveAsCustom') as HTMLButtonElement;
 const saveProfileModal = document.getElementById('saveProfileModal') as HTMLElement;
 const newProfileNameEl = document.getElementById('newProfileName') as HTMLInputElement;
@@ -72,6 +90,22 @@ function webRtcSelectValue(config: SiteSpoofConfig): string {
   if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
   if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
   return 'default';
+}
+
+function setSourceChip(element: HTMLElement, source: string, label: string): void {
+  element.className = `source-chip ${source}`;
+  element.textContent = label;
+}
+
+function updateEffectiveDisplay(config: SiteSpoofConfig): void {
+  const display = deriveEffectiveEnvironment(config, lastLocation, ipLocationStatus);
+  setSourceChip(effectiveGeolocationSourceEl, display.geolocation.source, display.geolocation.sourceLabel);
+  effectiveGeolocationValueEl.textContent = display.geolocation.value;
+  effectiveGeolocationDetailEl.textContent = display.geolocation.detail || '-';
+  setSourceChip(effectiveTimezoneSourceEl, display.timezone.source, display.timezone.sourceLabel);
+  effectiveTimezoneValueEl.textContent = display.timezone.value;
+  effectiveTimezoneDetailEl.textContent = display.timezone.detail || '-';
+  freezeIpProfileBtn.disabled = !display.canFreezeIpLocation;
 }
 
 function rulesFromText(value: string, existingRules: SiteRule[]): SiteRule[] {
@@ -117,6 +151,9 @@ function populateForm(config: SiteSpoofConfig): void {
 
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
+  canvasEnabledEl.checked = config.canvas.enabled;
+  canvasSpoofFontsEl.checked = config.canvas.spoofFonts;
+  canvasTargetFontsEl.value = config.canvas.targetFonts.join('\n');
   updateIpLocationDisplay(config);
 
   renderProfiles();
@@ -124,12 +161,13 @@ function populateForm(config: SiteSpoofConfig): void {
 }
 
 function updateIpLocationDisplay(config: SiteSpoofConfig): void {
-  ipLocationStatusEl.textContent = formatLastLocationStatus(lastLocation);
+  ipLocationStatusEl.textContent = formatLastLocationStatus(lastLocation, ipLocationStatus);
   const followsIpGeolocation = config.globalProfile.geolocation.mode === 'auto';
   const followsIpTimezone = config.globalProfile.timezone.mode === 'auto';
   latitudeEl.placeholder = followsIpGeolocation && lastLocation ? formatCoordinate(lastLocation.latitude) : '';
   longitudeEl.placeholder = followsIpGeolocation && lastLocation ? formatCoordinate(lastLocation.longitude) : '';
   timezoneEl.placeholder = followsIpTimezone && lastLocation?.timezone ? lastLocation.timezone : 'UTC';
+  updateEffectiveDisplay(config);
 }
 
 function readForm(): SiteSpoofConfig {
@@ -157,21 +195,43 @@ function readForm(): SiteSpoofConfig {
         latitude: latitudeEl.value === '' ? null : Number(latitudeEl.value),
         longitude: longitudeEl.value === '' ? null : Number(longitudeEl.value),
         accuracy: Number(accuracyEl.value),
+        country: currentConfig.globalProfile.geolocation.country,
         randomize: randomizeEl.checked,
         randomRadiusMeters: Number(randomRadiusMetersEl.value),
         spoofPermission: spoofPermissionEl.checked,
         history: currentConfig.globalProfile.geolocation.history
       })
     },
-    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' })
+    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
+    canvas: {
+      enabled: canvasEnabledEl.checked,
+      spoofFonts: canvasSpoofFontsEl.checked,
+      targetFonts: canvasTargetFontsEl.value.split('\n').map((item) => item.trim()).filter(Boolean)
+    }
   });
 }
 
 async function loadConfig(): Promise<void> {
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; lastLocation?: LastLocation | null }>({ action: 'getSiteConfig' });
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; lastLocation?: LastLocation | null; ipLocationStatus?: IpLocationStatusSnapshot }>({ action: 'getSiteConfig' });
   currentConfig = normalizeConfig(response.config);
   lastLocation = response.lastLocation || null;
+  ipLocationStatus = response.ipLocationStatus || null;
   populateForm(currentConfig);
+  await loadWebRtcPolicyState();
+}
+
+async function loadWebRtcPolicyState(): Promise<void> {
+  try {
+    const response = await sendRuntimeMessage<{ state: { effectivePolicy: string | null; policyState?: { actualPolicy?: string | null; levelOfControl?: string | null; leakProtectionActive?: boolean } } }>({ action: 'getWebRtcConfig' });
+    const state = response.state;
+    webrtcPolicyStatusEl.textContent = [
+      `请求策略：${state.effectivePolicy || 'default'}`,
+      `浏览器实际：${state.policyState?.actualPolicy || 'unknown'}`,
+      `控制级别：${state.policyState?.levelOfControl || 'unknown'}`
+    ].join(' · ');
+  } catch (error) {
+    webrtcPolicyStatusEl.textContent = `当前策略状态：读取失败（${error instanceof Error ? error.message : String(error)}）`;
+  }
 }
 
 async function saveSettings(): Promise<void> {
@@ -367,18 +427,39 @@ async function resetAllData(): Promise<void> {
 async function handleGetFromIP(): Promise<void> {
   getFromIPBtn.disabled = true;
   getFromIPBtn.textContent = '获取中...';
+  ipLocationStatus = deriveIpLocationStatus(lastLocation, { status: 'refreshing', startedAt: Date.now() });
+  updateIpLocationDisplay(currentConfig);
   try {
-    const response = await sendRuntimeMessage<{ geo: { ok: boolean; location?: LastLocation; error?: string } }>({ action: 'manualUpdate' });
-    if (!response.geo.ok) throw new Error(response.geo.error || '出口 IP 定位失败');
+    const response = await sendRuntimeMessage<{ geo: { ok: boolean; location?: LastLocation; error?: string }; ipLocationStatus?: IpLocationStatusSnapshot }>({ action: 'manualUpdate' });
     lastLocation = response.geo.location || lastLocation;
+    ipLocationStatus = response.ipLocationStatus || ipLocationStatus;
+    if (!response.geo.ok) throw new Error(response.geo.error || '出口 IP 定位失败');
     await loadConfig();
     alert('出口 IP 定位已刷新；地理位置和时区为 auto 时会使用最新定位。语言仍由自定义配置控制。');
   } catch (error) {
+    updateIpLocationDisplay(currentConfig);
     alert(`刷新出口 IP 定位失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {
     getFromIPBtn.disabled = false;
     getFromIPBtn.textContent = '刷新出口 IP 定位（地理位置 + 时区）';
   }
+}
+
+async function handleFreezeIpProfile(): Promise<void> {
+  const frozen = freezeIpLocationToManualConfig(currentConfig, lastLocation);
+  if (!frozen) {
+    alert('当前出口 IP 定位缺少有效坐标或时区，无法应用为手动配置');
+    return;
+  }
+  currentConfig = frozen;
+  populateForm(currentConfig);
+  await saveSettings();
+}
+
+async function handleResetFonts(): Promise<void> {
+  currentConfig.canvas.targetFonts = DEFAULT_CANVAS.targetFonts;
+  canvasTargetFontsEl.value = DEFAULT_CANVAS.targetFonts.join('\n');
+  await saveSettings();
 }
 
 document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -392,10 +473,15 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 saveBtn.addEventListener('click', () => { void saveSettings(); });
+saveFooterBtn.addEventListener('click', () => { void saveSettings(); });
 saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
 confirmSaveProfileBtn.addEventListener('click', () => { void handleSaveAsCustom(); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
 getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
+freezeIpProfileBtn.addEventListener('click', () => { void handleFreezeIpProfile(); });
+canvasEnabledEl.addEventListener('change', () => { currentConfig = readForm(); populateForm(currentConfig); });
+canvasSpoofFontsEl.addEventListener('change', () => { currentConfig = readForm(); populateForm(currentConfig); });
+resetFontsBtn.addEventListener('click', () => { void handleResetFonts(); });
 exportConfigBtn.addEventListener('click', exportConfiguration);
 importConfigBtn.addEventListener('click', importConfiguration);
 importFileEl.addEventListener('change', (event) => { void handleImportFile(event); });

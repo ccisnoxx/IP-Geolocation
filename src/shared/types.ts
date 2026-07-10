@@ -111,6 +111,9 @@ export interface LastLocation {
   country: string;
   timezone?: string | null;
   timezoneOffset?: number | null;
+  provider?: string;
+  updatedAt?: number;
+  expiresAt?: number;
   updateTime?: string;
 }
 

@@ -4,8 +4,18 @@ import {
   buildFrameProbeSnapshot,
   buildGeolocationBehaviorSnapshot,
   buildRequestHeaderProbe,
-  buildWorkerDiagnosticsSnapshot
+  buildWebRtcLeakSnapshot,
+  classifyWebRtcCandidate,
+  buildWorkerDiagnosticsSnapshot,
+  compareDiagnosticValue,
+  compareGeolocationCoordinates,
+  summarizeDiagnosticVerdicts
 } from '../src/shared/diagnostic';
+import {
+  LOCALE_DATETIME_FORMAT_OPTIONS,
+  formatLocaleDateTimeForProfile,
+  normalizeLocaleDateTimeText
+} from '../src/shared/locale-datetime';
 
 test('buildRequestHeaderProbe parses browserleaks header table', () => {
   const result = buildRequestHeaderProbe({
@@ -59,4 +69,59 @@ test('worker and geolocation diagnostics normalize partial fixture output', () =
   assert.equal(worker.moduleWorker.status, 'not_attempted');
   assert.equal(geo.watchResult, '');
   assert.equal(geo.successResult, '{"latitude":1}');
+});
+
+test('WebRTC diagnostics classify local and public IP candidates', () => {
+  const local = classifyWebRtcCandidate('candidate:1 1 udp 1 192.168.1.10 5353 typ host');
+  const publicCandidate = classifyWebRtcCandidate('candidate:2 1 udp 1 203.0.113.9 443 typ srflx');
+  const mdnsCandidate = classifyWebRtcCandidate('candidate:3 1 udp 1 abcd1234.local 5353 typ host');
+  const snapshot = buildWebRtcLeakSnapshot({
+    candidates: [local.candidate, publicCandidate.candidate, mdnsCandidate.candidate],
+    policyState: { actualPolicy: 'disable_non_proxied_udp' }
+  });
+
+  assert.equal(local.risk, 'local');
+  assert.equal(publicCandidate.risk, 'public');
+  assert.deepEqual(mdnsCandidate.mdnsHosts, ['abcd1234.local']);
+  assert.equal(mdnsCandidate.risk, 'none');
+  assert.equal(snapshot.exposesLocalIp, true);
+  assert.equal(snapshot.exposesPublicIp, true);
+  assert.equal(snapshot.protected, false);
+});
+
+test('diagnostic verdict helpers report pass fail and unknown states', () => {
+  assert.equal(compareDiagnosticValue({ expected: 'ja-JP', actual: 'ja-JP' }).status, 'PASS');
+  assert.equal(compareDiagnosticValue({ expected: ['ja-JP', 'ja'], actual: ['ja-JP', 'en'], kind: 'list' }).status, 'FAIL');
+  assert.equal(compareDiagnosticValue({ expected: '', actual: 'ja-JP' }).status, 'UNKNOWN');
+  assert.equal(compareDiagnosticValue({ expected: -540, actual: -541, kind: 'number', tolerance: 1 }).status, 'PASS');
+
+  const geo = compareGeolocationCoordinates({
+    expectedLatitude: 35.68,
+    expectedLongitude: 139.76,
+    actualLatitude: 35.681,
+    actualLongitude: 139.761,
+    toleranceMeters: 200
+  });
+  assert.equal(geo.status, 'PASS');
+  assert.ok(Number(geo.distanceMeters) > 0);
+
+  assert.deepEqual(summarizeDiagnosticVerdicts(['PASS', 'UNKNOWN', 'PASS']), {
+    status: 'UNKNOWN',
+    passed: 2,
+    failed: 0,
+    unknown: 1,
+    total: 3
+  });
+  assert.equal(summarizeDiagnosticVerdicts(['PASS', 'FAIL']).status, 'FAIL');
+});
+
+test('locale datetime helper formats profile time with shared options', () => {
+  const date = new Date(Date.UTC(2026, 0, 15, 12, 34, 56));
+  const expected = date.toLocaleString('en-US', {
+    ...LOCALE_DATETIME_FORMAT_OPTIONS,
+    timeZone: 'America/Los_Angeles'
+  });
+
+  assert.equal(formatLocaleDateTimeForProfile(date, 'en-US', 'America/Los_Angeles'), expected);
+  assert.equal(normalizeLocaleDateTimeText(` ${expected.replace(/ /g, '\u202f')}\n`), expected);
 });

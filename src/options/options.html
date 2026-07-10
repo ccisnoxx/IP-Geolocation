@@ -7,177 +7,256 @@
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>VanishGeo 配置</h1>
+  <div class="shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">VanishGeo Console</span>
+        <h1>环境一致性控制台</h1>
+        <p>统一管理站点白名单、出口 IP 跟随、地理位置、时区、语言和 WebRTC / Canvas 防泄漏策略。</p>
+      </div>
+      <div class="hero-actions">
+        <button id="save" class="btn-primary">保存当前配置</button>
+      </div>
     </header>
 
-    <section class="section">
-      <h2>全局设置</h2>
-      <div class="settings-grid">
-        <label class="checkbox-label">
-          <input type="checkbox" id="globalEnabled">
-          <span>启用全局保护</span>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="debugMode">
-          <span>调试模式（控制台输出详细日志）</span>
-        </label>
-      </div>
-    </section>
+    <main class="dashboard">
+      <section class="section status-overview">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Overview</span>
+            <h2>保护概览</h2>
+          </div>
+        </div>
+        <div class="overview-grid">
+          <label class="toggle-card">
+            <span>
+              <strong>全局保护</strong>
+              <small>启用后允许站点使用当前环境配置</small>
+            </span>
+            <input type="checkbox" id="globalEnabled">
+          </label>
+          <label class="toggle-card">
+            <span>
+              <strong>调试模式</strong>
+              <small>控制台输出详细诊断日志</small>
+            </span>
+            <input type="checkbox" id="debugMode">
+          </label>
+          <div class="overview-card wide">
+            <span class="card-label">出口 IP 定位</span>
+            <strong id="ipLocationStatus">当前出口 IP 定位：尚未刷新</strong>
+          </div>
+          <div class="effective-card">
+            <span class="effective-title">生效地理位置</span>
+            <span id="effectiveGeolocationSource" class="source-chip">-</span>
+            <strong id="effectiveGeolocationValue">-</strong>
+            <small id="effectiveGeolocationDetail">-</small>
+          </div>
+          <div class="effective-card">
+            <span class="effective-title">生效时区</span>
+            <span id="effectiveTimezoneSource" class="source-chip">-</span>
+            <strong id="effectiveTimezoneValue">-</strong>
+            <small id="effectiveTimezoneDetail">-</small>
+          </div>
+        </div>
+      </section>
 
-    <section class="section">
-      <h2>站点白名单</h2>
-      <div class="match-mode-container">
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Allowlist</span>
+            <h2>站点白名单</h2>
+          </div>
+        </div>
         <div class="input-group">
-          <label>域名列表（每行一个，自动包含子域名）:</label>
+          <label for="ruleList">域名列表（每行一个，自动包含子域名）</label>
           <textarea id="ruleList" class="input domain-textarea" rows="15" placeholder="例如：&#10;chatgpt.com&#10;openai.com&#10;google.com&#10;&#10;不要写通配符；example.com 会匹配 example.com 及其子域名。"></textarea>
-          <div class="hint">提示：VanishGeo 使用统一 allowlist 规则，不保留 global/blacklist/wildcard 第二套匹配逻辑。</div>
+          <div class="hint">VanishGeo 使用统一 allowlist 规则，不保留 global/blacklist/wildcard 第二套匹配逻辑。</div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="section">
-      <div class="section-header">
-        <h2>跟随 IP / 自定义</h2>
-        <button id="saveAsCustom" class="btn-secondary">另存为自定义配置</button>
-      </div>
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">IP Profile</span>
+            <h2>跟随 IP / 自定义</h2>
+          </div>
+          <button id="saveAsCustom" class="btn-secondary">另存为自定义配置</button>
+        </div>
+        <div class="action-buttons">
+          <button id="getFromIP" class="btn-primary">刷新出口 IP 定位（地理位置 + 时区）</button>
+          <button id="freezeIpProfile" class="btn-secondary">应用为手动配置 / 冻结当前值</button>
+        </div>
 
-      <div class="action-buttons" style="margin-bottom: 16px;">
-        <button id="getFromIP" class="btn-primary" style="width: 100%;">刷新出口 IP 定位（地理位置 + 时区）</button>
-      </div>
-      <p id="ipLocationStatus" class="section-description">当前出口 IP 定位：尚未刷新</p>
+        <div class="config-tabs" role="tablist" aria-label="配置分类">
+          <button class="tab-btn active" data-tab="geolocation" type="button">地理位置</button>
+          <button class="tab-btn" data-tab="timezone" type="button">时区</button>
+          <button class="tab-btn" data-tab="language" type="button">语言</button>
+          <button class="tab-btn" data-tab="webrtc" type="button">WebRTC</button>
+          <button class="tab-btn" data-tab="canvas" type="button">Canvas 字体</button>
+        </div>
 
-      <div class="config-tabs">
-        <button class="tab-btn active" data-tab="geolocation">地理位置</button>
-        <button class="tab-btn" data-tab="timezone">时区</button>
-        <button class="tab-btn" data-tab="language">语言</button>
-        <button class="tab-btn" data-tab="webrtc">WebRTC</button>
-      </div>
-
-      <div class="tab-content active" data-tab="geolocation">
-        <label class="checkbox-label">
-          <input type="checkbox" id="geolocationEnabled">
-          <span>启用地理位置伪装</span>
-        </label>
-        <div class="input-row">
-          <div class="input-group">
-            <label>纬度:</label>
-            <input type="number" id="latitude" class="input" step="any" min="-90" max="90">
+        <div class="tab-content active" data-tab="geolocation">
+          <label class="checkbox-label">
+            <input type="checkbox" id="geolocationEnabled">
+            <span>启用地理位置伪装</span>
+          </label>
+          <div class="input-row">
+            <div class="input-group">
+              <label for="latitude">纬度</label>
+              <input type="number" id="latitude" class="input" step="any" min="-90" max="90">
+            </div>
+            <div class="input-group">
+              <label for="longitude">经度</label>
+              <input type="number" id="longitude" class="input" step="any" min="-180" max="180">
+            </div>
           </div>
           <div class="input-group">
-            <label>经度:</label>
-            <input type="number" id="longitude" class="input" step="any" min="-180" max="180">
+            <label for="accuracy">精度（米）</label>
+            <input type="number" id="accuracy" class="input" step="1" min="1">
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="randomize">
+            <span>随机偏移</span>
+          </label>
+          <div class="input-group">
+            <label for="randomRadiusMeters">随机半径（米）</label>
+            <input type="number" id="randomRadiusMeters" class="input" step="1" min="0">
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="spoofPermission">
+            <span>伪装地理位置权限</span>
+          </label>
+        </div>
+
+        <div class="tab-content" data-tab="timezone">
+          <label class="checkbox-label">
+            <input type="checkbox" id="timezoneEnabled">
+            <span>启用时区伪装</span>
+          </label>
+          <div class="input-group">
+            <label for="timezone">时区</label>
+            <input type="text" id="timezone" class="input" placeholder="UTC">
+          </div>
+          <div class="input-group">
+            <label for="utcOffset">UTC 偏移（小时）</label>
+            <input type="number" id="utcOffset" class="input" step="0.5" placeholder="-7">
+            <small class="field-note">例如：-7 表示 UTC-7，+8 表示 UTC+8</small>
           </div>
         </div>
-        <div class="input-group">
-          <label>精度 (米):</label>
-          <input type="number" id="accuracy" class="input" step="1" min="1">
-        </div>
-        <label class="checkbox-label">
-          <input type="checkbox" id="randomize">
-          <span>随机偏移</span>
-        </label>
-        <div class="input-group">
-          <label>随机半径 (米):</label>
-          <input type="number" id="randomRadiusMeters" class="input" step="1" min="0">
-        </div>
-        <label class="checkbox-label">
-          <input type="checkbox" id="spoofPermission">
-          <span>伪装地理位置权限</span>
-        </label>
-      </div>
 
-      <div class="tab-content" data-tab="timezone">
-        <label class="checkbox-label">
-          <input type="checkbox" id="timezoneEnabled">
-          <span>启用时区伪装</span>
-        </label>
-        <div class="input-group">
-          <label>时区:</label>
-          <input type="text" id="timezone" class="input" placeholder="UTC">
+        <div class="tab-content" data-tab="language">
+          <label class="checkbox-label">
+            <input type="checkbox" id="languageEnabled">
+            <span>启用语言伪装</span>
+          </label>
+          <div class="input-group">
+            <label for="language">主语言</label>
+            <input type="text" id="language" class="input" placeholder="en-US">
+          </div>
+          <div class="input-group">
+            <label for="languages">语言列表</label>
+            <input type="text" id="languages" class="input" placeholder="en-US, en">
+          </div>
+          <div class="input-group">
+            <label for="acceptLanguage">Accept-Language</label>
+            <input type="text" id="acceptLanguage" class="input" placeholder="en-US,en;q=0.9">
+          </div>
         </div>
-        <div class="input-group">
-          <label>UTC 偏移 (小时):</label>
-          <input type="number" id="utcOffset" class="input" step="0.5" placeholder="-7">
-          <small style="color: #888; display: block; margin-top: 4px;">例如：-7 表示 UTC-7，+8 表示 UTC+8</small>
+
+        <div class="tab-content" data-tab="webrtc">
+          <label class="checkbox-label">
+            <input type="checkbox" id="webrtcEnabled">
+            <span>启用 WebRTC 防泄漏</span>
+          </label>
+          <p id="webrtcPolicyStatus" class="section-description">当前策略状态：读取中</p>
+          <div class="input-group">
+            <label for="webrtcPolicy">策略</label>
+            <select id="webrtcPolicy" class="input">
+              <option value="default">默认</option>
+              <option value="default_public_interface_only">仅公网接口</option>
+              <option value="default_public_and_private_interfaces">公网和私网</option>
+              <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      <div class="tab-content" data-tab="language">
-        <label class="checkbox-label">
-          <input type="checkbox" id="languageEnabled">
-          <span>启用语言伪装</span>
-        </label>
-        <div class="input-group">
-          <label>主语言:</label>
-          <input type="text" id="language" class="input" placeholder="en-US">
+        <div class="tab-content" data-tab="canvas">
+          <label class="checkbox-label">
+            <input type="checkbox" id="canvasEnabled">
+            <span>启用 Canvas 字体保护</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="canvasSpoofFonts">
+            <span>隐藏目标字体</span>
+          </label>
+          <div class="input-group">
+            <label for="canvasTargetFonts">目标字体列表（每行一个）</label>
+            <textarea id="canvasTargetFonts" class="input domain-textarea compact" rows="10"></textarea>
+          </div>
+          <button id="resetFonts" class="btn-secondary">重置为默认字体列表</button>
         </div>
-        <div class="input-group">
-          <label>语言列表:</label>
-          <input type="text" id="languages" class="input" placeholder="en-US, en">
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Profiles</span>
+            <h2>自定义配置文件</h2>
+          </div>
         </div>
-        <div class="input-group">
-          <label>Accept-Language:</label>
-          <input type="text" id="acceptLanguage" class="input" placeholder="en-US,en;q=0.9">
+        <p class="section-description">需要固定环境时，将当前手动配置保存为自定义方案。默认推荐地理位置和时区跟随出口 IP。</p>
+        <div id="customProfiles" class="profiles-grid"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Site Rules</span>
+            <h2>站点特定规则</h2>
+          </div>
         </div>
-      </div>
+        <p class="section-description">站点特定规则优先级高于匹配模式，可以为特定网站设置例外。</p>
+        <div id="siteRules" class="site-rules"></div>
+      </section>
 
-      <div class="tab-content" data-tab="webrtc">
-        <label class="checkbox-label">
-          <input type="checkbox" id="webrtcEnabled">
-          <span>启用 WebRTC 防泄漏</span>
-        </label>
-        <div class="input-group">
-          <label>策略:</label>
-          <select id="webrtcPolicy" class="input">
-            <option value="default">默认</option>
-            <option value="default_public_interface_only">仅公网接口</option>
-            <option value="default_public_and_private_interfaces">公网和私网</option>
-            <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
-          </select>
+      <section class="section danger-zone">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Data</span>
+            <h2>数据管理</h2>
+          </div>
         </div>
-      </div>
-    </section>
+        <div class="data-actions">
+          <button id="exportConfig" class="btn-secondary">导出完整配置</button>
+          <button id="importConfig" class="btn-secondary">导入配置</button>
+          <button id="resetAll" class="btn-danger">重置所有数据</button>
+          <input type="file" id="importFile" accept=".json" hidden>
+        </div>
+      </section>
+    </main>
 
-    <section class="section">
-      <h2>自定义配置文件</h2>
-      <p class="section-description">需要固定环境时，将当前手动配置保存为自定义方案。默认推荐地理位置和时区跟随出口 IP。</p>
-      <div id="customProfiles" class="profiles-grid"></div>
-    </section>
-
-    <section class="section">
-      <h2>站点特定规则</h2>
-      <p class="section-description">站点特定规则优先级高于匹配模式，可以为特定网站设置例外</p>
-      <div id="siteRules"></div>
-    </section>
-
-    <section class="section">
-      <h2>数据管理</h2>
-      <div class="data-actions">
-        <button id="exportConfig" class="btn-secondary">导出完整配置</button>
-        <button id="importConfig" class="btn-secondary">导入配置</button>
-        <button id="resetAll" class="btn-danger">重置所有数据</button>
-        <input type="file" id="importFile" accept=".json" style="display: none;">
-      </div>
-    </section>
-
-    <footer>
-      <button id="save" class="btn-primary">保存当前配置</button>
+    <footer class="save-bar">
+      <span>修改完成后保存当前配置，popup 的自动保存不替代本页确认操作。</span>
+      <button id="saveFooter" class="btn-primary" type="button">保存当前配置</button>
     </footer>
   </div>
 
-  <!-- Save Profile Modal -->
   <div id="saveProfileModal" class="modal">
     <div class="modal-content">
-      <h2>另存为自定义配置</h2>
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">Profile</span>
+          <h2>另存为自定义配置</h2>
+        </div>
+      </div>
       <div class="modal-body">
         <div class="input-group">
-          <label>配置名称:</label>
+          <label for="newProfileName">配置名称</label>
           <input type="text" id="newProfileName" class="input" placeholder="我的配置">
         </div>
         <div class="input-group">
-          <label>描述（可选）:</label>
+          <label for="newProfileDescription">描述（可选）</label>
           <input type="text" id="newProfileDescription" class="input" placeholder="配置说明">
         </div>
       </div>

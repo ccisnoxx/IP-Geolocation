@@ -1,5 +1,6 @@
-import { normalizeLanguage } from '../shared/config-model';
-import type { LanguageConfig, SiteRule, SiteSpoofConfig } from '../shared/types';
+import { resolveEffectiveLanguageForRule } from '../shared/config-resolver';
+import { isIpv4Address, isValidDomain, normalizeDomain } from '../shared/config-model';
+import type { SiteSpoofConfig } from '../shared/types';
 
 export const ACCEPT_LANGUAGE_RULE_ID_START = 1100;
 export const ACCEPT_LANGUAGE_RULE_ID_END = 2099;
@@ -19,11 +20,12 @@ function escapeRegex(value: string): string {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function languageForRule(config: SiteSpoofConfig, rule: SiteRule): LanguageConfig | null {
-  const override = rule.overrides.language;
-  if (override.mode === 'disable') return null;
-  if (override.mode === 'override') return normalizeLanguage(override.value || {});
-  return config.globalProfile.language.enabled ? config.globalProfile.language : null;
+function buildDomainUrlRegex(domain: string): string {
+  const escapedDomain = escapeRegex(domain);
+  const hostPattern = domain === 'localhost' || isIpv4Address(domain)
+    ? escapedDomain
+    : `([^/]+\\.)?${escapedDomain}`;
+  return `^https?://${hostPattern}(?::[0-9]+)?/`;
 }
 
 export function managedAcceptLanguageRuleIds(): number[] {
@@ -39,7 +41,9 @@ export function buildAcceptLanguageRules(config: SiteSpoofConfig): chrome.declar
   const rules: chrome.declarativeNetRequest.Rule[] = [];
 
   config.rules.filter((rule) => rule.enabled).forEach((rule) => {
-    const language = languageForRule(config, rule);
+    const domain = normalizeDomain(rule.domain);
+    if (!isValidDomain(domain)) return;
+    const language = resolveEffectiveLanguageForRule(config, rule);
     if (!language) return;
     const nextId = ACCEPT_LANGUAGE_RULE_ID_START + rules.length;
     if (nextId > ACCEPT_LANGUAGE_RULE_ID_END) {
@@ -47,7 +51,7 @@ export function buildAcceptLanguageRules(config: SiteSpoofConfig): chrome.declar
     }
     rules.push({
       id: nextId,
-      priority: Math.max(1, rule.domain.length),
+      priority: Math.max(1, domain.length),
       action: {
         type: 'modifyHeaders' as chrome.declarativeNetRequest.RuleActionType,
         requestHeaders: [{
@@ -57,7 +61,7 @@ export function buildAcceptLanguageRules(config: SiteSpoofConfig): chrome.declar
         }]
       },
       condition: {
-        regexFilter: `^https?://([^/]+\\.)?${escapeRegex(rule.domain)}(?::[0-9]+)?/`,
+        regexFilter: buildDomainUrlRegex(domain),
         resourceTypes: ACCEPT_LANGUAGE_RESOURCE_TYPES
       }
     });

@@ -4,6 +4,7 @@ import {
   getContentScriptMatches,
   getEffectiveProfile,
   migrateLegacyConfig,
+  repairInvalidRuleDomains,
   validateConfig
 } from '../src/shared/config-resolver';
 import {
@@ -152,13 +153,30 @@ test('getContentScriptMatches returns only enabled allowlist patterns', () => {
       { domain: 'example.com', enabled: true },
       { domain: 'example.com', enabled: true },
       { domain: 'disabled.example', enabled: false },
-      { domain: 'localhost', enabled: true }
+      { domain: 'localhost', enabled: true },
+      { domain: '127.0.0.1', enabled: true },
+      { domain: 'bad_domain', enabled: true }
     ] as any
   });
 
   assert.deepEqual(getContentScriptMatches(config), [
     '*://example.com/*',
     '*://*.example.com/*',
-    '*://localhost/*'
+    '*://localhost/*',
+    '*://127.0.0.1/*'
   ]);
+});
+
+test('repairInvalidRuleDomains removes stored rules that Chrome cannot register', () => {
+  const repaired = repairInvalidRuleDomains({
+    masterEnabled: true,
+    rules: [
+      { domain: 'example.com', enabled: true },
+      { domain: 'bad_domain', enabled: true },
+      { domain: '127.0.0.1', enabled: true }
+    ] as any
+  });
+
+  assert.equal(repaired.repaired, true);
+  assert.deepEqual(repaired.config.rules.map((rule) => rule.domain), ['example.com', '127.0.0.1']);
 });

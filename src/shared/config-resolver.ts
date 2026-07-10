@@ -14,6 +14,7 @@ import {
   SITE_CONFIG_KEY,
   clone,
   createRule,
+  isIpv4Address,
   isValidDomain,
   normalizeCanvas,
   normalizeConfig,
@@ -120,19 +121,31 @@ export function getEnabledRuleDomains(config: Partial<SiteSpoofConfig>): string[
 
   const seen = new Set<string>();
   return normalized.rules.reduce<string[]>((domains, rule) => {
-    if (!rule.enabled || !rule.domain || seen.has(rule.domain)) return domains;
+    if (!rule.enabled || !rule.domain || !isValidDomain(rule.domain) || seen.has(rule.domain)) return domains;
     seen.add(rule.domain);
     domains.push(rule.domain);
     return domains;
   }, []);
 }
 
+export function repairInvalidRuleDomains(config: Partial<SiteSpoofConfig>): { config: SiteSpoofConfig; repaired: boolean } {
+  const normalized = normalizeConfig(config);
+  const validRules = normalized.rules.filter((rule) => isValidDomain(rule.domain));
+  if (validRules.length === normalized.rules.length) {
+    return { config: normalized, repaired: false };
+  }
+  return {
+    config: normalizeConfig({ ...normalized, rules: validRules }),
+    repaired: true
+  };
+}
+
 export function buildContentScriptMatchesForDomain(domain: string): string[] {
   const normalized = normalizeDomain(domain);
-  if (!normalized) return [];
+  if (!normalized || !isValidDomain(normalized)) return [];
 
   const patterns = [`*://${normalized}/*`];
-  if (normalized !== 'localhost') {
+  if (normalized !== 'localhost' && !isIpv4Address(normalized)) {
     patterns.push(`*://*.${normalized}/*`);
   }
   return patterns;
@@ -163,6 +176,10 @@ function resolveSignal<T extends { enabled: boolean }>(
   }
   if (override.mode === 'disable') return null;
   return normalizer(override.value || {});
+}
+
+export function resolveEffectiveLanguageForRule(config: SiteSpoofConfig, rule: SiteRule): LanguageConfig | null {
+  return resolveSignal(config.globalProfile.language, rule.overrides.language, normalizeLanguage);
 }
 
 function resolveTimezoneValue(
@@ -226,7 +243,7 @@ export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: 
     return { matched: false, rule: null, payload: null, errors: [] };
   }
 
-  const language = resolveSignal(normalized.globalProfile.language, rule.overrides.language, normalizeLanguage);
+  const language = resolveEffectiveLanguageForRule(normalized, rule);
   const timezoneConfig = resolveSignal(normalized.globalProfile.timezone, rule.overrides.timezone, normalizeTimezone);
   const geolocationConfig = resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
   const geolocation = resolveGeolocationValue(geolocationConfig, lastLocation);
