@@ -51,7 +51,6 @@ export default defineConfig({
       input: {
         'background/service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
         'content/content': resolve(__dirname, 'src/content/content.ts'),
-        'injected/runtime': resolve(__dirname, 'src/injected/runtime.ts'),
         'popup/popup': resolve(__dirname, 'src/popup/popup.ts'),
         'options/options': resolve(__dirname, 'src/options/options.ts'),
         'leak-test/leak-test': resolve(__dirname, 'src/leak-test/leak-test.ts')
@@ -68,12 +67,12 @@ export default defineConfig({
           return 'assets/[name].[hash][extname]';
         }
       },
-      // Prevent automatic code splitting by not sharing modules
+      // 保持扩展入口文件名稳定。
       preserveEntrySignatures: 'strict'
     },
     target: 'esnext',
     minify: false,
-    // Force Rollup to inline shared code instead of creating chunks
+    // 共享代码由 Rollup 内联到各入口，避免扩展运行时依赖额外 chunk。
     commonjsOptions: {
       transformMixedEsModules: true
     }

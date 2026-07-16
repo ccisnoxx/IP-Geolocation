@@ -42,23 +42,19 @@
             </span>
             <input type="checkbox" id="debugMode">
           </label>
-          <div class="overview-card wide">
-            <span class="card-label">出口 IP 定位</span>
-            <strong id="ipLocationStatus">当前出口 IP 定位：尚未刷新</strong>
-          </div>
-          <div class="effective-card">
-            <span class="effective-title">生效地理位置</span>
-            <span id="effectiveGeolocationSource" class="source-chip">-</span>
-            <strong id="effectiveGeolocationValue">-</strong>
-            <small id="effectiveGeolocationDetail">-</small>
-          </div>
-          <div class="effective-card">
-            <span class="effective-title">生效时区</span>
-            <span id="effectiveTimezoneSource" class="source-chip">-</span>
-            <strong id="effectiveTimezoneValue">-</strong>
-            <small id="effectiveTimezoneDetail">-</small>
-          </div>
         </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Exit Locations</span>
+            <h2>出口位置档案</h2>
+          </div>
+          <button id="detectExitLocation" class="btn-primary" type="button">检测新出口</button>
+        </div>
+        <p class="section-description">档案中的公网 IP、坐标、国家和时区只来自一次完整检测。这里只能修改名称；重新检测必须先确认旧值与新值。</p>
+        <div id="exitLocationProfiles" class="profiles-grid"></div>
       </section>
 
       <section class="section">
@@ -71,23 +67,18 @@
         <div class="input-group">
           <label for="ruleList">域名列表（每行一个，自动包含子域名）</label>
           <textarea id="ruleList" class="input domain-textarea" rows="15" placeholder="例如：&#10;chatgpt.com&#10;openai.com&#10;google.com&#10;&#10;不要写通配符；example.com 会匹配 example.com 及其子域名。"></textarea>
-          <div class="hint">VanishGeo 使用统一 allowlist 规则，不保留 global/blacklist/wildcard 第二套匹配逻辑。</div>
+          <div class="hint">保存域名后，还需要在下方“站点特定规则”为 auto 地理位置/时区显式选择出口位置档案。</div>
         </div>
       </section>
 
       <section class="section">
         <div class="section-header">
           <div>
-            <span class="section-kicker">IP Profile</span>
-            <h2>跟随 IP / 自定义</h2>
+            <span class="section-kicker">Signal Settings</span>
+            <h2>自动跟随 / 手工覆盖</h2>
           </div>
           <button id="saveAsCustom" class="btn-secondary">另存为自定义配置</button>
         </div>
-        <div class="action-buttons">
-          <button id="getFromIP" class="btn-primary">刷新出口 IP 定位（地理位置 + 时区）</button>
-          <button id="freezeIpProfile" class="btn-secondary">应用为手动配置 / 冻结当前值</button>
-        </div>
-
         <div class="config-tabs" role="tablist" aria-label="配置分类">
           <button class="tab-btn active" data-tab="geolocation" type="button">地理位置</button>
           <button class="tab-btn" data-tab="timezone" type="button">时区</button>
@@ -205,7 +196,7 @@
             <h2>自定义配置文件</h2>
           </div>
         </div>
-        <p class="section-description">需要固定环境时，将当前手动配置保存为自定义方案。默认推荐地理位置和时区跟随出口 IP。</p>
+        <p class="section-description">需要固定环境时，将当前手工坐标、时区和语言保存为通用方案。出口身份仍由独立的出口位置档案管理。</p>
         <div id="customProfiles" class="profiles-grid"></div>
       </section>
 
@@ -216,7 +207,7 @@
             <h2>站点特定规则</h2>
           </div>
         </div>
-        <p class="section-description">站点特定规则优先级高于匹配模式，可以为特定网站设置例外。</p>
+        <p class="section-description">每条规则显式选择出口位置档案；未选择或选择待确认档案时，auto 地理位置和时区不会注入。</p>
         <div id="siteRules" class="site-rules"></div>
       </section>
 
@@ -237,7 +228,7 @@
     </main>
 
     <footer class="save-bar">
-      <span>修改完成后保存当前配置，popup 的自动保存不替代本页确认操作。</span>
+      <span>保存后，只要已打开站点的有效 runtime payload 发生变化，对应标签页会自动刷新。</span>
       <button id="saveFooter" class="btn-primary" type="button">保存当前配置</button>
     </footer>
   </div>

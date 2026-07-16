@@ -1,3 +1,4 @@
+// 该自包含函数由后台定向执行到 MAIN world，不通过页面消息接收配置。
 type RuntimePayload = {
   extensionEnabled?: boolean;
   enabled?: boolean;
@@ -39,7 +40,6 @@ type SurfaceName =
   | 'geolocation-permissions'
   | 'canvas'
   | 'worker'
-  | 'iframe'
   | 'internal';
 
 type ReflectionOriginals = {
@@ -54,8 +54,6 @@ type ReflectionOriginals = {
   reflectApply: typeof Reflect.apply;
   reflectGetOwnPropertyDescriptor: typeof Reflect.getOwnPropertyDescriptor;
   reflectOwnKeys: typeof Reflect.ownKeys;
-  symbolFor: typeof Symbol.for;
-  symbolKeyFor: typeof Symbol.keyFor;
 };
 
 type DescriptorEntry = {
@@ -66,7 +64,6 @@ type DescriptorEntry = {
 type AntiDetectionState = {
   anchor: symbol;
   runtimeReady: boolean;
-  listenerInstalled: boolean;
   reflectionInstalled: boolean;
   debugMode: boolean;
   originals: ReflectionOriginals;
@@ -83,18 +80,16 @@ type AntiDetectionState = {
     geolocationCoordinate: { key: string; latitude: number; longitude: number } | null;
     canvasTargetFontKeys: Set<string>;
   };
-  lastPayload: RuntimePayload | null;
 };
 
-(function() {
+export function applyVanishGeoRuntime(payload: RuntimePayload, documentStateKey: string): void {
   const root = globalThis as typeof globalThis & Record<string, any>;
-  const MAIN_STATE_KEY = 'chrome.runtime.vanishgeo.state';
+  const runtimeAnchor = Symbol.for(documentStateKey);
 
   function captureOriginals(globals: typeof globalThis & Record<string, any>): ReflectionOriginals {
     const objectCtor = globals.Object || Object;
     const functionCtor = globals.Function || Function;
     const reflectCtor = globals.Reflect || Reflect;
-    const symbolCtor = globals.Symbol || Symbol;
     return {
       objectDefineProperty: objectCtor.defineProperty,
       objectGetOwnPropertyDescriptor: objectCtor.getOwnPropertyDescriptor,
@@ -106,9 +101,7 @@ type AntiDetectionState = {
       functionToString: functionCtor.prototype.toString,
       reflectApply: reflectCtor.apply,
       reflectGetOwnPropertyDescriptor: reflectCtor.getOwnPropertyDescriptor,
-      reflectOwnKeys: reflectCtor.ownKeys,
-      symbolFor: symbolCtor.for,
-      symbolKeyFor: symbolCtor.keyFor
+      reflectOwnKeys: reflectCtor.ownKeys
     };
   }
 
@@ -205,9 +198,7 @@ type AntiDetectionState = {
     const objectCtor = globals.Object || Object;
     const functionCtor = globals.Function || Function;
     const reflectCtor = globals.Reflect || Reflect;
-    const symbolCtor = globals.Symbol || Symbol;
     const originals = state.originals;
-    const stateKeyDecoy = symbolCtor(MAIN_STATE_KEY);
 
     const patchedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(obj: object, prop: PropertyKey) {
       if (obj && isHiddenProperty(state, obj, prop)) return undefined;
@@ -266,17 +257,6 @@ type AntiDetectionState = {
       return originals.functionToString.call(this);
     };
 
-    const patchedSymbolFor = function(key: unknown) {
-      if (typeof key !== 'symbol' && String(key) === MAIN_STATE_KEY) return stateKeyDecoy;
-      return originals.symbolFor.call(symbolCtor, key as string);
-    };
-
-    const patchedSymbolKeyFor = function(key: symbol) {
-      if (key === state.anchor) return undefined;
-      if (key === stateKeyDecoy) return MAIN_STATE_KEY;
-      return originals.symbolKeyFor.call(symbolCtor, key);
-    };
-
     registerFunctionSource(state, patchedGetOwnPropertyDescriptor, nativeSourceFor(state, originals.objectGetOwnPropertyDescriptor, 'getOwnPropertyDescriptor'));
     registerFunctionSource(state, patchedReflectGetOwnPropertyDescriptor, nativeSourceFor(state, originals.reflectGetOwnPropertyDescriptor, 'getOwnPropertyDescriptor'));
     registerFunctionSource(state, patchedGetOwnPropertyDescriptors, nativeSourceFor(state, originals.objectGetOwnPropertyDescriptors, 'getOwnPropertyDescriptors'));
@@ -284,12 +264,9 @@ type AntiDetectionState = {
     registerFunctionSource(state, patchedGetOwnPropertySymbols, nativeSourceFor(state, originals.objectGetOwnPropertySymbols, 'getOwnPropertySymbols'));
     registerFunctionSource(state, patchedOwnKeys, nativeSourceFor(state, originals.reflectOwnKeys, 'ownKeys'));
     registerFunctionSource(state, patchedFunctionToString, nativeSourceFor(state, originals.functionToString, 'toString'));
-    registerFunctionSource(state, patchedSymbolFor, nativeSourceFor(state, originals.symbolFor, 'for'));
-    registerFunctionSource(state, patchedSymbolKeyFor, nativeSourceFor(state, originals.symbolKeyFor, 'keyFor'));
 
     const objectDescriptor = (property: PropertyKey) => originals.objectGetOwnPropertyDescriptor.call(objectCtor, objectCtor, property);
     const reflectDescriptor = (property: PropertyKey) => originals.objectGetOwnPropertyDescriptor.call(objectCtor, reflectCtor, property);
-    const symbolDescriptor = (property: PropertyKey) => originals.objectGetOwnPropertyDescriptor.call(objectCtor, symbolCtor, property);
     const functionToStringDescriptor = originals.objectGetOwnPropertyDescriptor.call(objectCtor, functionCtor.prototype, 'toString');
 
     originals.objectDefineProperty.call(objectCtor, objectCtor, 'getOwnPropertyDescriptor', {
@@ -320,20 +297,11 @@ type AntiDetectionState = {
       ...(functionToStringDescriptor || { configurable: true, writable: true }),
       value: patchedFunctionToString
     });
-    defineRegisteredProperty(globals, state, symbolCtor, 'for', {
-      ...(symbolDescriptor('for') || { configurable: true, writable: true }),
-      value: patchedSymbolFor
-    }, 'internal', symbolDescriptor('for'));
-    defineRegisteredProperty(globals, state, symbolCtor, 'keyFor', {
-      ...(symbolDescriptor('keyFor') || { configurable: true, writable: true }),
-      value: patchedSymbolKeyFor
-    }, 'internal', symbolDescriptor('keyFor'));
   }
 
   function getAntiDetectionState(globals: typeof globalThis & Record<string, any>): AntiDetectionState {
-    const symbolCtor = globals.Symbol || Symbol;
     const objectCtor = globals.Object || Object;
-    const anchor = symbolCtor.for ? symbolCtor.for(MAIN_STATE_KEY) : Symbol(MAIN_STATE_KEY);
+    const anchor = runtimeAnchor;
     let state = (globals as Record<PropertyKey, any>)[anchor] as AntiDetectionState | undefined;
 
     if (!state) {
@@ -341,7 +309,6 @@ type AntiDetectionState = {
       state = {
         anchor,
         runtimeReady: false,
-        listenerInstalled: false,
         reflectionInstalled: false,
         debugMode: false,
         originals,
@@ -357,8 +324,7 @@ type AntiDetectionState = {
           geolocation: null,
           geolocationCoordinate: null,
           canvasTargetFontKeys: new Set<string>()
-        },
-        lastPayload: null
+        }
       };
       originals.objectDefineProperty.call(objectCtor, globals, anchor, {
         value: state,
@@ -1117,33 +1083,18 @@ type AntiDetectionState = {
     }
   }
 
-  function workerBootstrap(patchConfig: { timezone: string | null; language: string | null; languages: string[] | null }) {
+  function workerBootstrap(patchConfig: { stateKey: string; timezone: string | null; language: string | null; languages: string[] | null }) {
     const root = self as unknown as typeof globalThis & Record<string, any>;
-    const stateKeyName = 'chrome.runtime.vanishgeo.state';
-    const stateKey = root.Symbol.for(stateKeyName);
-    const stateKeyDecoy = root.Symbol(stateKeyName);
+    const stateKey = root.Symbol(patchConfig.stateKey);
     const originalGetOwnPropertySymbols = root.Object.getOwnPropertySymbols;
     const originalGetOwnPropertyDescriptor = root.Object.getOwnPropertyDescriptor;
     const originalOwnKeys = root.Reflect.ownKeys;
     const originalFunctionToString = root.Function.prototype.toString;
-    const originalSymbolFor = root.Symbol.for;
-    const originalSymbolKeyFor = root.Symbol.keyFor;
     const originalSetPrototypeOf = root.Object.setPrototypeOf;
     const functionSources = new WeakMap<Function, string>();
     if (!(root as Record<PropertyKey, any>)[stateKey]) {
       root.Object.defineProperty(root, stateKey, { value: true, enumerable: false, configurable: false });
     }
-    const symbolFor = function(key: unknown) {
-      if (typeof key !== 'symbol' && String(key) === stateKeyName) return stateKeyDecoy;
-      return originalSymbolFor.call(root.Symbol, key as string);
-    };
-    const symbolKeyFor = function(key: symbol) {
-      if (key === stateKey) return undefined;
-      if (key === stateKeyDecoy) return stateKeyName;
-      return originalSymbolKeyFor.call(root.Symbol, key);
-    };
-    functionSources.set(symbolFor, originalFunctionToString.call(originalSymbolFor));
-    functionSources.set(symbolKeyFor, originalFunctionToString.call(originalSymbolKeyFor));
     root.Object.getOwnPropertySymbols = function getOwnPropertySymbols(obj: object) {
       return originalGetOwnPropertySymbols.call(Object, obj).filter((key) => !(obj === root && key === stateKey));
     };
@@ -1153,16 +1104,6 @@ type AntiDetectionState = {
     root.Function.prototype.toString = function toString(this: Function) {
       return functionSources.get(this) || originalFunctionToString.call(this);
     };
-    root.Object.defineProperty(root.Symbol, 'for', {
-      value: symbolFor,
-      configurable: true,
-      writable: true
-    });
-    root.Object.defineProperty(root.Symbol, 'keyFor', {
-      value: symbolKeyFor,
-      configurable: true,
-      writable: true
-    });
 
     const language = patchConfig.language;
     const languages = patchConfig.languages && patchConfig.languages.length ? patchConfig.languages.slice() : language ? [language] : null;
@@ -1459,7 +1400,7 @@ type AntiDetectionState = {
     }
   }
 
-  function buildWorkerPatchSource(patchConfig: { timezone: string | null; language: string | null; languages: string[] | null }): string {
+  function buildWorkerPatchSource(patchConfig: { stateKey: string; timezone: string | null; language: string | null; languages: string[] | null }): string {
     return `;(${workerBootstrap.toString()})(${JSON.stringify(patchConfig)});`;
   }
 
@@ -1530,60 +1471,12 @@ type AntiDetectionState = {
     }
   }
 
-  function installIframePropagation(
-    globals: typeof globalThis & Record<string, any>,
-    realmState: AntiDetectionState
-  ): void {
-    if (realmState.installedSurfaces.has('iframe') || !globals.document?.createElement) return;
-    realmState.installedSurfaces.add('iframe');
-
-    const documentTarget = globals.document;
-    const documentPrototype = realmState.originals.objectGetPrototypeOf.call(globals.Object || Object, documentTarget);
-    const prototypeDescriptor = documentPrototype
-      ? realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, documentPrototype, 'createElement')
-      : undefined;
-    const ownDescriptor = realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, documentTarget, 'createElement');
-    const createElementOwner = prototypeDescriptor ? documentPrototype : documentTarget;
-    const originalDescriptor = prototypeDescriptor || ownDescriptor;
-    const originalCreateElement = originalDescriptor && typeof originalDescriptor.value === 'function'
-      ? originalDescriptor.value
-      : documentTarget.createElement;
-    if (typeof originalCreateElement !== 'function') return;
-
-    const applyToFrame = (element: HTMLIFrameElement) => {
-      try {
-        const frameWindow = element.contentWindow as (typeof globalThis & Record<string, any>) | null;
-        if (!frameWindow || !realmState.lastPayload) return;
-        void frameWindow.location.href;
-        applySpoofToRealm(frameWindow, realmState.lastPayload);
-      } catch {
-        // Cross-origin frames are explicitly out of scope for first-version propagation.
-      }
-    };
-
-    const createElement = createNativeProxyFunction(globals, realmState, originalCreateElement, (target, thisArg, args) => {
-      const element = realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, thisArg, args);
-      const tagName = String(args[0] || '').toLowerCase();
-      if (tagName === 'iframe' && element && typeof element.addEventListener === 'function') {
-        element.addEventListener('load', () => applyToFrame(element as HTMLIFrameElement));
-        globals.setTimeout?.(() => applyToFrame(element as HTMLIFrameElement), 0);
-      }
-      return element;
-    });
-
-    defineRegisteredProperty(globals, realmState, createElementOwner, 'createElement', {
-      ...(originalDescriptor || { configurable: true, enumerable: false, writable: true }),
-      value: createElement
-    }, 'iframe', originalDescriptor);
-  }
-
   function applySpoofToRealm(globals: typeof globalThis & Record<string, any>, payload: RuntimePayload): void {
     if (!payload) return;
     if (payload.extensionEnabled === false || payload.enabled === false) return;
 
     const realmState = getAntiDetectionState(globals);
     realmState.debugMode = Boolean(payload.debugMode);
-    realmState.lastPayload = payload;
 
     const geolocation = payload.geolocation || (
       Number.isFinite(Number(payload.latitude)) && Number.isFinite(Number(payload.longitude))
@@ -1602,21 +1495,13 @@ type AntiDetectionState = {
     installDateTimeSpoof(globals, realmState, { timezone: timezonePayload.timezone, language: spoofLanguage });
     installCanvasSpoof(globals, realmState, payload.canvasConfig);
     installWorkerHooks(globals, realmState, buildWorkerPatchSource({
+      stateKey: `${documentStateKey}:worker`,
       timezone: timezonePayload.timezone,
       language: spoofLanguage,
       languages: spoofLanguages
     }));
-    installIframePropagation(globals, realmState);
     log('applied payload', payload);
   }
 
-  if (!state.listenerInstalled) {
-    state.listenerInstalled = true;
-    window.addEventListener('message', (event) => {
-      if (event.source !== window) return;
-      const data = event.data;
-      if (!data || data.source !== 'vanishgeo-extension' || data.type !== 'apply-spoof') return;
-      applySpoofToRealm(root, data.payload);
-    });
-  }
-})();
+  applySpoofToRealm(root, payload);
+}

@@ -61,6 +61,7 @@ textarea {
 button,
 summary,
 .checkbox-label,
+select,
 .switch {
   cursor: pointer;
 }
@@ -78,6 +79,10 @@ button:disabled {
   cursor: not-allowed;
   filter: grayscale(0.35);
   opacity: 0.55;
+}
+
+select:disabled {
+  cursor: not-allowed;
 }
 
 .container {

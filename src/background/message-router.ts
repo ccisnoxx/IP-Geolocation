@@ -1,44 +1,60 @@
+// 消息路由把 content 初始化与扩展管理页动作分开校验。
 import { normalizeWebRtc } from '../shared/config-model';
 import { applyProfileToConfig } from '../shared/profile';
 import type { BackgroundServices } from './services';
 
 export function createBackgroundMessageRouter(services: BackgroundServices) {
+  function requireExtensionPage(sender: chrome.runtime.MessageSender): void {
+    const extensionRoot = chrome.runtime.getURL('');
+    if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(extensionRoot)) {
+      throw new Error('该操作只允许扩展管理页面调用');
+    }
+  }
+
   async function respond(request: any, sender: chrome.runtime.MessageSender): Promise<any> {
+    if (request?.action === 'initializeRuntimeForSender') {
+      return { status: 'ok', ...(await services.initializeRuntimeForSender(sender)) };
+    }
+
+    requireExtensionPage(sender);
     switch (request?.action) {
-      case 'manualUpdate':
-        return { status: 'ok', geo: await services.updateGeolocation(true), ipLocationStatus: await services.getIpLocationStatus() };
       case 'getExtensionState':
         return { status: 'ok', state: await services.getExtensionState() };
       case 'setExtensionEnabled':
         return { status: 'ok', config: await services.setExtensionEnabled(Boolean(request.enabled)) };
       case 'getSiteConfig':
-        return {
-          status: 'ok',
-          config: await services.getSiteConfig(),
-          lastLocation: await services.getLastLocation(),
-          ipLocationStatus: await services.getIpLocationStatus()
-        };
+        return { status: 'ok', config: await services.getSiteConfig() };
       case 'setSiteConfig':
         return { status: 'ok', config: await services.saveSiteConfig(request.config || {}) };
+      case 'importSiteConfig':
+        return { status: 'ok', config: await services.importSiteConfig(request.config || {}) };
       case 'resetSiteConfig':
-        return { status: 'ok', config: await services.saveSiteConfig({}) };
+        return { status: 'ok', config: await services.resetSiteConfig() };
+      case 'detectExitLocation':
+        return { status: 'ok', preview: await services.detectExitLocation(request.profileId || null) };
+      case 'confirmExitLocationDetection':
+        return { status: 'ok', config: await services.confirmExitLocationDetection(request.detectionId, request.name) };
+      case 'cancelExitLocationDetection':
+        await services.cancelExitLocationDetection(request.detectionId);
+        return { status: 'ok' };
+      case 'renameExitLocationProfile':
+        return { status: 'ok', config: await services.renameExitLocationProfile(request.profileId, request.name) };
+      case 'deleteExitLocationProfile':
+        return { status: 'ok', config: await services.deleteExitLocationProfile(request.profileId) };
       case 'setWebRtcGlobalMode':
         return { status: 'ok', config: await services.setWebRtcGlobalMode(request.mode) };
       case 'getWebRtcConfig': {
         const config = await services.getSiteConfig();
         const webRtc = normalizeWebRtc(config.webRtc);
-        const policyState = await services.getWebRtcPolicyState();
         return {
           status: 'ok',
           state: {
             config: webRtc,
             effectivePolicy: services.webRtcPolicies[webRtc.globalMode],
-            policyState
+            policyState: await services.getWebRtcPolicyState()
           }
         };
       }
-      case 'getPayloadForUrl':
-        return { status: 'ok', ...(await services.getPayloadForUrl(request.url || sender.url || '')) };
       case 'getCurrentTabState': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         return { status: 'ok', state: await services.getCurrentTabState(tab) };
@@ -61,7 +77,7 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
         await chrome.runtime.openOptionsPage();
         return { status: 'ok' };
       default:
-        throw new Error(`unknown action: ${request?.action}`);
+        throw new Error(`未知操作：${request?.action}`);
     }
   }
 

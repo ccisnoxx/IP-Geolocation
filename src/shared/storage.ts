@@ -3,57 +3,43 @@ import {
   LEGACY_VANISHME_CONFIG_KEY,
   RULES_INITIALIZED_KEY,
   SITE_CONFIG_KEY,
-  migrateLegacyConfig,
-  validateConfig
+  migrateLegacyConfig
 } from './config-resolver';
-import { DEFAULT_CONFIG, clone, normalizeConfig } from './config-model';
-import { applyProfileToConfig } from './profile';
-import type { LastLocation, SiteSpoofConfig } from './types';
+import {
+  OLD_EXTENSION_ENABLED_KEY,
+  OLD_LANGUAGE_KEY,
+  OLD_TIMEZONE_KEY,
+  OLD_WEBRTC_KEY
+} from './config-model';
+import { GEO_LAST_ERROR_KEY, GEO_PROVIDER_BACKOFF_KEY, GEO_REFRESH_STATE_KEY } from './ip-location';
+import type { SiteSpoofConfig } from './types';
 
 export async function getConfig(): Promise<SiteSpoofConfig> {
   const data = await chrome.storage.local.get(null);
   const config = migrateLegacyConfig(data);
-  if (!data[SITE_CONFIG_KEY] || data[LEGACY_VANISHME_CONFIG_KEY] || data[RULES_INITIALIZED_KEY] !== true) {
+  const storedConfig = data[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
+  const needsMigration = storedConfig?.schemaVersion !== 2
+    || Boolean(data[LEGACY_VANISHME_CONFIG_KEY])
+    || data[RULES_INITIALIZED_KEY] !== true;
+  if (needsMigration) {
     await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });
-    if (data[LEGACY_VANISHME_CONFIG_KEY]) {
-      await chrome.storage.local.remove(LEGACY_VANISHME_CONFIG_KEY);
-    }
+  }
+  const obsoleteKeys = [
+    LEGACY_VANISHME_CONFIG_KEY,
+    LAST_LOCATION_KEY,
+    GEO_PROVIDER_BACKOFF_KEY,
+    GEO_REFRESH_STATE_KEY,
+    GEO_LAST_ERROR_KEY,
+    OLD_EXTENSION_ENABLED_KEY,
+    OLD_LANGUAGE_KEY,
+    OLD_TIMEZONE_KEY,
+    OLD_WEBRTC_KEY
+  ]
+    .filter((key) => Object.prototype.hasOwnProperty.call(data, key));
+  if (obsoleteKeys.length) {
+    await chrome.storage.local.remove(obsoleteKeys);
   }
   return config;
 }
 
-export async function setConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
-  const result = validateConfig(config);
-  if (!result.ok) {
-    throw new Error(result.errors.join('; '));
-  }
-  await chrome.storage.local.set({ [SITE_CONFIG_KEY]: result.config });
-  return result.config;
-}
-
-export async function updateConfig(updates: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
-  const config = await getConfig();
-  return setConfig(normalizeConfig({ ...config, ...updates }));
-}
-
-export async function resetConfig(): Promise<SiteSpoofConfig> {
-  const config = clone(DEFAULT_CONFIG);
-  await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config });
-  return config;
-}
-
-export async function getLastLocation(): Promise<LastLocation | null> {
-  const data = await chrome.storage.local.get(LAST_LOCATION_KEY);
-  return data[LAST_LOCATION_KEY] || null;
-}
-
-export async function setLastLocation(location: LastLocation): Promise<void> {
-  await chrome.storage.local.set({ [LAST_LOCATION_KEY]: location });
-}
-
-export async function applyProfile(profileId: string): Promise<SiteSpoofConfig> {
-  const config = await getConfig();
-  return setConfig(applyProfileToConfig(config, profileId));
-}
-
-export { LAST_LOCATION_KEY, SITE_CONFIG_KEY };
+export { LAST_LOCATION_KEY, LEGACY_VANISHME_CONFIG_KEY, SITE_CONFIG_KEY };

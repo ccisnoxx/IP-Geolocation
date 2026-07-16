@@ -1,108 +1,95 @@
+// 验证 Popup 当前站点状态只依赖共享解析器产生的匹配结果和有效 payload。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatLastLocationStatus } from '../src/shared/last-location-display';
-import { deriveCurrentSiteStatus, deriveEffectiveEnvironment, freezeIpLocationToManualConfig } from '../src/shared/ui-state';
+import { getEffectiveProfile } from '../src/shared/config-resolver';
 import { normalizeConfig } from '../src/shared/config-model';
-import { deriveIpLocationStatus } from '../src/shared/ip-location';
-import type { LastLocation } from '../src/shared/types';
+import { deriveCurrentSiteStatus } from '../src/shared/ui-state';
 
-const now = Date.now();
-const lastLocation: LastLocation = {
-  latitude: 35.68,
-  longitude: 139.76,
-  country: 'Japan',
-  timezone: 'Asia/Tokyo',
-  timezoneOffset: -540,
-  updatedAt: now,
-  expiresAt: now + 60_000,
-  updateTime: '2026/7/6 20:00:00'
-};
+function createConfig() {
+  return normalizeConfig({
+    masterEnabled: true,
+    globalProfile: {
+      language: { enabled: false },
+      timezone: { enabled: true, mode: 'auto' },
+      geolocation: { enabled: true, mode: 'auto' }
+    } as any,
+    exitLocationProfiles: [{
+      id: 'exit-home',
+      name: '家宽出口',
+      verification: 'verified',
+      publicIp: '203.0.113.10',
+      latitude: 35.68,
+      longitude: 139.76,
+      country: 'Japan',
+      timezone: 'Asia/Tokyo',
+      provider: 'https://ipwho.is/',
+      verifiedAt: 1_752_551_200_000
+    }],
+    rules: [{
+      id: 'rule-example',
+      domain: 'example.com',
+      enabled: true,
+      exitLocationProfileId: 'exit-home'
+    }] as any
+  });
+}
 
 test('deriveCurrentSiteStatus differentiates unsupported, disabled, unmatched, enabled, and error states', () => {
-  const config = normalizeConfig({
-    masterEnabled: true,
-    rules: [{ domain: 'example.com', enabled: true }] as any
-  });
+  const config = createConfig();
+  const resolved = getEffectiveProfile(config, 'example.com');
   const base = {
     domain: 'example.com',
     scriptable: true,
     config,
-    matched: true,
-    rule: config.rules[0],
-    payload: {} as any,
-    errors: []
+    ...resolved
   };
 
   assert.equal(deriveCurrentSiteStatus({ ...base, scriptable: false }).kind, 'unsupported');
-  assert.equal(deriveCurrentSiteStatus({ ...base, config: normalizeConfig({ ...config, masterEnabled: false }) }).kind, 'global-disabled');
-  assert.equal(deriveCurrentSiteStatus({ ...base, matched: false, rule: null, payload: null }).kind, 'not-allowlisted');
-  assert.equal(deriveCurrentSiteStatus({ ...base, payload: null, errors: ['timezone is missing'] }).kind, 'error');
+  assert.equal(deriveCurrentSiteStatus({
+    ...base,
+    config: normalizeConfig({ ...config, masterEnabled: false })
+  }).kind, 'global-disabled');
+  assert.equal(deriveCurrentSiteStatus({
+    ...base,
+    matched: false,
+    rule: null,
+    payload: null,
+    errors: []
+  }).kind, 'not-allowlisted');
   assert.equal(deriveCurrentSiteStatus(base).kind, 'enabled');
   assert.equal(deriveCurrentSiteStatus(base).disableDomain, 'example.com');
 });
 
-test('deriveEffectiveEnvironment shows follow-IP values without writing manual config', () => {
-  const config = normalizeConfig({
-    globalProfile: {
-      geolocation: { enabled: true, mode: 'auto' },
-      timezone: { enabled: true, mode: 'auto' },
-      language: { enabled: false }
-    } as any
+test('an automatic rule without an explicit exit profile is surfaced as a configuration error', () => {
+  const config = createConfig();
+  config.rules[0].exitLocationProfileId = null;
+  const resolved = getEffectiveProfile(config, 'example.com');
+  const status = deriveCurrentSiteStatus({
+    domain: 'example.com',
+    scriptable: true,
+    config,
+    ...resolved
   });
-  const display = deriveEffectiveEnvironment(config, lastLocation);
 
-  assert.equal(display.geolocation.source, 'ip');
-  assert.match(display.geolocation.value, /35\.68/);
-  assert.equal(display.timezone.source, 'ip');
-  assert.equal(display.timezone.value, 'Asia/Tokyo');
-  assert.match(display.timezone.detail, /GMT\+09:00/);
-  assert.equal(display.geolocation.freshness, 'fresh');
-  assert.equal(config.globalProfile.geolocation.mode, 'auto');
-  assert.equal(config.globalProfile.timezone.mode, 'auto');
-  assert.equal(display.canFreezeIpLocation, true);
+  assert.equal(status.kind, 'error');
+  assert.match(status.detail, /未选择出口位置档案/);
+  assert.equal(status.canDisable, true);
 });
 
-test('IP location display differentiates fresh stale refreshing and error states', () => {
-  const staleLocation = {
-    ...lastLocation,
-    updatedAt: now - 120_000,
-    expiresAt: now - 60_000
-  };
-  const staleStatus = deriveIpLocationStatus(staleLocation, { status: 'idle' }, now);
-  const refreshingStatus = deriveIpLocationStatus(staleLocation, { status: 'refreshing', startedAt: now }, now);
-  const errorStatus = deriveIpLocationStatus(staleLocation, { status: 'error', error: 'provider timeout', completedAt: now }, now);
-
-  assert.match(formatLastLocationStatus(lastLocation, deriveIpLocationStatus(lastLocation, { status: 'idle' }, now)), /Fresh（有效）/);
-  assert.match(formatLastLocationStatus(staleLocation, staleStatus), /Stale（过期）/);
-  assert.match(formatLastLocationStatus(staleLocation, refreshingStatus), /Refreshing（刷新中）/);
-  assert.match(formatLastLocationStatus(staleLocation, errorStatus), /Error（错误）provider timeout/);
-
-  const display = deriveEffectiveEnvironment(normalizeConfig({
-    globalProfile: {
-      geolocation: { enabled: true, mode: 'auto' },
-      timezone: { enabled: true, mode: 'auto' }
-    } as any
-  }), staleLocation, staleStatus);
-  assert.equal(display.geolocation.freshness, 'stale');
-  assert.match(display.geolocation.detail, /Stale（过期）/);
-});
-
-test('freezeIpLocationToManualConfig copies latest IP location only on explicit request', () => {
-  const config = normalizeConfig({
-    globalProfile: {
-      geolocation: { enabled: true, mode: 'auto', accuracy: 50, randomize: true },
-      timezone: { enabled: true, mode: 'auto' }
-    } as any
+test('an unverified selected profile cannot produce an enabled runtime state', () => {
+  const config = createConfig();
+  config.exitLocationProfiles[0].verification = 'unverified';
+  config.exitLocationProfiles[0].publicIp = null;
+  config.exitLocationProfiles[0].provider = null;
+  config.exitLocationProfiles[0].verifiedAt = null;
+  const resolved = getEffectiveProfile(config, 'example.com');
+  const status = deriveCurrentSiteStatus({
+    domain: 'example.com',
+    scriptable: true,
+    config,
+    ...resolved
   });
-  const frozen = freezeIpLocationToManualConfig(config, lastLocation);
 
-  assert.ok(frozen);
-  assert.equal(config.globalProfile.geolocation.mode, 'auto');
-  assert.equal(frozen.globalProfile.geolocation.mode, 'manual');
-  assert.equal(frozen.globalProfile.geolocation.latitude, 35.68);
-  assert.equal(frozen.globalProfile.geolocation.longitude, 139.76);
-  assert.equal(frozen.globalProfile.geolocation.randomize, true);
-  assert.equal(frozen.globalProfile.timezone.mode, 'manual');
-  assert.equal(frozen.globalProfile.timezone.timezone, 'Asia/Tokyo');
-  assert.equal(freezeIpLocationToManualConfig(config, { ...lastLocation, timezone: null }), null);
+  assert.equal(status.kind, 'error');
+  assert.match(status.detail, /尚未验证/);
 });

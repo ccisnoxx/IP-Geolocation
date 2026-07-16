@@ -24,23 +24,48 @@ test('default config uses IP-following mode without regional presets', () => {
   assert.equal(config.globalProfile.language.enabled, false);
   assert.equal(config.profile.activeProfileId, null);
   assert.deepEqual(config.profile.profiles, []);
+  assert.equal(config.schemaVersion, 2);
+  assert.deepEqual(config.exitLocationProfiles, []);
+  assert.ok(config.rules.every((rule) => rule.exitLocationProfileId === null));
 });
 
-test('fresh migration seeds default rules so IP-following signals can inject', () => {
+test('fresh migration leaves auto rules unbound until an exit profile is selected', () => {
   const config = migrateLegacyConfig({});
-  const profile = getEffectiveProfile(config, 'chatgpt.com', {
-    latitude: 35.68,
-    longitude: 139.76,
-    country: 'Japan',
-    timezone: 'Asia/Tokyo'
-  });
+  const profile = getEffectiveProfile(config, 'chatgpt.com');
 
   assert.ok(config.rules.length > 0);
   assert.equal(profile.matched, true);
-  assert.equal(profile.payload?.geolocation?.latitude, 35.68);
-  assert.equal(profile.payload?.geolocation?.longitude, 139.76);
-  assert.equal(profile.payload?.timezone, 'Asia/Tokyo');
-  assert.equal(profile.payload?.timezoneSource, 'lastLocation');
+  assert.equal(profile.payload, null);
+  assert.match(profile.errors.join(' | '), /未选择出口位置档案/);
+});
+
+test('legacy lastLocation becomes one visible unverified profile without rule bindings', () => {
+  const storageData = {
+    siteSpoofConfig: { ...normalizeConfig({}), schemaVersion: 1 },
+    lastLocation: {
+      latitude: 35.68,
+      longitude: 139.76,
+      country: 'Japan',
+      timezone: 'Asia/Tokyo'
+    }
+  };
+  const migrated = migrateLegacyConfig(storageData);
+  const repeated = migrateLegacyConfig({ siteSpoofConfig: migrated, lastLocation: storageData.lastLocation });
+
+  assert.deepEqual(migrated.exitLocationProfiles, [{
+    id: 'legacy-last-location',
+    name: '待确认旧位置',
+    verification: 'unverified',
+    publicIp: null,
+    latitude: 35.68,
+    longitude: 139.76,
+    country: 'Japan',
+    timezone: 'Asia/Tokyo',
+    provider: null,
+    verifiedAt: null
+  }]);
+  assert.ok(migrated.rules.every((rule) => rule.exitLocationProfileId === null));
+  assert.equal(repeated.exitLocationProfiles.length, 1);
 });
 
 test('migration repairs previous empty-rule auto config once', () => {
@@ -72,7 +97,7 @@ test('validateConfig rejects duplicate domains', () => {
   assert.match(result.errors.join(' | '), /duplicate domain/);
 });
 
-test('getEffectiveProfile resolves matching rule against lastLocation', () => {
+test('getEffectiveProfile resolves a rule against its verified exit profile', () => {
   const config = normalizeConfig({
     masterEnabled: true,
     globalProfile: {
@@ -96,11 +121,26 @@ test('getEffectiveProfile resolves matching rule against lastLocation', () => {
     webRtc: {
       globalMode: 'strict'
     },
+    exitLocationProfiles: [
+      {
+        id: 'tokyo-exit',
+        name: '东京出口',
+        verification: 'verified',
+        publicIp: '203.0.113.10',
+        latitude: 35.68,
+        longitude: 139.76,
+        country: 'Japan',
+        timezone: 'Asia/Tokyo',
+        provider: 'ipwho.is',
+        verifiedAt: 1_700_000_000_000
+      }
+    ],
     rules: [
       {
         id: 'r1',
         domain: 'example.com',
         enabled: true,
+        exitLocationProfileId: 'tokyo-exit',
         overrides: {
           language: { mode: 'override', value: { language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP,ja;q=0.9' } },
           timezone: { mode: 'inherit', value: null },
@@ -110,19 +150,94 @@ test('getEffectiveProfile resolves matching rule against lastLocation', () => {
     ]
   });
 
-  const profile = getEffectiveProfile(config, 'sub.example.com', {
-    latitude: 35.68,
-    longitude: 139.76,
-    country: 'Japan',
-    timezone: 'Asia/Tokyo'
-  });
+  const profile = getEffectiveProfile(config, 'sub.example.com');
 
   assert.equal(profile.matched, true);
   assert.equal(profile.rule?.domain, 'example.com');
   assert.equal(profile.payload?.languageConfig?.language, 'ja-JP');
   assert.equal(profile.payload?.timezone, 'Asia/Tokyo');
-  assert.equal(profile.payload?.timezoneSource, 'lastLocation');
+  assert.equal(profile.payload?.timezoneSource, 'exitProfile');
   assert.equal(profile.payload?.geolocation?.country, 'Japan');
+});
+
+test('different rules resolve different explicit exit profiles without a global fallback', () => {
+  const config = normalizeConfig({
+    globalProfile: {
+      language: { enabled: false },
+      timezone: { enabled: true, mode: 'auto' },
+      geolocation: { enabled: true, mode: 'auto' }
+    } as any,
+    exitLocationProfiles: [
+      {
+        id: 'tokyo-exit',
+        name: '东京出口',
+        verification: 'verified',
+        publicIp: '203.0.113.10',
+        latitude: 35.68,
+        longitude: 139.76,
+        country: 'Japan',
+        timezone: 'Asia/Tokyo',
+        provider: 'ipwho.is',
+        verifiedAt: 1_700_000_000_000
+      },
+      {
+        id: 'singapore-exit',
+        name: '新加坡出口',
+        verification: 'verified',
+        publicIp: '203.0.113.20',
+        latitude: 1.3521,
+        longitude: 103.8198,
+        country: 'Singapore',
+        timezone: 'Asia/Singapore',
+        provider: 'ipapi.co',
+        verifiedAt: 1_700_000_100_000
+      }
+    ],
+    rules: [
+      { id: 'r-tokyo', domain: 'tokyo.example', enabled: true, exitLocationProfileId: 'tokyo-exit' },
+      { id: 'r-singapore', domain: 'singapore.example', enabled: true, exitLocationProfileId: 'singapore-exit' },
+      { id: 'r-unbound', domain: 'unbound.example', enabled: true, exitLocationProfileId: null }
+    ] as any
+  });
+
+  const tokyo = getEffectiveProfile(config, 'tokyo.example');
+  const singapore = getEffectiveProfile(config, 'singapore.example');
+  const unbound = getEffectiveProfile(config, 'unbound.example');
+
+  assert.equal(tokyo.payload?.timezone, 'Asia/Tokyo');
+  assert.equal(tokyo.payload?.latitude, 35.68);
+  assert.equal(singapore.payload?.timezone, 'Asia/Singapore');
+  assert.equal(singapore.payload?.latitude, 1.3521);
+  assert.equal(unbound.payload, null);
+  assert.match(unbound.errors.join(' | '), /未选择出口位置档案/);
+});
+
+test('unverified profiles cannot satisfy auto signals', () => {
+  const config = normalizeConfig({
+    exitLocationProfiles: [{
+      id: 'legacy',
+      name: '待确认旧位置',
+      verification: 'unverified',
+      publicIp: null,
+      latitude: 1,
+      longitude: 2,
+      country: 'Unknown',
+      timezone: 'UTC',
+      provider: null,
+      verifiedAt: null
+    }],
+    rules: [{
+      id: 'r1',
+      domain: 'example.com',
+      enabled: true,
+      exitLocationProfileId: 'legacy'
+    }] as any
+  });
+
+  const profile = getEffectiveProfile(config, 'example.com');
+
+  assert.equal(profile.payload, null);
+  assert.match(profile.errors.join(' | '), /尚未验证/);
 });
 
 test('migrateLegacyConfig converts VanishMe bpg_config into siteSpoofConfig rules', () => {

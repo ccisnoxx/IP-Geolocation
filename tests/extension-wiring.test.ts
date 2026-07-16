@@ -14,7 +14,7 @@ function exists(relativePath: string): boolean {
   return fs.existsSync(path.join(projectRoot, relativePath));
 }
 
-test('manifest uses dynamic injection instead of static all-url content scripts', () => {
+test('manifest uses dynamic injection without background alarms or static all-url content scripts', () => {
   const manifest = JSON.parse(read('manifest.json'));
   assert.equal(manifest.background.service_worker, 'background/service-worker.js');
   assert.equal(manifest.name, 'VanishGeo');
@@ -22,7 +22,6 @@ test('manifest uses dynamic injection instead of static all-url content scripts'
   assert.deepEqual(manifest.web_accessible_resources, []);
   assert.deepEqual(manifest.permissions, [
     'storage',
-    'alarms',
     'scripting',
     'tabs',
     'contextMenus',
@@ -31,22 +30,43 @@ test('manifest uses dynamic injection instead of static all-url content scripts'
     'declarativeNetRequestWithHostAccess'
   ]);
   assert.equal(manifest.permissions.includes('activeTab'), false);
+  assert.equal(manifest.permissions.includes('alarms'), false);
+  assert.equal(manifest.minimum_chrome_version, '119');
   assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
 });
 
-test('vite builds the single injected runtime entry', () => {
+test('runtime is bundled into the background instead of exposed as an independent entry', () => {
   const vite = read('vite.config.ts');
-  assert.match(vite, /injected\/runtime/);
+  assert.doesNotMatch(vite, /['"]injected\/runtime['"]\s*:/);
   assert.doesNotMatch(vite, /injected\/injected/);
   assert.equal(exists('src/injected/runtime.ts'), true);
   assert.equal(exists('src/injected/injected.ts'), false);
 });
 
-test('background registers only dynamic runtime and bridge scripts', () => {
+test('background registers one isolated all-frame initializer and directly injects the sender document', () => {
   const services = read('src/background/services.ts');
-  assert.match(services, /const MAIN_RUNTIME_FILES = \['injected\/runtime\.js'\]/);
-  assert.match(services, /const BRIDGE_FILES = \['content\/content\.js'\]/);
+  assert.match(services, /const CONTENT_SCRIPT_FILES = \['content\/content\.js'\]/);
+  assert.match(services, /allFrames:\s*true/);
+  assert.match(services, /matchOriginAsFallback:\s*true/);
+  assert.match(services, /world:\s*'ISOLATED'/);
+  assert.match(services, /documentIds:\s*\[sender\.documentId\]/);
+  assert.match(services, /func:\s*applyVanishGeoRuntime/);
+  assert.match(services, /world:\s*'MAIN'/);
   assert.doesNotMatch(services, /matches: \['<all_urls>'\]/);
+});
+
+test('content initialization exposes no page-controlled postMessage bridge or payload input', () => {
+  const content = read('src/content/content.ts');
+  const runtime = read('src/injected/runtime.ts');
+  const router = read('src/background/message-router.ts');
+
+  assert.match(content, /initializeRuntimeForSender/);
+  assert.doesNotMatch(content, /window\.(postMessage|addEventListener)/);
+  assert.doesNotMatch(content, /payload|location\.href/);
+  assert.doesNotMatch(runtime, /apply-spoof|vanishgeo-extension|window\.postMessage/);
+  assert.match(router, /requireExtensionPage/);
+  assert.match(router, /sender\.id !== chrome\.runtime\.id/);
+  assert.match(router, /sender\.url\?\.startsWith\(extensionRoot\)/);
 });
 
 test('language spoofing uses native-backed Navigator getter proxies', () => {
@@ -67,6 +87,7 @@ test('runtime centralizes hidden markers behind reflection virtualization', () =
   assert.match(runtime, /Reflect\.ownKeys/);
   assert.match(runtime, /Function\.prototype\.toString/);
   assert.doesNotMatch(runtime, /__vanishGeo(RuntimeReady|Originals|WorkerHooked|CanvasHooked|GeolocationController|Debug)/);
+  assert.doesNotMatch(runtime, /Symbol\.for\(['"]chrome\.runtime\.vanishgeo\.state/);
 });
 
 test('legacy VanishMe storage key is confined to migration code', () => {
@@ -173,7 +194,7 @@ test('Chrome acceptance entry covers P0 live validation surfaces without a heavy
   assert.doesNotMatch(script, /playwright|puppeteer/i);
 });
 
-test('manifest permission boundary is documented and avoids redundant activeTab', () => {
+test('manifest permission boundary documents active detection and avoids redundant permissions', () => {
   const manifest = JSON.parse(read('manifest.json'));
   const permissionsDoc = read('PERMISSIONS.md');
 
@@ -181,12 +202,13 @@ test('manifest permission boundary is documented and avoids redundant activeTab'
     assert.match(permissionsDoc, new RegExp(`\`${permission}\``));
   });
   assert.match(permissionsDoc, /`<all_urls>`/);
-  assert.match(permissionsDoc, /optional per-site host permissions is intentionally deferred/);
-  assert.match(permissionsDoc, /`activeTab` is intentionally not requested/);
+  assert.match(permissionsDoc, /optional host permissions 暂不处理/);
+  assert.match(permissionsDoc, /`activeTab` 不申请/);
+  assert.match(permissionsDoc, /`alarms` 已移除/);
   assert.equal(manifest.permissions.includes('activeTab'), false);
 });
 
-test('configuration UI wires site status, IP freeze, WebRTC, and Canvas controls', () => {
+test('configuration UI wires explicit exit-profile selection, active detection, WebRTC, and Canvas controls', () => {
   const popupHtml = read('src/popup/popup.html');
   const popupScript = read('src/popup/popup.ts');
   const optionsHtml = read('src/options/options.html');
@@ -195,19 +217,17 @@ test('configuration UI wires site status, IP freeze, WebRTC, and Canvas controls
   [
     'siteStatusBadge',
     'siteStatusDetail',
-    'effectiveGeolocationSource',
-    'effectiveGeolocationValue',
-    'effectiveTimezoneSource',
-    'effectiveTimezoneValue',
-    'freezeIpProfile'
+    'currentExitProfile',
+    'currentExitProfileSelect',
+    'manageExitProfiles'
   ].forEach((id) => assert.match(popupHtml, new RegExp(`id="${id}"`)));
   assert.match(popupScript, /deriveCurrentSiteStatus/);
-  assert.match(popupScript, /freezeIpLocationToManualConfig/);
+  assert.match(popupScript, /exitLocationProfileId/);
+  assert.doesNotMatch(popupScript, /freezeIpLocationToManualConfig/);
 
   [
-    'effectiveGeolocationSource',
-    'effectiveTimezoneSource',
-    'freezeIpProfile',
+    'detectExitLocation',
+    'exitLocationProfiles',
     'webrtcPolicyStatus',
     'canvasEnabled',
     'canvasSpoofFonts',
@@ -217,7 +237,10 @@ test('configuration UI wires site status, IP freeze, WebRTC, and Canvas controls
   assert.match(optionsHtml, /data-tab="canvas"/);
   assert.match(optionsScript, /getWebRtcConfig/);
   assert.match(optionsScript, /DEFAULT_CANVAS/);
-  assert.match(optionsScript, /freezeIpLocationToManualConfig/);
+  assert.match(optionsScript, /confirmExitLocationDetection/);
+  assert.match(optionsScript, /renameExitLocationProfile/);
+  assert.match(optionsScript, /deleteExitLocationProfile/);
+  assert.doesNotMatch(optionsScript, /freezeIpLocationToManualConfig/);
 });
 
 test('popup uses extension-safe fixed viewport with internal scrolling', () => {

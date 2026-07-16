@@ -10,11 +10,8 @@ import {
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
-import { formatCoordinate, formatLastLocationStatus } from '../shared/last-location-display';
-import { deriveIpLocationStatus } from '../shared/ip-location';
-import { deriveCurrentSiteStatus, deriveEffectiveEnvironment, freezeIpLocationToManualConfig } from '../shared/ui-state';
-import type { GeolocationHistory, LastLocation, SiteRule, SiteSpoofConfig } from '../shared/types';
-import type { IpLocationStatusSnapshot } from '../shared/ip-location';
+import { deriveCurrentSiteStatus } from '../shared/ui-state';
+import type { GeolocationHistory, SiteRule, SiteSpoofConfig } from '../shared/types';
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -34,15 +31,9 @@ const randomizeEl = document.getElementById('randomize') as HTMLInputElement;
 const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HTMLInputElement;
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
 const saveCoordinateBtn = document.getElementById('saveCoordinate') as HTMLButtonElement;
-const getFromIPBtn = document.getElementById('getFromIP') as HTMLButtonElement;
-const ipLocationStatusEl = document.getElementById('ipLocationStatus') as HTMLElement;
-const effectiveGeolocationSourceEl = document.getElementById('effectiveGeolocationSource') as HTMLElement;
-const effectiveGeolocationValueEl = document.getElementById('effectiveGeolocationValue') as HTMLElement;
-const effectiveGeolocationDetailEl = document.getElementById('effectiveGeolocationDetail') as HTMLElement;
-const effectiveTimezoneSourceEl = document.getElementById('effectiveTimezoneSource') as HTMLElement;
-const effectiveTimezoneValueEl = document.getElementById('effectiveTimezoneValue') as HTMLElement;
-const effectiveTimezoneDetailEl = document.getElementById('effectiveTimezoneDetail') as HTMLElement;
-const freezeIpProfileBtn = document.getElementById('freezeIpProfile') as HTMLButtonElement;
+const currentExitProfileEl = document.getElementById('currentExitProfile') as HTMLElement;
+const currentExitProfileSelectEl = document.getElementById('currentExitProfileSelect') as HTMLSelectElement;
+const manageExitProfilesBtn = document.getElementById('manageExitProfiles') as HTMLButtonElement;
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
@@ -62,8 +53,7 @@ const autoSaveToast = document.getElementById('autoSaveToast') as HTMLElement;
 let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
 let currentHostname = '';
 let currentDisableDomain: string | null = null;
-let lastLocation: LastLocation | null = null;
-let ipLocationStatus: IpLocationStatusSnapshot | null = null;
+let currentRuleId: string | null = null;
 let autoSaveTimer: number | null = null;
 
 function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
@@ -74,7 +64,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
         return;
       }
       if (!response || response.status === 'error') {
-        reject(new Error(response?.message || 'Unknown runtime error'));
+        reject(new Error(response?.message || '扩展后台返回未知错误'));
         return;
       }
       resolve(response);
@@ -124,11 +114,6 @@ function setStatusBadgeClass(kind: string): void {
   siteStatusBadgeEl.className = `status-badge ${kind}`;
 }
 
-function setSourceChip(element: HTMLElement, source: string, label: string): void {
-  element.className = `source-chip ${source}`;
-  element.textContent = label;
-}
-
 function renderCurrentSiteStatus(state: any): void {
   const status = deriveCurrentSiteStatus({
     domain: state.domain || '',
@@ -149,25 +134,25 @@ function renderCurrentSiteStatus(state: any): void {
   disableSiteBtn.textContent = status.disableDomain ? `移除 ${status.disableDomain}` : '不启用';
 }
 
-function updateEffectiveDisplay(config: SiteSpoofConfig): void {
-  const display = deriveEffectiveEnvironment(config, lastLocation, ipLocationStatus);
-  setSourceChip(effectiveGeolocationSourceEl, display.geolocation.source, display.geolocation.sourceLabel);
-  effectiveGeolocationValueEl.textContent = display.geolocation.value;
-  effectiveGeolocationDetailEl.textContent = display.geolocation.detail || '-';
-  setSourceChip(effectiveTimezoneSourceEl, display.timezone.source, display.timezone.sourceLabel);
-  effectiveTimezoneValueEl.textContent = display.timezone.value;
-  effectiveTimezoneDetailEl.textContent = display.timezone.detail || '-';
-  freezeIpProfileBtn.disabled = !display.canFreezeIpLocation;
-}
-
-function updateIpLocationDisplay(config: SiteSpoofConfig): void {
-  ipLocationStatusEl.textContent = formatLastLocationStatus(lastLocation, ipLocationStatus);
-  const followsIpGeolocation = config.globalProfile.geolocation.mode === 'auto';
-  const followsIpTimezone = config.globalProfile.timezone.mode === 'auto';
-  latitudeEl.placeholder = followsIpGeolocation && lastLocation ? formatCoordinate(lastLocation.latitude) : '';
-  longitudeEl.placeholder = followsIpGeolocation && lastLocation ? formatCoordinate(lastLocation.longitude) : '';
-  timezoneEl.placeholder = followsIpTimezone && lastLocation?.timezone ? lastLocation.timezone : 'UTC';
-  updateEffectiveDisplay(config);
+function updateExitLocationProfile(config: SiteSpoofConfig): void {
+  const rule = currentRuleId ? config.rules.find((item) => item.id === currentRuleId) || null : null;
+  currentExitProfileSelectEl.innerHTML = '';
+  currentExitProfileSelectEl.append(new Option('未选择出口', ''));
+  config.exitLocationProfiles
+    .filter((profile) => profile.verification === 'verified')
+    .forEach((profile) => currentExitProfileSelectEl.append(new Option(profile.name, profile.id)));
+  currentExitProfileSelectEl.value = rule?.exitLocationProfileId || '';
+  currentExitProfileSelectEl.disabled = !rule;
+  const profile = rule?.exitLocationProfileId
+    ? config.exitLocationProfiles.find((item) => item.id === rule.exitLocationProfileId) || null
+    : null;
+  currentExitProfileEl.textContent = !rule
+    ? '当前站点没有启用规则'
+    : !rule.exitLocationProfileId
+      ? '未选择出口；auto 地理位置和时区不会注入'
+      : !profile
+        ? `引用的出口位置档案不存在：${rule.exitLocationProfileId}`
+        : `${profile.name} · ${profile.publicIp || 'IP 未验证'} · ${profile.country || '国家未知'} · ${profile.timezone || '时区未知'}`;
 }
 
 function populateForm(config: SiteSpoofConfig): void {
@@ -200,7 +185,10 @@ function populateForm(config: SiteSpoofConfig): void {
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
   canvasEnabledEl.checked = config.canvas.enabled;
-  updateIpLocationDisplay(config);
+  latitudeEl.placeholder = geo.mode === 'auto' ? '由当前规则的出口档案提供' : '';
+  longitudeEl.placeholder = geo.mode === 'auto' ? '由当前规则的出口档案提供' : '';
+  timezoneEl.placeholder = timezone.mode === 'auto' ? '由当前规则的出口档案提供' : 'UTC';
+  updateExitLocationProfile(config);
 }
 
 function readForm(): SiteSpoofConfig {
@@ -255,9 +243,8 @@ async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ state: any }>({ action: 'getCurrentTabState' });
   const state = response.state;
   currentConfig = normalizeConfig(state.config);
-  lastLocation = state.lastLocation || null;
-  ipLocationStatus = state.ipLocationStatus || null;
   currentHostname = state.domain || '';
+  currentRuleId = state.rule?.id || null;
   currentSiteEl.textContent = currentHostname || 'N/A';
   populateForm(currentConfig);
   renderCurrentSiteStatus(state);
@@ -292,35 +279,11 @@ async function handleSaveCoordinate(): Promise<void> {
   await saveChanges();
 }
 
-async function handleGetFromIP(): Promise<void> {
-  getFromIPBtn.disabled = true;
-  getFromIPBtn.textContent = '获取中...';
-  ipLocationStatus = deriveIpLocationStatus(lastLocation, { status: 'refreshing', startedAt: Date.now() });
-  updateIpLocationDisplay(currentConfig);
-  try {
-    const response = await sendRuntimeMessage<{ geo: { ok: boolean; location?: LastLocation; error?: string }; ipLocationStatus?: IpLocationStatusSnapshot }>({ action: 'manualUpdate' });
-    lastLocation = response.geo.location || lastLocation;
-    ipLocationStatus = response.ipLocationStatus || ipLocationStatus;
-    if (!response.geo.ok) throw new Error(response.geo.error || '出口 IP 定位失败');
-    await loadConfig();
-    showAutoSaveToast();
-  } catch (error) {
-    updateIpLocationDisplay(currentConfig);
-    alert(`刷新出口 IP 定位失败：${error instanceof Error ? error.message : String(error)}`);
-  } finally {
-    getFromIPBtn.disabled = false;
-    getFromIPBtn.textContent = '刷新出口 IP 定位';
-  }
-}
-
-async function handleFreezeIpProfile(): Promise<void> {
-  const frozen = freezeIpLocationToManualConfig(currentConfig, lastLocation);
-  if (!frozen) {
-    alert('当前出口 IP 定位缺少有效坐标或时区，无法应用为手动配置');
-    return;
-  }
-  currentConfig = frozen;
-  populateForm(currentConfig);
+async function saveExitLocationBinding(): Promise<void> {
+  if (!currentRuleId) return;
+  const rule = currentConfig.rules.find((item) => item.id === currentRuleId);
+  if (!rule) return;
+  rule.exitLocationProfileId = currentExitProfileSelectEl.value || null;
   await saveChanges();
 }
 
@@ -351,16 +314,17 @@ webrtcEnabledEl.addEventListener('change', () => { void saveChanges(); });
 webrtcPolicyEl.addEventListener('change', () => { void saveChanges(); });
 canvasEnabledEl.addEventListener('change', () => { void saveChanges(); });
 saveCoordinateBtn.addEventListener('click', () => { void handleSaveCoordinate(); });
-getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
-freezeIpProfileBtn.addEventListener('click', () => { void handleFreezeIpProfile(); });
+currentExitProfileSelectEl.addEventListener('change', () => { void saveExitLocationBinding(); });
+manageExitProfilesBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
 resetFontsBtn.addEventListener('click', () => { void handleResetFonts(); });
 openOptionsBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
 openOptionsHeaderBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
 openLeakTestBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openLeakTest' }); });
 resetBtn.addEventListener('click', () => {
-  currentConfig = normalizeConfig(DEFAULT_CONFIG);
-  populateForm(currentConfig);
-  void saveChanges();
+  void sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'resetSiteConfig' }).then((response) => {
+    currentConfig = normalizeConfig(response.config);
+    populateForm(currentConfig);
+  });
 });
 
 void loadConfig();

@@ -70,28 +70,19 @@
     <section class="profile-section panel-card">
       <div class="section-heading">
         <div>
-          <span class="section-kicker">IP Profile</span>
-          <h2>跟随 IP</h2>
+          <span class="section-kicker">Exit Location</span>
+          <h2>当前站点出口</h2>
         </div>
       </div>
-      <button id="getFromIP" class="btn-primary full-width">刷新出口 IP 定位</button>
-      <p class="hint">地理位置和时区保持 auto 时，会使用最新出口 IP 定位；语言请按需要自定义。</p>
-      <p id="ipLocationStatus" class="status-detail">当前出口 IP 定位：尚未刷新</p>
-      <div class="effective-summary">
-        <div class="effective-item">
-          <span class="effective-label">生效地理位置</span>
-          <span id="effectiveGeolocationSource" class="source-chip">-</span>
-          <strong id="effectiveGeolocationValue" class="effective-value">-</strong>
-          <small id="effectiveGeolocationDetail" class="effective-detail">-</small>
-        </div>
-        <div class="effective-item">
-          <span class="effective-label">生效时区</span>
-          <span id="effectiveTimezoneSource" class="source-chip">-</span>
-          <strong id="effectiveTimezoneValue" class="effective-value">-</strong>
-          <small id="effectiveTimezoneDetail" class="effective-detail">-</small>
-        </div>
+      <p id="currentExitProfile" class="status-detail">正在读取出口位置档案</p>
+      <div class="input-group">
+        <label for="currentExitProfileSelect">出口位置档案</label>
+        <select id="currentExitProfileSelect" class="input">
+          <option value="">未选择出口</option>
+        </select>
       </div>
-      <button id="freezeIpProfile" class="btn-secondary full-width">应用为手动配置</button>
+      <button id="manageExitProfiles" class="btn-secondary full-width">检测或管理出口档案</button>
+      <p class="hint">Popup 只绑定已验证档案；检测、重新检测、重命名和删除在完整配置页完成。</p>
     </section>
 
     <section class="config-section panel-card">

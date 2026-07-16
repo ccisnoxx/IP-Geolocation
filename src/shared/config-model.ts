@@ -1,5 +1,6 @@
 import type {
   CanvasConfig,
+  ExitLocationProfile,
   GeolocationConfig,
   LanguageConfig,
   Profile,
@@ -19,6 +20,7 @@ export const OLD_EXTENSION_ENABLED_KEY = 'extensionEnabled';
 export const OLD_LANGUAGE_KEY = 'languageConfig';
 export const OLD_TIMEZONE_KEY = 'timezoneConfig';
 export const OLD_WEBRTC_KEY = 'webRtcConfig';
+export const LEGACY_EXIT_LOCATION_PROFILE_ID = 'legacy-last-location';
 
 export const DEFAULT_LANGUAGE: LanguageConfig = {
   enabled: false,
@@ -254,6 +256,17 @@ export function isIpv4Address(domain: string): boolean {
   });
 }
 
+export function isValidIpAddress(value: unknown): boolean {
+  const input = normalizeString(value);
+  if (isIpv4Address(input)) return true;
+  if (!input.includes(':')) return false;
+  try {
+    return new URL(`http://[${input}]/`).hostname.includes(':');
+  } catch {
+    return false;
+  }
+}
+
 export function isValidDomain(domain: string): boolean {
   if (!domain || domain.includes('*') || domain.length > 253) return false;
   if (domain === 'localhost') return true;
@@ -269,6 +282,7 @@ export function normalizeRule(rule: Partial<SiteRule> | null | undefined): SiteR
     id: normalizeString(input.id) || `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     domain: normalizeDomain(input.domain),
     enabled: input.enabled !== false,
+    exitLocationProfileId: normalizeString(input.exitLocationProfileId) || null,
     overrides: {
       language: normalizeOverride(input.overrides?.language),
       timezone: normalizeOverride(input.overrides?.timezone),
@@ -295,7 +309,7 @@ function defaultRules(): SiteRule[] {
 }
 
 export const DEFAULT_CONFIG: SiteSpoofConfig = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   masterEnabled: true,
   debugMode: false,
   globalProfile: {
@@ -309,6 +323,7 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
     activeProfileId: null,
     profiles: []
   },
+  exitLocationProfiles: [],
   rules: defaultRules()
 };
 
@@ -346,12 +361,57 @@ export function normalizeProfiles(value: unknown): Profile[] {
     ));
 }
 
+export function normalizeExitLocationProfiles(value: unknown): ExitLocationProfile[] {
+  const seen = new Set<string>();
+  return (Array.isArray(value) ? value : [])
+    .map((value) => {
+      const input = value && typeof value === 'object' ? value as Partial<ExitLocationProfile> : {};
+      const id = normalizeString(input.id);
+      const name = normalizeString(input.name);
+      const latitude = normalizeNumber(input.latitude);
+      const longitude = normalizeNumber(input.longitude);
+      const country = normalizeString(input.country);
+      const timezone = validateTimezone(normalizeString(input.timezone)) ? normalizeString(input.timezone) : null;
+      const publicIp = isValidIpAddress(input.publicIp) ? normalizeString(input.publicIp) : null;
+      const provider = normalizeString(input.provider) || null;
+      const verifiedAt = Number.isFinite(Number(input.verifiedAt)) && Number(input.verifiedAt) > 0
+        ? Number(input.verifiedAt)
+        : null;
+      const verified = input.verification === 'verified'
+        && publicIp !== null
+        && country !== ''
+        && timezone !== null
+        && provider !== null
+        && verifiedAt !== null;
+
+      return {
+        id,
+        name,
+        verification: verified ? 'verified' as const : 'unverified' as const,
+        publicIp: verified ? publicIp : null,
+        latitude: latitude ?? Number.NaN,
+        longitude: longitude ?? Number.NaN,
+        country,
+        timezone,
+        provider: verified ? provider : null,
+        verifiedAt: verified ? verifiedAt : null
+      };
+    })
+    .filter((profile) => {
+      if (!profile.id || !profile.name || seen.has(profile.id)) return false;
+      if (!Number.isFinite(profile.latitude) || profile.latitude < -90 || profile.latitude > 90) return false;
+      if (!Number.isFinite(profile.longitude) || profile.longitude < -180 || profile.longitude > 180) return false;
+      seen.add(profile.id);
+      return true;
+    });
+}
+
 export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefined): SiteSpoofConfig {
   const input = config || {};
   const globalProfile = (input.globalProfile || {}) as Partial<SiteSpoofConfig['globalProfile']>;
   const profile = (input.profile || {}) as Partial<SiteSpoofConfig['profile']>;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     masterEnabled: input.masterEnabled !== false,
     debugMode: Boolean(input.debugMode),
     globalProfile: {
@@ -365,6 +425,7 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
       activeProfileId: normalizeString(profile.activeProfileId) || null,
       profiles: normalizeProfiles(profile.profiles)
     },
+    exitLocationProfiles: normalizeExitLocationProfiles(input.exitLocationProfiles),
     rules: Array.isArray(input.rules) ? input.rules.map(normalizeRule) : defaultRules()
   };
 }

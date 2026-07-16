@@ -72,7 +72,7 @@ jobs:
             3. 在浏览器中打开 `chrome://extensions/` / Open `chrome://extensions/` in your browser
             4. 启用"开发者模式" / Enable "Developer mode"
             5. 点击"加载已解压的扩展程序" / Click "Load unpacked"
-            6. 选择解压后的 `dist` 文件夹 / Select the extracted `dist` folder
+            6. 选择解压后直接包含 `manifest.json` 的文件夹 / Select the extracted folder that directly contains `manifest.json`
 
             ### 更新日志 / Changelog
 

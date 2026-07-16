@@ -14,7 +14,9 @@ test('buildAcceptLanguageRules creates per-domain header rules from effective la
         language: 'en-US',
         languages: ['en-US', 'en'],
         acceptLanguage: 'en-US,en;q=0.9'
-      }
+      },
+      timezone: { enabled: false, mode: 'auto', timezone: '' },
+      geolocation: { enabled: false, mode: 'auto' }
     } as any,
     rules: [
       {
@@ -91,14 +93,8 @@ test('buildAcceptLanguageRules creates per-domain header rules from effective la
   assert.equal(String(rules[2].condition.regexFilter), '^https?://localhost(?::[0-9]+)?/');
   assert.equal(String(rules[3].condition.regexFilter), '^https?://127\\.0\\.0\\.1(?::[0-9]+)?/');
 
-  const lastLocation = {
-    latitude: 35.68,
-    longitude: 139.76,
-    country: 'Japan',
-    timezone: 'Asia/Tokyo'
-  };
-  const inheritedPayload = getEffectiveProfile(config, 'sub.example.com', lastLocation).payload;
-  const overridePayload = getEffectiveProfile(config, 'example.org', lastLocation).payload;
+  const inheritedPayload = getEffectiveProfile(config, 'sub.example.com').payload;
+  const overridePayload = getEffectiveProfile(config, 'example.org').payload;
   assert.equal(rules[0].action.requestHeaders?.[0].value, inheritedPayload?.languageConfig?.acceptLanguage);
   assert.equal(rules[1].action.requestHeaders?.[0].value, overridePayload?.languageConfig?.acceptLanguage);
 });

@@ -95,7 +95,8 @@ function printChecklist(origin, chromePath, launchStatus) {
   console.log('\nManual acceptance checklist:');
   console.log('- Before enabling VanishGeo for `localhost`, open the leak-test verifier and click `Capture pass-through baseline`.');
   console.log('- In the temporary Chrome profile, enable VanishGeo for `localhost`, reload the localhost pages, then click `Run all checks` on the leak-test verifier.');
-  console.log('- Configure an explicit test profile: language `ja-JP`, languages `ja-JP, ja`, Accept-Language `ja-JP,ja;q=0.9`, timezone `Asia/Tokyo`, geolocation `35.68,139.76`, WebRTC `strict`.');
+  console.log('- Configure explicit manual fixture values: language `ja-JP`, languages `ja-JP, ja`, Accept-Language `ja-JP,ja;q=0.9`, timezone `Asia/Tokyo`, geolocation `35.68,139.76`, WebRTC `strict`.');
+  console.log('- Separately detect a verified exit profile in Options, bind it to `localhost`, and confirm its IP, country, timezone, and coordinates match the single detection preview.');
   console.log('- On the leak-test verifier, confirm Language, Accept-Language, Timezone, Geolocation, WebRTC ICE, iframe/worker realms, and pass-through surfaces show PASS; policy may be UNKNOWN on hosted pages and must be confirmed from extension options if so.');
   console.log('- Open `/headers.json` and confirm `accept-language` matches the configured Accept-Language value after `localhost` is allowlisted.');
   console.log('- Run the WebRTC ICE check and confirm no local/private or public IP candidate exposure is shown; confirm Chrome WebRTC policy is `disable_non_proxied_udp` from extension options if the hosted verifier reports UNKNOWN.');

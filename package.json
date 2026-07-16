@@ -1,6 +1,6 @@
 {
   "name": "vanishgeo",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "VanishGeo - Browser privacy leak protection and environment consistency management tool",
   "type": "module",
   "scripts": {

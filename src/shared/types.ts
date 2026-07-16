@@ -3,6 +3,7 @@ export type TimezoneMode = 'auto' | 'manual';
 export type GeolocationMode = 'auto' | 'manual';
 export type OverrideMode = 'inherit' | 'override' | 'disable';
 export type WebRtcMode = 'strict' | 'compatible' | 'default';
+export type ExitLocationVerification = 'verified' | 'unverified';
 
 export interface LanguageConfig {
   enabled: boolean;
@@ -58,6 +59,7 @@ export interface SiteRule {
   id: string;
   domain: string;
   enabled: boolean;
+  exitLocationProfileId: string | null;
   overrides: {
     language: SignalOverride<Partial<LanguageConfig>>;
     timezone: SignalOverride<Partial<TimezoneConfig>>;
@@ -90,8 +92,39 @@ export interface ProfileConfig {
   profiles: Profile[];
 }
 
+export interface ExitLocationProfile {
+  id: string;
+  name: string;
+  verification: ExitLocationVerification;
+  publicIp: string | null;
+  latitude: number;
+  longitude: number;
+  country: string;
+  timezone: string | null;
+  provider: string | null;
+  verifiedAt: number | null;
+}
+
+export interface DetectedExitLocation {
+  publicIp: string;
+  latitude: number;
+  longitude: number;
+  country: string;
+  timezone: string;
+  provider: string;
+  detectedAt: number;
+}
+
+export interface ExitLocationDetectionPreview {
+  detectionId: string;
+  targetProfileId: string | null;
+  candidate: DetectedExitLocation;
+  previous: ExitLocationProfile | null;
+  expiresAt: number;
+}
+
 export interface SiteSpoofConfig {
-  schemaVersion: 1;
+  schemaVersion: 2;
   masterEnabled: boolean;
   debugMode: boolean;
   globalProfile: {
@@ -102,19 +135,8 @@ export interface SiteSpoofConfig {
   webRtc: WebRtcConfig;
   canvas: CanvasConfig;
   profile: ProfileConfig;
+  exitLocationProfiles: ExitLocationProfile[];
   rules: SiteRule[];
-}
-
-export interface LastLocation {
-  latitude: number;
-  longitude: number;
-  country: string;
-  timezone?: string | null;
-  timezoneOffset?: number | null;
-  provider?: string;
-  updatedAt?: number;
-  expiresAt?: number;
-  updateTime?: string;
 }
 
 export interface EffectivePayload {
@@ -130,7 +152,7 @@ export interface EffectivePayload {
   latitude: number | null;
   longitude: number | null;
   timezone: string | null;
-  timezoneSource: 'manual' | 'lastLocation' | null;
+  timezoneSource: 'manual' | 'exitProfile' | null;
   languageConfig: LanguageConfig | null;
   timezoneConfig: TimezoneConfig;
   canvasConfig: CanvasConfig;

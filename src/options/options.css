@@ -54,6 +54,7 @@ textarea {
 
 button,
 label,
+select,
 .tab-btn {
   cursor: pointer;
 }
@@ -70,6 +71,10 @@ button:disabled {
   cursor: not-allowed;
   filter: grayscale(0.35);
   opacity: 0.55;
+}
+
+select:disabled {
+  cursor: not-allowed;
 }
 
 .shell {
@@ -444,6 +449,18 @@ h2 {
   gap: 12px;
 }
 
+.profile-info {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.profile-info small {
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .profile-name,
 .site-hostname {
   color: var(--text);
@@ -468,7 +485,7 @@ h2 {
 
 .site-rule {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 320px) auto;
   gap: 12px;
   align-items: center;
   padding: 14px;

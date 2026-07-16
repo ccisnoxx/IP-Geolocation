@@ -1,36 +1,45 @@
+// 后台统一持有配置事务、出口检测、标签页刷新和文档级 runtime 注入边界。
 import { updateAcceptLanguageRules } from './dnr';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, getWebRTCPolicyState } from './webrtc';
 import {
-  LAST_LOCATION_KEY,
-  RULES_INITIALIZED_KEY,
-  getEffectiveProfile,
   getContentScriptMatches,
+  getEffectiveProfile,
   isUrlMatchedByEnabledRule,
-  migrateLegacyConfig,
   repairInvalidRuleDomains,
   validateConfig
 } from '../shared/config-resolver';
-import { createRule, normalizeConfig, normalizeDomain, normalizeWebRtc } from '../shared/config-model';
 import {
-  GEO_PROVIDER_BACKOFF_KEY,
-  GEO_PROVIDER_TIMEOUT_MS,
-  GEO_REFRESH_STATE_KEY,
-  LAST_LOCATION_TTL_MS,
-  deriveIpLocationStatus,
-  getLastLocationFreshness,
-  hasValidLastLocation,
-  nextGeoProviderBackoffEntry,
-  normalizeGeoProviderBackoff,
-  normalizeGeoRefreshState,
-  withFreshLocationMetadata
-} from '../shared/ip-location';
+  DEFAULT_CONFIG,
+  OLD_EXTENSION_ENABLED_KEY,
+  OLD_LANGUAGE_KEY,
+  OLD_TIMEZONE_KEY,
+  OLD_WEBRTC_KEY,
+  clone,
+  createRule,
+  isValidIpAddress,
+  normalizeConfig,
+  normalizeDomain,
+  normalizeString,
+  normalizeWebRtc,
+  validateTimezone
+} from '../shared/config-model';
+import { GEO_PROVIDER_TIMEOUT_MS } from '../shared/ip-location';
 import { formatLocaleDateTimeForProfile } from '../shared/locale-datetime';
-import type { EffectivePayload, EffectiveProfileResult, LastLocation, SiteSpoofConfig } from '../shared/types';
+import {
+  LAST_LOCATION_KEY,
+  LEGACY_VANISHME_CONFIG_KEY,
+  SITE_CONFIG_KEY,
+  getConfig as getStoredConfig
+} from '../shared/storage';
+import { applyVanishGeoRuntime } from '../injected/runtime';
 import type {
-  GeoProviderBackoff,
-  GeoRefreshState,
-  IpLocationStatusSnapshot
-} from '../shared/ip-location';
+  DetectedExitLocation,
+  EffectivePayload,
+  EffectiveProfileResult,
+  ExitLocationDetectionPreview,
+  ExitLocationProfile,
+  SiteSpoofConfig
+} from '../shared/types';
 import type { WebRtcPolicyState } from './webrtc';
 
 const GEO_API_URLS = [
@@ -38,67 +47,33 @@ const GEO_API_URLS = [
   'https://ipapi.co/json/',
   'https://ipinfo.io/json'
 ];
-
-const ALARM_NAME = 'vanishgeo-update-location';
-const MAIN_RUNTIME_SCRIPT_ID = 'vanishgeo-main-runtime';
-const BRIDGE_SCRIPT_ID = 'vanishgeo-bridge';
-const CONTENT_SCRIPT_IDS = [MAIN_RUNTIME_SCRIPT_ID, BRIDGE_SCRIPT_ID];
-const MAIN_RUNTIME_FILES = ['injected/runtime.js'];
-const BRIDGE_FILES = ['content/content.js'];
+const CONTENT_SCRIPT_ID = 'vanishgeo-runtime-init';
+const CONTENT_SCRIPT_FILES = ['content/content.js'];
 const LEAK_TEST_URL = 'https://leak.962850.xyz/leak-test/leak-test.html';
-const UPDATE_ALL_TABS_CONCURRENCY = 4;
+const TAB_RELOAD_CONCURRENCY = 4;
+const PENDING_DETECTION_KEY = 'pendingExitLocationDetection';
+const PENDING_DETECTION_TTL_MS = 5 * 60 * 1000;
 
-type GeolocationUpdateResult = {
-  ok: boolean;
-  location?: LastLocation;
-  unchanged?: boolean;
-  disabled?: boolean;
-  stale?: boolean;
-  error?: string;
-};
+interface PendingExitLocationDetection {
+  detectionId: string;
+  targetProfileId: string | null;
+  candidate: DetectedExitLocation;
+  baseVerifiedAt: number | null;
+  expiresAt: number;
+}
 
-type InjectionOutcome = 'applied' | 'skipped' | 'failed';
+interface ScriptableTabSnapshot {
+  id: number;
+  url: string;
+}
 
 interface RuntimeSideEffectsRequest {
   config: SiteSpoofConfig;
   signature: string;
 }
 
-interface UpdateAllTabsRequest {
-  config?: SiteSpoofConfig;
-  hasLastLocation: boolean;
-  lastLocation: LastLocation | null;
-}
-
-interface ScriptableTabTarget {
-  id: number;
-  url: string;
-}
-
-interface TabInjectionRequest {
-  tabId: number;
-  url: string;
-  payload: NonNullable<EffectiveProfileResult['payload']>;
-  key: string;
-}
-
-interface TabInjectionState {
-  running: boolean;
-  currentKey: string | null;
-  pending: TabInjectionRequest | null;
-  promise: Promise<InjectionOutcome>;
-}
-
 function isScriptableUrl(url: string | undefined): boolean {
   return /^https?:\/\//i.test(String(url || ''));
-}
-
-function isDuplicateScriptIdError(error: unknown): boolean {
-  return /Duplicate script ID/i.test(error instanceof Error ? error.message : String(error));
-}
-
-function formatProviderRetryTime(value: number): string {
-  return new Date(value).toLocaleString();
 }
 
 function formatError(error: unknown): string {
@@ -109,14 +84,31 @@ function runtimeConfigSignature(config: SiteSpoofConfig): string {
   return JSON.stringify(normalizeConfig(config));
 }
 
-function injectedLocationSignature(location: LastLocation | null): string {
-  if (!location) return 'null';
+function runtimePayloadSignature(config: SiteSpoofConfig, url: string): string | null {
+  if (!isScriptableUrl(url)) return null;
+  const resolved = getEffectiveProfile(config, new URL(url).hostname);
+  const payload = resolved.payload;
+  if (!payload) return null;
   return JSON.stringify({
-    latitude: Number(location.latitude),
-    longitude: Number(location.longitude),
-    country: location.country || '',
-    timezone: location.timezone || null,
-    timezoneOffset: location.timezoneOffset ?? null
+    extensionEnabled: payload.extensionEnabled,
+    debugMode: payload.debugMode,
+    geolocation: payload.geolocation ? {
+      latitude: payload.geolocation.latitude,
+      longitude: payload.geolocation.longitude,
+      accuracy: payload.geolocation.accuracy,
+      randomize: payload.geolocation.randomize,
+      randomRadiusMeters: payload.geolocation.randomRadiusMeters,
+      spoofPermission: payload.geolocation.spoofPermission
+    } : null,
+    timezone: payload.timezone,
+    languageConfig: payload.languageConfig,
+    canvasConfig: payload.canvasConfig.enabled && payload.canvasConfig.spoofFonts
+      ? {
+          enabled: true,
+          spoofFonts: true,
+          targetFonts: payload.canvasConfig.targetFonts
+        }
+      : null
   });
 }
 
@@ -164,15 +156,11 @@ function appendExpectedProfileParams(
     params.set('expectedLanguages', payload.languageConfig.languages.join(','));
     params.set('expectedAcceptLanguage', payload.languageConfig.acceptLanguage);
   }
-
   if (payload.timezone) {
     params.set('expectedTimezone', payload.timezone);
     const offset = calculateTimezoneOffsetMinutes(payload.timezone);
-    if (offset !== null) {
-      params.set('expectedTimezoneOffset', String(offset));
-    }
+    if (offset !== null) params.set('expectedTimezoneOffset', String(offset));
   }
-
   if (payload.geolocation) {
     params.set('expectedLatitude', String(payload.geolocation.latitude));
     params.set('expectedLongitude', String(payload.geolocation.longitude));
@@ -187,18 +175,12 @@ function appendExpectedProfileParams(
   params.set('expectedWebRtcPolicy', WEBRTC_POLICY_VALUES[webRtcMode] || 'default');
   if (webRtcPolicyState) {
     params.set('actualWebRtcPolicySupported', String(webRtcPolicyState.supported));
-    if (webRtcPolicyState.actualPolicy) {
-      params.set('actualWebRtcPolicy', webRtcPolicyState.actualPolicy);
-    }
-    if (webRtcPolicyState.levelOfControl) {
-      params.set('actualWebRtcPolicyLevelOfControl', webRtcPolicyState.levelOfControl);
-    }
+    if (webRtcPolicyState.actualPolicy) params.set('actualWebRtcPolicy', webRtcPolicyState.actualPolicy);
+    if (webRtcPolicyState.levelOfControl) params.set('actualWebRtcPolicyLevelOfControl', webRtcPolicyState.levelOfControl);
     params.set('actualWebRtcPolicyControlledByThisExtension', String(webRtcPolicyState.controlledByThisExtension));
     params.set('actualWebRtcLeakProtectionActive', String(webRtcPolicyState.leakProtectionActive));
   }
-  if (webRtcPolicyError) {
-    params.set('actualWebRtcPolicyError', webRtcPolicyError);
-  }
+  if (webRtcPolicyError) params.set('actualWebRtcPolicyError', webRtcPolicyError);
 
   if (payload.languageConfig && payload.timezone) {
     params.set('expectedLocaleStringTimestamp', String(localeStringDate.getTime()));
@@ -210,99 +192,61 @@ function appendExpectedProfileParams(
   }
 }
 
-function buildAllTabsSignature(config: SiteSpoofConfig, lastLocation: LastLocation | null, targets: ScriptableTabTarget[]): string {
-  const targetSignature = targets
-    .map((target) => `${target.id}:${target.url}`)
-    .sort()
-    .join('|');
-  return [
-    runtimeConfigSignature(config),
-    injectedLocationSignature(lastLocation),
-    targetSignature
-  ].join('\n');
-}
-
-function buildTabInjectionKey(url: string, payload: NonNullable<EffectiveProfileResult['payload']>): string {
-  return `${url}\n${JSON.stringify(payload)}`;
-}
-
-function toScriptableTabTargets(tabs: chrome.tabs.Tab[], config: SiteSpoofConfig): ScriptableTabTarget[] {
-  return tabs.reduce<ScriptableTabTarget[]>((targets, tab) => {
-    if (
-      typeof tab.id === 'number'
-      && tab.url
-      && isScriptableUrl(tab.url)
-      && isUrlMatchedByEnabledRule(config, tab.url)
-    ) {
-      targets.push({ id: tab.id, url: tab.url });
-    }
-    return targets;
-  }, []);
-}
-
-function validCoordinateLocation(input: {
-  latitude: unknown;
-  longitude: unknown;
-  country?: unknown;
-  timezone?: unknown;
-  timezoneOffset?: unknown;
-}): Omit<LastLocation, 'updateTime' | 'updatedAt' | 'expiresAt' | 'provider'> | null {
+function normalizeDetectedLocation(value: unknown): DetectedExitLocation | null {
+  if (!value || typeof value !== 'object') return null;
+  const input = value as Partial<DetectedExitLocation>;
+  const publicIp = normalizeString(input.publicIp);
   const latitude = Number(input.latitude);
   const longitude = Number(input.longitude);
+  const country = normalizeString(input.country);
+  const timezone = normalizeString(input.timezone);
+  const provider = normalizeString(input.provider);
+  const detectedAt = Number(input.detectedAt);
   if (
-    !Number.isFinite(latitude)
+    !isValidIpAddress(publicIp)
+    || !Number.isFinite(latitude)
     || latitude < -90
     || latitude > 90
     || !Number.isFinite(longitude)
     || longitude < -180
     || longitude > 180
+    || !country
+    || !validateTimezone(timezone)
+    || !provider
+    || !Number.isFinite(detectedAt)
+    || detectedAt <= 0
   ) {
     return null;
   }
-
-  return {
-    latitude,
-    longitude,
-    country: input.country ? String(input.country) : 'N/A',
-    timezone: input.timezone ? String(input.timezone) : null,
-    timezoneOffset: Number.isFinite(Number(input.timezoneOffset)) ? Number(input.timezoneOffset) : null
-  };
+  return { publicIp, latitude, longitude, country, timezone, provider, detectedAt };
 }
 
-export function parseGeoApiResponse(data: any): Omit<LastLocation, 'updateTime' | 'updatedAt' | 'expiresAt' | 'provider'> | null {
+export function parseGeoApiResponse(data: unknown, provider = 'unknown', detectedAt = Date.now()): DetectedExitLocation | null {
   if (!data || typeof data !== 'object') return null;
+  const input = data as Record<string, any>;
 
-  if (data.success !== false && data.latitude !== undefined && data.longitude !== undefined) {
-    const timezoneOffset = data.timezone && Number.isFinite(Number(data.timezone.offset))
-      ? -Number(data.timezone.offset) / 60
-      : null;
-    return validCoordinateLocation({
-      latitude: data.latitude,
-      longitude: data.longitude,
-      country: data.country || data.country_name || data.country_code || 'N/A',
-      timezone: data.timezone && data.timezone.id ? data.timezone.id : data.timezone || null,
-      timezoneOffset
+  if (input.success !== false && input.latitude !== undefined && input.longitude !== undefined) {
+    return normalizeDetectedLocation({
+      publicIp: input.ip,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      country: input.country || input.country_name || input.country_code,
+      timezone: input.timezone?.id || input.timezone,
+      provider,
+      detectedAt
     });
   }
 
-  if (data.location && data.location.latitude !== undefined && data.location.longitude !== undefined) {
-    return validCoordinateLocation({
-      latitude: data.location.latitude,
-      longitude: data.location.longitude,
-      country: data.country && data.country.name ? data.country.name : 'N/A',
-      timezone: data.timezone || null,
-      timezoneOffset: null
-    });
-  }
-
-  if (typeof data.loc === 'string' && data.loc.includes(',')) {
-    const [latitude, longitude] = data.loc.split(',').map(Number);
-    return validCoordinateLocation({
+  if (typeof input.loc === 'string' && input.loc.includes(',')) {
+    const [latitude, longitude] = input.loc.split(',').map(Number);
+    return normalizeDetectedLocation({
+      publicIp: input.ip,
       latitude,
       longitude,
-      country: data.country || data.region || data.city || 'N/A',
-      timezone: data.timezone || null,
-      timezoneOffset: null
+      country: input.country || input.region || input.city,
+      timezone: input.timezone,
+      provider,
+      detectedAt
     });
   }
 
@@ -312,22 +256,18 @@ export function parseGeoApiResponse(data: any): Omit<LastLocation, 'updateTime' 
 export async function fetchGeoApiLocation(
   apiUrl: string,
   timeoutMs = GEO_PROVIDER_TIMEOUT_MS
-): Promise<Omit<LastLocation, 'updateTime' | 'updatedAt' | 'expiresAt' | 'provider'>> {
+): Promise<DetectedExitLocation> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(apiUrl, { cache: 'no-store', signal: controller.signal });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const parsed = parseGeoApiResponse(await response.json());
-    if (!parsed) {
-      throw new Error('no valid location');
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const parsed = parseGeoApiResponse(await response.json(), apiUrl);
+    if (!parsed) throw new Error('响应缺少同一次检测所需的完整出口位置字段');
     return parsed;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`timeout after ${timeoutMs}ms`);
+      throw new Error(`请求在 ${timeoutMs}ms 后超时`);
     }
     throw error;
   } finally {
@@ -336,23 +276,26 @@ export async function fetchGeoApiLocation(
 }
 
 export interface BackgroundServices {
-  alarmName: string;
   webRtcPolicies: typeof WEBRTC_POLICY_VALUES;
   getSiteConfig(): Promise<SiteSpoofConfig>;
   saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig>;
-  getLastLocation(): Promise<LastLocation | null>;
-  getIpLocationStatus(): Promise<IpLocationStatusSnapshot>;
+  resetSiteConfig(): Promise<SiteSpoofConfig>;
+  importSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig>;
   getExtensionState(): Promise<{ enabled: boolean; config: SiteSpoofConfig }>;
   setExtensionEnabled(enabled: boolean): Promise<SiteSpoofConfig>;
   getWebRtcPolicyState(): Promise<WebRtcPolicyState>;
-  updateGeolocation(forceUpdate?: boolean): Promise<GeolocationUpdateResult>;
-  injectScript(tabId: number, url: string, options?: { config?: SiteSpoofConfig; lastLocation?: LastLocation | null }): Promise<void>;
+  setWebRtcGlobalMode(mode: string): Promise<SiteSpoofConfig>;
   getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
-  getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { url: string; domain: string; scriptable: boolean; config: SiteSpoofConfig; lastLocation: LastLocation | null; ipLocationStatus: IpLocationStatusSnapshot }>;
+  initializeRuntimeForSender(sender: chrome.runtime.MessageSender): Promise<EffectiveProfileResult>;
+  getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { url: string; domain: string; scriptable: boolean; config: SiteSpoofConfig }>;
+  detectExitLocation(targetProfileId?: string | null): Promise<ExitLocationDetectionPreview>;
+  confirmExitLocationDetection(detectionId: string, name: string): Promise<SiteSpoofConfig>;
+  cancelExitLocationDetection(detectionId: string): Promise<void>;
+  renameExitLocationProfile(profileId: string, name: string): Promise<SiteSpoofConfig>;
+  deleteExitLocationProfile(profileId: string): Promise<SiteSpoofConfig>;
   addDomainRule(domain: string): Promise<SiteSpoofConfig>;
   setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig>;
   deleteDomainRule(domain: string): Promise<SiteSpoofConfig>;
-  setWebRtcGlobalMode(mode: string): Promise<SiteSpoofConfig>;
   openDiagnosticPage(): Promise<void>;
   initializeExtension(): Promise<void>;
 }
@@ -362,116 +305,48 @@ export function createBackgroundServices(): BackgroundServices {
   let pendingRuntimeSideEffects: RuntimeSideEffectsRequest | null = null;
   let runtimeSideEffectsQueue: Promise<void> | null = null;
   let lastSuccessfulRuntimeSideEffectsSignature = '';
-  let pendingAllTabsUpdate: UpdateAllTabsRequest | null = null;
-  let updateAllTabsQueue: Promise<void> | null = null;
-  let lastSuccessfulAllTabsSignature = '';
-  const tabInjectionStates = new Map<number, TabInjectionState>();
-  let activeGeolocationUpdate: { forceUpdate: boolean; promise: Promise<GeolocationUpdateResult> } | null = null;
-
-  async function getStorageSnapshot(): Promise<Record<string, any>> {
-    return chrome.storage.local.get(null);
-  }
+  let configMutationQueue: Promise<void> = Promise.resolve();
 
   async function getSiteConfig(): Promise<SiteSpoofConfig> {
-    const data = await getStorageSnapshot();
-    const migratedConfig = migrateLegacyConfig(data);
-    const { config, repaired } = repairInvalidRuleDomains(migratedConfig);
-    if (!data.siteSpoofConfig || data[RULES_INITIALIZED_KEY] !== true || repaired) {
-      await chrome.storage.local.set({ siteSpoofConfig: config, [RULES_INITIALIZED_KEY]: true });
-    }
+    const stored = await getStoredConfig();
+    const { config, repaired } = repairInvalidRuleDomains(stored);
+    if (repaired) await chrome.storage.local.set({ siteSpoofConfig: config });
     return config;
   }
 
-  async function getLastLocation(): Promise<LastLocation | null> {
-    const data = await chrome.storage.local.get(LAST_LOCATION_KEY);
-    const location = data[LAST_LOCATION_KEY] || null;
-    return hasValidLastLocation(location) ? location : null;
-  }
-
-  async function getGeoRefreshState(): Promise<GeoRefreshState> {
-    const data = await chrome.storage.local.get(GEO_REFRESH_STATE_KEY);
-    return normalizeGeoRefreshState(data[GEO_REFRESH_STATE_KEY]);
-  }
-
-  async function setGeoRefreshState(state: GeoRefreshState): Promise<void> {
-    await chrome.storage.local.set({ [GEO_REFRESH_STATE_KEY]: normalizeGeoRefreshState(state) });
-  }
-
-  async function getGeoProviderBackoff(): Promise<GeoProviderBackoff> {
-    const data = await chrome.storage.local.get(GEO_PROVIDER_BACKOFF_KEY);
-    return normalizeGeoProviderBackoff(data[GEO_PROVIDER_BACKOFF_KEY]);
-  }
-
-  async function setGeoProviderBackoff(backoff: GeoProviderBackoff): Promise<void> {
-    await chrome.storage.local.set({ [GEO_PROVIDER_BACKOFF_KEY]: normalizeGeoProviderBackoff(backoff) });
-  }
-
-  async function getIpLocationStatus(): Promise<IpLocationStatusSnapshot> {
-    const [lastLocation, refreshState] = await Promise.all([
-      getLastLocation(),
-      getGeoRefreshState()
-    ]);
-    return deriveIpLocationStatus(lastLocation, refreshState);
-  }
-
-  async function unregisterSpoofContentScripts(): Promise<void> {
+  async function unregisterSpoofContentScript(): Promise<void> {
     if (!chrome.scripting?.unregisterContentScripts) return;
     try {
-      await chrome.scripting.unregisterContentScripts({ ids: CONTENT_SCRIPT_IDS });
+      await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!/non[- ]?existent|not found|does not exist/i.test(message)) {
-        console.warn('Content script unregister failed:', message);
-      }
+      if (!/non[- ]?existent|not found|does not exist/i.test(formatError(error))) throw error;
     }
   }
 
-  async function replaceSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
-    const config = configOverride || await getSiteConfig();
+  async function replaceSpoofContentScript(config: SiteSpoofConfig): Promise<void> {
     const matches = getContentScriptMatches(config);
-
-    await unregisterSpoofContentScripts();
+    await unregisterSpoofContentScript();
     if (!matches.length) return;
-
-    const scripts: chrome.scripting.RegisteredContentScript[] = [
-      {
-        id: MAIN_RUNTIME_SCRIPT_ID,
-        matches,
-        js: MAIN_RUNTIME_FILES,
-        runAt: 'document_start',
-        allFrames: true,
-        world: 'MAIN',
-        persistAcrossSessions: true
-      },
-      {
-        id: BRIDGE_SCRIPT_ID,
-        matches,
-        js: BRIDGE_FILES,
-        runAt: 'document_start',
-        allFrames: true,
-        world: 'ISOLATED',
-        persistAcrossSessions: true
-      }
-    ];
-
-    try {
-      await chrome.scripting.registerContentScripts(scripts);
-    } catch (error) {
-      if (!isDuplicateScriptIdError(error)) throw error;
-      await unregisterSpoofContentScripts();
-      await chrome.scripting.registerContentScripts(scripts);
-    }
+    await chrome.scripting.registerContentScripts([{
+      id: CONTENT_SCRIPT_ID,
+      matches,
+      js: CONTENT_SCRIPT_FILES,
+      runAt: 'document_start',
+      allFrames: true,
+      matchOriginAsFallback: true,
+      world: 'ISOLATED',
+      persistAcrossSessions: true
+    }]);
   }
 
-  async function registerSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
+  async function registerSpoofContentScript(config: SiteSpoofConfig): Promise<void> {
     if (!chrome.scripting?.registerContentScripts) return;
-
-    const nextRegistration = contentScriptRegistrationQueue.then(
-      () => replaceSpoofContentScripts(configOverride),
-      () => replaceSpoofContentScripts(configOverride)
+    const next = contentScriptRegistrationQueue.then(
+      () => replaceSpoofContentScript(config),
+      () => replaceSpoofContentScript(config)
     );
-    contentScriptRegistrationQueue = nextRegistration.catch(() => undefined);
-    return nextRegistration;
+    contentScriptRegistrationQueue = next.catch(() => undefined);
+    return next;
   }
 
   async function runRuntimeSideEffect(label: string, task: () => Promise<unknown>): Promise<boolean> {
@@ -479,16 +354,16 @@ export function createBackgroundServices(): BackgroundServices {
       await task();
       return true;
     } catch (error) {
-      console.warn(`VanishGeo ${label} failed:`, formatError(error));
+      console.warn(`VanishGeo ${label}失败：`, formatError(error));
       return false;
     }
   }
 
   async function runRuntimeSideEffects(config: SiteSpoofConfig): Promise<boolean> {
     const results = await Promise.all([
-      runRuntimeSideEffect('content script registration', () => registerSpoofContentScripts(config)),
-      runRuntimeSideEffect('Accept-Language rules update', () => updateAcceptLanguageRules(config)),
-      runRuntimeSideEffect('WebRTC policy update', () => applyWebRTCPolicy(config))
+      runRuntimeSideEffect('content script 注册', () => registerSpoofContentScript(config)),
+      runRuntimeSideEffect('Accept-Language 规则更新', () => updateAcceptLanguageRules(config)),
+      runRuntimeSideEffect('WebRTC 策略更新', () => applyWebRTCPolicy(config))
     ]);
     return results.every(Boolean);
   }
@@ -498,20 +373,17 @@ export function createBackgroundServices(): BackgroundServices {
       const request = pendingRuntimeSideEffects;
       pendingRuntimeSideEffects = null;
       if (request.signature === lastSuccessfulRuntimeSideEffectsSignature) continue;
-
-      const applied = await runRuntimeSideEffects(request.config);
-      if (applied) {
+      if (await runRuntimeSideEffects(request.config)) {
         lastSuccessfulRuntimeSideEffectsSignature = request.signature;
       }
     }
   }
 
   async function applyRuntimeSideEffects(config: SiteSpoofConfig): Promise<void> {
-    const normalizedConfig = normalizeConfig(config);
-    const signature = runtimeConfigSignature(normalizedConfig);
+    const normalized = normalizeConfig(config);
+    const signature = runtimeConfigSignature(normalized);
     if (!runtimeSideEffectsQueue && signature === lastSuccessfulRuntimeSideEffectsSignature) return;
-
-    pendingRuntimeSideEffects = { config: normalizedConfig, signature };
+    pendingRuntimeSideEffects = { config: normalized, signature };
     if (!runtimeSideEffectsQueue) {
       runtimeSideEffectsQueue = Promise.resolve()
         .then(drainRuntimeSideEffectsQueue)
@@ -522,16 +394,84 @@ export function createBackgroundServices(): BackgroundServices {
     await runtimeSideEffectsQueue;
   }
 
-  async function saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
-    const result = validateConfig(config);
-    if (!result.ok) {
-      throw new Error(result.errors.join('; '));
+  async function queryScriptableTabs(): Promise<ScriptableTabSnapshot[]> {
+    try {
+      return (await chrome.tabs.query({})).flatMap((tab) => (
+        typeof tab.id === 'number' && tab.url && isScriptableUrl(tab.url)
+          ? [{ id: tab.id, url: tab.url }]
+          : []
+      ));
+    } catch (error) {
+      console.warn('VanishGeo 读取待刷新标签页失败：', formatError(error));
+      return [];
     }
-    const lastLocation = await getLastLocation();
+  }
+
+  async function reloadChangedTabs(
+    tabs: ScriptableTabSnapshot[],
+    previous: SiteSpoofConfig,
+    next: SiteSpoofConfig
+  ): Promise<void> {
+    const changed = tabs.filter((tab) => runtimePayloadSignature(previous, tab.url) !== runtimePayloadSignature(next, tab.url));
+    for (let index = 0; index < changed.length; index += TAB_RELOAD_CONCURRENCY) {
+      await Promise.all(changed.slice(index, index + TAB_RELOAD_CONCURRENCY).map(async (snapshot) => {
+        try {
+          const current = await chrome.tabs.get(snapshot.id);
+          if (current.url !== snapshot.url) return;
+          if (runtimePayloadSignature(previous, current.url) === runtimePayloadSignature(next, current.url)) return;
+          await chrome.tabs.reload(snapshot.id);
+        } catch (error) {
+          console.warn(`VanishGeo 刷新标签页 ${snapshot.id} 失败：`, formatError(error));
+        }
+      }));
+    }
+  }
+
+  async function persistConfig(previous: SiteSpoofConfig, candidate: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
+    const result = validateConfig(candidate);
+    if (!result.ok) throw new Error(result.errors.join('; '));
+    const tabs = await queryScriptableTabs();
     await chrome.storage.local.set({ siteSpoofConfig: result.config });
     await applyRuntimeSideEffects(result.config);
-    await updateAllTabs(result.config, lastLocation);
+    await reloadChangedTabs(tabs, previous, result.config);
     return result.config;
+  }
+
+  function mutateConfig(mutator: (current: SiteSpoofConfig) => Partial<SiteSpoofConfig> | Promise<Partial<SiteSpoofConfig>>): Promise<SiteSpoofConfig> {
+    const mutation = configMutationQueue.then(async () => {
+      const current = await getSiteConfig();
+      return persistConfig(current, await mutator(normalizeConfig(current)));
+    });
+    configMutationQueue = mutation.then(() => undefined, () => undefined);
+    return mutation;
+  }
+
+  async function saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
+    return mutateConfig((current) => ({
+      ...normalizeConfig(config),
+      exitLocationProfiles: current.exitLocationProfiles
+    }));
+  }
+
+  async function resetSiteConfig(): Promise<SiteSpoofConfig> {
+    return mutateConfig(() => clone(DEFAULT_CONFIG));
+  }
+
+  async function importSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
+    return mutateConfig(() => {
+      const imported = normalizeConfig(config);
+      return {
+        ...imported,
+        exitLocationProfiles: imported.exitLocationProfiles.map((profile) => ({
+          ...profile,
+          verification: 'unverified' as const,
+          publicIp: null,
+          provider: null,
+          verifiedAt: null
+        })),
+        rules: imported.rules.map((rule) => ({ ...rule, exitLocationProfileId: null }))
+      };
+    });
   }
 
   async function getExtensionState(): Promise<{ enabled: boolean; config: SiteSpoofConfig }> {
@@ -540,379 +480,193 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   async function setExtensionEnabled(enabled: boolean): Promise<SiteSpoofConfig> {
-    const config = await getSiteConfig();
-    return saveSiteConfig({ ...config, masterEnabled: Boolean(enabled) });
+    return mutateConfig((config) => ({ ...config, masterEnabled: Boolean(enabled) }));
   }
 
   async function setWebRtcGlobalMode(mode: string): Promise<SiteSpoofConfig> {
-    const config = await getSiteConfig();
-    return saveSiteConfig({ ...config, webRtc: normalizeWebRtc({ globalMode: mode as any }) });
+    return mutateConfig((config) => ({ ...config, webRtc: normalizeWebRtc({ globalMode: mode as any }) }));
   }
 
   async function getWebRtcPolicyState(): Promise<WebRtcPolicyState> {
     return getWebRTCPolicyState(await getSiteConfig());
   }
 
-  async function buildPayloadForUrl(url: string, configOverride?: SiteSpoofConfig, lastLocationOverride?: LastLocation | null): Promise<EffectiveProfileResult> {
-    const hostname = url ? new URL(url).hostname : '';
-    const config = configOverride || await getSiteConfig();
-    // Stale locations remain the explicit last-known-good input for IP-following
-    // injection; freshness and provider errors are surfaced separately in the UI.
-    const lastLocation = lastLocationOverride !== undefined ? lastLocationOverride : await getLastLocation();
-    return getEffectiveProfile(config, hostname, lastLocation);
-  }
-
-  async function executeTabInjection(request: TabInjectionRequest): Promise<InjectionOutcome> {
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: request.tabId, allFrames: true },
-        files: MAIN_RUNTIME_FILES,
-        injectImmediately: true,
-        world: 'MAIN'
-      });
-      await chrome.scripting.executeScript({
-        target: { tabId: request.tabId, allFrames: true },
-        func: (payload) => {
-          window.postMessage({ source: 'vanishgeo-extension', type: 'apply-spoof', payload }, '*');
-        },
-        args: [request.payload],
-        injectImmediately: true,
-        world: 'MAIN'
-      });
-      return 'applied';
-    } catch (error) {
-      console.warn(`VanishGeo could not inject tab ${request.tabId}:`, formatError(error));
-      return 'failed';
-    }
-  }
-
-  async function runTabInjectionQueue(state: TabInjectionState, firstRequest: TabInjectionRequest): Promise<InjectionOutcome> {
-    state.running = true;
-    let request: TabInjectionRequest | null = firstRequest;
-    let outcome: InjectionOutcome = 'skipped';
-
-    while (request) {
-      state.currentKey = request.key;
-      state.pending = null;
-      outcome = await executeTabInjection(request);
-      request = state.pending;
-    }
-
-    state.running = false;
-    state.currentKey = null;
-    return outcome;
-  }
-
-  async function queueTabInjection(request: TabInjectionRequest): Promise<InjectionOutcome> {
-    let state = tabInjectionStates.get(request.tabId);
-    if (!state) {
-      state = {
-        running: false,
-        currentKey: null,
-        pending: null,
-        promise: Promise.resolve('skipped')
-      };
-      tabInjectionStates.set(request.tabId, state);
-    }
-
-    if (state.running) {
-      if (state.currentKey !== request.key && state.pending?.key !== request.key) {
-        state.pending = request;
-      }
-      return state.promise;
-    }
-
-    const currentState = state;
-    state.promise = runTabInjectionQueue(currentState, request).finally(() => {
-      if (!currentState.running && !currentState.pending) {
-        tabInjectionStates.delete(request.tabId);
-      }
-    });
-    return state.promise;
-  }
-
-  async function prepareTabInjection(tabId: number, url: string, options?: { config?: SiteSpoofConfig; lastLocation?: LastLocation | null }): Promise<InjectionOutcome> {
-    const config = options?.config || await getSiteConfig();
-    if (!isScriptableUrl(url) || !isUrlMatchedByEnabledRule(config, url)) return 'skipped';
-
-    const lastLocation = Object.prototype.hasOwnProperty.call(options || {}, 'lastLocation')
-      ? options?.lastLocation || null
-      : await getLastLocation();
-    const resolved = await buildPayloadForUrl(url, config, lastLocation);
-    if (!resolved.matched || !resolved.payload) return 'skipped';
-
-    return queueTabInjection({
-      tabId,
-      url,
-      payload: resolved.payload,
-      key: buildTabInjectionKey(url, resolved.payload)
-    });
-  }
-
-  async function injectScript(tabId: number, url: string, options?: { config?: SiteSpoofConfig; lastLocation?: LastLocation | null }): Promise<void> {
-    await prepareTabInjection(tabId, url, options);
-  }
-
-  async function injectTargetsWithLimit(
-    targets: ScriptableTabTarget[],
-    config: SiteSpoofConfig,
-    lastLocation: LastLocation | null
-  ): Promise<InjectionOutcome[]> {
-    const outcomes: InjectionOutcome[][] = [];
-    let nextIndex = 0;
-    const workerCount = Math.min(UPDATE_ALL_TABS_CONCURRENCY, targets.length);
-    const workers = Array.from({ length: workerCount }, async (_unused, workerIndex) => {
-      const workerOutcomes: InjectionOutcome[] = [];
-      outcomes[workerIndex] = workerOutcomes;
-      while (nextIndex < targets.length) {
-        const target = targets[nextIndex];
-        nextIndex += 1;
-        workerOutcomes.push(await prepareTabInjection(target.id, target.url, { config, lastLocation }));
-      }
-    });
-
-    await Promise.all(workers);
-    return outcomes.flat();
-  }
-
-  async function runUpdateAllTabs(request: UpdateAllTabsRequest): Promise<void> {
-    const config = request.config ? normalizeConfig(request.config) : await getSiteConfig();
-    const lastLocation = request.hasLastLocation ? request.lastLocation : await getLastLocation();
-    if (!getContentScriptMatches(config).length) return;
-
-    const tabs = await chrome.tabs.query({});
-    const targets = toScriptableTabTargets(tabs, config);
-    const signature = buildAllTabsSignature(config, lastLocation, targets);
-    if (signature === lastSuccessfulAllTabsSignature) return;
-
-    const outcomes = await injectTargetsWithLimit(targets, config, lastLocation);
-    if (!outcomes.includes('failed')) {
-      lastSuccessfulAllTabsSignature = signature;
-    }
-  }
-
-  async function drainUpdateAllTabsQueue(): Promise<void> {
-    while (pendingAllTabsUpdate) {
-      const request = pendingAllTabsUpdate;
-      pendingAllTabsUpdate = null;
-      await runUpdateAllTabs(request);
-    }
-  }
-
-  async function updateAllTabs(configOverride?: SiteSpoofConfig, lastLocationOverride?: LastLocation | null): Promise<void> {
-    pendingAllTabsUpdate = {
-      config: configOverride,
-      hasLastLocation: lastLocationOverride !== undefined,
-      lastLocation: lastLocationOverride || null
-    };
-    if (!updateAllTabsQueue) {
-      updateAllTabsQueue = Promise.resolve()
-        .then(drainUpdateAllTabsQueue)
-        .finally(() => {
-          updateAllTabsQueue = null;
-        });
-    }
-    await updateAllTabsQueue;
-  }
-
-  function sameInjectedLocation(previous: LastLocation | null, next: LastLocation): boolean {
-    return Boolean(
-      previous
-      && Number(previous.latitude) === Number(next.latitude)
-      && Number(previous.longitude) === Number(next.longitude)
-      && String(previous.timezone || '') === String(next.timezone || '')
-      && String(previous.timezoneOffset ?? '') === String(next.timezoneOffset ?? '')
-    );
-  }
-
-  function providerBackoffActive(backoff: GeoProviderBackoff, apiUrl: string, now: number): boolean {
-    const entry = backoff[apiUrl];
-    return Boolean(entry && entry.nextRetryAt > now);
-  }
-
-  async function resolveGeoProviderLocation(
-    forceUpdate: boolean,
-    now: number
-  ): Promise<{
-    location: Omit<LastLocation, 'updateTime' | 'updatedAt' | 'expiresAt'> | null;
-    errors: string[];
-    skipped: string[];
-  }> {
-    const backoff = await getGeoProviderBackoff();
-    const errors: string[] = [];
-    const skipped: string[] = [];
-
-    for (const apiUrl of GEO_API_URLS) {
-      if (!forceUpdate && providerBackoffActive(backoff, apiUrl, now)) {
-        skipped.push(`${apiUrl} cooling down until ${formatProviderRetryTime(backoff[apiUrl].nextRetryAt)}`);
-        continue;
-      }
-
-      try {
-        const location = await fetchGeoApiLocation(apiUrl);
-        delete backoff[apiUrl];
-        await setGeoProviderBackoff(backoff);
-        return { location: { ...location, provider: apiUrl }, errors, skipped };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        errors.push(`${apiUrl} ${message}`);
-        backoff[apiUrl] = nextGeoProviderBackoffEntry(backoff[apiUrl], message, Date.now());
-        await setGeoProviderBackoff(backoff);
-      }
-    }
-
-    return { location: null, errors, skipped };
-  }
-
-  async function runGeolocationUpdate(forceUpdate: boolean): Promise<GeolocationUpdateResult> {
-    try {
-      const config = await getSiteConfig();
-      const oldLocation = await getLastLocation();
-      const oldFreshness = getLastLocationFreshness(oldLocation);
-      if (!config.masterEnabled) {
-        await setGeoRefreshState({ status: 'idle', completedAt: Date.now() });
-        return { ok: false, disabled: true, location: oldLocation || undefined, stale: oldFreshness === 'stale', error: 'extension disabled' };
-      }
-
-      if (!forceUpdate && oldFreshness === 'fresh') {
-        await setGeoRefreshState({ status: 'idle', completedAt: Date.now(), provider: oldLocation?.provider });
-        return { ok: true, location: oldLocation || undefined, unchanged: true };
-      }
-
-      const startedAt = Date.now();
-      await setGeoRefreshState({ status: 'refreshing', startedAt });
-      const result = await resolveGeoProviderLocation(forceUpdate, startedAt);
-
-      if (!result.location) {
-        const details = [...result.errors, ...result.skipped].filter(Boolean).join(' | ');
-        const message = details
-          ? `IP geolocation APIs returned no valid coordinates: ${details}`
-          : 'IP geolocation providers are unavailable';
-        await chrome.storage.local.set({
-          lastGeoError: message,
-          [GEO_REFRESH_STATE_KEY]: {
-            status: 'error',
-            startedAt,
-            completedAt: Date.now(),
-            error: message
-          } satisfies GeoRefreshState
-        });
-        return { ok: false, location: oldLocation || undefined, stale: oldFreshness === 'stale', error: message };
-      }
-
-      const nextLocation = withFreshLocationMetadata(result.location, {
-        provider: result.location.provider,
-        ttlMs: LAST_LOCATION_TTL_MS
-      });
-      const unchanged = sameInjectedLocation(oldLocation, nextLocation);
-      await chrome.storage.local.set({
-        [LAST_LOCATION_KEY]: nextLocation,
-        lastGeoError: '',
-        [GEO_REFRESH_STATE_KEY]: {
-          status: 'idle',
-          startedAt,
-          completedAt: Date.now(),
-          provider: nextLocation.provider
-        } satisfies GeoRefreshState
-      });
-      if (!unchanged) {
-        await updateAllTabs(config, nextLocation);
-      }
-      return { ok: true, location: nextLocation, unchanged };
-    } catch (error) {
-      const message = `background geolocation update failed: ${error instanceof Error ? error.message : String(error)}`;
-      const oldLocation = await getLastLocation();
-      await chrome.storage.local.set({
-        lastGeoError: message,
-        [GEO_REFRESH_STATE_KEY]: {
-          status: 'error',
-          completedAt: Date.now(),
-          error: message
-        } satisfies GeoRefreshState
-      });
-      return {
-        ok: false,
-        location: oldLocation || undefined,
-        stale: getLastLocationFreshness(oldLocation) === 'stale',
-        error: message
-      };
-    }
-  }
-
-  async function updateGeolocation(forceUpdate = false): Promise<GeolocationUpdateResult> {
-    if (activeGeolocationUpdate) {
-      if (!forceUpdate || activeGeolocationUpdate.forceUpdate) {
-        return activeGeolocationUpdate.promise;
-      }
-      return activeGeolocationUpdate.promise.then(() => updateGeolocation(true));
-    }
-
-    const state: { forceUpdate: boolean; promise: Promise<GeolocationUpdateResult> } = {
-      forceUpdate,
-      promise: Promise.resolve({ ok: false, error: 'geolocation update not started' })
-    };
-    state.promise = runGeolocationUpdate(forceUpdate).finally(() => {
-      if (activeGeolocationUpdate === state) {
-        activeGeolocationUpdate = null;
-      }
-    });
-    activeGeolocationUpdate = state;
-    return state.promise;
-  }
-
   async function getPayloadForUrl(url: string): Promise<EffectiveProfileResult> {
-    return buildPayloadForUrl(url);
+    if (!isScriptableUrl(url)) return { matched: false, rule: null, payload: null, errors: [] };
+    return getEffectiveProfile(await getSiteConfig(), new URL(url).hostname);
   }
 
-  async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { url: string; domain: string; scriptable: boolean; config: SiteSpoofConfig; lastLocation: LastLocation | null; ipLocationStatus: IpLocationStatusSnapshot }> {
+  async function initializeRuntimeForSender(sender: chrome.runtime.MessageSender): Promise<EffectiveProfileResult> {
+    if (sender.id !== chrome.runtime.id) throw new Error('拒绝非本扩展的初始化请求');
+    if (typeof sender.tab?.id !== 'number' || !sender.documentId) throw new Error('初始化请求缺少目标文档');
+    const url = [sender.url, sender.origin, sender.tab.url].find(isScriptableUrl) || '';
+    const resolved = await getPayloadForUrl(url);
+    if (!resolved.payload) return resolved;
+    await chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id, documentIds: [sender.documentId] },
+      func: applyVanishGeoRuntime,
+      args: [resolved.payload, sender.documentId],
+      injectImmediately: true,
+      world: 'MAIN'
+    });
+    return resolved;
+  }
+
+  async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
+    url: string;
+    domain: string;
+    scriptable: boolean;
+    config: SiteSpoofConfig;
+  }> {
     const config = await getSiteConfig();
-    const [lastLocation, ipLocationStatus] = await Promise.all([
-      getLastLocation(),
-      getIpLocationStatus()
-    ]);
     const url = tab?.url || '';
-    const domain = url ? normalizeDomain(url) : '';
-    const scriptable = isScriptableUrl(url);
-    const resolved = domain && scriptable
-      ? getEffectiveProfile(config, domain, lastLocation)
+    const domain = isScriptableUrl(url) ? new URL(url).hostname : '';
+    const scriptable = Boolean(domain);
+    const resolved = scriptable
+      ? getEffectiveProfile(config, domain)
       : { matched: false, rule: null, payload: null, errors: [] };
-    return { url, domain, scriptable, config, lastLocation, ipLocationStatus, ...resolved };
+    return { url, domain, scriptable, config, ...resolved };
+  }
+
+  async function detectExitLocation(targetProfileId?: string | null): Promise<ExitLocationDetectionPreview> {
+    const config = await getSiteConfig();
+    const previous = targetProfileId
+      ? config.exitLocationProfiles.find((profile) => profile.id === targetProfileId) || null
+      : null;
+    if (targetProfileId && !previous) throw new Error('要重新检测的出口位置档案不存在');
+
+    const errors: string[] = [];
+    let candidate: DetectedExitLocation | null = null;
+    for (const apiUrl of GEO_API_URLS) {
+      try {
+        candidate = await fetchGeoApiLocation(apiUrl);
+        break;
+      } catch (error) {
+        errors.push(`${apiUrl} ${formatError(error)}`);
+      }
+    }
+    if (!candidate) throw new Error(`所有 IP 定位服务均检测失败：${errors.join(' | ')}`);
+
+    const pending: PendingExitLocationDetection = {
+      detectionId: crypto.randomUUID(),
+      targetProfileId: targetProfileId || null,
+      candidate,
+      baseVerifiedAt: previous?.verifiedAt || null,
+      expiresAt: Date.now() + PENDING_DETECTION_TTL_MS
+    };
+    await chrome.storage.session.set({ [PENDING_DETECTION_KEY]: pending });
+    return { ...pending, previous };
+  }
+
+  async function getPendingDetection(detectionId: string): Promise<PendingExitLocationDetection> {
+    const data = await chrome.storage.session.get(PENDING_DETECTION_KEY);
+    const pending = data[PENDING_DETECTION_KEY] as PendingExitLocationDetection | undefined;
+    if (!pending || pending.detectionId !== detectionId) throw new Error('检测结果已失效，请重新检测');
+    if (pending.expiresAt <= Date.now()) {
+      await chrome.storage.session.remove(PENDING_DETECTION_KEY);
+      throw new Error('检测结果已过期，请重新检测');
+    }
+    const candidate = normalizeDetectedLocation(pending.candidate);
+    if (!candidate) throw new Error('检测结果不完整，请重新检测');
+    return { ...pending, candidate };
+  }
+
+  async function confirmExitLocationDetection(detectionId: string, name: string): Promise<SiteSpoofConfig> {
+    const profileName = normalizeString(name);
+    if (!profileName) throw new Error('出口位置档案名称不能为空');
+    const pending = await getPendingDetection(detectionId);
+    const saved = await mutateConfig((config) => {
+      const profiles = config.exitLocationProfiles.slice();
+      const targetIndex = pending.targetProfileId
+        ? profiles.findIndex((profile) => profile.id === pending.targetProfileId)
+        : -1;
+      if (pending.targetProfileId && targetIndex < 0) throw new Error('出口位置档案已被删除，请重新检测');
+      if (targetIndex >= 0 && profiles[targetIndex].verifiedAt !== pending.baseVerifiedAt) {
+        throw new Error('出口位置档案已发生变化，请重新检测');
+      }
+
+      const profile: ExitLocationProfile = {
+        id: targetIndex >= 0 ? profiles[targetIndex].id : `exit-${crypto.randomUUID()}`,
+        name: profileName,
+        verification: 'verified',
+        publicIp: pending.candidate.publicIp,
+        latitude: pending.candidate.latitude,
+        longitude: pending.candidate.longitude,
+        country: pending.candidate.country,
+        timezone: pending.candidate.timezone,
+        provider: pending.candidate.provider,
+        verifiedAt: pending.candidate.detectedAt
+      };
+      if (targetIndex >= 0) profiles[targetIndex] = profile;
+      else profiles.push(profile);
+      return { ...config, exitLocationProfiles: profiles };
+    });
+    await chrome.storage.session.remove(PENDING_DETECTION_KEY);
+    return saved;
+  }
+
+  async function cancelExitLocationDetection(detectionId: string): Promise<void> {
+    const data = await chrome.storage.session.get(PENDING_DETECTION_KEY);
+    if ((data[PENDING_DETECTION_KEY] as PendingExitLocationDetection | undefined)?.detectionId === detectionId) {
+      await chrome.storage.session.remove(PENDING_DETECTION_KEY);
+    }
+  }
+
+  async function renameExitLocationProfile(profileId: string, name: string): Promise<SiteSpoofConfig> {
+    const profileName = normalizeString(name);
+    if (!profileName) throw new Error('出口位置档案名称不能为空');
+    return mutateConfig((config) => {
+      const index = config.exitLocationProfiles.findIndex((profile) => profile.id === profileId);
+      if (index < 0) throw new Error('出口位置档案不存在');
+      const profiles = config.exitLocationProfiles.slice();
+      profiles[index] = { ...profiles[index], name: profileName };
+      return { ...config, exitLocationProfiles: profiles };
+    });
+  }
+
+  async function deleteExitLocationProfile(profileId: string): Promise<SiteSpoofConfig> {
+    return mutateConfig((config) => {
+      if (!config.exitLocationProfiles.some((profile) => profile.id === profileId)) throw new Error('出口位置档案不存在');
+      const domains = config.rules.filter((rule) => rule.exitLocationProfileId === profileId).map((rule) => rule.domain);
+      if (domains.length) throw new Error(`出口位置档案仍被以下域名引用：${domains.join('、')}`);
+      return {
+        ...config,
+        exitLocationProfiles: config.exitLocationProfiles.filter((profile) => profile.id !== profileId)
+      };
+    });
   }
 
   async function addDomainRule(domain: string): Promise<SiteSpoofConfig> {
-    const config = await getSiteConfig();
-    const normalizedDomain = normalizeDomain(domain);
-    const existing = config.rules.find((rule) => rule.domain === normalizedDomain);
-    if (existing) {
-      existing.enabled = true;
-    } else {
-      config.rules.push(createRule(normalizedDomain));
-    }
-    return saveSiteConfig(config);
+    return mutateConfig((config) => {
+      const normalizedDomain = normalizeDomain(domain);
+      const existing = config.rules.find((rule) => rule.domain === normalizedDomain);
+      if (existing) existing.enabled = true;
+      else config.rules.push(createRule(normalizedDomain));
+      return config;
+    });
   }
 
   async function setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
-    const config = await getSiteConfig();
-    const normalizedDomain = normalizeDomain(domain);
-    const rule = config.rules.find((item) => item.domain === normalizedDomain);
-    if (!rule) throw new Error('domain rule not found');
-    rule.enabled = Boolean(enabled);
-    return saveSiteConfig(config);
+    return mutateConfig((config) => {
+      const rule = config.rules.find((item) => item.domain === normalizeDomain(domain));
+      if (!rule) throw new Error('站点规则不存在');
+      rule.enabled = Boolean(enabled);
+      return config;
+    });
   }
 
   async function deleteDomainRule(domain: string): Promise<SiteSpoofConfig> {
-    const config = await getSiteConfig();
-    const normalizedDomain = normalizeDomain(domain);
-    config.rules = config.rules.filter((rule) => rule.domain !== normalizedDomain);
-    return saveSiteConfig(config);
+    return mutateConfig((config) => ({
+      ...config,
+      rules: config.rules.filter((rule) => rule.domain !== normalizeDomain(domain))
+    }));
   }
 
   async function openDiagnosticPage(): Promise<void> {
     const url = new URL(LEAK_TEST_URL);
     url.searchParams.set('ui', 'zh');
     const config = await getSiteConfig();
-    const lastLocation = await getLastLocation();
-    const resolved = getEffectiveProfile(config, url.hostname, lastLocation);
+    const resolved = getEffectiveProfile(config, url.hostname);
     if (resolved.payload) {
       let webRtcPolicyState: WebRtcPolicyState | null = null;
       let webRtcPolicyError: string | null = null;
@@ -926,32 +680,53 @@ export function createBackgroundServices(): BackgroundServices {
     await chrome.tabs.create({ url: url.toString() });
   }
 
-  async function initializeExtension(): Promise<void> {
-    const config = normalizeConfig(await getSiteConfig());
-    await applyRuntimeSideEffects(config);
-    if (config.masterEnabled) {
-      await updateGeolocation(false);
+  async function reloadLegacyMatchedTabs(config: SiteSpoofConfig): Promise<void> {
+    const tabs = (await queryScriptableTabs()).filter((tab) => isUrlMatchedByEnabledRule(config, tab.url));
+    for (let index = 0; index < tabs.length; index += TAB_RELOAD_CONCURRENCY) {
+      await Promise.all(tabs.slice(index, index + TAB_RELOAD_CONCURRENCY).map(async (tab) => {
+        try {
+          await chrome.tabs.reload(tab.id);
+        } catch (error) {
+          console.warn(`VanishGeo 清理旧页面环境时刷新标签页 ${tab.id} 失败：`, formatError(error));
+        }
+      }));
     }
   }
 
+  async function initializeExtension(): Promise<void> {
+    const before = await chrome.storage.local.get(null);
+    const storedConfig = before[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
+    const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 2)
+      || Boolean(before[LEGACY_VANISHME_CONFIG_KEY])
+      || Boolean(before[LAST_LOCATION_KEY])
+      || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
+        .some((key) => Object.prototype.hasOwnProperty.call(before, key));
+    const config = await getSiteConfig();
+    await applyRuntimeSideEffects(config);
+    if (hadLegacyConfig) await reloadLegacyMatchedTabs(config);
+  }
+
   return {
-    alarmName: ALARM_NAME,
     webRtcPolicies: WEBRTC_POLICY_VALUES,
     getSiteConfig,
     saveSiteConfig,
-    getLastLocation,
-    getIpLocationStatus,
+    resetSiteConfig,
+    importSiteConfig,
     getExtensionState,
     setExtensionEnabled,
     getWebRtcPolicyState,
-    updateGeolocation,
-    injectScript,
+    setWebRtcGlobalMode,
     getPayloadForUrl,
+    initializeRuntimeForSender,
     getCurrentTabState,
+    detectExitLocation,
+    confirmExitLocationDetection,
+    cancelExitLocationDetection,
+    renameExitLocationProfile,
+    deleteExitLocationProfile,
     addDomainRule,
     setDomainRuleEnabled,
     deleteDomainRule,
-    setWebRtcGlobalMode,
     openDiagnosticPage,
     initializeExtension
   };

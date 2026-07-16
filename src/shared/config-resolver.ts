@@ -5,6 +5,7 @@ import {
   DEFAULT_TIMEZONE,
   DEFAULT_WEBRTC,
   LAST_LOCATION_KEY,
+  LEGACY_EXIT_LOCATION_PROFILE_ID,
   LEGACY_VANISHME_CONFIG_KEY,
   OLD_EXTENSION_ENABLED_KEY,
   OLD_LANGUAGE_KEY,
@@ -30,9 +31,9 @@ import {
 import type {
   CanvasConfig,
   EffectiveProfileResult,
+  ExitLocationProfile,
   GeolocationConfig,
   LanguageConfig,
-  LastLocation,
   SignalOverride,
   SiteRule,
   SiteSpoofConfig,
@@ -184,19 +185,15 @@ export function resolveEffectiveLanguageForRule(config: SiteSpoofConfig, rule: S
 
 function resolveTimezoneValue(
   timezoneConfig: TimezoneConfig | null,
-  geolocation: (GeolocationConfig & { timezone?: string | null }) | null,
-  lastLocation: LastLocation | null
-): { timezone: string | null; source: 'manual' | 'lastLocation' | null } {
+  exitLocationProfile: ExitLocationProfile | null
+): { timezone: string | null; source: 'manual' | 'exitProfile' | null } {
   if (!timezoneConfig) return { timezone: null, source: null };
   if (timezoneConfig.mode === 'manual' && timezoneConfig.timezone) {
     return { timezone: timezoneConfig.timezone, source: 'manual' };
   }
-  if (geolocation && geolocation.timezone) {
-    return { timezone: geolocation.timezone, source: 'lastLocation' };
-  }
   return {
-    timezone: lastLocation && lastLocation.timezone ? lastLocation.timezone : null,
-    source: lastLocation && lastLocation.timezone ? 'lastLocation' : null
+    timezone: exitLocationProfile?.timezone || null,
+    source: exitLocationProfile?.timezone ? 'exitProfile' : null
   };
 }
 
@@ -213,26 +210,26 @@ function resolveManualGeolocation(geolocationConfig: GeolocationConfig): Geoloca
 
 function resolveGeolocationValue(
   geolocationConfig: GeolocationConfig | null,
-  lastLocation: LastLocation | null
+  exitLocationProfile: ExitLocationProfile | null
 ): (GeolocationConfig & { latitude: number; longitude: number; timezone?: string | null }) | null {
   if (!geolocationConfig) return null;
   if (geolocationConfig.mode === 'manual') {
     const manual = resolveManualGeolocation(geolocationConfig);
     return manual as (GeolocationConfig & { latitude: number; longitude: number }) | null;
   }
-  if (!lastLocation || !Number.isFinite(Number(lastLocation.latitude)) || !Number.isFinite(Number(lastLocation.longitude))) {
+  if (!exitLocationProfile) {
     return null;
   }
   return {
     ...geolocationConfig,
-    latitude: Number(lastLocation.latitude),
-    longitude: Number(lastLocation.longitude),
-    country: lastLocation.country || '',
-    timezone: lastLocation.timezone || null
+    latitude: exitLocationProfile.latitude,
+    longitude: exitLocationProfile.longitude,
+    country: exitLocationProfile.country,
+    timezone: exitLocationProfile.timezone
   };
 }
 
-export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: string, lastLocation: LastLocation | null): EffectiveProfileResult {
+export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: string): EffectiveProfileResult {
   const normalized = normalizeConfig(config);
   if (!normalized.masterEnabled) {
     return { matched: false, rule: null, payload: null, errors: [] };
@@ -246,16 +243,28 @@ export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: 
   const language = resolveEffectiveLanguageForRule(normalized, rule);
   const timezoneConfig = resolveSignal(normalized.globalProfile.timezone, rule.overrides.timezone, normalizeTimezone);
   const geolocationConfig = resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
-  const geolocation = resolveGeolocationValue(geolocationConfig, lastLocation);
-  const timezone = resolveTimezoneValue(timezoneConfig, geolocation, lastLocation);
+  const needsExitLocationProfile = geolocationConfig?.mode === 'auto' || timezoneConfig?.mode === 'auto';
+  const selectedProfile = rule.exitLocationProfileId
+    ? normalized.exitLocationProfiles.find((profile) => profile.id === rule.exitLocationProfileId) || null
+    : null;
+  const exitLocationProfile = selectedProfile?.verification === 'verified' ? selectedProfile : null;
+  const geolocation = resolveGeolocationValue(geolocationConfig, exitLocationProfile);
+  const timezone = resolveTimezoneValue(timezoneConfig, exitLocationProfile);
   const canvas = normalizeCanvas(normalized.canvas);
   const errors: string[] = [];
 
-  if (geolocationConfig && !geolocation) {
-    errors.push('geolocation is enabled but no valid coordinates are available');
+  if (needsExitLocationProfile && !rule.exitLocationProfileId) {
+    errors.push('当前规则未选择出口位置档案');
+  } else if (needsExitLocationProfile && !selectedProfile) {
+    errors.push('当前规则引用的出口位置档案不存在');
+  } else if (needsExitLocationProfile && !exitLocationProfile) {
+    errors.push('当前规则选择的出口位置档案尚未验证');
   }
-  if (timezoneConfig && !timezone.timezone) {
-    errors.push('timezone is enabled but no valid timezone is available');
+  if (geolocationConfig?.mode === 'manual' && !geolocation) {
+    errors.push('地理位置已启用，但没有可用坐标');
+  }
+  if (timezoneConfig?.mode === 'manual' && !timezone.timezone) {
+    errors.push('时区已启用，但没有可用时区');
   }
 
   if (errors.length) {
@@ -285,6 +294,45 @@ export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: 
     },
     errors: []
   };
+}
+
+function migrateLegacyLastLocation(config: SiteSpoofConfig, storageData: Record<string, any>): SiteSpoofConfig {
+  const rawConfig = storageData[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
+  if (rawConfig?.schemaVersion === 2 || config.exitLocationProfiles.some((profile) => profile.id === LEGACY_EXIT_LOCATION_PROFILE_ID)) {
+    return config;
+  }
+
+  const location = storageData[LAST_LOCATION_KEY] as {
+    latitude?: unknown;
+    longitude?: unknown;
+    country?: unknown;
+    timezone?: unknown;
+  } | undefined;
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    return config;
+  }
+
+  const timezone = validateTimezone(normalizeString(location?.timezone)) ? normalizeString(location?.timezone) : null;
+  return normalizeConfig({
+    ...config,
+    exitLocationProfiles: [
+      ...config.exitLocationProfiles,
+      {
+        id: LEGACY_EXIT_LOCATION_PROFILE_ID,
+        name: '待确认旧位置',
+        verification: 'unverified',
+        publicIp: null,
+        latitude,
+        longitude,
+        country: normalizeString(location?.country),
+        timezone,
+        provider: null,
+        verifiedAt: null
+      }
+    ]
+  });
 }
 
 function legacyDomainToRule(input: string): SiteRule | null {
@@ -356,12 +404,13 @@ export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoof
   const input = storageData || {};
   if (input[SITE_CONFIG_KEY]) {
     const config = normalizeConfig(input[SITE_CONFIG_KEY]);
-    return shouldRepairUninitializedRules(input, config) ? withDefaultRules(config) : config;
+    const repaired = shouldRepairUninitializedRules(input, config) ? withDefaultRules(config) : config;
+    return migrateLegacyLastLocation(repaired, input);
   }
   if (input[LEGACY_VANISHME_CONFIG_KEY]) {
-    return convertVanishMeConfig(input[LEGACY_VANISHME_CONFIG_KEY]);
+    return migrateLegacyLastLocation(convertVanishMeConfig(input[LEGACY_VANISHME_CONFIG_KEY]), input);
   }
-  return normalizeConfig({
+  return migrateLegacyLastLocation(normalizeConfig({
     masterEnabled: input[OLD_EXTENSION_ENABLED_KEY] !== false,
     globalProfile: {
       language: normalizeLanguage(input[OLD_LANGUAGE_KEY] || DEFAULT_LANGUAGE),
@@ -369,7 +418,7 @@ export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoof
       geolocation: clone(DEFAULT_GEOLOCATION)
     },
     webRtc: normalizeWebRtc(input[OLD_WEBRTC_KEY] || DEFAULT_WEBRTC)
-  });
+  }), input);
 }
 
 export {
@@ -379,4 +428,4 @@ export {
   SITE_CONFIG_KEY
 };
 
-export type { CanvasConfig, GeolocationConfig, LanguageConfig, LastLocation, SiteSpoofConfig, TimezoneConfig };
+export type { CanvasConfig, GeolocationConfig, LanguageConfig, SiteSpoofConfig, TimezoneConfig };
