@@ -1,246 +1,125 @@
-# Quality Guidelines
+# 质量规范
 
-> Code quality standards for frontend development.
+> VG-011 安全暂停：后台已删除对页面伪装 runtime 的 import/executeScript 路径，所有 initializeRuntimeForSender 在可信 sender 校验后、配置读取与派发前拒绝。对账只撤销 vanishgeo-runtime-init；有启用 allowlist 时 contentScripts 报 runtime-injection-paused / partial，注销失败仍 failed；DNR/WebRTC 独立报告。保存、重试、后台唤醒都不能恢复。下文原直接 MAIN 注入描述是恢复前的架构合同，当前不执行；恢复须取得可靠最终文档绑定并另获授权，不能用 URL、时间戳、nonce 或事后 ID 检查代替。已执行 hook/BFCache 文档需关闭并重建。证据见 [调查](../../../docs/stabilization/document-id-investigation.md)。
 
----
+## 当前技术与权威边界
 
-## Overview
+VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HTML/CSS/DOM 为界面。源码在 src，运行时从 dist 加载；质量检查必须同时考虑类型、ES module 构建 wiring 和 Chrome 文档/权限边界。目录与入口见 [目录结构](./directory-structure.md)，schema v2/verified 事务见 [状态管理](./state-management.md)。
 
-This project runs as a native browser extension without a bundler. Quality checks must protect load order, fixed entry filenames, and shared-runtime contracts, not just pure business logic.
+配置归一化、匹配/解析、迁移/持久化分别以 `src/shared/config-model.ts`、`config-resolver.ts`、`storage.ts` 为权威。background/services 拥有副作用和配置修改事务，injected/runtime 拥有 MAIN-world 页面 hook。新增 UI、诊断或测试不得复制域名匹配器、可信配置桥或 storage 事实来源。
 
----
+## 构建与 wiring
 
-## Forbidden Patterns
+- 使用 TypeScript ES module imports，Node 测试通过 tsx 导入维护源；不添加 global/CommonJS 双导出，也不以仓库根可直接加载扩展为要求。
+- manifest、HTML、动态 `registerContentScripts` 引用的是 dist 路径。入口改名/移动必须同步 Vite input、引用和 `tests/extension-wiring.test.ts`，并检查实际构建。
+- `src/injected/runtime.ts` 是 virtual module facade，构建器静态生成自包含函数；安全暂停期间不进入后台 bundle，也不是独立 runtime 入口或 web-accessible 文件。注入函数不能依赖模块闭包和外部 chunk 在页面中的可访问性。
+- dist 包含共享 assets chunks，完整分发不能只拷贝六个 JS 入口。使用当前构建输出作为证据，不用 Vite 注释推断不存在共享 chunks。
+- 不直接修改 dist，不在业务源码中引用某次构建的哈希 chunk 名。
 
-### Don't: Grow root entry files back into large controllers
+## 注入、消息与权限
 
-`background.js`, `popup.js`, `options.js`, `test.js`, and `main_spoof.js` must stay thin. If a change adds meaningful logic there, move that logic into `background/`, `pages/`, `shared/`, or `spoof/`.
+- manifest 保持 MV3，当前无静态 `content_scripts`，`web_accessible_resources` 为空。动态 matches 只来自 `getContentScriptMatches` 的已启用 allowlist。
+- content 在 ISOLATED world、document_start 通知后台；`allFrames` 和 `matchOriginAsFallback` 不意味着所有 frame 都获授权。后台使用可信 sender 重新解析有效配置并以 `documentIds: [sender.documentId]` 在 MAIN world 执行。
+- `initializeRuntimeForSender` 不接收网页提交的 URL/payload。管理动作必须经过 `requireExtensionPage` 身份/来源校验；不得增加 postMessage 配置桥。
+- 各 frame 独立接受直接 runtime 调用，不用父页面创建 hook 或遍历子帧代替文档授权。about:blank/srcdoc/origin fallback 和跨源匹配须在真实 Chrome 中验证，VM 或源码正则不能证明 Chrome 行为。
+- DNR 从同一有效语言解析生成 Accept-Language，并只管理现有 ID 区间；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
+- manifest 权限或 host scope 变化须有明确任务授权，同步 `PERMISSIONS.md` 和 wiring 测试。不得为测试放宽权限或校验；optional host permissions 需要独立设计拒绝状态、重新注册与 DNR 恢复。
+- Refactor 默认保持 runtime action、storage 键/schema、payload 和入口合同；语义变化必须在任务中明确授权和验收。
 
-### Don't: Duplicate cross-page or cross-runtime helpers
+## 页面 hook 与设备透传
 
-If popup, options, test, background, or content/main-world code needs the same transform, formatting, or contract logic, put it in `shared/` before adding a third copy.
+Navigator getter、Intl/Date、Geolocation/Permissions、Canvas 字体和 Worker/SharedWorker 的现有 hook 必须经过 `src/injected/runtime-modules/registry.ts` 的中央 registry，由 runtime.ts facade 导出生成函数。保留原生 descriptor 位置、函数 source/name/length、非法 receiver 异常和未注册反射路径的语义；不添加局部 toString 覆盖或可枚举 marker。
 
-### Don't: Introduce bundler-only assumptions
+Navigator.prototype getter 不得换成普通闭包。沿用 native-backed proxy/registered descriptor；隐藏状态的枚举与探测要求由中央 registry 和其测试统一管理，不能从旧文档复制固定全局 anchor 名。
 
-Do not require path aliases, transpilation, ESM-only packaging, or build-time code generation for runtime correctness. The extension must remain directly loadable from the repository.
+无目标检测证据和独立任务授权，不新增 WebGL/GPU、Audio、screen、hardware concurrency、device memory、原生字体库存、codec、WebGPU 等设备指纹伪装。当前已有 Canvas 字体功能不自动授权扩大伪装面。对未接管表面记录原生透传证据，而不是由 IP 地理位置猜测设备属性。
 
-### Don't: Replace `Navigator.prototype` getters with plain page-visible closures
+## Worker bootstrap
 
-Browser fingerprint checks can flag custom getters on `Object.getPrototypeOf(navigator)`, especially `userAgent`, `platform`, and `languages`, because native getters stringify with `[native code]`. Do not replace these getters with plain closures or arrow functions.
+页面 wrapper 当前只包装同源 HTTP(S) worker URL，其他 URL 保留原生路径；classic worker 在 prelude 后 `importScripts`，module worker 在 prelude 后 `await import(...)`。不能把实际 module 静态 import 放在补丁正文后，因为模块依赖会先执行。
 
-If a spoofed page-visible surface requires descriptor or source-shape camouflage, route it through the central anti-detection registry in `src/injected/runtime.ts`. Do not add ad hoc reflection patches, marker globals, or one-off `Function.prototype.toString` overrides beside a local spoof.
+SharedWorker 的 options/name、复用和端口行为，以及 CSP、嵌套 worker、Blob URL 释放、同步/异步失败的可观察结果，应按实际变更选择浏览器验证；不把 Node 构造 mock 或 VM prelude 检查当成完整 Chrome worker 支持证据。
 
-If the runtime uses a hidden `Symbol` anchor for idempotence, hiding it from `Object.getOwnPropertySymbols(window)` is not sufficient. Exact-key probes such as `Symbol.for(anchorKey) in window` and `Symbol.keyFor(anchor)` must also be handled by the central registry virtualization.
+VG-007 的 SharedWorker URL Map 与当前 worker patch source 存在既有隐藏 AntiDetectionState；key 包含原始绝对 URL、type、name、credentials 与完整补丁源签名。同 key 复用，重复注入更新未来 worker 的补丁源而保留缓存/代理；options 的已支持成员按 credentials/name/type 单次转换，key、bootstrap 和原生构造使用同一快照，显式 null name 为字符串 "null"，枚举仍由原生拒绝。新浏览器额外选项保留原生读取，未声明完整新选项转换矩阵。
 
-Wrong:
+Dedicated（含已有嵌套包装）在原生构造器返回/同步失败后 revoke 临时 Blob URL；Shared 新项同步失败时撤销，已有项不因单次失败被删除，pagehide 清空所有 Shared URL。BFCache 恢复从新缓存周期开始，不承诺跨文档共享或改变存量 worker 配置。异步 CSP/脚本错误保持 error，不以网络重试掩盖失败。
 
-```ts
-const navigatorPrototype = Object.getPrototypeOf(navigator);
-Object.defineProperty(navigatorPrototype, 'languages', {
-  get: () => ['en-US', 'en'],
-  configurable: true
-});
-```
+module SharedWorker 动态 import 期间及初始队列排空期间，connect 被缓冲；业务监听器就绪后通过携带同一 ports 的合成 MessageEvent 交付，缓冲事件 isTrusted=false，缓冲队列排空后的 connect 原生交付。这是当前动态 bootstrap 的明确边界，不用新事件 hook 或伪造 isTrusted 隐藏它。`scripts/chrome-worker-smoke.mjs` 验证同 key scope/计数、module 依赖顶层补丁、revoke 后 classic/module/嵌套加载、反射/cross-origin/CSP/异步错误与实际 pagehide；自动 smoke 不等于人工验收。
 
-Correct:
 
-```ts
-const descriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'languages');
-const getter = descriptor?.get;
+## 诊断与隐私
 
-Object.defineProperty(Navigator.prototype, 'languages', {
-  ...descriptor,
-  get: new Proxy(getter, {
-    apply(target, thisArg, args) {
-      if (thisArg === navigator) return Object.freeze(['en-US', 'en']);
-      return Reflect.apply(target, thisArg, args);
-    }
-  })
-});
-```
+- 页面可见伪装验收必须来自已 allowlist 的普通 HTTP(S) origin。扩展 origin 页面只能作为 launcher、说明或原生基线面板，不能证明目标网页注入。
+- 保留 `npm run test:e2e:chrome` 半自动入口：构建后可启动/明确指向加载 dist 的真实 Chrome profile，并列出 headers、WebRTC policy/ICE、language/timezone/geolocation、iframe、worker 和设备透传场景。
+- `--dry-run` 只检查 dist 必需文件并打印目标/清单，不执行断言、不安装扩展、不产生浏览器通过证据。
+- 不写入精确公网 IP、真实个人路径、精确位置或凭据；fixture 使用合成/脱敏数据。外部诊断 URL 只带固定 UI 参数，不序列化扩展预期配置或 privacy API 快照；不得换用其他 query、路径、cookie、外部存储或页面桥。MAIN runtime 调试日志只输出固定提示，不传完整 payload 或预期坐标。
+- 外部 leak-test 固定 observation mode，只展示实际观测并保持 UNKNOWN，不判定配置 PASS/FAIL；普通网页无法读取 Chrome privacy policy。页面与同源 header fetch 使用 no-referrer。数据流及托管部署限制见 [PRIVACY.md](../../../PRIVACY.md)，VG-003 扩展侧验证与外部观测分离。
 
-Why:
+## 扩展侧诊断报告（VG-003）
 
-- `navigator` does not gain an obvious own `languages` property.
-- The prototype descriptor stays in the native location.
-- The getter proxy preserves native-like `name`, `length`, and `toString()` behavior from the original getter.
-- Invalid receivers still flow to the native getter, preserving native error behavior.
-- Reflection virtualization remains centralized and can hide internal anchors consistently across surfaces.
-- Hidden anchors are not exposed by exact `Symbol.for`/`Symbol.keyFor` probes.
+- `openDiagnosticPage` / `openLeakTest` 打开扩展 `diagnostic/report.html`。hosted/localhost 目标由报告页固定按钮打开，URL 只带 ui=zh；报告资源不设置 web accessible。
+- `prepareDiagnosticRun` / `executeDiagnosticRun` / `cancelDiagnosticRun` 仅接受精确报告 URL、扩展 id 和可信 sender tab/documentId；run 绑定 owner 与目标 top documentId。后台仅通过现有 config-resolver 解析，最小预期字段、TTL（两分钟）和状态在内存，不写 local/session。完成、取消、过期、目标/报告导航或关闭释放敏感状态；重启失效。
+- MAIN 采集函数自包含且无预期参数；普通 origin 同源 header echo 使用 no-referrer、omit credentials、禁止重定向和超时。WebRTC 策略实际值/控制权由后台读取，ICE 地址只归纳数量，不把空候选或 policy PASS 当防护通过。
+- 每次异步采样后复核 run 与文档。子帧 MAIN 采样前重新读取配置，交付前及临时 iframe 清理后核对各子帧有效预期与文档身份；顶层不变不代表子帧授权未撤销。about:blank/srcdoc 来源不能独立确定时 UNKNOWN。
+- 取消/过期通知可及时拒绝 execute，但不直接终止已派发 Chrome 函数；采样函数负责有界超时与资源清理，失效后不得启动下一阶段位置/header/STUN/worker 采集。执行或清理的旧文档调用先失败于导航事件时，使用可信 tab/ISOLATED identity 分类，不透出网页异常文本。
+- 比较只在扩展报告页；时区别名对实际与预期采用相同 Intl 规范化，原始值仍展示。随机坐标按配置半径比较。禁用或不可观察为 UNKNOWN。设备透传用同文档 ISOLATED 参考，只证明当次实际值，不新增伪装。
+- 报告完成后后台已消费 run，页面释放 active 指针；之后 TTL/清除只处理本地报告，不依赖后台仍存在。页面没有诊断持久化或导出。
+- ChromeSetting 完成只能由 callback/Promise 确认，原生函数 length 不能用于判定异步 API 已成功；回调 lastError 保持失败。
+- `node scripts/chrome-diagnostic-smoke.mjs` 使用 Node 22+ 原生 WebSocket 与当前 Chrome DevTools protocol、独立临时 profile、合成配置及 localhost 完成定向真实 headless Chrome 验证。profile/server 在 finally 清理；输出仅状态和行数。生产 TTL 实测需要等待两分钟；它不等于用户人工验收或所有浏览器边界验证。
 
-### Don't: Turn geo spoofing into broad device fingerprint fabrication by default
+## Popup 视口
 
-VanishGeo runs inside the user's real Chrome browser. Treat unrelated local-device surfaces such as WebGL/GPU, Audio, `screen`, hardware concurrency, device memory, native font inventory, codecs, and WebGPU as real pass-through signals unless a target-specific detection trace proves that a surface must be controlled.
+Chrome action popup 保持保守的明确视口（当前 html/body 为 380×600，外层 overflow hidden），滚动由内部 `.container` 承担。grid/flex 子项保留 min-width: 0，长域名/状态文本换行；不能以普通 tab 中可滚动证明 action popup 未被裁切。视口合同变动更新已有 wiring 检查，并做目标 Chrome popup 验收。
 
-Default anti-detection work should focus on the surfaces VanishGeo intentionally owns:
+## 验证命令与证据层级
 
-- language values and the `Accept-Language` request header
-- timezone, locale, and `Intl`/`Date` outputs
-- geolocation method behavior and geolocation permission state
-- WebRTC network leak protection
-- reflection, descriptor, marker, iframe, and worker consistency for surfaces already hooked
+任务收尾至少运行或复用输入未变化的下列实际证据；不因为只有文档变更而把未执行写成通过，也不重复已经可靠通过的相同输入检查：
 
-Why:
+| 命令 | 能证明的范围 | 不能替代 |
+|---|---|---|
+| `git diff --check` | 已跟踪 diff 的 whitespace；新文件另做 whitespace 检查 | 类型、运行时和新文件内容正确性 |
+| `npm run typecheck` | tsconfig include 的 src 静态类型 | 测试文件完整类型检查、Chrome 行为 |
+| `npm run typecheck:tests` | 继承 strict，检查 tests/**/*.ts 及引用的源码 | 测试执行和 Chrome 行为 |
+| `npm test` | `tests/*.test.ts` 的 Node/VM/mock/静态 wiring | 真实 MV3、DNR、privacy、frame/worker 行为 |
+| `npm run build` | tsc + Vite，真实入口/chunk/静态资源输出 | Chrome 加载、页面调用和发布验收 |
+| `node scripts/chrome-acceptance.mjs --dry-run` | 构建产物必需文件与半自动入口清单 | 任何真实 Chrome 验收 |
+| `npm run test:e2e:chrome` + 人工场景执行 | 已记录候选、Chrome 版本及逐项观测的浏览器证据 | 仅启动进程仍不能算通过 |
 
-- IP location does not uniquely determine the user's GPU, CPU, fonts, screen, Audio path, or browser UI language.
-- Spoofing unrelated high-entropy device surfaces creates new descriptor, `toString()`, iframe, worker, and value-consistency obligations.
-- A real browser with a VPN, proxy, remote-work setup, or multilingual environment can legitimately have mixed geo and device signals.
+`npm run check` 依次聚合源码类型、测试类型、单元测试与构建，使用 && 传播失败。push/PR CI 与 tag release 执行同等门禁；失败不能进入后续构建、打包、上传或 Release。release checkout 使用完整历史，changelog 遇 shallow 显式失败。流程与权限以 [RELEASE.md](../../../RELEASE.md) 为准；自动门禁不代表人工 Chrome 验收。
 
-If a future change adds WebGL, Audio, screen, hardware, font, codec, or WebGPU spoofing, it must cite the target detection trace and route the hook through the central registry and validation harness. Do not add one-off "full fingerprint profile" hooks.
+按改变的具体合同选择定向测试。只有新增/改变/真实缺失的可观察合同才增加测试，不为文档更正新增镜像测试或 broad snapshots。运行时边界改变时，wiring/构建之外还须取得能直接观察该边界的真实 Chrome 证据；环境不能执行时明确报告缺口，不能用静态或 VM 代替。
 
----
+## 当前测试入口
 
-## Required Patterns
+| 维护测试 | 当前保护的合同 |
+|---|---|
+| `tests/release-gates.test.ts` | CI/release 顺序和最小权限、本地失败传播、合成 Git 历史与浅克隆失败 |
+| `tests/config.test.ts` | 归一化、迁移转换、有效档案/规则解析、allowlist matches |
+| `tests/background-services.test.ts` | 检测确认、导入降级、刷新、可信 sender、首次初始化和旧键迁移的 mocks |
+| `tests/dnr.test.ts` | 规则生成、语言继承/覆盖/禁用与本地 host 正则的纯逻辑 |
+| `tests/webrtc.test.ts` | policy 映射、clear、不支持状态的 Chrome mocks |
+| `tests/anti-detection-runtime.test.ts` | VM 中 registry、原生语义、直接 frame 调用、worker wrapper 及 debug 日志隐私 |
+| `tests/diagnostic-report.test.ts` / `diagnostic-report-ui.test.ts` | 一次性 run、owner/TTL/导航/取消/授权变化、真实值比较与报告本地清除的 Node/mock/VM 合同 |
+| `tests/diagnostic.test.ts` | header/realm/ICE 实际结果归一化及页面 locale 示例 |
+| `tests/leak-test-observation.test.ts` | VM 执行实际页面脚本，旧预期 query 被忽略、API/header/ICE 观测与 UNKNOWN 合同 |
+| `tests/extension-wiring.test.ts` | 源码/manifest/HTML/权限/脚本结构约束 |
+| `tests/ui-state.test.ts` | 站点状态与未绑定/未验证档案错误投影 |
 
-### Required: Wiring-safe module exports
+完整场景、后续负责人及基线覆盖缺口见 [验收矩阵](../../../docs/stabilization/acceptance-matrix.md)。检查 diff 时确认没有无关改动、第二套事实来源、页面可控 payload、弱化失败或敏感数据泄露；仅对证据能支持的结果作通过结论。
 
-Modules reused by extension runtime and Node tests should expose a browser global and `module.exports` so tests can import the same logic the extension uses.
+## 首个 inline script 时序证据（VG-009）
 
-### Required: Stable entry wiring checks
+`fixtures/injection/earliest-inline.html`及其子文档必须在head首个inline script同步保存实际值，不能等待DOMContentLoaded、消息或runtime marker。earliest、load回调和postLoad报告采集是三个不同阶段，分别判定，后阶段PASS不能替代earliest失败。fixture自身JSON仅保存实际值；生产页不添加采样marker，不接收预期。
 
-When adding or moving runtime files:
+`executeInjectionTimingRun`与既有full execute消费同一种prepare run，精确report来源、owner/documentId、TTL、取消、导航和配置复核仍由diagnostic-runs拥有；该专用采集不调用位置/header/STUN。ISOLATED有效origin只用于fallback诊断比较，不更改生产sender授权。不明来源或缺失/非法fixture为UNKNOWN。页面实际观测仍可能受页面干预，不能当可信配置。
 
-- verify every `<script src="...">` in extension HTML points to an existing file
-- verify every `importScripts(...)` reference points to an existing file
-- verify every `registerContentScripts(... js: [...])` reference points to an existing file
+`npm run test:e2e:chrome -- --injection --runs=3`使用Node22+原生WebSocket/CDP、临时Chrome profile与合成配置，返回每帧每阶段及对照分类。退出0=全PASS、1=实际FAIL/UNKNOWN、2=自动化失败；`--output`仅保存脱敏JSON。dry-run不执行浏览器。若竞态来自ISOLATED→后台→MAIN异步边界，如实记录，不通过推迟首脚本读取、扩大注册/权限或建立页面配置桥来制造PASS。
 
-If these checks are not already covered, add or update a test.
+## 模块化 runtime 验证（VG-012）
 
-### Required: Run leak diagnostics from an allowlisted web origin
-
-`chrome-extension://` pages are extension origins, not target web pages. Chrome does
-not inject this extension's dynamic content scripts into its own extension pages,
-and users cannot validate allowlist behavior there.
-
-Diagnostic pages that need to prove page-visible spoofing must be served from a
-normal HTTP(S) origin that can be added to VanishGeo rules, such as
-`http://localhost:<port>/...`. Extension-hosted diagnostic pages may exist only
-as launcher, instruction, or baseline panels.
-
-### Required: Keep a real-Chrome acceptance entry
-
-Changes that touch injection, permissions, request headers, worker/iframe
-propagation, WebRTC policy, or pass-through surface diagnostics must keep
-`npm run test:e2e:chrome` runnable after `npm run build`.
-
-The command may remain semi-automated, but it must launch or clearly target a
-real Chrome profile with the unpacked `dist/` extension and must list checks for:
-
-- `Accept-Language` request headers from a web origin
-- WebRTC policy plus ICE candidate exposure
-- timezone, locale, and geolocation behavior
-- same-origin iframe and worker realms
-- pass-through real-device surfaces that VanishGeo does not spoof by default
-
-Do not replace this with a Node-only unit test. Unit tests may guard structure,
-but they do not prove Chrome's MV3 permission, DNR, privacy, or injection
-behavior.
-
-### Required: Browser-boundary-preserving refactors
-
-Refactors may change internal layout, but must not silently change:
-
-- manifest entry filenames
-- runtime message action names
-- storage keys and payload shapes
-- permission and host scope unless the task explicitly targets them
-
-### Required: Extension popup viewport owns its own scroll container
-
-Chrome action popups are sized differently from normal tabs. Do not rely on
-`body { max-height: ...; overflow-y: auto; }` or a wide body such as 420px+ for
-the popup page, because Chrome may crop the visible popup instead of showing the
-intended layout.
-
-Popup pages should define an explicit, conservative viewport on both `html` and
-`body`, hide outer overflow, and put scrolling on an inner app container:
-
-```css
-html,
-body {
-  width: 380px;
-  height: 600px;
-  overflow: hidden;
-}
-
-.container {
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-```
-
-Grid and flex children inside the popup should set or inherit `min-width: 0`,
-and long domain / status / button text should wrap instead of forcing horizontal
-overflow. Add a wiring test when changing this contract so the popup does not
-regress into a cropped Chrome action window.
-
-### Required: Document manifest permission boundaries
-
-Any manifest permission or host permission change must update `PERMISSIONS.md`
-and a wiring test in the same change. Keep the manifest permission list minimal
-but evidence-based: remove redundant permissions such as `activeTab` only when
-existing permissions and code paths prove they are unnecessary; defer high-risk
-host permission narrowing when it requires new UX, denied-permission states, or
-DNR re-registration behavior.
-
-### Required: Module Worker bootstrap order
-
-When generating a bootstrap wrapper for a module worker, do not place the real module load behind a static `import "..."` after the patch prelude.
-
-Wrong:
-
-```js
-PATCH();
-import "worker-module.js";
-```
-
-Correct:
-
-```js
-PATCH();
-await import("worker-module.js");
-```
-
-Why:
-
-- the patch must run before the real module worker code executes
-- a dynamic import preserves that ordering in the generated wrapper
-- this avoids the module-worker path silently behaving like an unpatched native worker
-
----
-
-## Testing Requirements
-
-### Minimum required after frontend extension refactors
-
-1. Node-side unit tests for extracted pure logic
-2. Wiring tests for root entry files, HTML script references, and content-script registration lists
-3. Syntax validation for newly added runtime modules
-4. At least one live smoke proving the unpacked extension still injects or runs in Chrome after reload
-
-For this project, `npm test` is the baseline command. If a refactor changes runtime boundaries, add a test that would fail if a referenced file were renamed, moved, or omitted.
-
-### Good
-
-```js
-// tests/extension-wiring.test.js
-// checks manifest service worker, HTML script refs, importScripts refs,
-// and registered content-script file lists
-```
-
-### Wrong
-
-```js
-// Only unit-test shared helpers while assuming Chrome entry wiring still works
-```
-
----
-
-## Code Review Checklist
-
-- Are root entry files still thin shells?
-- Did any shared transform get duplicated instead of extracted?
-- Do HTML, `importScripts`, and dynamic content-script references still point to real files?
-- Does the change preserve runtime contracts and permissions unless explicitly requested otherwise?
-- Is there at least one runtime smoke or equivalent evidence that the unpacked extension still runs after reload?
+- `tests/anti-detection-runtime.test.ts` 使用同一生成器执行完整函数，保留原 VM 行为断言；不能读 facade 的 TypeScript 文本当完整 runtime。
+- `tests/runtime-modules.test.ts` 直接导入页面/worker 模块并传入 realm/state；`tests/runtime-build.test.ts` 检查纯逻辑、外部绑定拒绝、最终二次打包函数和 worker/nested 脱离闭包、source map 实际位置与 page/worker watch 重建、缺源/循环失败。
+- 生成器在每次生产 buildStart 执行，即使生产暂停/未引用 runtime，失败仍中断构建；dist 六入口和现有共享 assets 不变。未来恢复调用时插件继续检查最终函数外部绑定。
+- `node --import tsx scripts/runtime-modularization/chrome-equivalence.mjs --baseline-runtime <任务前runtime.ts> --output <脱敏JSON>` 在临时最小扩展中比较旧/新函数，使用真实 scripting API 的当前 documentId、MAIN/ISOLATED、严格 CSP/iframe 和合成位置/worker fixtures。此证据只证明等价，不证明生产派发安全；正式 dist 的暂停使用既有 chrome-safety-gate 独立验证。
+- VG-009 历史 runner 要求配置保存返回 ok，与当前安全暂停的 partial 不兼容；该入口退出2不能当时序FAIL或模块化回归。暂停下补采仍分别记录 earliest/load/postLoad 的实际原生值和相对伪装预期的FAIL；不得把原生保持正确写成伪装PASS。原VG-009竞态与VG-011原生错投证据不改。
+- 两次构建的 source map 能指回维护 TS，不代表 Chrome 复制 func 后 DevTools 自动获得该 map。Chrome119、其他浏览器和完整手工验收单列覆盖缺口。

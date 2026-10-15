@@ -5,143 +5,6 @@ export const REQUEST_HEADER_PROBE_SOURCES = {
 } as const;
 
 export type WebRtcCandidateRisk = 'none' | 'local' | 'public';
-export type DiagnosticVerdict = 'PASS' | 'FAIL' | 'UNKNOWN';
-
-export interface DiagnosticComparisonResult {
-  status: DiagnosticVerdict;
-  message: string;
-}
-
-export interface DiagnosticSummary {
-  status: DiagnosticVerdict;
-  passed: number;
-  failed: number;
-  unknown: number;
-  total: number;
-}
-
-function isMissingExpected(value: unknown): boolean {
-  return value === null
-    || value === undefined
-    || (typeof value === 'string' && value.trim() === '')
-    || (Array.isArray(value) && value.length === 0);
-}
-
-function normalizeComparableString(value: unknown): string {
-  return String(value ?? '').trim();
-}
-
-function normalizeComparableList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map(normalizeComparableString).filter(Boolean);
-  }
-  return String(value ?? '')
-    .split(',')
-    .map(normalizeComparableString)
-    .filter(Boolean);
-}
-
-function normalizeComparableNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-export function compareDiagnosticValue(input: {
-  expected?: unknown;
-  actual?: unknown;
-  kind?: 'string' | 'list' | 'number';
-  tolerance?: number;
-}): DiagnosticComparisonResult {
-  const kind = input.kind || 'string';
-  if (isMissingExpected(input.expected)) {
-    return { status: 'UNKNOWN', message: 'expected value is not configured' };
-  }
-  if (isMissingExpected(input.actual)) {
-    return { status: 'UNKNOWN', message: 'actual value is not available' };
-  }
-
-  if (kind === 'list') {
-    const expected = normalizeComparableList(input.expected);
-    const actual = normalizeComparableList(input.actual);
-    const matches = expected.length === actual.length && expected.every((item, index) => item === actual[index]);
-    return matches
-      ? { status: 'PASS', message: 'matches expected list' }
-      : { status: 'FAIL', message: 'does not match expected list' };
-  }
-
-  if (kind === 'number') {
-    const expected = normalizeComparableNumber(input.expected);
-    const actual = normalizeComparableNumber(input.actual);
-    if (expected === null) return { status: 'UNKNOWN', message: 'expected number is invalid' };
-    if (actual === null) return { status: 'UNKNOWN', message: 'actual number is invalid' };
-    const tolerance = Number.isFinite(Number(input.tolerance)) ? Math.max(0, Number(input.tolerance)) : 0;
-    const delta = Math.abs(expected - actual);
-    return delta <= tolerance
-      ? { status: 'PASS', message: tolerance > 0 ? `within tolerance ${tolerance}` : 'matches expected number' }
-      : { status: 'FAIL', message: `delta ${delta} exceeds tolerance ${tolerance}` };
-  }
-
-  return normalizeComparableString(input.expected) === normalizeComparableString(input.actual)
-    ? { status: 'PASS', message: 'matches expected value' }
-    : { status: 'FAIL', message: 'does not match expected value' };
-}
-
-export function summarizeDiagnosticVerdicts(statuses: DiagnosticVerdict[]): DiagnosticSummary {
-  const passed = statuses.filter((status) => status === 'PASS').length;
-  const failed = statuses.filter((status) => status === 'FAIL').length;
-  const unknown = statuses.filter((status) => status === 'UNKNOWN').length;
-  return {
-    status: failed > 0 ? 'FAIL' : unknown > 0 ? 'UNKNOWN' : 'PASS',
-    passed,
-    failed,
-    unknown,
-    total: statuses.length
-  };
-}
-
-export function calculateDistanceMeters(
-  from: { latitude: number; longitude: number },
-  to: { latitude: number; longitude: number }
-): number {
-  const earthRadiusMeters = 6371000;
-  const fromLatitude = from.latitude * Math.PI / 180;
-  const toLatitude = to.latitude * Math.PI / 180;
-  const latitudeDelta = (to.latitude - from.latitude) * Math.PI / 180;
-  const longitudeDelta = (to.longitude - from.longitude) * Math.PI / 180;
-  const haversine = Math.sin(latitudeDelta / 2) ** 2
-    + Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDelta / 2) ** 2;
-  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
-}
-
-export function compareGeolocationCoordinates(input: {
-  expectedLatitude?: unknown;
-  expectedLongitude?: unknown;
-  actualLatitude?: unknown;
-  actualLongitude?: unknown;
-  toleranceMeters?: unknown;
-}): DiagnosticComparisonResult & { distanceMeters: number | null } {
-  const expectedLatitude = normalizeComparableNumber(input.expectedLatitude);
-  const expectedLongitude = normalizeComparableNumber(input.expectedLongitude);
-  const actualLatitude = normalizeComparableNumber(input.actualLatitude);
-  const actualLongitude = normalizeComparableNumber(input.actualLongitude);
-  if (expectedLatitude === null || expectedLongitude === null) {
-    return { status: 'UNKNOWN', message: 'expected coordinate is not configured', distanceMeters: null };
-  }
-  if (actualLatitude === null || actualLongitude === null) {
-    return { status: 'UNKNOWN', message: 'actual coordinate is not available', distanceMeters: null };
-  }
-
-  const toleranceMeters = normalizeComparableNumber(input.toleranceMeters) ?? 0;
-  const distanceMeters = calculateDistanceMeters(
-    { latitude: expectedLatitude, longitude: expectedLongitude },
-    { latitude: actualLatitude, longitude: actualLongitude }
-  );
-  return distanceMeters <= toleranceMeters
-    ? { status: 'PASS', message: `within ${Math.round(distanceMeters)}m of expected coordinate`, distanceMeters }
-    : { status: 'FAIL', message: `${Math.round(distanceMeters)}m exceeds tolerance ${toleranceMeters}m`, distanceMeters };
-}
-
 function isPrivateIp(value: string): boolean {
   const parts = value.split('.').map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
@@ -178,7 +41,7 @@ export function classifyWebRtcCandidate(candidate: string) {
   };
 }
 
-export function buildWebRtcLeakSnapshot(input: { candidates?: string[]; policyState?: unknown }) {
+export function buildWebRtcLeakSnapshot(input: { candidates?: string[] }) {
   const candidates = Array.isArray(input?.candidates) ? input.candidates.map(String) : [];
   const classified = candidates.map(classifyWebRtcCandidate);
   const exposesLocalIp = classified.some((candidate) => candidate.localIps.length > 0);
@@ -186,9 +49,7 @@ export function buildWebRtcLeakSnapshot(input: { candidates?: string[]; policySt
   return {
     candidates: classified,
     exposesLocalIp,
-    exposesPublicIp,
-    protected: !exposesLocalIp && !exposesPublicIp,
-    policyState: input?.policyState || null
+    exposesPublicIp
   };
 }
 

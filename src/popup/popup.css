@@ -585,3 +585,21 @@ footer {
     animation: none !important;
   }
 }
+
+.runtime-sync-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+#runtimeSyncStatus[data-status="ok"] { color: var(--success); }
+#runtimeSyncStatus[data-status="partial"] { color: var(--warning); }
+#runtimeSyncStatus[data-status="failed"] { color: var(--danger); }
+
+.auto-save-toast[data-status="partial"] { background: #78350f; color: #fef3c7; }

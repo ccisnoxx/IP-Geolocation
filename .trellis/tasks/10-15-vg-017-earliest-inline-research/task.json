@@ -1,0 +1,80 @@
+{
+  "id": "vg-017-earliest-inline-research",
+  "name": "vg-017-earliest-inline-research",
+  "title": "VG-017：earliest-inline 可行性与时序合同研究",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "VG-017",
+  "package": null,
+  "priority": "P1",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-15",
+  "completedAt": "2026-10-15",
+  "branch": "stabilize/VG-014",
+  "base_branch": "stabilize/VG-014",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".gitignore",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/check.jsonl",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/chrome-evidence.json",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/design.md",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/implement.jsonl",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/implement.md",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/prd.md",
+    ".trellis/tasks/10-15-vg-017-earliest-inline-research/task.json",
+    "docs/stabilization/README.md",
+    "docs/stabilization/acceptance-matrix.md",
+    "docs/stabilization/earliest-inline-research.md",
+    "docs/stabilization/release-readiness.md",
+    "docs/stabilization/task-manifest.yaml",
+    "scripts/recovery-research/chrome-earliest-feasibility.mjs"
+  ],
+  "notes": "用户于2026-10-15确认VG-017研究验收通过，接受当前NO_GO结论及已知限制；manifest为done，Trellis为completed。生产伪装继续暂停，不启动恢复实施，不改版本、不提交、推送或发布。",
+  "meta": {
+    "stabilization_id": "VG-017",
+    "phase": "R5",
+    "dependencies": {
+      "VG-014": "done"
+    },
+    "human_acceptance": {
+      "status": "passed",
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-15",
+      "evidence": ".trellis/tasks/10-15-vg-017-earliest-inline-research/implement.md#人工验收",
+      "scope": [
+        "研究验收通过",
+        "接受当前NO_GO结论及已知限制",
+        "保持生产伪装暂停",
+        "不启动恢复实施"
+      ],
+      "browser_version_provided": false,
+      "screenshots_or_step_logs_provided": false
+    },
+    "production_dispatch_restored": false,
+    "release_approved": false,
+    "feasibility": "NO_GO",
+    "report": "docs/stabilization/earliest-inline-research.md",
+    "validation": {
+      "browser": "Chrome/155.0.8059.40",
+      "production_inputs_unchanged": true,
+      "reused_vg014_gates": [
+        "typecheck",
+        "typecheck:tests",
+        "170/170",
+        "build",
+        "dry-run"
+      ],
+      "human_acceptance": "passed",
+      "diff_check": "passed",
+      "trellis_context": "passed",
+      "candidate_dist_zip_unchanged": true
+    }
+  }
+}

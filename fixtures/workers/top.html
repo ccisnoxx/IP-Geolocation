@@ -89,6 +89,11 @@
           dl.appendChild(dd);
         }
         row('status', entry.status);
+        if (entry.identity) {
+          row('同 key 共享 scope', entry.identity.sameScope);
+          row('共享连接计数', entry.identity.counts.join(', '));
+          row('不同 name 隔离', entry.identity.differentName);
+        }
         if (entry.result) {
           row('language', entry.result.language);
           row('languages', JSON.stringify(entry.result.languages || []));
@@ -97,6 +102,10 @@
           row('timezone', entry.result.timezone);
           row('offset', entry.result.offsetMinutes);
           row('date', entry.result.dateString);
+          if (entry.result.moduleObservation) {
+            row('模块依赖顶层 language', entry.result.moduleObservation.language);
+            row('模块依赖顶层 timezone', entry.result.moduleObservation.timezone);
+          }
         }
         row('error', entry.error || '');
         row('note', entry.note || '');
@@ -132,22 +141,23 @@
         });
       }
 
-      function createSharedWorker(scriptUrl) {
+      function createSharedWorker(scriptUrl, options, retainedPorts) {
         if (typeof SharedWorker !== 'function') {
           return Promise.resolve({ status: 'unsupported', error: '', note: '当前环境不支持 SharedWorker。' });
         }
         return new Promise(function(resolve) {
           try {
-            var worker = new SharedWorker(scriptUrl);
+            var worker = new SharedWorker(scriptUrl, options);
             var port = worker.port;
+            if (retainedPorts) retainedPorts.push(port);
             if (typeof port.start === 'function') port.start();
             var timer = setTimeout(function() {
-              try { port.close(); } catch (error) {}
+              if (!retainedPorts) port.close();
               resolve({ status: 'error', error: 'timeout', note: '' });
             }, 3000);
             port.onmessage = function(event) {
               clearTimeout(timer);
-              try { port.close(); } catch (error) {}
+              if (!retainedPorts) port.close();
               resolve({ status: 'ok', result: event.data, error: '', note: '' });
             };
             port.onerror = function(event) {
@@ -159,10 +169,41 @@
                 note: ''
               });
             };
+            worker.onerror = port.onerror;
           } catch (error) {
             resolve({ status: 'error', error: error && error.message ? error.message : String(error), note: '' });
           }
         });
+      }
+
+      async function sharedIdentity(type, scriptOverride) {
+        var retainedPorts = [];
+        var script = scriptOverride || (type === 'module' ? 'shared-worker-module.js' : 'shared-worker.js');
+        var name = 'identity-' + type + '-' + crypto.randomUUID();
+        try {
+          var pair = await Promise.all([
+            createSharedWorker(new URL(script, rootUrl).href, { type: type, name: name }, retainedPorts),
+            createSharedWorker('./' + script, { type: type, name: name, credentials: 'same-origin' }, retainedPorts)
+          ]);
+          var other = await createSharedWorker(new URL(script, rootUrl).href, { type: type, name: name + '-other' }, retainedPorts);
+          if (pair.some(function(entry) { return entry.status !== 'ok'; }) || other.status !== 'ok') {
+            return { status: 'error', error: 'SharedWorker 连接未完成。', observations: pair.concat([other]) };
+          }
+          var counts = pair.map(function(entry) { return entry.result.connectionCount; }).sort();
+          var identity = {
+            sameScope: pair[0].result.scopeId === pair[1].result.scopeId,
+            counts: counts,
+            differentName: other.result.scopeId !== pair[0].result.scopeId && other.result.connectionCount === 1
+          };
+          return {
+            status: identity.sameScope && counts[0] === 1 && counts[1] === 2 && identity.differentName ? 'ok' : 'error',
+            identity: identity,
+            result: pair[1].result,
+            error: ''
+          };
+        } finally {
+          retainedPorts.forEach(function(port) { port.close(); });
+        }
       }
 
       function createNestedWorker(scriptUrl, childUrl) {
@@ -209,6 +250,9 @@
           classicWorker: await createWorker(new URL('worker-classic.js', rootUrl).href),
           moduleWorker: await createWorker(new URL('worker-module.js', rootUrl).href, { type: 'module' }),
           sharedWorker: await createSharedWorker(new URL('shared-worker.js', rootUrl).href),
+          sharedIdentity: await sharedIdentity('classic'),
+          moduleSharedIdentity: await sharedIdentity('module'),
+          delayedSharedIdentity: await sharedIdentity('module', 'shared-worker-module-delayed.js'),
           nestedWorker: await createNestedWorker(
             new URL('nested-parent.js', rootUrl).href,
             new URL('nested-child.js', rootUrl).href
@@ -230,6 +274,9 @@
           classicWorker: 'classic Worker',
           moduleWorker: 'module Worker',
           sharedWorker: 'SharedWorker',
+          sharedIdentity: 'SharedWorker 身份与共享计数',
+          moduleSharedIdentity: 'module SharedWorker 身份与依赖顺序',
+          delayedSharedIdentity: 'module SharedWorker 顶层 await 与微任务顺序',
           nestedWorker: 'nested worker',
           serviceWorker: 'service worker'
         };

@@ -1,27 +1,40 @@
 import './options.css';
+import { renderRuntimeSyncReport, runtimeSyncMessage } from '../shared/runtime-sync';
+import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_CANVAS,
-  DEFAULT_CONFIG,
-  createRule,
+  createInitialConfig,
   getTimezoneOffsetMinutes,
   normalizeConfig,
-  normalizeDomain,
   normalizeGeolocation,
   normalizeLanguage,
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
 import { formatCoordinate } from '../shared/last-location-display';
-import { validateProfile } from '../shared/profile';
+import { createCustomProfile } from '../shared/profile';
+import { ruleListToText, rulesFromText } from '../shared/rule-list';
+import { renderSetupStatus } from '../shared/ui-state';
 import type {
   ExitLocationDetectionPreview,
   ExitLocationProfile,
   Profile,
-  SiteRule,
   SiteSpoofConfig
 } from '../shared/types';
 
-let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
+let currentConfig: SiteSpoofConfig = createInitialConfig();
+
+const runtimeSyncStatusEl = document.getElementById('runtimeSyncStatus') as HTMLElement;
+const retryRuntimeSyncBtn = document.getElementById('retryRuntimeSync') as HTMLButtonElement;
+const setupStatusEl = document.getElementById('setupStatus') as HTMLElement;
+const onboardingProfileEl = document.getElementById('onboardingProfile') as HTMLSelectElement;
+const onboardingDomainsEl = document.getElementById('onboardingDomains') as HTMLTextAreaElement;
+const onboardingWebRtcEl = document.getElementById('onboardingWebRtc') as HTMLSelectElement;
+const onboardingConfirmEl = document.getElementById('onboardingConfirm') as HTMLInputElement;
+const onboardingStatusEl = document.getElementById('onboardingStatus') as HTMLElement;
+const onboardingDetailsEl = document.getElementById('onboardingDetails') as HTMLDetailsElement;
+let onboardingPending = false;
+let onboardingLoaded = false;
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -35,6 +48,7 @@ const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HT
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
 const detectExitLocationBtn = document.getElementById('detectExitLocation') as HTMLButtonElement;
 const exitLocationProfilesEl = document.getElementById('exitLocationProfiles') as HTMLElement;
+const intlModeEl = document.getElementById('intlMode') as HTMLSelectElement;
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
@@ -75,9 +89,27 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
         reject(new Error(response?.message || '扩展后台返回未知错误'));
         return;
       }
+      const report = response.syncReport || response.state?.syncReport;
+      if (report) renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+      // getWebRtcConfig.state.config 只是局部 WebRtcConfig，不能投影为完整配置。
+      const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
+      if (config) renderSetupStatus(setupStatusEl, normalizeConfig(config), report);
       resolve(response);
     });
   });
+}
+
+function showOperationError(error: unknown): void {
+  runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
+  runtimeSyncStatusEl.dataset.status = 'failed';
+}
+
+function runUiTask(task: Promise<unknown>): void { void task.catch(showOperationError); }
+
+async function retryRuntimeSync(): Promise<void> {
+  retryRuntimeSyncBtn.disabled = true;
+  try { await sendRuntimeMessage({ action: 'reconcileRuntime' }); }
+  finally { retryRuntimeSyncBtn.disabled = false; }
 }
 
 function webRtcSelectValue(config: SiteSpoofConfig): string {
@@ -86,25 +118,11 @@ function webRtcSelectValue(config: SiteSpoofConfig): string {
   return 'default';
 }
 
-function rulesFromText(value: string, existingRules: SiteRule[]): SiteRule[] {
-  const existingByDomain = new Map(existingRules.map((rule) => [rule.domain, rule]));
-  const seen = new Set<string>();
-  return value
-    .split('\n')
-    .map(normalizeDomain)
-    .filter(Boolean)
-    .filter((domain) => {
-      if (seen.has(domain)) return false;
-      seen.add(domain);
-      return true;
-    })
-    .map((domain) => ({ ...(existingByDomain.get(domain) || createRule(domain)), domain, enabled: true }));
-}
-
 function populateForm(config: SiteSpoofConfig): void {
   globalEnabledEl.checked = config.masterEnabled;
   debugModeEl.checked = config.debugMode;
-  ruleListEl.value = config.rules.filter((rule) => rule.enabled).map((rule) => rule.domain).join('\n');
+  intlModeEl.value = config.intlMode;
+  ruleListEl.value = ruleListToText(config.rules);
 
   const geo = config.globalProfile.geolocation;
   geolocationEnabledEl.checked = geo.enabled;
@@ -139,6 +157,51 @@ function populateForm(config: SiteSpoofConfig): void {
   renderProfiles();
   renderExitLocationProfiles();
   renderSiteRules();
+  renderOnboarding();
+}
+
+function renderOnboarding(): void {
+  if (!onboardingLoaded) {
+    onboardingDetailsEl.open = !currentConfig.masterEnabled && !currentConfig.rules.length;
+    onboardingLoaded = true;
+  }
+  const selected = onboardingProfileEl.value;
+  onboardingProfileEl.innerHTML = '';
+  onboardingProfileEl.append(new Option('请选择已检测并确认的出口', ''));
+  currentConfig.exitLocationProfiles.filter((profile) => profile.verification === 'verified')
+    .forEach((profile) => onboardingProfileEl.append(new Option(profile.name, profile.id)));
+  onboardingProfileEl.value = currentConfig.exitLocationProfiles.some((profile) => profile.id === selected && profile.verification === 'verified') ? selected : '';
+}
+
+async function submitOnboarding(skip = false): Promise<void> {
+  if (onboardingPending || confirmSaveProfileBtn.disabled) return;
+  if (!skip && (!onboardingConfirmEl.checked || !onboardingProfileEl.value || !onboardingDomainsEl.value.trim())) {
+    onboardingStatusEl.textContent = '请先检测并确认出口，选择站点，并勾选明确启用。';
+    return;
+  }
+  onboardingPending = true;
+  const controls = Array.from(document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('button, input, select, textarea'));
+  const disabled = controls.map((control) => control.disabled);
+  controls.forEach((control) => { control.disabled = true; });
+  try {
+    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({
+      action: skip ? 'skipOnboarding' : 'completeOnboarding',
+      domains: onboardingDomainsEl.value, profileId: onboardingProfileEl.value,
+      webRtcMode: onboardingWebRtcEl.value, confirmed: onboardingConfirmEl.checked
+    });
+    currentConfig = normalizeConfig(response.config);
+    populateForm(currentConfig);
+    onboardingConfirmEl.checked = false;
+    onboardingStatusEl.textContent = `${skip ? '已跳过，保护关闭；已保存的档案和规则保留。' : '引导配置已保存。'} ${runtimeSyncMessage(response.syncReport)}`;
+    // 跳过只收起当前页面；不创建另一份持久化引导状态。
+    if (skip && response.syncReport.status === 'ok') onboardingDetailsEl.open = false;
+    await loadWebRtcPolicyState();
+  } catch (error) {
+    onboardingStatusEl.textContent = `操作未完成：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    onboardingPending = false;
+    controls.forEach((control, index) => { control.disabled = disabled[index]; });
+  }
 }
 
 function readForm(): SiteSpoofConfig {
@@ -146,6 +209,7 @@ function readForm(): SiteSpoofConfig {
     ...currentConfig,
     masterEnabled: globalEnabledEl.checked,
     debugMode: debugModeEl.checked,
+    intlMode: intlModeEl.value as SiteSpoofConfig['intlMode'],
     rules: rulesFromText(ruleListEl.value, currentConfig.rules),
     globalProfile: {
       language: normalizeLanguage({
@@ -183,7 +247,7 @@ function readForm(): SiteSpoofConfig {
 }
 
 async function loadConfig(): Promise<void> {
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'getSiteConfig' });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
   await loadWebRtcPolicyState();
@@ -203,16 +267,17 @@ async function loadWebRtcPolicyState(): Promise<void> {
   }
 }
 
-async function saveSettings(): Promise<void> {
-  currentConfig = readForm();
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'setSiteConfig', config: currentConfig });
+async function saveSettings(config?: SiteSpoofConfig): Promise<void> {
+  // 另存的显式候选是此期间唯一允许的完整配置提交。
+  if (confirmSaveProfileBtn.disabled && config === undefined) return;
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'setSiteConfig', config: config ?? readForm() });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
-  alert('设置已保存');
+  alert(runtimeSyncMessage(response.syncReport));
 }
 
 async function applyProfile(profileId: string): Promise<void> {
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'applyProfile', profileId });
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'applyProfile', profileId });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
 }
@@ -234,7 +299,7 @@ function createProfileCard(profile: Profile): HTMLElement {
   const applyBtn = document.createElement('button');
   applyBtn.className = 'btn-primary btn-sm';
   applyBtn.textContent = '应用';
-  applyBtn.onclick = () => { void applyProfile(profile.id); };
+  applyBtn.onclick = () => { runUiTask(applyProfile(profile.id)); };
   card.querySelector('.profile-actions')!.appendChild(applyBtn);
   return card;
 }
@@ -280,7 +345,7 @@ async function cancelDetection(detectionId: string): Promise<void> {
 }
 
 async function confirmDetection(preview: ExitLocationDetectionPreview, name: string): Promise<void> {
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({
     action: 'confirmExitLocationDetection',
     detectionId: preview.detectionId,
     name
@@ -290,7 +355,10 @@ async function confirmDetection(preview: ExitLocationDetectionPreview, name: str
 }
 
 async function detectNewExitLocation(): Promise<void> {
+  if (detectExitLocationBtn.disabled) return;
   detectExitLocationBtn.disabled = true;
+  const onboardingDetect = document.getElementById('onboardingDetect') as HTMLButtonElement;
+  onboardingDetect.disabled = true;
   try {
     const response = await sendRuntimeMessage<{ preview: ExitLocationDetectionPreview }>({ action: 'detectExitLocation' });
     const preview = response.preview;
@@ -318,6 +386,7 @@ async function detectNewExitLocation(): Promise<void> {
     alert(`检测出口位置失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {
     detectExitLocationBtn.disabled = false;
+    onboardingDetect.disabled = false;
   }
 }
 
@@ -352,7 +421,7 @@ async function renameExitLocation(profile: ExitLocationProfile): Promise<void> {
   const name = prompt('修改出口位置档案名称', profile.name)?.trim();
   if (!name || name === profile.name) return;
   try {
-    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({
+    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({
       action: 'renameExitLocationProfile',
       profileId: profile.id,
       name
@@ -367,7 +436,7 @@ async function renameExitLocation(profile: ExitLocationProfile): Promise<void> {
 async function deleteExitLocation(profile: ExitLocationProfile): Promise<void> {
   if (!confirm(`确定删除出口位置档案“${profile.name}”吗？`)) return;
   try {
-    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({
+    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({
       action: 'deleteExitLocationProfile',
       profileId: profile.id
     });
@@ -399,15 +468,15 @@ function renderExitLocationProfiles(): void {
     const redetect = document.createElement('button');
     redetect.className = 'btn-primary btn-sm';
     redetect.textContent = profile.verification === 'verified' ? '重新检测' : '检测并确认';
-    redetect.onclick = () => { void redetectExitLocation(profile); };
+    redetect.onclick = () => { runUiTask(redetectExitLocation(profile)); };
     const rename = document.createElement('button');
     rename.className = 'btn-secondary btn-sm';
     rename.textContent = '重命名';
-    rename.onclick = () => { void renameExitLocation(profile); };
+    rename.onclick = () => { runUiTask(renameExitLocation(profile)); };
     const remove = document.createElement('button');
     remove.className = 'btn-danger btn-sm';
     remove.textContent = '删除';
-    remove.onclick = () => { void deleteExitLocation(profile); };
+    remove.onclick = () => { runUiTask(deleteExitLocation(profile)); };
     actions.append(redetect, rename, remove);
     card.append(info, actions);
     exitLocationProfilesEl.appendChild(card);
@@ -455,7 +524,7 @@ function renderSiteRules(): void {
     deleteBtn.textContent = '删除';
     deleteBtn.onclick = () => {
       currentConfig.rules = currentConfig.rules.filter((item) => item.domain !== rule.domain);
-      ruleListEl.value = currentConfig.rules.filter((item) => item.enabled).map((item) => item.domain).join('\n');
+      ruleListEl.value = ruleListToText(currentConfig.rules);
       renderSiteRules();
     };
     ruleEl.append(info, profileSelect, deleteBtn);
@@ -470,45 +539,37 @@ function openSaveAsCustomModal(): void {
 }
 
 function closeSaveAsCustomModal(): void {
+  if (confirmSaveProfileBtn.disabled) return;
   saveProfileModal.classList.remove('active');
 }
 
 async function handleSaveAsCustom(): Promise<void> {
-  const name = newProfileNameEl.value.trim();
-  if (!name) {
-    alert('请输入配置名称');
-    return;
-  }
-  currentConfig = readForm();
-  const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const profile: Profile = {
-    id,
-    name,
-    description: newProfileDescriptionEl.value.trim() || undefined,
-    geolocation: {
-      latitude: Number(currentConfig.globalProfile.geolocation.latitude),
-      longitude: Number(currentConfig.globalProfile.geolocation.longitude),
-      accuracy: currentConfig.globalProfile.geolocation.accuracy,
-      country: currentConfig.globalProfile.geolocation.country
-    },
-    language: {
-      language: currentConfig.globalProfile.language.language,
-      languages: currentConfig.globalProfile.language.languages.slice(),
-      acceptLanguage: currentConfig.globalProfile.language.acceptLanguage
-    },
-    timezone: {
-      timezone: currentConfig.globalProfile.timezone.timezone
+  if (confirmSaveProfileBtn.disabled) return;
+  const pendingButtons = [confirmSaveProfileBtn, cancelSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn];
+  pendingButtons.forEach((button) => { button.disabled = true; });
+  try {
+    const name = newProfileNameEl.value.trim();
+    if (!name) {
+      alert('请输入配置名称');
+      return;
     }
-  };
-  if (!validateProfile(profile)) {
-    alert('当前配置缺少有效坐标或时区，不能保存为 profile');
-    return;
+    const draft = readForm();
+    // 表单 accuracy 不经默认值修复，避免把非法输入保存成有效方案。
+    draft.globalProfile.geolocation.accuracy = Number(accuracyEl.value);
+    let profile: Profile;
+    try {
+      profile = createCustomProfile(draft, name, newProfileDescriptionEl.value);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    await saveSettings({ ...draft, profile: {
+      ...draft.profile,
+      profiles: [...draft.profile.profiles, profile]
+    } });
+  } finally {
+    pendingButtons.forEach((button) => { button.disabled = false; });
   }
-  currentConfig.profile.profiles = [
-    ...currentConfig.profile.profiles.filter((item) => item.id !== id),
-    profile
-  ];
-  await saveSettings();
   closeSaveAsCustomModal();
 }
 
@@ -545,13 +606,13 @@ async function handleImportFile(event: Event): Promise<void> {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
   try {
-    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({
+    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({
       action: 'importSiteConfig',
       config: JSON.parse(await file.text())
     });
     currentConfig = normalizeConfig(response.config);
     populateForm(currentConfig);
-    alert('配置已导入。出口位置档案已降级为待确认，站点规则的出口绑定已清空。');
+    alert(`${runtimeSyncMessage(response.syncReport)} 出口位置档案已降级为待确认，站点规则的出口绑定已清空。`);
   } catch (error) {
     alert(`导入配置失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -560,13 +621,20 @@ async function handleImportFile(event: Event): Promise<void> {
 }
 
 async function resetAllData(): Promise<void> {
-  if (!confirm('重置所有数据为默认值？此操作无法撤销。')) return;
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'resetSiteConfig' });
+  if (!confirm('清空全部配置、规则、出口档案和历史，取消待确认检测，关闭保护并恢复浏览器默认 WebRTC？此操作无法撤销。')) return;
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'resetSiteConfig' });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
+  onboardingDetailsEl.open = true;
+  onboardingDomainsEl.value = '';
+  onboardingWebRtcEl.value = 'default';
+  onboardingStatusEl.textContent = '已重置为安全关闭默认值。请重新检测并配置；下载文件和外部站点数据不受影响。';
+  onboardingConfirmEl.checked = false;
+  await loadWebRtcPolicyState();
 }
 
 async function handleResetFonts(): Promise<void> {
+  if (confirmSaveProfileBtn.disabled) return;
   currentConfig.canvas.targetFonts = DEFAULT_CANVAS.targetFonts;
   canvasTargetFontsEl.value = DEFAULT_CANVAS.targetFonts.join('\n');
   await saveSettings();
@@ -582,21 +650,26 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
   });
 });
 
-saveBtn.addEventListener('click', () => { void saveSettings(); });
-saveFooterBtn.addEventListener('click', () => { void saveSettings(); });
+saveBtn.addEventListener('click', () => { runUiTask(saveSettings()); });
+saveFooterBtn.addEventListener('click', () => { runUiTask(saveSettings()); });
 saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
-confirmSaveProfileBtn.addEventListener('click', () => { void handleSaveAsCustom(); });
+confirmSaveProfileBtn.addEventListener('click', () => { runUiTask(handleSaveAsCustom()); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
-detectExitLocationBtn.addEventListener('click', () => { void detectNewExitLocation(); });
+detectExitLocationBtn.addEventListener('click', () => { runUiTask(detectNewExitLocation()); });
 canvasEnabledEl.addEventListener('change', () => { currentConfig = readForm(); populateForm(currentConfig); });
 canvasSpoofFontsEl.addEventListener('change', () => { currentConfig = readForm(); populateForm(currentConfig); });
-resetFontsBtn.addEventListener('click', () => { void handleResetFonts(); });
+resetFontsBtn.addEventListener('click', () => { runUiTask(handleResetFonts()); });
 exportConfigBtn.addEventListener('click', exportConfiguration);
 importConfigBtn.addEventListener('click', importConfiguration);
-importFileEl.addEventListener('change', (event) => { void handleImportFile(event); });
-resetAllBtn.addEventListener('click', () => { void resetAllData(); });
+importFileEl.addEventListener('change', (event) => { runUiTask(handleImportFile(event)); });
+resetAllBtn.addEventListener('click', () => { runUiTask(resetAllData()); });
 saveProfileModal.addEventListener('click', (event) => {
   if (event.target === saveProfileModal) closeSaveAsCustomModal();
 });
 
-void loadConfig();
+runUiTask(loadConfig());
+
+retryRuntimeSyncBtn.addEventListener('click', () => { runUiTask(retryRuntimeSync()); });
+document.getElementById('onboardingDetect')!.addEventListener('click', () => { runUiTask(detectNewExitLocation()); });
+document.getElementById('onboardingEnable')!.addEventListener('click', () => { runUiTask(submitOnboarding()); });
+document.getElementById('onboardingSkip')!.addEventListener('click', () => { runUiTask(submitOnboarding(true)); });

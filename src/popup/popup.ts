@@ -1,17 +1,23 @@
 import './popup.css';
+import { isRuntimeInjectionPaused, renderRuntimeSyncReport } from '../shared/runtime-sync';
+import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_CANVAS,
-  DEFAULT_CONFIG,
-  createRule,
+  createInitialConfig,
+  getTimezoneOffsetMinutes,
   normalizeConfig,
-  normalizeDomain,
   normalizeGeolocation,
   normalizeLanguage,
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
-import { deriveCurrentSiteStatus } from '../shared/ui-state';
-import type { GeolocationHistory, SiteRule, SiteSpoofConfig } from '../shared/types';
+import { deriveCurrentSiteStatus, renderSetupStatus } from '../shared/ui-state';
+import { ruleListToText, rulesFromText } from '../shared/rule-list';
+import type { GeolocationHistory, SiteSpoofConfig } from '../shared/types';
+
+const runtimeSyncStatusEl = document.getElementById('runtimeSyncStatus') as HTMLElement;
+const retryRuntimeSyncBtn = document.getElementById('retryRuntimeSync') as HTMLButtonElement;
+const setupStatusEl = document.getElementById('setupStatus') as HTMLElement;
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -34,6 +40,7 @@ const saveCoordinateBtn = document.getElementById('saveCoordinate') as HTMLButto
 const currentExitProfileEl = document.getElementById('currentExitProfile') as HTMLElement;
 const currentExitProfileSelectEl = document.getElementById('currentExitProfileSelect') as HTMLSelectElement;
 const manageExitProfilesBtn = document.getElementById('manageExitProfiles') as HTMLButtonElement;
+const intlModeEl = document.getElementById('intlMode') as HTMLSelectElement;
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
@@ -50,7 +57,7 @@ const openLeakTestBtn = document.getElementById('openLeakTest') as HTMLButtonEle
 const resetBtn = document.getElementById('reset') as HTMLButtonElement;
 const autoSaveToast = document.getElementById('autoSaveToast') as HTMLElement;
 
-let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
+let currentConfig: SiteSpoofConfig = createInitialConfig();
 let currentHostname = '';
 let currentDisableDomain: string | null = null;
 let currentRuleId: string | null = null;
@@ -67,12 +74,32 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
         reject(new Error(response?.message || '扩展后台返回未知错误'));
         return;
       }
+      const report = response.syncReport || response.state?.syncReport;
+      if (report) renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+      const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
+      if (config) renderSetupStatus(setupStatusEl, normalizeConfig(config), report);
       resolve(response);
     });
   });
 }
 
-function showAutoSaveToast(): void {
+function showOperationError(error: unknown): void {
+  runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
+  runtimeSyncStatusEl.dataset.status = 'failed';
+}
+
+function runUiTask(task: Promise<unknown>): void { void task.catch(showOperationError); }
+
+async function retryRuntimeSync(): Promise<void> {
+  retryRuntimeSyncBtn.disabled = true;
+  try { await sendRuntimeMessage({ action: 'reconcileRuntime' }); }
+  finally { retryRuntimeSyncBtn.disabled = false; }
+}
+
+function showAutoSaveToast(report?: RuntimeSyncReport): void {
+  autoSaveToast.textContent = isRuntimeInjectionPaused(report) ? '已保存，页面伪装已暂停／部分生效'
+    : report?.status === 'ok' ? '已自动保存并同步' : '已保存，同步状态待确认';
+  autoSaveToast.dataset.status = report?.status || 'partial';
   if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
   autoSaveToast.classList.add('show');
   autoSaveTimer = window.setTimeout(() => {
@@ -87,27 +114,8 @@ function webRtcSelectValue(config: SiteSpoofConfig): string {
   return 'default';
 }
 
-function ruleLines(config: SiteSpoofConfig): string {
-  return config.rules.filter((rule) => rule.enabled).map((rule) => rule.domain).join('\n');
-}
-
-function rulesFromText(value: string, existingRules: SiteRule[]): SiteRule[] {
-  const existingByDomain = new Map(existingRules.map((rule) => [rule.domain, rule]));
-  const seen = new Set<string>();
-  return value
-    .split('\n')
-    .map(normalizeDomain)
-    .filter(Boolean)
-    .filter((domain) => {
-      if (seen.has(domain)) return false;
-      seen.add(domain);
-      return true;
-    })
-    .map((domain) => ({ ...(existingByDomain.get(domain) || createRule(domain)), domain, enabled: true }));
-}
-
 function updateGlobalStatus(): void {
-  globalStatusEl.textContent = globalEnabledEl.checked ? '全局保护已启用' : '全局保护已禁用';
+  globalStatusEl.textContent = globalEnabledEl.checked ? '总开关已开启（配置）' : '总开关已关闭';
 }
 
 function setStatusBadgeClass(kind: string): void {
@@ -122,7 +130,8 @@ function renderCurrentSiteStatus(state: any): void {
     matched: Boolean(state.matched),
     rule: state.rule || null,
     payload: state.payload || null,
-    errors: Array.isArray(state.errors) ? state.errors : []
+    errors: Array.isArray(state.errors) ? state.errors : [],
+    syncReport: state.syncReport
   });
   currentDisableDomain = status.disableDomain;
   siteStatusBadgeEl.textContent = status.label;
@@ -155,11 +164,17 @@ function updateExitLocationProfile(config: SiteSpoofConfig): void {
         : `${profile.name} · ${profile.publicIp || 'IP 未验证'} · ${profile.country || '国家未知'} · ${profile.timezone || '时区未知'}`;
 }
 
+function updateTimezoneOffset(): void {
+  const offset = getTimezoneOffsetMinutes(timezoneEl.value);
+  utcOffsetEl.value = offset === null ? '' : String(-offset / 60);
+}
+
 function populateForm(config: SiteSpoofConfig): void {
   globalEnabledEl.checked = config.masterEnabled;
   debugModeEl.checked = config.debugMode;
+  intlModeEl.value = config.intlMode;
   updateGlobalStatus();
-  ruleListEl.value = ruleLines(config);
+  ruleListEl.value = ruleListToText(config.rules);
 
   const geo = config.globalProfile.geolocation;
   geolocationEnabledEl.checked = geo.enabled;
@@ -173,8 +188,7 @@ function populateForm(config: SiteSpoofConfig): void {
   const timezone = config.globalProfile.timezone;
   timezoneEnabledEl.checked = timezone.enabled;
   timezoneEl.value = timezone.timezone;
-  const offset = timezone.timezone ? new Date().getTimezoneOffset() : 0;
-  utcOffsetEl.value = timezone.timezone ? String(-offset / 60) : '';
+  updateTimezoneOffset();
 
   const language = config.globalProfile.language;
   languageEnabledEl.checked = language.enabled;
@@ -197,6 +211,7 @@ function readForm(): SiteSpoofConfig {
     ...currentConfig,
     masterEnabled: globalEnabledEl.checked,
     debugMode: debugModeEl.checked,
+    intlMode: intlModeEl.value as SiteSpoofConfig['intlMode'],
     rules,
     globalProfile: {
       language: normalizeLanguage({
@@ -233,10 +248,10 @@ function readForm(): SiteSpoofConfig {
 }
 
 async function saveChanges(): Promise<void> {
-  currentConfig = readForm();
-  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'setSiteConfig', config: currentConfig });
+  updateTimezoneOffset();
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'setSiteConfig', config: readForm() });
   currentConfig = normalizeConfig(response.config);
-  showAutoSaveToast();
+  showAutoSaveToast(response.syncReport);
 }
 
 async function loadConfig(): Promise<void> {
@@ -292,39 +307,41 @@ async function handleResetFonts(): Promise<void> {
   await saveChanges();
 }
 
-globalEnabledEl.addEventListener('change', () => { updateGlobalStatus(); void saveChanges(); });
-debugModeEl.addEventListener('change', () => { void saveChanges(); });
-ruleListEl.addEventListener('blur', () => { void saveChanges(); });
-enableSiteBtn.addEventListener('click', () => { void handleEnableSite(); });
-disableSiteBtn.addEventListener('click', () => { void handleDisableSite(); });
-geolocationEnabledEl.addEventListener('change', () => { void saveChanges(); });
-latitudeEl.addEventListener('blur', () => { void saveChanges(); });
-longitudeEl.addEventListener('blur', () => { void saveChanges(); });
-accuracyEl.addEventListener('blur', () => { void saveChanges(); });
-randomizeEl.addEventListener('change', () => { void saveChanges(); });
-randomRadiusMetersEl.addEventListener('blur', () => { void saveChanges(); });
-spoofPermissionEl.addEventListener('change', () => { void saveChanges(); });
-timezoneEnabledEl.addEventListener('change', () => { void saveChanges(); });
-timezoneEl.addEventListener('blur', () => { void saveChanges(); });
-languageEnabledEl.addEventListener('change', () => { void saveChanges(); });
-languageEl.addEventListener('blur', () => { void saveChanges(); });
-languagesEl.addEventListener('blur', () => { void saveChanges(); });
-acceptLanguageEl.addEventListener('blur', () => { void saveChanges(); });
-webrtcEnabledEl.addEventListener('change', () => { void saveChanges(); });
-webrtcPolicyEl.addEventListener('change', () => { void saveChanges(); });
-canvasEnabledEl.addEventListener('change', () => { void saveChanges(); });
-saveCoordinateBtn.addEventListener('click', () => { void handleSaveCoordinate(); });
-currentExitProfileSelectEl.addEventListener('change', () => { void saveExitLocationBinding(); });
-manageExitProfilesBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
-resetFontsBtn.addEventListener('click', () => { void handleResetFonts(); });
-openOptionsBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
-openOptionsHeaderBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
-openLeakTestBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openLeakTest' }); });
+globalEnabledEl.addEventListener('change', () => { updateGlobalStatus(); runUiTask(saveChanges()); });
+debugModeEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+ruleListEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+enableSiteBtn.addEventListener('click', () => { runUiTask(handleEnableSite()); });
+disableSiteBtn.addEventListener('click', () => { runUiTask(handleDisableSite()); });
+geolocationEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+latitudeEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+longitudeEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+accuracyEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+randomizeEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+randomRadiusMetersEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+spoofPermissionEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+intlModeEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+timezoneEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+timezoneEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+languageEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+languageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+languagesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+acceptLanguageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
+webrtcEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+webrtcPolicyEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+canvasEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+saveCoordinateBtn.addEventListener('click', () => { runUiTask(handleSaveCoordinate()); });
+currentExitProfileSelectEl.addEventListener('change', () => { runUiTask(saveExitLocationBinding()); });
+manageExitProfilesBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });
+resetFontsBtn.addEventListener('click', () => { runUiTask(handleResetFonts()); });
+openOptionsBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });
+openOptionsHeaderBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });
+openLeakTestBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openLeakTest' })); });
 resetBtn.addEventListener('click', () => {
-  void sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'resetSiteConfig' }).then((response) => {
-    currentConfig = normalizeConfig(response.config);
-    populateForm(currentConfig);
-  });
+  if (!confirm('清空全部配置、规则、出口档案和历史，关闭保护并恢复浏览器默认 WebRTC？此操作无法撤销。')) return;
+  runUiTask(sendRuntimeMessage({ action: 'resetSiteConfig' }).then(loadConfig));
 });
 
-void loadConfig();
+runUiTask(loadConfig());
+
+retryRuntimeSyncBtn.addEventListener('click', () => { runUiTask(retryRuntimeSync()); });
+document.getElementById('openOnboarding')!.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });

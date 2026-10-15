@@ -19,6 +19,47 @@
       </div>
     </header>
 
+
+    <section class="runtime-sync-panel" aria-label="运行时同步状态">
+      <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
+      <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
+      <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
+    </section>
+    <details id="onboardingDetails" class="section onboarding">
+      <summary>配置引导：检测出口 → 选择站点 → 明确启用</summary>
+      <div class="onboarding-content">
+        <p class="section-description">全新安装默认关闭保护，没有预选站点，WebRTC 使用浏览器默认值。可以随时跳过；已有配置升级不会套用这些默认值。</p>
+        <div class="input-group">
+          <h2>1. 主动检测并确认出口</h2>
+          <p class="hint">点击后会请求外部 IP 定位服务，对方可见网络出口。先检查检测结果并确认保存；安装、打开页面和跳过均不会自动检测。</p>
+          <button id="onboardingDetect" class="btn-secondary" type="button">检测并确认出口</button>
+          <label for="onboardingProfile">使用已确认的出口档案</label>
+          <select id="onboardingProfile" class="input"><option value="">请选择已检测并确认的出口</option></select>
+        </div>
+        <div class="input-group">
+          <h2>2. 选择站点</h2>
+          <label for="onboardingDomains">每行一个域名，包含子域名；不预选任何站点</label>
+          <textarea id="onboardingDomains" class="input" rows="3" placeholder="example.com"></textarea>
+          <p class="hint">所选站点将启用、绑定该出口并继承全局信号；原有站点覆盖将被替换。全局位置和时区改为 auto，其他站点与其他信号设置保留；开启总开关也会恢复其他已启用规则。未保存的下方表单不参与引导提交。</p>
+        </div>
+        <div class="input-group">
+          <h2>3. 检查并明确启用</h2>
+          <label for="onboardingWebRtc">WebRTC 全局策略（影响范围大于所选站点）</label>
+          <select id="onboardingWebRtc" class="input">
+            <option value="default">浏览器默认值（不设置本扩展策略）</option>
+            <option value="compatible">compatible · 仅公网接口</option>
+            <option value="strict">strict · 禁用非代理 UDP</option>
+          </select>
+          <label class="checkbox-label"><input id="onboardingConfirm" type="checkbox"><span>我确认启用所选站点及上述全局设置</span></label>
+          <div class="action-buttons">
+            <button id="onboardingEnable" class="btn-primary" type="button">保存并启用所选站点</button>
+            <button id="onboardingSkip" class="btn-secondary" type="button">跳过并保持关闭</button>
+          </div>
+          <p class="hint">跳过会关闭全局保护、恢复本扩展 WebRTC 默认策略，保留已保存内容。也可直接关闭此页；不会自动启用。</p>
+          <p id="onboardingStatus" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </details>
     <main class="dashboard">
       <section class="section status-overview">
         <div class="section-header">
@@ -31,7 +72,7 @@
           <label class="toggle-card">
             <span>
               <strong>全局保护</strong>
-              <small>启用后允许站点使用当前环境配置</small>
+              <small>控制已保存的总开关；页面伪装已暂停，DNR/WebRTC 以同步结果为准</small>
             </span>
             <input type="checkbox" id="globalEnabled">
           </label>
@@ -121,6 +162,14 @@
         </div>
 
         <div class="tab-content" data-tab="timezone">
+          <div class="input-group">
+            <label for="intlMode">时区与 Locale 模式（全局）</label>
+            <select id="intlMode" class="input" aria-describedby="intlModeHelp">
+              <option value="strict">strict · 强制一致性（默认）</option>
+              <option value="compatible">compatible · 尊重显式参数</option>
+            </select>
+            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。当前页面伪装仍暂停，保存不会恢复。</p>
+          </div>
           <label class="checkbox-label">
             <input type="checkbox" id="timezoneEnabled">
             <span>启用时区伪装</span>

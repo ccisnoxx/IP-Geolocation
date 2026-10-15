@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>VanishGeo 扩展诊断报告</title>
+  <link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">VanishGeo · 扩展受信任诊断</p><h1>诊断验证与报告</h1>
+      <p>预期配置在扩展内比较。外部目标页仅提供实际观测；每次结果在两分钟内清除。</p></header>
+    <section aria-labelledby="targetHeading">
+      <h2 id="targetHeading">选择普通网页目标</h2>
+      <p>先在 Options 启用目标域名规则并刷新目标页。使用合成位置进行验收；run 不会自动添加规则或申请权限。</p>
+      <div class="actions"><button id="openHosted" type="button">打开 hosted 目标</button>
+        <label for="port">localhost 端口</label><input id="port" type="number" min="1" max="65535" value="8787">
+        <button id="openLocal" type="button">打开 localhost 目标</button></div>
+      <p>本地目标需先运行 <code>npm run serve:leak-test</code>。目标加载并配置好后，回到本报告页刷新列表。</p>
+      <div class="actions"><label for="target">目标标签页</label><select id="target"></select><button id="refresh" type="button">刷新列表</button></div>
+      <p>运行将读取实际位置回调、同源 <code>/headers.json</code>，并使用 <code>stun:stun.l.google.com:19302</code> 采集 ICE。目标站点及 STUN 服务可看到正常网络出口；扩展预期值不参与这些请求。</p>
+      <div class="actions"><button id="run" class="primary" type="button">运行一次诊断</button><button id="cancel" disabled type="button">取消 / 清除报告</button></div>
+      <p>最早脚本验收：在本地 origin 打开 <code>/fixtures/injection/earliest-inline.html</code> 并刷新，再选择该标签页。earliest（首脚本）、load（load 回调）和 postLoad（本次报告采集）分别比较；后阶段通过不能补足早期失败。about:blank 表示先创建空白帧再 document.write 首脚本，Chrome 可使其 URL 继承父页。此项只读取实际值，不调用位置、header 或 STUN。</p>
+      <div class="actions"><button id="runTiming" type="button">VG-009 · 验收最早 inline script</button></div>
+    </section>
+    <p id="status" role="status" aria-live="polite">请选择目标。</p>
+    <section aria-labelledby="resultHeading"><h2 id="resultHeading">当次结果</h2><p id="summary">UNKNOWN · 尚未运行</p><div id="results"></div></section>
+    <footer>PASS 只代表该行当次观测符合配置；无法观察、未启用或缺少 fixture 时显示 UNKNOWN。MAIN 值可能被目标页面干预，本报告不证明外部页面可信。设备透传比较使用同文档 ISOLATED 参考；WebRTC 策略与 ICE 分别报告。about:blank / srcdoc 来源无法独立确认时保持 UNKNOWN；不验证 service worker。</footer>
+  </main>
+  <script type="module" src="report.js"></script>
+</body>
+</html>

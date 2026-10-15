@@ -4,20 +4,33 @@ import {
   normalizeLanguage,
   normalizeString,
   normalizeTimezone,
-  validateTimezone
+  getProfileValidationErrors
 } from './config-model';
 import type { Profile, SiteSpoofConfig } from './types';
 
-export function validateProfile(profile: Partial<Profile>): boolean {
-  if (!normalizeString(profile.id) || !normalizeString(profile.name)) return false;
-  if (!profile.geolocation) return false;
-  const { latitude, longitude, accuracy } = profile.geolocation;
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return false;
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return false;
-  if (!Number.isFinite(accuracy) || accuracy <= 0) return false;
-  if (!profile.language || !profile.language.language || !Array.isArray(profile.language.languages)) return false;
-  if (!profile.timezone || !validateTimezone(profile.timezone.timezone)) return false;
-  return true;
+export { validateProfile } from './config-model';
+
+export function createCustomProfile(config: SiteSpoofConfig, name: string, description?: string): Profile {
+  const profile = {
+    id: crypto.randomUUID(),
+    name: normalizeString(name),
+    description: normalizeString(description) || undefined,
+    geolocation: {
+      latitude: config.globalProfile.geolocation.latitude,
+      longitude: config.globalProfile.geolocation.longitude,
+      accuracy: config.globalProfile.geolocation.accuracy,
+      country: config.globalProfile.geolocation.country
+    },
+    language: {
+      language: config.globalProfile.language.language,
+      languages: config.globalProfile.language.languages.slice(),
+      acceptLanguage: config.globalProfile.language.acceptLanguage
+    },
+    timezone: { timezone: config.globalProfile.timezone.timezone }
+  };
+  const errors = getProfileValidationErrors(profile);
+  if (errors.length) throw new Error(`无法保存自定义方案：${errors.join('；')}`);
+  return profile as Profile;
 }
 
 export function applyProfileToConfig(config: SiteSpoofConfig, profileId: string): SiteSpoofConfig {

@@ -1,0 +1,76 @@
+{
+  "id": "vg-007-worker-identity",
+  "name": "vg-007-worker-identity",
+  "title": "VG-007：修复 SharedWorker 身份语义和 Blob URL 生命周期",
+  "description": "页面内稳定包装 URL 与对象 URL 回收；本地验证及 Chrome 人工验收通过",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": "VG-007",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-14",
+  "completedAt": "2026-10-15",
+  "branch": "stabilize/VG-007",
+  "base_branch": "stabilize/VG-007",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".gitignore",
+    ".trellis/spec/frontend/quality-guidelines.md",
+    ".trellis/tasks/10-14-vg-007-worker-identity/check.jsonl",
+    ".trellis/tasks/10-14-vg-007-worker-identity/design.md",
+    ".trellis/tasks/10-14-vg-007-worker-identity/implement.jsonl",
+    ".trellis/tasks/10-14-vg-007-worker-identity/implement.md",
+    ".trellis/tasks/10-14-vg-007-worker-identity/prd.md",
+    ".trellis/tasks/10-14-vg-007-worker-identity/task.json",
+    "docs/stabilization/README.md",
+    "docs/stabilization/acceptance-matrix.md",
+    "docs/stabilization/task-manifest.yaml",
+    "fixtures/workers/README.md",
+    "fixtures/workers/module-observation.js",
+    "fixtures/workers/shared-worker-module-delayed.js",
+    "fixtures/workers/shared-worker-module.js",
+    "fixtures/workers/shared-worker.js",
+    "fixtures/workers/top.html",
+    "fixtures/workers/worker-module.js",
+    "scripts/chrome-acceptance.mjs",
+    "scripts/chrome-worker-smoke.mjs",
+    "src/injected/runtime.ts",
+    "tests/anti-detection-runtime.test.ts"
+  ],
+  "notes": "VG-007 本地实现、126/126 Node、类型/build/dry-run、Chrome155定向worker smoke与独立复核完成。用户于2026-10-15确认SharedWorker复用、不同name隔离、Blob URL回收和module时序的Chrome人工验收通过，接受缓冲阶段connect.isTrusted=false限制。manifest done、Trellis completed；保留前序改动，未提交、push、发布或启动后续任务。",
+  "meta": {
+    "stabilization": {
+      "id": "VG-007",
+      "phase": "R2",
+      "dependencies": [
+        "VG-005"
+      ],
+      "manifest": "docs/stabilization/task-manifest.yaml"
+    },
+    "validation": {
+      "human_acceptance": "passed",
+      "local": "passed",
+      "typecheck": "passed",
+      "test_typecheck": "passed",
+      "tests": "126/126 passed",
+      "build": "passed: Vite5.4.21/30 modules/13 items",
+      "chrome_dry_run": "passed: entry only",
+      "browser": "Chrome155.0.8059.40 targeted worker smoke passed; user confirmed Chrome human acceptance on 2026-10-15 (browser version not supplied)",
+      "independent_review": "passed after options/capture/task/default fixes",
+      "audit_id": "20261014T160506Z-vg-007-worker-identity-review-e00a9574"
+    },
+    "human_acceptance": {
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-15",
+      "evidence": ".trellis/tasks/10-14-vg-007-worker-identity/implement.md#人工验收",
+      "scope": "SharedWorker复用、不同name隔离、Blob URL回收和module时序；接受缓冲阶段connect.isTrusted=false限制"
+    }
+  }
+}

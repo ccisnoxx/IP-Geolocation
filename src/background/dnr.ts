@@ -1,6 +1,7 @@
 import { resolveEffectiveLanguageForRule } from '../shared/config-resolver';
 import { isIpv4Address, isValidDomain, normalizeDomain } from '../shared/config-model';
 import type { SiteSpoofConfig } from '../shared/types';
+import { RuntimeSyncOperationError } from '../shared/runtime-sync';
 
 export const ACCEPT_LANGUAGE_RULE_ID_START = 1100;
 export const ACCEPT_LANGUAGE_RULE_ID_END = 2099;
@@ -47,7 +48,7 @@ export function buildAcceptLanguageRules(config: SiteSpoofConfig): chrome.declar
     if (!language) return;
     const nextId = ACCEPT_LANGUAGE_RULE_ID_START + rules.length;
     if (nextId > ACCEPT_LANGUAGE_RULE_ID_END) {
-      throw new Error('Too many Accept-Language rules');
+      throw new Error('Accept-Language 规则超过可管理上限（1000）');
     }
     rules.push({
       id: nextId,
@@ -70,10 +71,68 @@ export function buildAcceptLanguageRules(config: SiteSpoofConfig): chrome.declar
   return rules;
 }
 
+function isManagedRule(rule: chrome.declarativeNetRequest.Rule): boolean {
+  return rule.id >= ACCEPT_LANGUAGE_RULE_ID_START && rule.id <= ACCEPT_LANGUAGE_RULE_ID_END;
+}
+
+// 新配额常量晚于当前 @types/chrome；只读取当前浏览器实际提供的值。
+function dnrApi() {
+  const api = chrome.declarativeNetRequest as typeof chrome.declarativeNetRequest & {
+    MAX_NUMBER_OF_DYNAMIC_RULES?: number;
+    MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES?: number;
+  };
+  if (!api?.getDynamicRules || !api.updateDynamicRules) {
+    throw new RuntimeSyncOperationError('unsupported', '浏览器不支持动态请求头规则。');
+  }
+  return api;
+}
+
+export async function validateAcceptLanguageCapacity(config: SiteSpoofConfig): Promise<void> {
+  const desired = buildAcceptLanguageRules(config);
+  const api = dnrApi();
+  const other = (await api.getDynamicRules()).filter((rule) => !isManagedRule(rule));
+  const regexLimit = api.MAX_NUMBER_OF_REGEX_RULES;
+  if (other.filter((rule) => rule.condition.regexFilter).length + desired.length > regexLimit) {
+    throw new Error(`DNR 正则规则超过浏览器上限（${regexLimit}）`);
+  }
+  if (typeof api.MAX_NUMBER_OF_DYNAMIC_RULES === 'number') {
+    if (other.length + desired.length > api.MAX_NUMBER_OF_DYNAMIC_RULES) throw new Error('DNR 动态规则超过浏览器容量');
+    const unsafeLimit = api.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES ?? api.MAX_NUMBER_OF_DYNAMIC_RULES;
+    const unsafe = other.filter((rule) => !['block', 'allow', 'allowAllRequests', 'upgradeScheme'].includes(rule.action.type));
+    if (unsafe.length + desired.length > unsafeLimit) throw new Error('DNR 请求头规则超过浏览器容量');
+  } else {
+    const sessions = await api.getSessionRules();
+    if (other.length + desired.length + sessions.length > api.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES) {
+      throw new Error('DNR 动态及会话规则超过浏览器容量');
+    }
+  }
+}
+
+function rulesSignature(rules: chrome.declarativeNetRequest.Rule[]): string {
+  const canonical = (value: any): any => Array.isArray(value)
+    ? value.map(canonical)
+    : value && typeof value === 'object'
+      ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]))
+      : value;
+  return JSON.stringify(canonical(rules.slice().sort((a, b) => a.id - b.id).map((rule) => ({
+    ...rule,
+    priority: rule.priority ?? 1,
+    condition: {
+      ...rule.condition,
+      isUrlFilterCaseSensitive: rule.condition.isUrlFilterCaseSensitive ?? false,
+      resourceTypes: rule.condition.resourceTypes?.slice().sort()
+    }
+  }))));
+}
+
 export async function updateAcceptLanguageRules(config: SiteSpoofConfig): Promise<void> {
-  if (!chrome.declarativeNetRequest?.updateDynamicRules) return;
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: managedAcceptLanguageRuleIds(),
-    addRules: buildAcceptLanguageRules(config)
-  });
+  const api = dnrApi();
+  const desired = buildAcceptLanguageRules(config);
+  const current = (await api.getDynamicRules()).filter(isManagedRule);
+  if (rulesSignature(current) === rulesSignature(desired)) return;
+  await validateAcceptLanguageCapacity(config);
+  await api.updateDynamicRules({ removeRuleIds: current.map((rule) => rule.id), addRules: desired });
+  if (rulesSignature((await api.getDynamicRules()).filter(isManagedRule)) !== rulesSignature(desired)) {
+    throw new RuntimeSyncOperationError('verification-failed', '请求头规则更新后仍与配置不一致。');
+  }
 }

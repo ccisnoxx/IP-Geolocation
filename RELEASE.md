@@ -1,162 +1,83 @@
-# 发布指南
+# VanishGeo 构建与发布说明
 
-## 初始化 Git 仓库并推送到 GitHub
+[CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 检查 v*.*.* tag push 并发布。稳定化任务完成不授予提交、push、tag、Release、托管部署或远端设置权限；这些操作需对应明确授权。VG-005 建立本地门禁；VG-014 的候选结论、逐项证据、阻断和回滚见 [release-readiness](docs/stabilization/release-readiness.md)。当前生产页面伪装保持 VG-011 安全暂停，不能按完整功能候选发布。
 
-### 1. 初始化本地仓库
+## 本地候选
 
-```bash
-cd /Users/bernard/Code/VanishMe
-
-# 初始化 git 仓库（如果还没有）
-git init
-
-# 添加所有文件
-git add .
-
-# 创建第一次提交
-git commit -m "Initial commit: VanishMe privacy extension"
-```
-
-### 2. 在 GitHub 创建仓库
-
-1. 访问 https://github.com/new
-2. Repository name: `VanishMe`
-3. Description: `浏览器隐私保护扩展 - 伪装你的浏览器指纹 | Browser privacy protection extension`
-4. 选择 Public
-5. **不要**勾选 "Add a README file" （我们已经有了）
-6. **不要**勾选 "Add .gitignore" （我们已经有了）
-7. **不要**勾选 "Choose a license" （我们已经有了）
-8. 点击 "Create repository"
-
-### 3. 关联远程仓库并推送
+当前 package.json 与 manifest.json 都为 2.1.0；真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
 
 ```bash
-# 添加远程仓库
-git remote add origin https://github.com/XiNian-dada/VanishMe.git
-
-# 推送到 GitHub
-git branch -M main
-git push -u origin main
+npm ci
+npm run check
+npm run test:e2e:chrome -- --dry-run
+git diff --check
 ```
 
-## 发布新版本
+本次 VG-005 确定聚合入口 `npm run check`，顺序为 `npm run typecheck && npm run typecheck:tests && npm test && npm run build`。任何子命令非零立即停止，不能产生后续构建。`typecheck` 检查 src；`typecheck:tests` 使用继承 strict 的 tsconfig.test.json，涵盖 tests/**/*.ts 及引用源码；tsx 执行测试不替代测试类型检查。`build` 仍自带源码 typecheck，再执行 Vite；不直接修改 dist。npm ci 和 Chrome dry-run 保持单独入口。
 
-### 创建并推送 Tag 触发自动发布
+真实 Chrome 安装与人工场景需单独记录候选/版本/结果；dry-run 只检查构建入口并打印清单。CI 不执行或宣称完成人工验收。`npm run dev` 是 watch，`npm run preview` 是静态预览。
 
-GitHub Actions 会在推送新 tag 时自动构建并发布：
+分发包含完整 dist：manifest、background/content/popup/options/leak-test/diagnostic 六个 JS 入口、页面 HTML/CSS、assets/ 共享 chunks、icons、fixtures、LICENSE 与 NOTICE。生产安全暂停期间后台不导入页面 runtime；其维护源保留供隔离验证，构建期仍运行自包含守卫。没有独立 injected/runtime.js。ZIP 根部直接含 manifest.json。
+
+VG-014 当前暂停候选的自动真实 Chrome 集成入口（Node 22+，需支持 Extensions CDP domain 的 Chrome）：
 
 ```bash
-# 确保所有改动已提交
-git add .
-git commit -m "描述你的改动"
-
-# 创建版本标签（遵循语义化版本）
-git tag v1.0.0
-
-# 推送代码和标签
-git push origin main
-git push origin v1.0.0
+node scripts/chrome-integration-smoke.mjs --output <脱敏JSON路径>
+node scripts/runtime-modularization/chrome-safety-gate.mjs --output <脱敏JSON路径>
+node --import tsx scripts/chrome-intl-smoke.mjs --output <脱敏JSON路径>
 ```
 
-### 版本号规则（语义化版本）
+第一项使用正式 dist、临时 profile、合成 provider 拦截、loopback fixture 和仅本进程的 `.test` host 映射。普通页面仍原生，报告语言/时区与伪装预期不符必须保留 FAIL；runner PASS 表示暂停候选的测试合同通过，不表示完整功能 release-ready。原生位置权限被拒绝；完整诊断仍包含既有 Google STUN，可能看到测试网络出口，证据只保留分类结果。第二项用生产字节一致副本加测试计数 wrapper；第三项的 runtime 模式测试使用独立最小扩展，均不能当作生产派发恢复。
 
-- **v1.0.0** - 主版本.次版本.修订号
-- **主版本（Major）**: 重大更新，不兼容的 API 变更
-- **次版本（Minor）**: 新功能，向后兼容
-- **修订号（Patch）**: Bug 修复，向后兼容
-
-### 示例版本发布
+本地打包与只读核验（归档名须使用本次获准的候选名，不覆盖已有交付）：
 
 ```bash
-# 第一个正式版本
-git tag v1.0.0
-git push origin v1.0.0
-
-# 添加新功能
-git tag v1.1.0
-git push origin v1.1.0
-
-# Bug 修复
-git tag v1.1.1
-git push origin v1.1.1
-
-# 重大更新
-git tag v2.0.0
-git push origin v2.0.0
+mkdir -p release
+(cd dist && zip -r ../release/vanishgeo-v2.1.0-vg014-candidate.zip .)
+node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.0-vg014-candidate.zip --output <脱敏JSON路径>
 ```
 
-## GitHub Actions 自动化流程
+审查器核对版本、权限、入口/资源图、共享 chunk 可达性、远程执行/运行期编译/map/敏感模式和 ZIP 文件/字节一致性。它不能识别所有任意秘密或动态计算 URL，需要与维护源审查共同解释。归档供本地人工检查，未发布；正式发布不得重复利用旧 ZIP 的残留条目。
 
-推送 tag 后，GitHub Actions 会自动：
+## GitHub Actions 门禁
 
-1. ✅ 检出代码
-2. ✅ 安装 Node.js 和依赖
-3. ✅ 构建扩展 (`npm run build`)
-4. ✅ 打包 dist 文件夹为 zip
-5. ✅ 生成更新日志
-6. ✅ 创建 GitHub Release
-7. ✅ 上传 `vanishme-v*.*.*.zip` 到 Release
+| 项目 | 当前行为 |
+|---|---|
+| CI 触发 | 所有 push 与 pull_request；普通分支/PR 只检查并上传通过门禁的 dist，不创建 Release |
+| Release 触发 | push 名称匹配 v*.*.* 的 tag；不自动创建 tag |
+| 环境 | ubuntu-latest、Node 20、npm ci；保留现有工具链版本 |
+| 同等门禁 | npm ci → 源码 typecheck → 测试 typecheck → npm test → npm run build → Chrome 入口 dry-run |
+| 失败传播 | job/step 采用默认成功条件；无 continue-on-error/always；任一门禁失败都跳过后续构建、ZIP、artifact 与 Release |
+| 权限 | 两份 workflow 默认 contents: read；只有 release job 为 contents: write；checkout 不持久化 token |
+| CI artifact | vanishgeo-ci-<commit SHA>，整个 dist/；30 天保留；缺文件视为错误 |
+| 发布 ZIP | vanishgeo-v<版本>.zip；从 dist 内打包完整内容 |
+| Release | 保留 softprops/action-gh-release；通过所有门禁和 changelog 后才执行，draft:false、prerelease:false；缺 ZIP 失败 |
+| 发布 artifact | vanishgeo-v<版本>，整个 dist/，30 天；同样位于门禁之后 |
 
-## 查看构建状态
+版本仍从 tag 去掉开头 v，用于文件名和 Release，不改写 package/manifest，也未新增两份版本与 tag 的自动一致性检查。例如实际批准 2.1.0 时，tag 为 v2.1.0，ZIP 为 vanishgeo-v2.1.0.zip。workflow 不等待人工浏览器审批，维护者须在获准触发前核对候选和人工验收。VG-014 只核验本地候选的 package/lock/manifest 与 ZIP 一致性，不扩大为自动发布流程改造。当前工作树包含未提交的稳定化波次，正式候选提交与精确 tag 一致性须在未来授权发布时重新确认。
 
-1. 推送 tag 后访问：https://github.com/XiNian-dada/VanishMe/actions
-2. 点击最新的 "Release" workflow
-3. 查看构建进度和日志
-4. 构建成功后，Release 会自动出现在：https://github.com/XiNian-dada/VanishMe/releases
+## 更新日志与本地回归证据
 
-## 常见问题
+release checkout 设置 fetch-depth: 0，取得完整分支历史及 tags。`bash scripts/release-changelog.sh` 拒绝 shallow 仓库；从 HEAD 全部祖先可达的版本 tag 中选最近者，并排除指向 HEAD 的全部版本 tag，输出该 tag 到 HEAD 的 commit subject/hash；不误用当前 tag 或未合并分支 tag。首次没有旧版本 tag 时输出全部历史，不替换成笼统描述；Git 错误保持失败并阻止打包。轻量/附注 tag 均由 git describe --tags 处理；同提交的其他 tag 不作为上一版。
 
-### Q: Tag 推送失败？
-```bash
-# 删除本地 tag
-git tag -d v1.0.0
+changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文本不插入 workflow shell 或多行 GitHub output。提交信息会成为公开 Release notes，维护者仍需遵守合成/脱敏约定并审阅内容。本次不打印真实仓库历史日志，不访问远端管理接口。
 
-# 删除远程 tag
-git push origin :refs/tags/v1.0.0
+`tests/release-gates.test.ts` 核对 workflow 顺序/权限/失败旁路，在临时 npm 项目注入失败证明后续构建未到达，并用临时 Git 仓库验证首发、跨 tag、无关分支、第二父提交的已发布 tag、同提交轻量/附注 tag 及浅克隆。合成 tags 只创建在临时 fixture 仓库，finally 删除；不操作当前仓库 tags。这些是本地/静态证据，未实际运行 GitHub Actions、Release API 或真实 Chrome。
 
-# 重新创建 tag
-git tag v1.0.0
-git push origin v1.0.0
-```
+## 人工发布和恢复
 
-### Q: 如何修改已发布的 Release？
-1. 访问 https://github.com/XiNian-dada/VanishMe/releases
-2. 点击对应 Release 的 "Edit" 按钮
-3. 修改内容后保存
+1. 确认获准发布的精确候选、manifest 中的依赖/人工验收、package/manifest/tag 版本及完整 dist；审查要提交的文件，保留无关修改。
+2. 确认目标远端是当前仓库，审阅触发 workflow 的 tag 与日志。经对应授权后由维护者提交/推送 tag；本文不提供自动推送或删除远端 tag 的恢复脚本。
+3. 在当前仓库的 Actions 与 Releases 页面核对结果、ZIP 清单和安装步骤；更新日志应说明实际变化和已知限制，不宣称未做的验收通过。
+4. 构建或发布失败时先查看具体失败和是否已产生 Release/artifact。修复需要新的授权和候选证据；不得盲目删除/移动已发布 tag、重写历史或 force-push。
+5. 已发布版本的恢复可由用户重新加载已知可用完整产物，但旧版配置/迁移兼容性必须单独确认；不能承诺降级自动恢复数据。
 
-### Q: 如何删除 Release？
-1. 访问 https://github.com/XiNian-dada/VanishMe/releases
-2. 点击对应 Release 的 "Delete" 按钮
-3. 然后删除对应的 tag：
-```bash
-git push origin :refs/tags/v1.0.0
-```
+本地文档、扩展发行与托管诊断页面是不同交付。构建不会部署 hosted 目标；页面部署需要对应授权和部署后核验。安装说明见 [INSTALL](INSTALL.md)，隐私说明见 [PRIVACY](PRIVACY.md)。
 
-## 建议的发布流程
+## GitHub repository 元信息建议（仅人工设置）
 
-1. **开发阶段** - 在 feature 分支开发
-2. **测试** - 本地构建并测试扩展功能
-3. **合并** - 合并到 main 分支
-4. **更新版本号** - 确认版本号符合语义化版本规范
-5. **创建 Tag** - 创建并推送版本 tag
-6. **等待构建** - GitHub Actions 自动构建和发布
-7. **验证 Release** - 下载 zip 文件测试
-8. **宣布发布** - 分享 Release 链接
+Description：`Chromium MV3 扩展：按站点管理语言、时区与位置，控制 Accept-Language 和 WebRTC 策略，并提供扩展侧诊断。`
 
-## 首次发布建议
+Topics：`vanishgeo`、`chromium-extension`、`manifest-v3`、`privacy`、`geolocation`、`timezone`、`accept-language`、`webrtc`、`typescript`。
 
-```bash
-# 确保一切准备就绪
-npm run build  # 本地测试构建
-npm run type-check  # 类型检查
-
-# 创建首个正式版本
-git tag v1.0.0
-git push origin main
-git push origin v1.0.0
-```
-
-发布成功后，用户可以从：
-https://github.com/XiNian-dada/VanishMe/releases/latest
-
-下载最新版本的扩展！
+只建议在当前仓库 Settings/About 中由维护者设置，不调用远端管理 API，不沿用原作品地址创建或关联仓库。原作品归属仅保留于 [NOTICE](NOTICE)。历史敏感值清理是另一项需人工批准的操作，见 [CONTRIBUTING](CONTRIBUTING.md)。

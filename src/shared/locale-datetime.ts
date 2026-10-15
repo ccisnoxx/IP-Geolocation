@@ -1,4 +1,4 @@
-// Shared locale/timezone formatting contract for leak-test acceptance URLs.
+// 诊断页按当前页面环境格式化实际时间，不携带扩展预期配置。
 
 export const LOCALE_DATETIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric',
@@ -8,20 +8,6 @@ export const LOCALE_DATETIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   minute: '2-digit'
 };
 
-export function formatLocaleDateTimeForProfile(date: Date, language: string, timezone: string): string {
-  return date.toLocaleString(language, {
-    ...LOCALE_DATETIME_FORMAT_OPTIONS,
-    timeZone: timezone
-  });
-}
-
 export function formatLocaleDateTimeForPage(date: Date): string {
   return date.toLocaleString(undefined, LOCALE_DATETIME_FORMAT_OPTIONS);
-}
-
-export function normalizeLocaleDateTimeText(value: string): string {
-  return String(value || '')
-    .replace(/\u00a0|\u202f/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }

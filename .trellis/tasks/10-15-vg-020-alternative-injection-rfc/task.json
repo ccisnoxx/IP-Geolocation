@@ -1,0 +1,80 @@
+{
+  "id": "vg-020-alternative-injection-rfc",
+  "name": "vg-020-alternative-injection-rfc",
+  "title": "VG-020：无新增权限替代注入架构 RFC",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "VG-020",
+  "package": null,
+  "priority": "P1",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-15",
+  "completedAt": "2026-10-15",
+  "branch": "stabilize/VG-014",
+  "base_branch": "stabilize/VG-014",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".gitignore",
+    ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/check.jsonl",
+    ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/design.md",
+    ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/implement.jsonl",
+    ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/implement.md",
+    ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/prd.md",
+    ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/task.json",
+    "docs/stabilization/README.md",
+    "docs/stabilization/acceptance-matrix.md",
+    "docs/stabilization/alternative-injection-rfc.md",
+    "docs/stabilization/task-manifest.yaml"
+  ],
+  "notes": "用户于2026-10-15确认VG-020 RFC验收通过，接受候选机制仍待验证及当前NO_GO结论；manifest为done、Trellis为completed。生产伪装继续暂停，不启动恢复实施，不改版本、不提交、推送或发布。",
+  "meta": {
+    "stabilization_id": "VG-020",
+    "phase": "R5",
+    "dependencies": {
+      "VG-015": "done",
+      "VG-017": "done"
+    },
+    "human_acceptance": {
+      "status": "passed",
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-15",
+      "evidence": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/implement.md#人工验收",
+      "scope": [
+        "RFC交付验收通过",
+        "接受候选机制仍待验证",
+        "接受当前NO_GO及已知限制",
+        "生产暂停保持，不启动恢复实施"
+      ],
+      "browser_version_provided": false,
+      "screenshots_or_step_logs_provided": false
+    },
+    "production_dispatch_restored": false,
+    "release_approved": false,
+    "rfc": "docs/stabilization/alternative-injection-rfc.md",
+    "decision": "ACCEPTED_RFC_ONLY",
+    "production_feasibility": "NO_GO",
+    "new_chrome_experiments": "not_run",
+    "reused_validation": [
+      "VG-014 typecheck/typecheck:tests/170 tests/build/dry-run",
+      "VG-015/017 Chrome research evidence"
+    ],
+    "validation": {
+      "diff_check": "passed",
+      "trellis_context": "passed",
+      "links_json_whitespace": "passed",
+      "production_and_prior_evidence": "unchanged",
+      "dist_zip": "unchanged",
+      "changed_files": 11,
+      "new_chrome_experiments": "not_run",
+      "production_tests_build": "reused_unchanged_inputs",
+      "human_acceptance": "passed"
+    }
+  }
+}

@@ -14,6 +14,7 @@ import {
   RULES_INITIALIZED_KEY,
   SITE_CONFIG_KEY,
   clone,
+  createInitialConfig,
   createRule,
   isIpv4Address,
   isValidDomain,
@@ -21,6 +22,7 @@ import {
   normalizeConfig,
   normalizeDomain,
   normalizeGeolocation,
+  getProfilesValidationErrors,
   normalizeLanguage,
   normalizeString,
   normalizeTimezone,
@@ -63,8 +65,12 @@ function validateGeolocation(geolocation: GeolocationConfig, path: string, error
 }
 
 export function validateConfig(config: Partial<SiteSpoofConfig>): { ok: boolean; errors: string[]; config: SiteSpoofConfig } {
+  // 保留原始方案的错误；归一化后的过滤结果不能证明导入成功。
+  const errors = getProfilesValidationErrors(config?.profile?.profiles);
+  if (config?.intlMode !== undefined && config.intlMode !== 'strict' && config.intlMode !== 'compatible') {
+    errors.push('intlMode：请选择 strict 或 compatible');
+  }
   const normalized = normalizeConfig(config);
-  const errors: string[] = [];
   const seen = new Set<string>();
 
   validateLanguage(normalized.globalProfile.language, 'global language', errors);
@@ -276,6 +282,7 @@ export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: 
     rule,
     payload: {
       extensionEnabled: true,
+      intlMode: normalized.intlMode,
       debugMode: normalized.debugMode,
       ruleId: rule.id,
       domain: rule.domain,
@@ -365,7 +372,7 @@ function convertVanishMeConfig(input: Record<string, any>): SiteSpoofConfig {
       }),
       geolocation: normalizeGeolocation({
         ...(input.geolocation || DEFAULT_GEOLOCATION),
-        mode: input.geolocation?.latitude && input.geolocation?.longitude ? 'manual' : 'auto'
+        mode: Number.isFinite(input.geolocation?.latitude) && Number.isFinite(input.geolocation?.longitude) ? 'manual' : 'auto'
       })
     },
     webRtc: normalizeWebRtc(input.webrtc || DEFAULT_WEBRTC),
@@ -384,7 +391,7 @@ function withDefaultRules(config: SiteSpoofConfig): SiteSpoofConfig {
 
 function shouldRepairUninitializedRules(storageData: Record<string, any>, config: SiteSpoofConfig): boolean {
   const rawConfig = storageData[SITE_CONFIG_KEY] as Partial<SiteSpoofConfig> | undefined;
-  if (storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
+  if (rawConfig?.schemaVersion === 2 || storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
     return false;
   }
 
@@ -402,6 +409,11 @@ function shouldRepairUninitializedRules(storageData: Record<string, any>, config
 
 export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoofConfig {
   const input = storageData || {};
+  // 用数据存在性区分升级；关闭开关、空规则或缺少初始化标记均不代表首次安装。
+  const hasConfiguration = [SITE_CONFIG_KEY, LEGACY_VANISHME_CONFIG_KEY, RULES_INITIALIZED_KEY,
+    LAST_LOCATION_KEY, OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
+    .some((key) => Object.prototype.hasOwnProperty.call(input, key));
+  if (!hasConfiguration) return createInitialConfig();
   if (input[SITE_CONFIG_KEY]) {
     const config = normalizeConfig(input[SITE_CONFIG_KEY]);
     const repaired = shouldRepairUninitializedRules(input, config) ? withDefaultRules(config) : config;

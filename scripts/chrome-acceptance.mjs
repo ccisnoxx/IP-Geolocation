@@ -53,30 +53,14 @@ function findChromeBinary() {
   return candidates.find((candidate) => existsSync(candidate)) || null;
 }
 
-function leakTestQuery() {
-  return new URLSearchParams({
-    expectedLanguage: 'ja-JP',
-    expectedLanguages: 'ja-JP,ja',
-    expectedAcceptLanguage: 'ja-JP,ja;q=0.9',
-    expectedTimezone: 'Asia/Tokyo',
-    expectedTimezoneOffset: '-540',
-    expectedLatitude: '35.68',
-    expectedLongitude: '139.76',
-    expectedGeoToleranceMeters: '1000',
-    expectedWebRtcMode: 'strict',
-    expectedWebRtcPolicy: 'disable_non_proxied_udp',
-    stunUrls: 'stun:stun.l.google.com:19302',
-    iceTimeoutMs: '5000'
-  }).toString();
-}
-
 function acceptanceUrls(origin) {
   return [
-    { label: 'PASS/FAIL leak-test verifier', url: `${origin}/leak-test/leak-test.html?${leakTestQuery()}` },
+    { label: 'Observation mode leak-test', url: `${origin}/leak-test/leak-test.html?ui=zh` },
     { label: 'Accept-Language header echo', url: `${origin}/headers.json` },
     { label: 'iframe realm fixture', url: `${origin}/fixtures/iframe/top.html` },
     { label: 'Worker and SharedWorker fixture', url: `${origin}/fixtures/workers/top.html` },
     { label: 'Geolocation behavior fixture', url: `${origin}/fixtures/geolocation/top.html` },
+    { label: 'VG-009 earliest inline script fixture', url: `${origin}/fixtures/injection/earliest-inline.html` },
     { label: 'Chrome extension manager', url: 'chrome://extensions/' }
   ];
 }
@@ -84,25 +68,38 @@ function acceptanceUrls(origin) {
 function printChecklist(origin, chromePath, launchStatus) {
   const urls = acceptanceUrls(origin);
   console.log('\nVanishGeo Chrome acceptance target');
-  console.log(`- Extension build: ${distRoot}`);
+  console.log('- Extension build: dist/');
   console.log(`- Local origin: ${origin}`);
-  console.log(`- Chrome: ${chromePath || 'not found'}`);
+  console.log(`- Chrome: ${chromePath ? 'detected' : 'not found'}`);
   console.log(`- Launch: ${launchStatus}`);
   console.log('\nOpened / target URLs:');
   urls.forEach((entry) => {
     console.log(`- ${entry.label}: ${entry.url}`);
   });
-  console.log('\nManual acceptance checklist:');
-  console.log('- Before enabling VanishGeo for `localhost`, open the leak-test verifier and click `Capture pass-through baseline`.');
-  console.log('- In the temporary Chrome profile, enable VanishGeo for `localhost`, reload the localhost pages, then click `Run all checks` on the leak-test verifier.');
-  console.log('- Configure explicit manual fixture values: language `ja-JP`, languages `ja-JP, ja`, Accept-Language `ja-JP,ja;q=0.9`, timezone `Asia/Tokyo`, geolocation `35.68,139.76`, WebRTC `strict`.');
+  console.log('\nVG-011 当前安全暂停验收：');
+  console.log('- MAIN 页面伪装已暂停，语言/时区/位置/Canvas/worker 保持原生；总开关和站点规则只表示配置。DNR 与 WebRTC 按各自实际状态验收。');
+  console.log('- 重建旧页面及 BFCache 文档；新闸门不能撤销已有 hook。保存、重试同步和后台重启均不得恢复注入。');
+  console.log('- node scripts/runtime-modularization/chrome-safety-gate.mjs 验证真实 Chrome BFCache、跨 origin、同 URL 重载的零生产派发；dry-run 不执行。');
+  console.log('- node scripts/runtime-modularization/document-targeting-investigation.mjs --native-only 保留浏览器错投对照，退出 0 仅表示采集完成，安全判定可仍为 FAIL。');
+  console.log('\n历史功能清单（页面伪装项仅作恢复后的目标，暂停候选不要求其匹配配置；--injection/旧 smoke 不能作为当前安全暂停通过证据）：');
+  console.log('- VG-003: open VanishGeo diagnostic from Popup/Options; it opens the extension `diagnostic/report.html`. Select the localhost or hosted tab and run one diagnostic.');
+  console.log('- The extension report compares language/languages, header echo, timezone/locale, position/watch, WebRTC policy, independently sampled iframe documents, workers and MAIN/ISOLATED pass-through observations. Empty ICE stays UNKNOWN; IP candidates FAIL independently of policy.');
+  console.log('- During a diagnostic reload/navigate/close the target, cancel, or let the 2-minute TTL expire. Confirm an explicit failure/cleared report; reopen the report to confirm there is no persisted snapshot.');
+  console.log('- Verify target page URL/DOM and `/headers.json` requests contain no expected configuration. Report HTML/JS/CSS must not be web accessible resources.');
+  console.log('- Before enabling VanishGeo for `localhost`, open the leak-test observation page and click `Capture pass-through baseline`.');
+  console.log('- In the temporary Chrome profile, enable VanishGeo for `localhost`, reload the localhost pages, then click `Run all checks` on the leak-test observation page.');
+  console.log('- Configure explicit manual fixture values: language `ja-JP`, languages `ja-JP, ja`, Accept-Language `ja-JP,ja;q=0.9`, timezone `Asia/Tokyo`, geolocation with synthetic coordinates, WebRTC `strict`.');
   console.log('- Separately detect a verified exit profile in Options, bind it to `localhost`, and confirm its IP, country, timezone, and coordinates match the single detection preview.');
-  console.log('- On the leak-test verifier, confirm Language, Accept-Language, Timezone, Geolocation, WebRTC ICE, iframe/worker realms, and pass-through surfaces show PASS; policy may be UNKNOWN on hosted pages and must be confirmed from extension options if so.');
+  console.log('- The leak-test page stays in observation mode / UNKNOWN and receives no extension expected values. Manually compare Language, Accept-Language, Timezone, Geolocation and iframe/worker observations with the synthetic configuration; the page issues no profile PASS/FAIL verdict.');
   console.log('- Open `/headers.json` and confirm `accept-language` matches the configured Accept-Language value after `localhost` is allowlisted.');
-  console.log('- Run the WebRTC ICE check and confirm no local/private or public IP candidate exposure is shown; confirm Chrome WebRTC policy is `disable_non_proxied_udp` from extension options if the hosted verifier reports UNKNOWN.');
+  console.log('- Run the WebRTC ICE check and confirm no local/private or public IP candidate exposure is shown; confirm Chrome WebRTC policy is `disable_non_proxied_udp` from extension options in a separate policy check.');
   console.log('- On the iframe fixture, confirm same-origin, srcdoc, and about:blank frames match the top-level language/timezone values; cross-origin frames are not part of this P0 acceptance.');
   console.log('- On the worker fixture, confirm classic Worker, module Worker, and SharedWorker language/timezone values match the top-level page.');
-  console.log('- Compare pass-through real-device surfaces against the captured baseline: WebGL/GPU, Audio sampleRate, screen, hardware, codec, and WebGPU rows must remain PASS or UNKNOWN only when no baseline was captured.');
+  console.log('- VG-007：检查 classic/module SharedWorker 同 key 共享 scope、连接计数为 1/2，不同 name 独立；模块依赖顶层 language/timezone 已打补丁。运行 node scripts/chrome-worker-smoke.mjs 可验证定向真实 Chrome 构造、URL 回收和 fallback；这不替代人工验收。');
+  console.log('- VG-009：打开 earliest-inline fixture，在扩展报告选择该 tab，点击“验收最早 inline script”。分别检查 top、same-origin iframe、srcdoc、about:blank 的 earliest/load/postLoad；load PASS 不补足 earliest FAIL。生产页面无新增 marker。');
+  console.log('- VG-009 自动真实 Chrome：npm run test:e2e:chrome -- --injection --runs=3；使用 Node 22+ 原生 WebSocket、临时 profile 和合成配置。退出码 0=全 PASS，1=观测 FAIL/UNKNOWN，2=自动化失败；--output 可保存脱敏 JSON。dry-run 不执行此项。');
+  console.log('- VG-010：fresh install 总开关关闭、空站点、WebRTC browser default；检查配置引导主动检测/确认、选站点、明确启用、跳过和重置。升级已有 v2 保留设置，不自动打开引导。node scripts/chrome-onboarding-smoke.mjs 可在真实临时 Chrome profile 验证，provider 请求在发出前拦截并返回合成数据，不调用真实 provider；dry-run 不执行。');
+  console.log('- Compare pass-through real-device surfaces against the captured baseline: manually inspect WebGL/GPU, Audio sampleRate, screen, hardware, codec, and WebGPU observations; this page does not validate pass-through behavior.');
   console.log('- Reload the unpacked extension in `chrome://extensions/`, revisit BrowserInsight, and confirm no prototype tampering warning appears.');
   console.log('\nPress Ctrl+C here when manual validation is complete.');
 }
@@ -136,22 +133,31 @@ async function main() {
   const chromePath = findChromeBinary();
 
   assertLeakTestDist(projectRoot);
+  for (const file of ['diagnostic/report.html', 'diagnostic/report.js', 'diagnostic/report.css', 'fixtures/injection/earliest-inline.html', 'fixtures/injection/child.html']) {
+    if (!existsSync(join(distRoot, file))) throw new Error(`Missing diagnostic build entry: ${file}`);
+  }
 
   if (dryRun) {
     printChecklist(origin, chromePath, 'dry-run only');
     return;
   }
 
+  if (argSet.has('--injection')) {
+    const { runInjectionAcceptance } = await import('./chrome-injection-smoke.mjs');
+    process.exitCode = await runInjectionAcceptance({ runs: Number(optionValue('--runs', '3')), output: optionValue('--output', null) });
+    return;
+  }
+
   const serverInfo = await startLeakTestServer({ projectRoot, host, port });
   const userDataDir = mkdtempSync(join(tmpdir(), 'vanishgeo-chrome-acceptance-'));
-  let launchStatus = `server only; Chrome profile dir ${userDataDir}`;
+  let launchStatus = 'server only; temporary profile';
 
   if (!noLaunch) {
     if (!chromePath) {
       throw new Error('Chrome binary not found. Set CHROME_BIN or rerun with --no-launch.');
     }
     launchChrome(chromePath, serverInfo.origin, userDataDir);
-    launchStatus = `launched with temporary profile ${userDataDir}`;
+    launchStatus = 'launched with temporary profile';
   }
 
   printChecklist(serverInfo.origin, chromePath, launchStatus);
@@ -165,5 +171,5 @@ async function main() {
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  process.exitCode = argSet.has('--injection') ? 2 : 1;
 });

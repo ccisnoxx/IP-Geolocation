@@ -2,8 +2,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getEffectiveProfile } from '../src/shared/config-resolver';
-import { normalizeConfig } from '../src/shared/config-model';
-import { deriveCurrentSiteStatus } from '../src/shared/ui-state';
+import { normalizeConfig, createInitialConfig } from '../src/shared/config-model';
+import { RUNTIME_INJECTION_PAUSED } from '../src/shared/runtime-sync';
+import type { RuntimeSyncReport } from '../src/shared/types';
+import { deriveCurrentSiteStatus, deriveSetupStatus } from '../src/shared/ui-state';
+
+test('共享配置状态区分未配置、部分配置、配置完成关闭和已启用，关闭时也识别无效绑定', () => {
+  assert.equal(deriveSetupStatus(createInitialConfig()).kind, 'unconfigured');
+  const config = createConfig();
+  assert.equal(deriveSetupStatus({ ...config, rules: [] }).kind, 'partial');
+  assert.equal(deriveSetupStatus({ ...config, masterEnabled: false }).kind, 'ready');
+  assert.equal(deriveSetupStatus(config).kind, 'enabled');
+  config.rules[0].exitLocationProfileId = null;
+  assert.equal(deriveSetupStatus({ ...config, masterEnabled: false }).kind, 'partial');
+  assert.equal(deriveSetupStatus(config).kind, 'partial');
+});
 
 function createConfig() {
   return normalizeConfig({
@@ -92,4 +105,18 @@ test('an unverified selected profile cannot produce an enabled runtime state', (
 
   assert.equal(status.kind, 'error');
   assert.match(status.detail, /尚未验证/);
+});
+
+test('暂停报告不会把已匹配站点显示为页面伪装生效，规则操作仍可用', () => {
+  const config = createConfig();
+  const ok = { status: 'ok' as const, errors: [] };
+  const syncReport: RuntimeSyncReport = { configSignature: 'synthetic', status: 'partial', metadataError: null,
+    components: { contentScripts: { status: 'partial', errors: [RUNTIME_INJECTION_PAUSED] }, dnr: ok, webrtc: ok, tabReload: ok } };
+  const state = deriveCurrentSiteStatus({ domain: 'example.com', scriptable: true, config,
+    ...getEffectiveProfile(config, 'example.com'), syncReport });
+  assert.equal(state.kind, 'paused');
+  assert.equal(state.label, '页面伪装已暂停');
+  assert.equal(state.canEnable, false);
+  assert.equal(state.canDisable, true);
+  assert.match(state.detail, /请求头与 WebRTC 请查看同步详情/);
 });

@@ -1,24 +1,19 @@
 // 验证 BrowserInsight 一类检测会观察到的页面运行时形态。
-import test from 'node:test';
+import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import { generateRuntime, assertSelfContainedFunction } from '../build/self-contained-runtime';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function compileRuntime(): string {
-  const source = fs.readFileSync(path.join(projectRoot, 'src/injected/runtime.ts'), 'utf8')
-    .replace('export function applyVanishGeoRuntime', 'function applyVanishGeoRuntime');
-  return ts.transpileModule(source, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2020,
-      module: ts.ModuleKind.None
-    }
-  }).outputText;
-}
+let compiledRuntime: string;
+before(async () => {
+  compiledRuntime = assertSelfContainedFunction((await generateRuntime()).code, 'applyVanishGeoRuntime');
+});
+function compileRuntime(): string { return compiledRuntime; }
 
 function createBrowserLikeContext(extraGlobals: Record<string, unknown> = {}) {
   const sandbox: Record<string, any> = {
@@ -156,6 +151,7 @@ test('worker wrapper remains constructible and prepends the bootstrap before mod
     createdBlobs.push(blob);
     return `blob:patched-worker-${createdBlobs.length}`;
   };
+  URLProxy.revokeObjectURL = (_url: string) => {};
   class MockBlob {
     parts: string[];
     options?: BlobPropertyBag;
@@ -220,6 +216,197 @@ test('worker wrapper remains constructible and prepends the bootstrap before mod
   const crossOriginWorker = vm.runInContext('new Worker("https://cdn.example.test/worker.js", { type: "module" })', context);
   assert.equal(crossOriginWorker.scriptURL, 'https://cdn.example.test/worker.js');
   assert.equal(createdBlobs.length, 2);
+});
+
+// 使用实际 SharedWorker fixture，在按原生 URL/name 身份建立的 VM scope 中运行。
+function createWorkerHarness() {
+  const blobs = new Map<string, string>();
+  const revoked: string[] = [];
+  const scopes = new Map<string, vm.Context>();
+  const listeners = new Map<string, Array<() => void>>();
+  let sequence = 0;
+  let rejectBlob = false;
+  class MockBlob {
+    constructor(public parts: string[]) {}
+  }
+  class MockURL extends URL {
+    static createObjectURL(blob: Blob | MediaSource) {
+      const url = `blob:worker-${++sequence}`;
+      blobs.set(url, (blob as unknown as MockBlob).parts.join(''));
+      return url;
+    }
+    static revokeObjectURL(url: string) { revoked.push(url); }
+  }
+  class NativeWorker {
+    constructor(public scriptURL: string, public options?: WorkerOptions) {
+      if (rejectBlob && scriptURL.startsWith('blob:')) throw new Error('模拟包装加载失败');
+    }
+  }
+  class NativeSharedWorker {
+    port: { result: any };
+    constructor(public scriptURL: string, public optionsOrName?: string | WorkerOptions) {
+      if (rejectBlob && scriptURL.startsWith('blob:')) throw new Error('模拟包装加载失败');
+      const name = typeof optionsOrName === 'string' ? optionsOrName : optionsOrName?.name || '';
+      const key = JSON.stringify([scriptURL, name]);
+      let scope = scopes.get(key);
+      if (!scope) {
+        scope = createBrowserLikeContext({ crypto: { randomUUID: () => `scope-${scopes.size + 1}` }, name }).context;
+        const bootstrap = blobs.get(scriptURL);
+        if (bootstrap) {
+          // module 的实际动态 import 由真实 Chrome 检验；VM 执行同一 prelude。
+          const boundary = bootstrap.indexOf('\nconst connections =');
+          vm.runInContext(bootstrap.slice(0, boundary >= 0 ? boundary : Math.max(bootstrap.lastIndexOf('importScripts('), bootstrap.lastIndexOf('await import('))), scope);
+        }
+        vm.runInContext(fs.readFileSync(path.join(projectRoot, 'fixtures/workers/shared-worker.js'), 'utf8'), scope);
+        scopes.set(key, scope);
+      }
+      this.port = { result: null };
+      scope.__port = { postMessage: (result: unknown) => { this.port.result = result; } };
+      vm.runInContext('self.onconnect({ ports: [__port] })', scope);
+      delete scope.__port;
+    }
+  }
+  const { context } = createBrowserLikeContext({
+    URL: MockURL, Blob: MockBlob, Worker: NativeWorker, SharedWorker: NativeSharedWorker,
+    addEventListener: (event: string, listener: () => void) => {
+      listeners.set(event, [...(listeners.get(event) || []), listener]);
+    }
+  });
+  vm.runInContext(compileRuntime(), context);
+  const payload = (language = 'ja-JP') => ({
+    extensionEnabled: true,
+    languageConfig: { enabled: true, language, languages: [language], acceptLanguage: language },
+    timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' }
+  });
+  applyPayload(context, payload());
+  return { context, blobs, revoked, listeners, payload, NativeWorker, NativeSharedWorker,
+    reject: (value: boolean) => { rejectBlob = value; } };
+}
+
+test('相同 SharedWorker key 复用包装 URL 和 fixture scope，name/URL/type/credentials/config 隔离', () => {
+  const h = createWorkerHarness();
+  const first = vm.runInContext('new SharedWorker("/shared-worker.js", "shared")', h.context);
+  const second = vm.runInContext('new SharedWorker(new URL("https://example.test/shared-worker.js"), {name:"shared",type:"classic",credentials:"same-origin"})', h.context);
+  assert.equal(second.scriptURL, first.scriptURL);
+  assert.equal(first.port.result.scopeId, second.port.result.scopeId);
+  assert.equal(first.port.result.connectionCount, 1);
+  assert.equal(second.port.result.connectionCount, 2);
+  assert.equal(second.port.result.language, 'ja-JP');
+  const wrapper = h.context.SharedWorker;
+  applyPayload(h.context, h.payload());
+  assert.equal(h.context.SharedWorker, wrapper);
+  const third = vm.runInContext('new SharedWorker("/shared-worker.js", "shared")', h.context);
+  assert.equal(third.scriptURL, first.scriptURL);
+  assert.equal(third.port.result.connectionCount, 3);
+  for (const expression of [
+    'new SharedWorker("/shared-worker.js", "different")',
+    'new SharedWorker("/other-worker.js", "shared")',
+    'new SharedWorker("/shared-worker.js", {name:"shared",type:"module"})',
+    'new SharedWorker("/shared-worker.js", {name:"shared",credentials:"omit"})'
+  ]) {
+    const different = vm.runInContext(expression, h.context);
+    assert.notEqual(different.scriptURL, first.scriptURL);
+    assert.notEqual(different.port.result.scopeId, first.port.result.scopeId);
+    assert.equal(different.port.result.connectionCount, 1);
+  }
+  applyPayload(h.context, h.payload('fr-FR'));
+  const changed = vm.runInContext('new SharedWorker("/shared-worker.js", "shared")', h.context);
+  assert.notEqual(changed.scriptURL, first.scriptURL);
+  assert.equal(changed.port.result.language, 'fr-FR');
+  applyPayload(h.context, h.payload());
+  const restored = vm.runInContext('new SharedWorker("/shared-worker.js", "shared")', h.context);
+  assert.equal(restored.scriptURL, first.scriptURL);
+  assert.equal(restored.port.result.connectionCount, 4);
+});
+
+test('WorkerOptions 单次转换快照用于缓存与构造，null 名称按 DOMString 转换', () => {
+  const h = createWorkerHarness();
+  const value = vm.runInContext(`(() => {
+    const reads = [];
+    const options = {
+      get credentials() { reads.push('credentials'); if(reads.filter(x=>x==='credentials').length>1) throw new Error('重复读取'); return 'same-origin'; },
+      get name() { reads.push('name'); return reads.filter(x=>x==='name').length === 1 ? 'first' : 'later'; },
+      get type() { reads.push('type'); return 'classic'; }
+    };
+    const first = new SharedWorker('/shared-worker.js', options);
+    const second = new SharedWorker('/shared-worker.js', {name:'first'});
+    const nullName = new SharedWorker('/shared-worker.js', {name:null});
+    const stringName = new SharedWorker('/shared-worker.js', 'null');
+    const emptyName = new SharedWorker('/shared-worker.js');
+    let throws = 0;
+    try { new SharedWorker('/shared-worker.js', {get name(){throws++;throw new Error('原始 getter 错误')}}); }
+    catch(error) { if(error.message !== '原始 getter 错误') throw error; }
+    return {reads, same:first.scriptURL===second.scriptURL, firstName:first.port.result.name,
+      nullSame:nullName.scriptURL===stringName.scriptURL, nullDistinct:nullName.scriptURL!==emptyName.scriptURL,throws};
+  })()`, h.context);
+  assert.deepEqual(Array.from(value.reads), ['credentials', 'name', 'type']);
+  assert.equal(value.same, true);
+  assert.equal(value.firstName, 'first');
+  assert.equal(value.nullSame, true);
+  assert.equal(value.nullDistinct, true);
+  assert.equal(value.throws, 1);
+});
+
+test('SharedWorker 字符串 name 使用固定默认值，不读取 Object.prototype 的 type/credentials', () => {
+  const h = createWorkerHarness();
+  const value = vm.runInContext(`(() => {
+    Object.prototype.type = 'module';
+    Object.prototype.credentials = 'omit';
+    try {
+      const stringName = new SharedWorker('/shared-worker.js', 'prototype-test');
+      const explicit = new SharedWorker('/shared-worker.js', {name:'prototype-test',type:'classic',credentials:'same-origin'});
+      return {same:stringName.scriptURL===explicit.scriptURL,count:explicit.port.result.connectionCount};
+    } finally { delete Object.prototype.type; delete Object.prototype.credentials; }
+  })()`, h.context);
+  assert.equal(value.same, true);
+  assert.equal(value.count, 2);
+});
+
+test('Dedicated URL 在构造后回收，Shared URL 在 pagehide 幂等回收，失败不污染缓存', () => {
+  const h = createWorkerHarness();
+  const dedicated = vm.runInContext('new Worker("/worker.js")', h.context);
+  assert.deepEqual(h.revoked, [dedicated.scriptURL]);
+  const shared = vm.runInContext('new SharedWorker("/shared-worker.js")', h.context);
+  assert.equal(h.revoked.includes(shared.scriptURL), false);
+  h.reject(true);
+  const fallback = vm.runInContext('new SharedWorker("/failed.js")', h.context);
+  assert.equal(fallback.scriptURL, '/failed.js');
+  const failedUrl = [...h.blobs.keys()].at(-1)!;
+  assert.equal(h.revoked.includes(failedUrl), true);
+  const dedicatedFallback = vm.runInContext('new Worker("/failed-worker.js")', h.context);
+  assert.equal(dedicatedFallback.scriptURL, '/failed-worker.js');
+  assert.equal(h.revoked.includes([...h.blobs.keys()].at(-1)!), true);
+  h.reject(false);
+  const recovered = vm.runInContext('new SharedWorker("/failed.js")', h.context);
+  assert.notEqual(recovered.scriptURL, failedUrl);
+  assert.equal(h.listeners.get('pagehide')?.length, 1);
+  h.listeners.get('pagehide')!.forEach(listener => listener());
+  assert.equal(h.revoked.includes(shared.scriptURL), true);
+  assert.equal(h.revoked.includes(recovered.scriptURL), true);
+  const count = h.revoked.length;
+  h.listeners.get('pagehide')!.forEach(listener => listener());
+  assert.equal(h.revoked.length, count);
+  const afterHide = vm.runInContext('new SharedWorker("/shared-worker.js")', h.context);
+  assert.notEqual(afterHide.scriptURL, shared.scriptURL);
+});
+
+test('Worker 透传 URL/options、构造器反射与派生类保持原生合同', () => {
+  const h = createWorkerHarness();
+  for (const ctor of ['Worker', 'SharedWorker']) {
+    const original = ctor === 'Worker' ? h.NativeWorker : h.NativeSharedWorker;
+    const wrapper = h.context[ctor];
+    assert.equal(wrapper.prototype, original.prototype);
+    assert.equal(wrapper.name, original.name);
+    assert.equal(wrapper.length, original.length);
+    assert.equal(vm.runInContext(`Function.prototype.toString.call(${ctor})`, h.context), original.toString());
+    assert.throws(() => vm.runInContext(`${ctor}("/worker.js")`, h.context), /class constructor|Class constructor/);
+    for (const url of ['https://cdn.example.test/worker.js', 'data:text/javascript,0', 'blob:original']) {
+      const value = vm.runInContext(`new ${ctor}(${JSON.stringify(url)}, {type:'module',name:'native',credentials:'include'})`, h.context);
+      assert.equal(value.scriptURL, url);
+    }
+    const derived = vm.runInContext(`(() => { class Derived extends ${ctor} {}; const value = new Derived('/worker.js'); return value instanceof Derived; })()`, h.context);
+    assert.equal(derived, true);
+  }
 });
 
 test('Intl and Date timezone formatting stay consistent even with explicit caller options', () => {
@@ -473,4 +660,35 @@ test('each frame document accepts its own direct runtime invocation without ifra
     assert.deepEqual(Array.from(inspection.languages), ['fr-FR', 'fr']);
     assert.equal(inspection.timezone, 'Europe/Paris');
   });
+});
+
+test('debugMode 只记录固定提示，不向页面控制台暴露预期 payload', async () => {
+  for (const debugMode of [false, true]) {
+    const logs: unknown[][] = [];
+    const { context } = createBrowserLikeContext({ console: { log: (...args: unknown[]) => logs.push(args) } });
+    vm.runInContext(compileRuntime(), context, { filename: 'runtime.js' });
+    applyPayload(context, {
+      extensionEnabled: true,
+      debugMode,
+      languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9' },
+      timezone: 'Europe/Paris',
+      timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' },
+      geolocation: { enabled: true, latitude: 12.345678, longitude: 23.456789, accuracy: 50 }
+    });
+    assert.ok(logs.every((entry) => entry.every((value) => typeof value === 'string')));
+    assert.equal(logs.length, debugMode ? 1 : 0);
+    assert.doesNotMatch(JSON.stringify(logs), /12\.345678|23\.456789|fr-FR|Europe\/Paris|latitude|longitude|acceptLanguage/);
+    const actual = await vm.runInContext(`new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(position => resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        language: navigator.language,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }), reject);
+    })`, context);
+    assert.equal(actual.latitude, 12.345678);
+    assert.equal(actual.longitude, 23.456789);
+    assert.equal(actual.language, 'fr-FR');
+    assert.equal(actual.timezone, 'Europe/Paris');
+  }
 });

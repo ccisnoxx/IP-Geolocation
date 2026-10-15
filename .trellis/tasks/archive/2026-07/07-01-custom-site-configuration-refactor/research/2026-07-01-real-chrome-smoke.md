@@ -1,10 +1,12 @@
 # Real Chrome Smoke Results (2026-07-01)
 
+> 历史证据：描述当时的 v1.4，不能作为当前稳定化任务的验收结果。VG-004 仅脱敏个人绝对路径，保留原始观测与结论。
+
 ## Environment
 
 - Browser: Chrome 149.0.7827.157
 - Extension ID: `lanbapglahcigjilhlfjmhnfgnalhmlc`
-- Extension source: `/Users/sc/PycharmProjects/IP-Geolocation`
+- Extension source: `<仓库根目录>`
 - Smoke configuration used:
   - allowlisted domains: `chatgpt.com`, `claude.ai`, `gemini.google.com`, `browserleaks.com`, `whoer.net`, `yalala.com`
   - global language: `ja-JP`, `["ja-JP", "ja", "en"]`

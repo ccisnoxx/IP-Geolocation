@@ -1,0 +1,418 @@
+schema_version: 1
+project: VanishGeo
+# 唯一跨任务状态来源；review 不能满足依赖，done 需要人工验收。
+# VG-001 至 VG-014 是本次建立的执行清单，细化设计时保持 ID 和依赖可追溯。
+tasks:
+  - id: VG-000
+    title: 建立稳定化执行基线并校准仓库规范
+    phase: R0
+    dependencies: []
+    branch: stabilize/VG-000
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-000-stabilization-baseline
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-000-stabilization-baseline/implement.md#人工验收
+    scope:
+      - 校准 AGENTS、TypeScript/Vite/MV3 规范和可版本控制的治理记录
+      - 建立稳定化 manifest、验收矩阵和实际基线证据
+    acceptance:
+      - 规范与 package.json、vite.config.ts、src 和 dist 的实际结构一致
+      - VG-000 至 VG-014 具有唯一 ID、可判定依赖和明确状态
+      - 不改变运行时、公开 API、权限或构建行为；本地验证后停在 review
+
+  - id: VG-001
+    title: 保留已禁用站点规则并统一规则编辑语义
+    phase: R1
+    dependencies: [VG-000]
+    branch: stabilize/VG-001
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-001-rule-list
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-001-rule-list/implement.md#人工验收
+    scope:
+      - 提取 Popup 与 Options 共用的文本规则解析和合并纯函数
+      - 文本表示启用域名集合，保留未显示的禁用规则和重新启用规则的原配置
+      - 删除文本中移除的启用规则，无关设置保存不得意外改变规则数组
+    acceptance:
+      - 修改非规则设置并保存后，原禁用规则仍存在且保持 disabled
+      - 重新启用禁用规则保留 ID、overrides 和出口档案绑定
+      - 两处 UI 使用同一实现，覆盖重复域名、空行、大小写、URL 和无关保存
+      - 不改变 schema、storage key、匹配算法、DNR 或权限；本地验证后停在 review
+
+  - id: VG-002
+    title: 移除诊断 URL 中的敏感预期值
+    phase: R1
+    dependencies: [VG-000]
+    branch: stabilize/VG-002
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-002-diagnostic-observation
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-002-diagnostic-observation/implement.md#人工验收
+    scope:
+      - 删除诊断 URL 和页面中的扩展预期配置传递、解析及比较
+      - runtime 调试日志只输出固定提示，不暴露预期 payload
+      - 外部页面固定 observation mode，保留实际观测与同源 header echo
+      - 最小同步隐私说明、验收脚本和合成数据验证证据
+    acceptance:
+      - 外部诊断 URL 不含任何 expected* 或其他载体中的敏感预期配置
+      - 页面只观测实际值，不宣称完成配置 PASS/FAIL 验收，不建立页面配置桥
+      - schema、storage、runtime message、MV3、DNR、权限和正常站点伪装不变
+      - 本地验证完成停在 review；扩展侧完整验证留给后续独立任务
+
+  - id: VG-003
+    title: 实现扩展侧诊断验证与报告
+    phase: R1
+    dependencies: [VG-002]
+    branch: stabilize/VG-003
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-003-diagnostic-report
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-003-diagnostic-report/implement.md#人工验收
+    scope:
+      - 一次性内存 run 与扩展 origin 报告；预期值不进入外部页面
+      - 定向 MAIN-world 实际值、目标同源 header echo、WebRTC policy/ICE 与 realm 观测
+      - 过期、取消、导航、权限和执行失败清理及可解释状态
+    acceptance:
+      - 扩展报告比较 language/languages/header/timezone/locale/geolocation/WebRTC/realm/透传
+      - 外部 URL、请求和 DOM 不承载扩展预期配置；报告页不设为 web accessible
+      - 保留 hosted/localhost，不改变 schema/storage/迁移/权限/DNR/verified 边界
+      - 本地验证结束为 review，人工验收后才可 done
+
+  - id: VG-004
+    title: 清理文档、隐私说明和旧项目信息
+    phase: R1
+    dependencies: [VG-003]
+    branch: stabilize/VG-004
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-004-documentation-privacy
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-004-documentation-privacy/implement.md#人工验收
+    scope:
+      - 校准当前安装、配置、构建、诊断、权限和发布文档
+      - 清理个人路径、真实公网 IP 示例、旧操作流程和不可验证承诺
+      - 说明主动出口检测、local/session/内存数据和外部请求边界
+      - 只记录人工历史清理方案及 repository description/topics 建议
+    acceptance:
+      - README、INSTALL、CONFIG_GUIDE、PRIVACY、PERMISSIONS 与当前实现一致
+      - 文档链接、npm scripts、完整 dist 和 vanishgeo ZIP 命名可核验
+      - 无错误旧项目操作、个人绝对路径或真实公网 IP 示例；保留必要许可证来源归属
+      - 不改变运行时、schema、storage、迁移、消息、manifest、DNR、权限或发布行为
+      - 本地验证后停在 review；人工验收后才可 done
+
+  - id: VG-005
+    title: 增加 CI 与发布测试门禁
+    phase: R1
+    dependencies: [VG-004]
+    branch: stabilize/VG-005
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-005-ci-release-gates
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-005-ci-release-gates/implement.md#人工验收
+    scope:
+      - push/PR CI 与 tag release 执行安装、源码及测试类型、单元测试和构建门禁
+      - 本地聚合检查传播失败，发布使用完整历史生成真实跨 tag changelog
+      - 必要 wiring、失败注入、文档与测试夹具类型修正
+    acceptance:
+      - 任一门禁失败阻止后续构建、打包、上传和创建 Release
+      - 测试目录独立严格类型检查，所有本地门禁通过
+      - Actions 默认只读，只有 release job 可 contents write
+      - changelog 无浅克隆静默兜底，Chrome dry-run 不冒充人工验收
+      - 本地验证后停在 review；人工验收后才可 done
+
+  - id: VG-006
+    title: 实现运行时副作用对账与可见同步状态
+    phase: R2
+    dependencies: [VG-005]
+    branch: stabilize/VG-006
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-006-runtime-reconciliation
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-14'
+      evidence: .trellis/tasks/10-14-vg-006-runtime-reconciliation/implement.md#人工验收
+    scope:
+      - 配置唯一 desired state，后台串行 reconciliation 观测并收敛脚本、DNR、WebRTC 与刷新
+      - 结构化同步报告、管理页可见 partial、session 重试记录及运行容量预检
+      - 安装、启动与 service worker 再启动重试，四组件失败恢复和幂等测试
+    acceptance:
+      - 副作用失败不回滚已保存配置，结果包含明确组件且 UI 显示已保存但未完全生效
+      - 同一配置签名已收敛时不产生重复无意义写操作；初始化重试未收敛状态
+      - 保存前拒绝可预见 DNR 容量溢出；单 tab 刷新失败隔离并形成 partial
+      - 保持 schema v2、匹配、MV3、可信文档注入、权限及 verified 边界；本地验证后为 review
+
+  - id: VG-007
+    title: 修复 SharedWorker 身份语义和 Blob URL 生命周期
+    phase: R2
+    dependencies: [VG-005]
+    branch: stabilize/VG-007
+    status: done
+    trellis_task: .trellis/tasks/10-14-vg-007-worker-identity
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-14-vg-007-worker-identity/implement.md#人工验收
+    scope:
+      - 页面隐藏 runtime state 缓存相同 URL/type/name/credentials/补丁配置的 SharedWorker 包装 URL
+      - Dedicated Worker 临时 Blob URL 与 SharedWorker pagehide 缓存清理
+      - 保留同源限制、cross-origin fallback、classic/module 顺序与原生反射形态
+    acceptance:
+      - 相同 key 复用同一 URL 和 scope 计数，不同脚本/name/配置不错误共享
+      - 对象 URL 有明确回收路径，Node/worker fixture/定向 Chrome 证据分别记载
+      - 不新增指纹面、权限或配置桥；本地验证后为 review，人工验收后才可 done
+
+  - id: VG-008
+    title: 强化配置迁移、Profile 校验和 UI 正确性
+    phase: R2
+    dependencies: [VG-001, VG-005]
+    branch: stabilize/VG-008
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-008-config-profile-ui
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-008-config-profile-ui/implement.md#人工验收
+    scope:
+      - 修复旧配置零坐标迁移，统一自定义 Profile 范围、时区、名称和 ID 校验
+      - 非法 Profile 导入在归一化前拒绝并返回可操作错误
+      - 自定义方案使用唯一 UUID，Popup 按目标 IANA 时区显示当前偏移
+    acceptance:
+      - 合法 0/0、0/120、-30/0 均迁移为 manual
+      - 非法 Profile 不进入有效配置，导入明确失败且不替换原配置
+      - 中文及同名方案 ID 非空唯一，目标时区偏移覆盖 DST 日期
+      - 保持 schema v2、verified、MV3、权限和隐私边界；本地验证后为 review
+
+  - id: VG-009
+    title: 增加最早内联脚本注入时序验收
+    phase: R3
+    dependencies: [VG-006, VG-007, VG-008]
+    branch: stabilize/VG-009
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-009-earliest-inline
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-009-earliest-inline/implement.md#人工验收
+    scope:
+      - 首个 head inline script 与 load 阶段实际信号快照及 top/iframe/origin fallback fixture
+      - 扩展侧分阶段比较与 Node 内置 CDP 的真实 Chrome 可重复验收
+      - 真实竞态的脱敏证据和最小修复评估，不重写 runtime 或扩大注入边界
+    acceptance:
+      - 明确回答首个 inline script 看到原始值还是伪装值，不用加载后检查替代
+      - earliest 与 load 分别比较预期，缺失或来源不可确定为 UNKNOWN
+      - 预期值不进入页面 URL，生产页面不增加 marker，不改变权限或 verified 边界
+      - 本地验证后为 review；Chrome 未运行时明确未验证，人工验收后才可 done
+
+  - id: VG-010
+    title: 实现首次安装引导和安全默认值
+    phase: R3
+    dependencies: [VG-009]
+    branch: stabilize/VG-010
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-010-safe-onboarding
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-010-safe-onboarding/implement.md#人工验收
+    scope:
+      - 区分 fresh install、upgrade、reset，空存储安全关闭且无默认站点
+      - Options 主动检测确认、选择站点与明确启用，跳过保持关闭
+      - 保留 v2 升级有效设置，Popup/Options 区分配置与同步状态
+    acceptance:
+      - 空 storage 不设置严格 WebRTC、不注册站点脚本、不发外部定位请求
+      - 已有 v2 的总开关、WebRTC、规则与 Profile 升级保持
+      - 引导按用户选择绑定 verified 出口并启用；reset 清空并回安全默认
+      - 本地验证后为 review，人工验收后才可 done
+
+  - id: VG-011
+    title: 运行时模块化设计与可行性验证
+    phase: R3
+    dependencies: [VG-010]
+    branch: stabilize/VG-011
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-011-runtime-modularization
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-011-runtime-modularization/implement.md#人工验收
+    scope:
+      - 比较三种模块化方案，明确 executeScript.func 及 worker 二次序列化约束
+      - 完成隔离的最小构建与定向注入 spike，不迁移生产 runtime
+      - 按后续授权实施 MAIN 派发前安全暂停、撤销初始化脚本及明确部分生效报告
+      - 交付后续 VG-012 可执行的文件清单与等价性矩阵，不启动后续任务
+    acceptance:
+      - RFC 说明静态生成的函数体如何包含全部运行时依赖及回滚方案
+      - Node 编译与脱离模块执行有证据，真实 Chrome 结果单独记录
+      - 除已授权暂停页面伪装外，schema、storage、消息动作、权限与可信来源边界保持
+      - 真实 Chrome 覆盖 BFCache、跨 origin、同 URL reload 的零派发与原生 API，独立安全复核后人工验收通过
+      - 本地验证后为 review，人工验收后才可 done
+
+  - id: VG-012
+    title: 按批准 RFC 实施运行时模块化
+    phase: R3
+    dependencies: [VG-011]
+    branch: stabilize/VG-012
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-012-runtime-modules
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-012-runtime-modules/implement.md#人工验收
+    scope:
+      - 按 VG-011 RFC 静态生成两层自包含函数，按责任拆分 runtime 维护源
+      - 保留已验收安全暂停、隐藏状态、安装顺序、消息与构建入口合同
+      - 模块单测、VM、最终构建守卫、watch/source map 与真实 Chrome 定向等价证据
+    acceptance:
+      - 不改变伪装语义、不恢复生产 MAIN 派发，不新增权限、WAR 或配置桥
+      - 页面函数与 worker bootstrap 无外部绑定、动态 chunk 或不稳定文件名
+      - 原有测试及 earliest-inline 证据不回归，行为矩阵逐项记录结果及限制
+      - 本地实现验证后为 review，人工验收后才可 done
+
+  - id: VG-013
+    title: 增加时区与 Locale 兼容模式
+    phase: R3
+    dependencies: [VG-012]
+    branch: stabilize/VG-013
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-013-intl-compatible
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-013-intl-compatible/implement.md#人工验收
+    scope:
+      - 全局 strict/compatible 模式、向后兼容归一化和模式 payload
+      - 页面与 worker 共用 Intl/Date 参数策略，UI 解释及默认/显式诊断
+      - 定向回归和两模式真实 Chrome 隔离 smoke，保持生产安全暂停
+    acceptance:
+      - compatible 保留显式 locale/timeZone，仅补省略或 undefined 的默认值
+      - strict 保留现有强制覆盖，旧数据与新安装默认 strict，迁移无数据丢失
+      - Date 本地 getter、既有 Intl 构造器和跨 realm 使用同一模式合同
+      - 不恢复生产 MAIN 派发、不改变权限/隐私/WebRTC 边界；本地验证后为 review
+
+  - id: VG-014
+    title: 稳定化集成回归与发布候选验收
+    phase: R4
+    dependencies: [VG-001, VG-002, VG-003, VG-004, VG-005, VG-006, VG-007, VG-008, VG-009, VG-010, VG-011, VG-012, VG-013]
+    branch: stabilize/VG-014
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-014-release-acceptance
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-014-release-acceptance/implement.md#人工验收
+    scope:
+      - 整个稳定化波次的集成审查、真实 Chrome 回归及安全隐私检查
+      - dist、release ZIP、CI/release workflow 与文档一致性审查
+      - 仅修复本轮确认的 P0/P1 集成回归，保留 VG-011 安全暂停
+      - 发布候选报告、未验证项、阻断、回滚点和建议版本，不修改版本或发布
+    acceptance:
+      - acceptance matrix 逐项有命令、结果及证据层级，失败和 UNKNOWN 不隐瞒
+      - 完整本地门禁通过或各失败有阻断结论，核心隐私至少一轮真实 Chrome 证据
+      - 完整 dist/ZIP、manifest/权限及文档与行为一致，无敏感数据或远程代码漂移
+      - 本地实现与验证后为 review；人工验收与发布决定独立，不自动 push/tag/Release
+
+  - id: VG-015
+    title: 最终文档绑定机制与浏览器资格研究
+    phase: R5
+    dependencies: [VG-014]
+    branch: stabilize/VG-014
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-015-document-binding-research
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-015-document-binding-research/implement.md#人工验收
+    scope:
+      - 复核旧documentId错投、浏览器执行层及诊断调用影响；确定可信绑定恢复门槛
+      - 仅研究脚本、隔离实验及文档；生产伪装继续暂停，不扩大权限或改版本
+    acceptance:
+      - 可复现证据包含版本、命令、对照、结论及未验证范围
+      - 明确可信恢复门槛，不把研究完成视为恢复或发布批准
+      - 本地研究完成为review，人工确认后才可done
+
+  - id: VG-017
+    title: earliest-inline 可行性与时序合同研究
+    phase: R5
+    dependencies: [VG-014]
+    branch: stabilize/VG-014
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-017-earliest-inline-research
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-017-earliest-inline-research/implement.md#人工验收
+    scope:
+      - 验证异步初始化与直接document_start对照；研究现有权限及架构合同下的首脚本保证
+      - 仅研究脚本、隔离实验及文档；生产伪装继续暂停，不扩大权限或改版本
+    acceptance:
+      - 可复现证据包含版本、命令、对照、结论及未验证范围
+      - 明确可信恢复门槛，不把研究完成视为恢复或发布批准
+      - 本地研究完成为review，人工确认后才可done
+
+  - id: VG-020
+    title: 无新增权限替代注入架构 RFC
+    phase: R5
+    dependencies: [VG-015, VG-017]
+    branch: stabilize/VG-014
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-020-alternative-injection-rfc
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-020-alternative-injection-rfc/implement.md#人工验收
+    scope:
+      - 评估动态 MAIN document_start 的可信配置交付、文档绑定和首脚本语义
+      - 比较同文档 broker、私有通道、签名封装、固定快照及注册文件序列编码
+      - 交付RFC、取舍、合同变更清单与后续隔离验证计划；不实施生产恢复
+    acceptance:
+      - 明确已证能力、假设、配置通道信任根与不能承诺的时序
+      - 不扩大权限、host或WAR，不改生产代码和版本，生产暂停保持
+      - 实验计划有攻击反例、正向对照、停止条件与恢复门槛
+      - 本地RFC交付为review，人工确认后才可done；不授权提交或发布
+
+  - id: VG-021
+    title: P0-F 注册文件序列隔离验证
+    phase: R5
+    dependencies: [VG-020]
+    branch: stabilize/VG-014
+    status: done
+    trellis_task: .trellis/tasks/10-15-vg-021-registration-sequence-probe
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-15'
+      evidence: .trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md#人工验收
+    scope:
+      - 动态MAIN document_start固定文件序列表达合成配置、页面篡改与首读时序
+      - 更新撤销及最小容量对照；真实Chrome脱敏证据与GO或NO_GO结论
+      - 仅隔离研究，不改生产代码、权限或版本，保持VG-011暂停
+    acceptance:
+      - 机制、攻击有效性、授权新鲜度和earliest各自判定，不以采集完成替代安全通过
+      - 证据可复现且包含Chrome版本、命令、正负对照和未验证范围
+      - 本地研究完成为review，人工验收后才可done；不授权恢复或发布
+
+  - id: VG-022
+    title: 方案B P1私有交接隔离验证
+    phase: R5
+    dependencies: [VG-020]
+    branch: stabilize/VG-014
+    status: in_progress
+    trellis_task: .trellis/tasks/10-15-vg-022-private-handoff-probe
+    scope:
+      - 动态MAIN与同文档ISOLATED broker的通道身份、页面抢占、伪造与转接
+      - 真实Chrome最小机制/攻击对照、GO或NO_GO与恢复门槛
+      - 仅P1隔离研究，保持生产暂停，不改生产代码、权限或版本
+    acceptance:
+      - 区分连通性和身份可信，早期交接与受控晚交接分别判定
+      - 普通页面能力反例及正常对照可复现，证据含版本、命令和未验证范围
+      - 不以研究完成授权P2或生产恢复，本地review、人工验收后才可done

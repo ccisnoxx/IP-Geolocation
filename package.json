@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "check": "npm run typecheck && npm run typecheck:tests && npm test && npm run build",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "serve:leak-test": "node scripts/serve-leak-test.mjs",

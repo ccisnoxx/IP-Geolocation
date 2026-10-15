@@ -6,15 +6,20 @@ on:
       - 'v*.*.*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-and-release:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -25,71 +30,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck source
+        run: npm run typecheck
+
+      - name: Typecheck tests
+        run: npm run typecheck:tests
+
+      - name: Run unit tests
+        run: npm test
+
       - name: Build extension
         run: npm run build
 
+      - name: Check Chrome acceptance entry (dry-run only)
+        run: npm run test:e2e:chrome -- --dry-run
+
       - name: Get version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Create distribution zip
-        run: |
-          cd dist
-          zip -r ../vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip .
-          cd ..
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
-        id: changelog
+        run: bash scripts/release-changelog.sh > "$RUNNER_TEMP/vanishgeo-changelog.md"
+
+      - name: Create distribution zip
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          # Get the previous tag
-          PREV_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
-
-          if [ -z "$PREV_TAG" ]; then
-            # First release
-            CHANGELOG="Initial release of VanishGeo browser extension"
-          else
-            # Generate changelog from commits
-            CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" | grep -v "Merge pull request" || echo "- Bug fixes and improvements")
-          fi
-
-          # Save to file for multiline output
-          echo "$CHANGELOG" > CHANGELOG.txt
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          cat CHANGELOG.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          cd dist
+          zip -r "../vanishgeo-v${VERSION}.zip" .
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip
-          body: |
-            ## VanishGeo v${{ steps.get_version.outputs.VERSION }}
-
-            ### 安装方法 / Installation
-
-            1. 下载 `vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip` / Download the zip file
-            2. 解压文件 / Extract the archive
-            3. 在浏览器中打开 `chrome://extensions/` / Open `chrome://extensions/` in your browser
-            4. 启用"开发者模式" / Enable "Developer mode"
-            5. 点击"加载已解压的扩展程序" / Click "Load unpacked"
-            6. 选择解压后直接包含 `manifest.json` 的文件夹 / Select the extracted folder that directly contains `manifest.json`
-
-            ### 更新日志 / Changelog
-
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
-            ### 功能特性 / Features
-
-            - 🌍 地理位置伪装 / Geolocation spoofing
-            - 🕐 时区伪装 / Timezone spoofing
-            - 🌐 语言伪装 / Language spoofing
-            - 🔒 WebRTC 防泄漏 / WebRTC leak protection
-            - 🎯 统一站点规则 / Unified site rules
-            - ⚡ 动态注入运行时 / Dynamic injection runtime
-            - 💾 配置管理 / Profile management
-            - 🧪 回归诊断夹具 / Regression diagnostics
-
-            完整文档请查看 README.md / See README.md for full documentation
+          body_path: ${{ runner.temp }}/vanishgeo-changelog.md
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
         env:
@@ -100,4 +75,5 @@ jobs:
         with:
           name: vanishgeo-v${{ steps.get_version.outputs.VERSION }}
           path: dist/
+          if-no-files-found: error
           retention-days: 30

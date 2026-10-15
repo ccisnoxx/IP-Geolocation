@@ -1,0 +1,89 @@
+{
+  "id": "vg-009-earliest-inline",
+  "name": "vg-009-earliest-inline",
+  "title": "VG-009：增加最早内联脚本注入时序验收",
+  "description": "首脚本/加载/报告三阶段验收能力与证据交付已通过人工验收；首脚本异步注入竞态仍为已知限制",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": "VG-009",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-15",
+  "completedAt": "2026-10-15",
+  "branch": "stabilize/VG-009",
+  "base_branch": "stabilize/VG-009",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".gitignore",
+    ".trellis/spec/frontend/quality-guidelines.md",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/check.jsonl",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/chrome-evidence.json",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/design.md",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/implement.jsonl",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/implement.md",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/prd.md",
+    ".trellis/tasks/10-15-vg-009-earliest-inline/task.json",
+    "PRIVACY.md",
+    "README.md",
+    "docs/stabilization/README.md",
+    "docs/stabilization/acceptance-matrix.md",
+    "docs/stabilization/task-manifest.yaml",
+    "fixtures/injection/README.md",
+    "fixtures/injection/child.html",
+    "fixtures/injection/earliest-inline.html",
+    "scripts/chrome-acceptance.mjs",
+    "scripts/chrome-injection-smoke.mjs",
+    "src/background/diagnostic-probe.ts",
+    "src/background/diagnostic-runs.ts",
+    "src/background/message-router.ts",
+    "src/background/services.ts",
+    "src/diagnostic/report.html",
+    "src/diagnostic/report.ts",
+    "src/shared/diagnostic-report.ts",
+    "tests/diagnostic-report-ui.test.ts",
+    "tests/diagnostic-report.test.ts",
+    "tests/extension-wiring.test.ts"
+  ],
+  "notes": "2026-10-15 用户确认VG-009 Chrome人工验收通过，三阶段证据与报告一致，并接受首脚本异步注入竞态仍为已知限制。manifest done、Trellis completed仅表示验收能力和证据交付完成，不表示竞态已修复；正式FAIL/退出1证据保留。不启动后续任务，不归档、提交、push、merge、打tag或发布。",
+  "meta": {
+    "stabilization": {
+      "id": "VG-009",
+      "phase": "R3",
+      "dependencies": [
+        "VG-006",
+        "VG-007",
+        "VG-008"
+      ],
+      "manifest": "docs/stabilization/task-manifest.yaml"
+    },
+    "validation": {
+      "human_acceptance": "passed",
+      "local": "passed",
+      "source_typecheck": "passed in latest build",
+      "test_typecheck": "passed",
+      "tests": "144/144 passed",
+      "build": "passed: Vite5.4.21/30 modules/13 copied targets",
+      "chrome_dry_run": "passed: entry only",
+      "chrome_targeted": "Chrome155.0.8059.40: completed, observed FAIL (12/12 earliest original); not a browser PASS",
+      "independent_review": "passed after same-run/loaderId/fixture fixes; original timing FAIL retained",
+      "audit_id": "20261014T230907Z-vg-009-timing-review-d5128230"
+    },
+    "human_acceptance": {
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-15",
+      "evidence": ".trellis/tasks/10-15-vg-009-earliest-inline/implement.md#人工验收",
+      "scope": "earliest、load、postLoad三阶段证据与扩展报告一致，验收能力及证据交付完成",
+      "known_limitations_accepted": [
+        "首脚本异步注入竞态仍存在，生产时序未修复；正式Chrome FAIL及退出码1保留"
+      ],
+      "browser_version_provided": false
+    }
+  }
+}

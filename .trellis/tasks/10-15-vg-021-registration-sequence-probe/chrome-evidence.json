@@ -1,0 +1,1179 @@
+{
+  "task": "VG-021",
+  "stage": "P0-F",
+  "collection": "COMPLETE",
+  "browser": "Chrome/155.0.8059.40",
+  "platform": "darwin",
+  "arch": "arm64",
+  "node": "v24.16.0",
+  "source": {
+    "path": "scripts/recovery-research/chrome-registration-sequence.mjs",
+    "sha256": "7915376fb285fd135e4dbc007014728757852fd150cfae7d2340fc8f6393d0f9"
+  },
+  "extension": {
+    "manifest": {
+      "manifest_version": 3,
+      "name": "VG021 isolated file sequence",
+      "version": "1.0",
+      "permissions": [
+        "scripting",
+        "tabs",
+        "storage"
+      ],
+      "host_permissions": [
+        "http://localhost/*"
+      ],
+      "web_accessible_resources": []
+    },
+    "programCount": 27,
+    "programBytes": 1860,
+    "programs": [
+      {
+        "path": "global-begin4.js",
+        "sha256": "800769acaeb968e55bb2f531f01f5d324a4abcfa059dfe5d405cbfefed82b5ad",
+        "bytes": 142
+      },
+      {
+        "path": "global-begin32.js",
+        "sha256": "82034a69094b0a1438be7e2f5e011a369beb66a5c4e3430963b792a832d8fd70",
+        "bytes": 143
+      },
+      {
+        "path": "global-0.js",
+        "sha256": "33de9d7c14f8a4bd7007ddd990e81aedc57a1308ff99caaad4ee94d6b4e7abec",
+        "bytes": 36
+      },
+      {
+        "path": "global-1.js",
+        "sha256": "08a704c23bdd932917e9f146ef5d675eeb26af4071a565d1fe503d2a01c69b21",
+        "bytes": 36
+      },
+      {
+        "path": "global-p0-0.js",
+        "sha256": "33de9d7c14f8a4bd7007ddd990e81aedc57a1308ff99caaad4ee94d6b4e7abec",
+        "bytes": 36
+      },
+      {
+        "path": "global-p0-1.js",
+        "sha256": "08a704c23bdd932917e9f146ef5d675eeb26af4071a565d1fe503d2a01c69b21",
+        "bytes": 36
+      },
+      {
+        "path": "global-p1-0.js",
+        "sha256": "33de9d7c14f8a4bd7007ddd990e81aedc57a1308ff99caaad4ee94d6b4e7abec",
+        "bytes": 36
+      },
+      {
+        "path": "global-p1-1.js",
+        "sha256": "08a704c23bdd932917e9f146ef5d675eeb26af4071a565d1fe503d2a01c69b21",
+        "bytes": 36
+      },
+      {
+        "path": "global-p2-0.js",
+        "sha256": "33de9d7c14f8a4bd7007ddd990e81aedc57a1308ff99caaad4ee94d6b4e7abec",
+        "bytes": 36
+      },
+      {
+        "path": "global-p2-1.js",
+        "sha256": "08a704c23bdd932917e9f146ef5d675eeb26af4071a565d1fe503d2a01c69b21",
+        "bytes": 36
+      },
+      {
+        "path": "global-p3-0.js",
+        "sha256": "33de9d7c14f8a4bd7007ddd990e81aedc57a1308ff99caaad4ee94d6b4e7abec",
+        "bytes": 36
+      },
+      {
+        "path": "global-p3-1.js",
+        "sha256": "08a704c23bdd932917e9f146ef5d675eeb26af4071a565d1fe503d2a01c69b21",
+        "bytes": 36
+      },
+      {
+        "path": "global-end.js",
+        "sha256": "dd6d58719f8bc9e85a1c69d869a496060432a677c064e7adc667a70aee789932",
+        "bytes": 337
+      },
+      {
+        "path": "lexical-begin4.js",
+        "sha256": "659d9403043de40f1d6c538293db6878be296a16bd01b25dbd5a532cbf79512d",
+        "bytes": 110
+      },
+      {
+        "path": "lexical-begin32.js",
+        "sha256": "984d41cfe93bf54bc4ec1e34ad805bba85af1ff1a947b6550a4da6b2f7902f41",
+        "bytes": 111
+      },
+      {
+        "path": "lexical-0.js",
+        "sha256": "8ab8572e04d656d7c3980ca190377723911c186d5ba1a73c03f90f68aec3888d",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-1.js",
+        "sha256": "5f2034d85302f4ade5226e600b7847b6919086fa723bdd7addc7736b58eb146c",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p0-0.js",
+        "sha256": "8ab8572e04d656d7c3980ca190377723911c186d5ba1a73c03f90f68aec3888d",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p0-1.js",
+        "sha256": "5f2034d85302f4ade5226e600b7847b6919086fa723bdd7addc7736b58eb146c",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p1-0.js",
+        "sha256": "8ab8572e04d656d7c3980ca190377723911c186d5ba1a73c03f90f68aec3888d",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p1-1.js",
+        "sha256": "5f2034d85302f4ade5226e600b7847b6919086fa723bdd7addc7736b58eb146c",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p2-0.js",
+        "sha256": "8ab8572e04d656d7c3980ca190377723911c186d5ba1a73c03f90f68aec3888d",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p2-1.js",
+        "sha256": "5f2034d85302f4ade5226e600b7847b6919086fa723bdd7addc7736b58eb146c",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p3-0.js",
+        "sha256": "8ab8572e04d656d7c3980ca190377723911c186d5ba1a73c03f90f68aec3888d",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-p3-1.js",
+        "sha256": "5f2034d85302f4ade5226e600b7847b6919086fa723bdd7addc7736b58eb146c",
+        "bytes": 24
+      },
+      {
+        "path": "lexical-end.js",
+        "sha256": "c64005e4b179bf0d9a6c3ad10c145b039b5845b4e059475abca7f17f5bda6a38",
+        "bytes": 325
+      },
+      {
+        "path": "fixed.js",
+        "sha256": "891cea6799c6b6e441dae8b4ad42e86bb218555dcd4a29d1decca5af149d0ef6",
+        "bytes": 92
+      }
+    ]
+  },
+  "productionChanged": false,
+  "productionRestored": false,
+  "sequenceExpression": "OBSERVED",
+  "globalAssemblerTampered": false,
+  "revocationGapObserved": true,
+  "sampling": {
+    "earliest": "head首个inline同步读取",
+    "load": "load回调同步读取",
+    "postLoad": "load样本到达后CDP读取当前target/同源子帧，不使用executeScript重新选址"
+  },
+  "productionDecision": "NO_GO",
+  "cases": [
+    {
+      "name": "native",
+      "registrationAccepted": true,
+      "fileCount": 0,
+      "registeredJs": [],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "fixed-main-control",
+      "registrationAccepted": true,
+      "fileCount": 1,
+      "registeredJs": [
+        "fixed.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": null
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "duplicate-global-4bit",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 2,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "duplicate-lexical-4bit",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "lexical-begin4.js",
+        "lexical-0.js",
+        "lexical-1.js",
+        "lexical-1.js",
+        "lexical-0.js",
+        "lexical-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 2,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "positioned-global-4bit",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-p0-0.js",
+        "global-p1-1.js",
+        "global-p2-1.js",
+        "global-p3-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 4,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "positioned-lexical-4bit",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "lexical-begin4.js",
+        "lexical-p0-0.js",
+        "lexical-p1-1.js",
+        "lexical-p2-1.js",
+        "lexical-p3-0.js",
+        "lexical-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 4,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "selection-changed-4bit",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-p0-1.js",
+        "global-p1-0.js",
+        "global-p2-0.js",
+        "global-p3-1.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "assembledBits": "1001",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "iframe",
+          "first": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "assembledBits": "1001",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "srcdoc",
+          "first": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "assembledBits": "1001",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        },
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "assembledBits": "1001",
+          "microtaskAfterBits": 4,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "repeat-32bit",
+      "registrationAccepted": true,
+      "fileCount": 34,
+      "registeredJs": [
+        "global-begin32.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-0.js",
+        "global-1.js",
+        "global-1.js",
+        "global-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "01",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "strict-csp",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-p0-0.js",
+        "global-p1-1.js",
+        "global-p2-1.js",
+        "global-p3-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "incomplete-sequence",
+      "registrationAccepted": true,
+      "fileCount": 3,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "top",
+          "first": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "load": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "postLoad": {
+            "languageMatches": false,
+            "bits": null
+          },
+          "assembledBits": "0",
+          "microtaskAfterBits": 0,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "same-origin-parent-global",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-p0-0.js",
+        "global-p1-1.js",
+        "global-p2-1.js",
+        "global-p3-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "same-origin-parent-lexical",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "lexical-begin4.js",
+        "lexical-p0-0.js",
+        "lexical-p1-1.js",
+        "lexical-p2-1.js",
+        "lexical-p3-0.js",
+        "lexical-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 4,
+          "setterCalls": 0,
+          "lexicalAttack": true,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "parent-microtask-global",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "global-begin4.js",
+        "global-p0-0.js",
+        "global-p1-1.js",
+        "global-p2-1.js",
+        "global-p3-0.js",
+        "global-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": null,
+          "microtaskAfterBits": null,
+          "setterCalls": 0,
+          "lexicalAttack": false,
+          "microAttack": {
+            "globalBitsBefore": null,
+            "lexicalBitsBefore": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "parent-microtask-lexical",
+      "registrationAccepted": true,
+      "fileCount": 6,
+      "registeredJs": [
+        "lexical-begin4.js",
+        "lexical-p0-0.js",
+        "lexical-p1-1.js",
+        "lexical-p2-1.js",
+        "lexical-p3-0.js",
+        "lexical-end.js"
+      ],
+      "observations": [
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "0110"
+          },
+          "assembledBits": "0110",
+          "microtaskAfterBits": 4,
+          "setterCalls": 0,
+          "lexicalAttack": true,
+          "microAttack": {
+            "globalBitsBefore": null,
+            "lexicalBitsBefore": 4
+          }
+        }
+      ]
+    },
+    {
+      "name": "attack-positive-control",
+      "registrationAccepted": true,
+      "fileCount": 0,
+      "registeredJs": [],
+      "observations": [
+        {
+          "kind": "blank",
+          "first": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "load": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "postLoad": {
+            "languageMatches": true,
+            "bits": "1001"
+          },
+          "assembledBits": "1001",
+          "microtaskAfterBits": 4,
+          "setterCalls": 1,
+          "lexicalAttack": false,
+          "microAttack": null
+        }
+      ]
+    },
+    {
+      "name": "update-unregister-completed",
+      "oldDocumentRetainedA": true,
+      "newDocumentB": true,
+      "existingDocumentRetainedB": true,
+      "newDocumentUninstalled": true
+    },
+    {
+      "name": "storage-disable-before-unregister",
+      "controlledGap": true,
+      "disabledPersisted": true,
+      "oldSequenceInstalled": true,
+      "afterUnregisterUninstalled": true
+    },
+    {
+      "name": "inflight-update",
+      "responseHeadersHeldUntilApiCompleted": true,
+      "oldA": false,
+      "newB": true,
+      "uninstalled": false
+    },
+    {
+      "name": "inflight-unregister",
+      "responseHeadersHeldUntilApiCompleted": true,
+      "oldA": false,
+      "newB": false,
+      "uninstalled": true
+    },
+    {
+      "name": "nonmatching-origin",
+      "uninstalled": true
+    }
+  ],
+  "limitations": [
+    "仅Chrome本机构建和有限fixture，不证明数组执行原子性或其他版本",
+    "toy语言getter/合成位，不是完整payload、resolver、runtime或生产恢复验收",
+    "最多32位/34文件定向观察，不代表Chrome最大容量或任意字符串可编码",
+    "父页攻击由普通网页能力实施；观测来自受控fixture，不把页面报告当可信授权",
+    "在途导航只覆盖响应头提交前更新；BFCache/renderer队列与P2最终绑定未验证",
+    "存量hook不因注销撤销；storage/注册窗口为受控反例，不统计自然频率",
+    "无真实IP/位置/凭据/原生语言/doc或tab ID写入JSON，无provider/STUN/WAR/生产代码变更"
+  ]
+}

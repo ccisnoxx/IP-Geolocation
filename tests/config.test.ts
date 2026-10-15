@@ -29,14 +29,18 @@ test('default config uses IP-following mode without regional presets', () => {
   assert.ok(config.rules.every((rule) => rule.exitLocationProfileId === null));
 });
 
-test('fresh migration leaves auto rules unbound until an exit profile is selected', () => {
+test('空存储首次建档安全关闭、空规则和 browser default，重复迁移保持', () => {
   const config = migrateLegacyConfig({});
   const profile = getEffectiveProfile(config, 'chatgpt.com');
 
-  assert.ok(config.rules.length > 0);
-  assert.equal(profile.matched, true);
+  assert.equal(config.masterEnabled, false);
+  assert.equal(config.webRtc.globalMode, 'default');
+  assert.deepEqual(config.rules, []);
+  assert.deepEqual(getContentScriptMatches(config), []);
+  assert.equal(profile.matched, false);
   assert.equal(profile.payload, null);
-  assert.match(profile.errors.join(' | '), /未选择出口位置档案/);
+  assert.deepEqual(profile.errors, []);
+  assert.deepEqual(migrateLegacyConfig({ siteSpoofConfig: config }), config);
 });
 
 test('legacy lastLocation becomes one visible unverified profile without rule bindings', () => {
@@ -68,10 +72,11 @@ test('legacy lastLocation becomes one visible unverified profile without rule bi
   assert.equal(repeated.exitLocationProfiles.length, 1);
 });
 
-test('migration repairs previous empty-rule auto config once', () => {
+test('历史空规则修补仅用于旧schema，不覆盖已有v2，即使缺少初始化标记', () => {
   const brokenAutoConfig = normalizeConfig({ rules: [] });
 
-  assert.ok(migrateLegacyConfig({ siteSpoofConfig: brokenAutoConfig }).rules.length > 0);
+  assert.deepEqual(migrateLegacyConfig({ siteSpoofConfig: brokenAutoConfig }), brokenAutoConfig);
+  assert.ok(migrateLegacyConfig({ siteSpoofConfig: { ...brokenAutoConfig, schemaVersion: 1 } }).rules.length > 0);
   assert.equal(migrateLegacyConfig({
     siteSpoofConfig: brokenAutoConfig,
     [RULES_INITIALIZED_KEY]: true
@@ -259,6 +264,25 @@ test('migrateLegacyConfig converts VanishMe bpg_config into siteSpoofConfig rule
   assert.equal(migrated.webRtc.globalMode, 'strict');
   assert.equal(migrated.canvas.enabled, true);
   assert.deepEqual(migrated.rules.map((rule) => rule.domain), ['openai.com', 'chatgpt.com']);
+});
+
+test('旧配置合法零坐标迁为 manual，重复迁移保持坐标；缺失或非有限数不冒充零', () => {
+  for (const [latitude, longitude] of [[0, 0], [0, 120], [-30, 0]]) {
+    const migrated = migrateLegacyConfig({ bpg_config: {
+      domainList: ['example.com'], geolocation: { latitude, longitude, accuracy: 50 }
+    } });
+    const geo = migrated.globalProfile.geolocation;
+    assert.equal(geo.mode, 'manual');
+    assert.equal(geo.latitude, latitude);
+    assert.equal(geo.longitude, longitude);
+    assert.deepEqual(migrateLegacyConfig({ siteSpoofConfig: migrated, [RULES_INITIALIZED_KEY]: true }), migrated);
+  }
+  for (const latitude of [null, undefined, '', Number.NaN, Infinity]) {
+    const migrated = migrateLegacyConfig({ bpg_config: {
+      domainList: ['example.com'], geolocation: { latitude, longitude: 0 }
+    } });
+    assert.equal(migrated.globalProfile.geolocation.mode, 'auto');
+  }
 });
 
 test('getContentScriptMatches returns only enabled allowlist patterns', () => {

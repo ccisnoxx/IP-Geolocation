@@ -310,6 +310,7 @@ function defaultRules(): SiteRule[] {
 
 export const DEFAULT_CONFIG: SiteSpoofConfig = {
   schemaVersion: 2,
+  intlMode: 'strict',
   masterEnabled: true,
   debugMode: false,
   globalProfile: {
@@ -327,23 +328,76 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
   rules: defaultRules()
 };
 
+// 历史缺省值继续用于旧配置归一化；只有首次建档和明确重置使用安全初始值。
+export function createInitialConfig(): SiteSpoofConfig {
+  return { ...clone(DEFAULT_CONFIG), masterEnabled: false, webRtc: { globalMode: 'default' }, rules: [] };
+}
+
+export function getProfileValidationErrors(value: unknown, seenIds: ReadonlySet<string> = new Set()): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ['Profile：必须是完整的方案对象'];
+  const profile = value as Partial<Profile>;
+  const errors: string[] = [];
+  const id = typeof profile.id === 'string' ? profile.id.trim() : '';
+  if (!id) errors.push('id：请填写非空的方案 ID');
+  else if (seenIds.has(id)) errors.push('ID：重复，请为每个方案设置不同的 id');
+  if (typeof profile.name !== 'string' || !profile.name.trim()) errors.push('name：请填写非空的方案名称');
+  const { latitude, longitude, accuracy } = profile.geolocation || {};
+  if (typeof latitude !== 'number' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    errors.push('latitude：请填写 [-90,90] 范围内的有限数值');
+  }
+  if (typeof longitude !== 'number' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    errors.push('longitude：请填写 [-180,180] 范围内的有限数值');
+  }
+  if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy <= 0) {
+    errors.push('accuracy：请填写大于 0 的有限数值');
+  }
+  if (typeof profile.timezone?.timezone !== 'string' || !validateTimezone(profile.timezone.timezone)) {
+    errors.push('timezone：请填写有效的 IANA 时区，例如 UTC 或 Asia/Shanghai');
+  }
+  const language = profile.language;
+  if (!language || typeof language.language !== 'string' || !language.language.trim()
+    || !Array.isArray(language.languages) || !language.languages.length
+    || language.languages.some((item) => typeof item !== 'string' || !item.trim())
+    || typeof language.acceptLanguage !== 'string' || !language.acceptLanguage.trim()) {
+    errors.push('language：请填写主语言、非空语言列表和 Accept-Language');
+  }
+  return errors;
+}
+
+export function validateProfile(value: unknown): value is Profile {
+  return getProfileValidationErrors(value).length === 0;
+}
+
+export function getProfilesValidationErrors(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return ['profile.profiles：请提供方案数组'];
+  const seen = new Set<string>();
+  return value.flatMap((profile, index) => {
+    const errors = getProfileValidationErrors(profile, seen).map((error) => `profile.profiles[${index}] ${error}`);
+    if (typeof profile?.id === 'string' && profile.id.trim()) seen.add(profile.id.trim());
+    return errors;
+  });
+}
+
 export function normalizeProfiles(value: unknown): Profile[] {
-  const input = Array.isArray(value) ? value : [];
-  return input
-    .map((profile) => {
-      const normalized = profile as Partial<Profile>;
-      const geolocation = (normalized.geolocation || {}) as Partial<Profile['geolocation']>;
-      const timezone = (normalized.timezone || {}) as Partial<Profile['timezone']>;
+  const seen = new Set<string>();
+  return (Array.isArray(value) ? value : [])
+    .filter((profile): profile is Profile => {
+      if (getProfileValidationErrors(profile, seen).length) return false;
+      seen.add(profile.id.trim());
+      return true;
+    })
+    .map((normalized) => {
+      const geolocation = normalized.geolocation;
+      const timezone = normalized.timezone;
       return {
         id: normalizeString(normalized.id),
         name: normalizeString(normalized.name),
         description: normalized.description ? normalizeString(normalized.description) : undefined,
         geolocation: {
-          latitude: Number(geolocation.latitude),
-          longitude: Number(geolocation.longitude),
-          accuracy: Number.isFinite(Number(geolocation.accuracy))
-            ? Number(geolocation.accuracy)
-            : DEFAULT_GEOLOCATION.accuracy,
+          latitude: geolocation.latitude,
+          longitude: geolocation.longitude,
+          accuracy: geolocation.accuracy,
           country: normalizeString(geolocation.country)
         },
         language: normalizeLanguage(normalized.language as Partial<LanguageConfig>),
@@ -351,14 +405,7 @@ export function normalizeProfiles(value: unknown): Profile[] {
           timezone: normalizeString(timezone.timezone)
         }
       };
-    })
-    .filter((profile) => (
-      profile.id
-      && profile.name
-      && Number.isFinite(profile.geolocation.latitude)
-      && Number.isFinite(profile.geolocation.longitude)
-      && profile.timezone.timezone
-    ));
+    });
 }
 
 export function normalizeExitLocationProfiles(value: unknown): ExitLocationProfile[] {
@@ -410,8 +457,11 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
   const input = config || {};
   const globalProfile = (input.globalProfile || {}) as Partial<SiteSpoofConfig['globalProfile']>;
   const profile = (input.profile || {}) as Partial<SiteSpoofConfig['profile']>;
+  const profiles = normalizeProfiles(profile.profiles);
+  const activeProfileId = normalizeString(profile.activeProfileId);
   return {
     schemaVersion: 2,
+    intlMode: input.intlMode === 'compatible' ? 'compatible' : 'strict',
     masterEnabled: input.masterEnabled !== false,
     debugMode: Boolean(input.debugMode),
     globalProfile: {
@@ -422,8 +472,8 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
     webRtc: normalizeWebRtc(input.webRtc || DEFAULT_WEBRTC),
     canvas: normalizeCanvas(input.canvas || DEFAULT_CANVAS),
     profile: {
-      activeProfileId: normalizeString(profile.activeProfileId) || null,
-      profiles: normalizeProfiles(profile.profiles)
+      activeProfileId: profiles.some((item) => item.id === activeProfileId) ? activeProfileId : null,
+      profiles
     },
     exitLocationProfiles: normalizeExitLocationProfiles(input.exitLocationProfiles),
     rules: Array.isArray(input.rules) ? input.rules.map(normalizeRule) : defaultRules()
@@ -432,7 +482,7 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
 
 export function validateTimezone(timezone: string): boolean {
   const value = normalizeString(timezone);
-  if (!value) return false;
+  if (!value || /^[+-]/.test(value)) return false;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: value }).format(new Date());
     return true;
@@ -443,8 +493,8 @@ export function validateTimezone(timezone: string): boolean {
 
 export function getTimezoneOffsetMinutes(timezone: string, dateInput?: Date | string | number): number | null {
   const value = normalizeString(timezone);
-  const date = dateInput instanceof Date ? new Date(dateInput.getTime()) : new Date(dateInput || Date.now());
-  if (!value || Number.isNaN(date.getTime())) return null;
+  const date = dateInput instanceof Date ? new Date(dateInput.getTime()) : new Date(dateInput ?? Date.now());
+  if (!validateTimezone(value) || Number.isNaN(date.getTime())) return null;
 
   try {
     const formatter = new Intl.DateTimeFormat('en-US', {

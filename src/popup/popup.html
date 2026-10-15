@@ -24,11 +24,18 @@
       </button>
     </header>
 
+
+    <section class="runtime-sync-panel" aria-label="运行时同步状态">
+      <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
+      <button id="openOnboarding" class="btn-secondary btn-sm" type="button">打开配置引导</button>
+      <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
+      <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
+    </section>
     <section class="control-card primary-card" aria-label="全局保护">
       <div class="control-copy">
         <span class="section-kicker">Master Switch</span>
         <strong id="globalStatus">全局保护</strong>
-        <span>所有允许站点将使用当前环境配置</span>
+        <span>控制已保存的总开关；页面伪装已暂停，DNR/WebRTC 以同步结果为准</span>
       </div>
       <label class="switch">
         <input type="checkbox" id="globalEnabled">
@@ -144,6 +151,14 @@
       <details class="advanced-group">
         <summary>时区</summary>
         <div class="config-content">
+          <div class="input-group">
+            <label for="intlMode">时区与 Locale 模式（全局）</label>
+            <select id="intlMode" class="input" aria-describedby="intlModeHelp">
+              <option value="strict">strict · 强制一致性（默认）</option>
+              <option value="compatible">compatible · 尊重显式参数</option>
+            </select>
+            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。当前页面伪装仍暂停，保存不会恢复。</p>
+          </div>
           <label class="checkbox-label">
             <input type="checkbox" id="timezoneEnabled">
             <span>启用</span>

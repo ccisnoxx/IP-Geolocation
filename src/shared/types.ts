@@ -3,6 +3,7 @@ export type TimezoneMode = 'auto' | 'manual';
 export type GeolocationMode = 'auto' | 'manual';
 export type OverrideMode = 'inherit' | 'override' | 'disable';
 export type WebRtcMode = 'strict' | 'compatible' | 'default';
+export type IntlMode = 'strict' | 'compatible';
 export type ExitLocationVerification = 'verified' | 'unverified';
 
 export interface LanguageConfig {
@@ -125,6 +126,7 @@ export interface ExitLocationDetectionPreview {
 
 export interface SiteSpoofConfig {
   schemaVersion: 2;
+  intlMode: IntlMode;
   masterEnabled: boolean;
   debugMode: boolean;
   globalProfile: {
@@ -141,6 +143,7 @@ export interface SiteSpoofConfig {
 
 export interface EffectivePayload {
   extensionEnabled: true;
+  intlMode: IntlMode;
   debugMode: boolean;
   ruleId: string;
   domain: string;
@@ -163,4 +166,40 @@ export interface EffectiveProfileResult {
   rule: SiteRule | null;
   payload: EffectivePayload | null;
   errors: string[];
+}
+
+export type RuntimeSyncStatus = 'ok' | 'failed' | 'partial';
+export type RuntimeSyncComponent = 'contentScripts' | 'dnr' | 'webrtc' | 'tabReload';
+
+export interface RuntimeSyncError {
+  code: string;
+  message: string;
+}
+
+export interface RuntimeSyncComponentReport {
+  status: RuntimeSyncStatus;
+  errors: RuntimeSyncError[];
+}
+
+export interface RuntimeSyncReport {
+  configSignature: string;
+  status: RuntimeSyncStatus;
+  components: Record<RuntimeSyncComponent, RuntimeSyncComponentReport>;
+  metadataError: RuntimeSyncError | null;
+  warnings?: RuntimeSyncError[];
+}
+
+export interface ConfigSaveResult {
+  config: SiteSpoofConfig;
+  syncReport: RuntimeSyncReport;
+}
+
+// 只记录会话内刷新欠账；URL 和配置均只保留摘要，不复制期望配置。
+export interface RuntimeSyncMetadata {
+  version: 1;
+  report: RuntimeSyncReport;
+  pendingReloads: Array<{ tabId: number; urlSignature: string }>;
+  // 预写新签名后、local 写入前中断时，仍能恢复旧配置的刷新欠账。
+  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads'] };
+  pendingDetectionCleanup?: string;
 }

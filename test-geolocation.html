@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VanishMe Geolocation 测试</title>
+  <title>VanishGeo Geolocation 观察</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -53,11 +53,13 @@
   </style>
 </head>
 <body>
-  <h1>🧪 VanishMe Geolocation 测试页面</h1>
+  <h1>🧪 VanishGeo Geolocation 观察页面</h1>
 
   <div class="info">
     <strong>说明：</strong> 这个页面只使用 <code>navigator.geolocation</code> API，
-    这是 VanishMe 能够控制的。如果 VanishMe 工作正常，你会看到配置的假坐标。
+    用于显示当前回调位置与权限状态。只有普通 HTTP(S) 页面匹配已启用规则且配置有效时，
+    VanishGeo 才会接管相应 API；直接打开 file URL 不能证明扩展注入成功。
+    本页是源码目录的手工观察页，不进入 dist；完整诊断请使用扩展报告与 localhost 目标。
   </div>
 
   <button onclick="testGeolocation()">测试 Geolocation API</button>
@@ -78,20 +80,11 @@
   </div>
 
   <div class="info">
-    <strong>为什么 Google Maps 显示真实位置？</strong><br><br>
-    Google Maps 主要使用 <strong>Wi-Fi 定位</strong> 和 <strong>IP 定位</strong>，
-    它们绕过了 JavaScript Geolocation API。<br><br>
-
-    <strong>VanishMe 只能伪装 JavaScript API</strong>，无法改变：<br>
-    • Wi-Fi 定位（扫描周围 Wi-Fi 热点）<br>
-    • IP 地址定位（需要 VPN）<br>
-    • 蓝牙定位<br>
-    • GPS（手机）<br><br>
-
-    如果你想让 Google Maps 显示假位置，需要：<br>
-    1. 使用 VPN/代理改变 IP<br>
-    2. 禁用 Wi-Fi（如果可能）<br>
-    3. 使用隐身模式清除缓存<br>
+    <strong>观测与隐私边界</strong><br><br>
+    VanishGeo 不提供 VPN 或代理，不改变普通网页请求的公网出口。网站仍可能使用 IP、账户或其他信号，
+    本页无法确认外部网站采用了哪些定位方式，也不能验证匿名性或完整位置一致性。<br><br>
+    点击位置按钮可能触发原生位置权限与真实回调；不要将实际坐标、截图或浏览器日志提交到仓库。
+    需要配置比较时在扩展侧运行诊断，缺少证据应保留 UNKNOWN。
   </div>
 
   <script>

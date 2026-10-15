@@ -1,0 +1,114 @@
+{
+  "id": "vg-014-release-acceptance",
+  "name": "vg-014-release-acceptance",
+  "title": "VG-014：稳定化集成回归与发布候选验收",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "VG-014",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-15",
+  "completedAt": "2026-10-15",
+  "branch": "stabilize/VG-014",
+  "base_branch": "stabilize/VG-014",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".gitignore",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/artifact-evidence.json",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/check.jsonl",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/chrome-evidence.json",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/design.md",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/implement.jsonl",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/implement.md",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/intl-evidence.json",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/prd.md",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/runtime-evidence.json",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/safety-gate-evidence.json",
+    ".trellis/tasks/10-15-vg-014-release-acceptance/task.json",
+    "README.md",
+    "RELEASE.md",
+    "docs/stabilization/README.md",
+    "docs/stabilization/acceptance-matrix.md",
+    "docs/stabilization/release-readiness.md",
+    "docs/stabilization/task-manifest.yaml",
+    "scripts/audit-release.mjs",
+    "scripts/chrome-integration-smoke.mjs"
+  ],
+  "notes": "用户于2026-10-15确认VG-014人工验收通过，接受当前安全暂停和已知限制；manifest为done，Trellis为completed。生产伪装继续暂停，完整功能不具备release-ready条件；任务完成不构成发布批准，不改版本、不提交、不推送或发布。",
+  "meta": {
+    "stabilization_id": "VG-014",
+    "phase": "R4",
+    "dependencies": {
+      "VG-001": "done",
+      "VG-002": "done",
+      "VG-003": "done",
+      "VG-004": "done",
+      "VG-005": "done",
+      "VG-006": "done",
+      "VG-007": "done",
+      "VG-008": "done",
+      "VG-009": "done",
+      "VG-010": "done",
+      "VG-011": "done",
+      "VG-012": "done",
+      "VG-013": "done"
+    },
+    "human_acceptance": {
+      "status": "passed",
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-15",
+      "evidence": ".trellis/tasks/10-15-vg-014-release-acceptance/implement.md#人工验收",
+      "scope": [
+        "VG-014人工验收通过",
+        "接受当前安全暂停和已知限制",
+        "保持生产伪装暂停",
+        "任务完成不构成发布批准"
+      ],
+      "browser_version_provided": false,
+      "screenshots_or_step_logs_provided": false
+    },
+    "production_dispatch_restored": false,
+    "validation": {
+      "npm_ci": "passed",
+      "typecheck": "passed",
+      "typecheck_tests": "passed",
+      "node_tests": {
+        "pass": 170,
+        "fail": 0,
+        "skip": 0
+      },
+      "build": "passed",
+      "dry_run": "passed",
+      "chrome_integration": {
+        "result": "passed",
+        "scenarios": 11,
+        "report": {
+          "PASS": 12,
+          "FAIL": 54,
+          "UNKNOWN": 4
+        }
+      },
+      "chrome_safety_gate": "passed-zero-dispatch",
+      "chrome_intl_modes": "passed-isolated",
+      "chrome_runtime_equivalence": "passed-isolated",
+      "artifact_audit": "passed",
+      "browser": "Chrome/155.0.8059.40"
+    },
+    "release_ready": false,
+    "independent_review": {
+      "audit_id": "20261015T053615Z-vg014-integration-review-4dae141b",
+      "accepted_reviews": 2,
+      "new_p0_p1": 0,
+      "digest_validated": true
+    },
+    "release_approved": false
+  }
+}

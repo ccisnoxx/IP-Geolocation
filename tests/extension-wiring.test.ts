@@ -35,7 +35,7 @@ test('manifest uses dynamic injection without background alarms or static all-ur
   assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
 });
 
-test('runtime is bundled into the background instead of exposed as an independent entry', () => {
+test('保留 runtime 维护源且不作为独立页面文件公开', () => {
   const vite = read('vite.config.ts');
   assert.doesNotMatch(vite, /['"]injected\/runtime['"]\s*:/);
   assert.doesNotMatch(vite, /injected\/injected/);
@@ -43,15 +43,10 @@ test('runtime is bundled into the background instead of exposed as an independen
   assert.equal(exists('src/injected/injected.ts'), false);
 });
 
-test('background registers one isolated all-frame initializer and directly injects the sender document', () => {
+test('安全暂停删除后台 runtime 派发依赖，仅注销原初始化脚本', () => {
   const services = read('src/background/services.ts');
-  assert.match(services, /const CONTENT_SCRIPT_FILES = \['content\/content\.js'\]/);
-  assert.match(services, /allFrames:\s*true/);
-  assert.match(services, /matchOriginAsFallback:\s*true/);
-  assert.match(services, /world:\s*'ISOLATED'/);
-  assert.match(services, /documentIds:\s*\[sender\.documentId\]/);
-  assert.match(services, /func:\s*applyVanishGeoRuntime/);
-  assert.match(services, /world:\s*'MAIN'/);
+  assert.match(services, /unregisterContentScripts/);
+  assert.doesNotMatch(services, /applyVanishGeoRuntime|executeScript|\.registerContentScripts\(/);
   assert.doesNotMatch(services, /matches: \['<all_urls>'\]/);
 });
 
@@ -70,7 +65,7 @@ test('content initialization exposes no page-controlled postMessage bridge or pa
 });
 
 test('language spoofing uses native-backed Navigator getter proxies', () => {
-  const runtime = read('src/injected/runtime.ts');
+  const runtime = read('src/injected/runtime-modules/surfaces/navigator.ts');
   assert.doesNotMatch(runtime, /defineOwnProperty\(navigatorTarget,\s*'language'/);
   assert.doesNotMatch(runtime, /defineOwnProperty\(navigatorTarget,\s*'languages'/);
   assert.match(runtime, /createNativeProxyFunction\(globals,\s*realmState,\s*nativeGetter/);
@@ -80,12 +75,12 @@ test('language spoofing uses native-backed Navigator getter proxies', () => {
 });
 
 test('runtime centralizes hidden markers behind reflection virtualization', () => {
-  const runtime = read('src/injected/runtime.ts');
+  const runtime = read('src/injected/runtime-modules/registry.ts');
   assert.match(runtime, /function getAntiDetectionState/);
   assert.match(runtime, /registerHiddenProperty\(state,\s*globals,\s*anchor\)/);
-  assert.match(runtime, /Object\.getOwnPropertySymbols/);
-  assert.match(runtime, /Reflect\.ownKeys/);
-  assert.match(runtime, /Function\.prototype\.toString/);
+  assert.match(runtime, /objectCtor\.getOwnPropertySymbols/);
+  assert.match(runtime, /reflectCtor\.ownKeys/);
+  assert.match(runtime, /functionCtor\.prototype\.toString/);
   assert.doesNotMatch(runtime, /__vanishGeo(RuntimeReady|Originals|WorkerHooked|CanvasHooked|GeolocationController|Debug)/);
   assert.doesNotMatch(runtime, /Symbol\.for\(['"]chrome\.runtime\.vanishgeo\.state/);
 });
@@ -144,30 +139,21 @@ test('leak test has hosted and localhost target workflows for allowlist validati
   assert.match(script, /chrome-extension:/);
   assert.match(script, /Launcher\/baseline only/);
   assert.match(script, /VanishGeo 隐私检测/);
-  assert.match(script, /PASS 通过/);
-  assert.match(script, /uiLanguageKey/);
-  assert.match(script, /validationMode:\s*ValidationMode/);
   assert.match(script, /observationModeSummary/);
-  assert.match(script, /appendExpectedProfileParams|expectedWebRtcPolicy/);
-  assert.match(script, /actualWebRtcPolicy/);
-  assert.match(script, /actualWebRtcLeakProtectionActive/);
+  assert.doesNotMatch(script, /readExpectedProfile|expected[A-Z]|actualWebRtc|compareDiagnostic|summarizeDiagnostic/);
+  assert.doesNotMatch(script, /chrome\.runtime|sendRuntimeMessage|window\.postMessage/);
   assert.match(script, /hosted HTTPS target/);
   assert.match(script, /\/headers\.json/);
-  assert.match(script, /PASS/);
-  assert.match(script, /FAIL/);
   assert.match(script, /UNKNOWN/);
   assert.match(script, /stun:stun\.l\.google\.com:19302/);
   assert.match(server, /dist\/leak-test\/leak-test\.html/);
   assert.match(server, /headers\.json/);
   assert.match(server, /localhost/);
   assert.match(services, /LEAK_TEST_URL/);
-  assert.match(services, /appendExpectedProfileParams/);
-  assert.match(services, /expectedLanguage/);
-  assert.match(services, /expectedTimezoneOffset/);
-  assert.match(services, /expectedLatitude/);
-  assert.match(services, /expectedLocaleStringTimestamp/);
-  assert.match(services, /expectedLocaleString/);
-  assert.match(services, /actualWebRtcPolicy/);
+  assert.doesNotMatch(services, /appendExpectedProfileParams|expected[A-Z]|actualWebRtc/);
+  assert.doesNotMatch(html, /expected[A-Z]|validation=acceptance/);
+  assert.match(html, /name="referrer" content="no-referrer"/);
+  assert.match(script, /referrerPolicy:\s*'no-referrer'/);
   assert.match(services, /url\.searchParams\.set\('ui', 'zh'\)/);
 });
 
@@ -183,7 +169,8 @@ test('Chrome acceptance entry covers P0 live validation surfaces without a heavy
   assert.match(script, /\/fixtures\/iframe\/top\.html/);
   assert.match(script, /\/fixtures\/workers\/top\.html/);
   assert.match(script, /\/fixtures\/geolocation\/top\.html/);
-  assert.match(script, /expectedLanguage/);
+  assert.doesNotMatch(script, /expected[A-Z]|leakTestQuery/);
+  assert.match(script, /observation mode/);
   assert.match(script, /Capture pass-through baseline/);
   assert.match(script, /Run all checks/);
   assert.match(script, /PASS/);
@@ -192,6 +179,28 @@ test('Chrome acceptance entry covers P0 live validation surfaces without a heavy
   assert.match(script, /WebRTC policy/);
   assert.match(script, /pass-through real-device surfaces/);
   assert.doesNotMatch(script, /playwright|puppeteer/i);
+});
+
+test('扩展报告入口不可供网页访问，诊断生命周期和采样边界接线完整', () => {
+  const vite = read('vite.config.ts');
+  const router = read('src/background/message-router.ts');
+  const worker = read('src/background/service-worker.ts');
+  const runs = read('src/background/diagnostic-runs.ts');
+  const probe = read('src/background/diagnostic-probe.ts');
+  const report = read('src/diagnostic/report.ts');
+  assert.match(vite, /'diagnostic\/report':/);
+  assert.match(vite, /src\/diagnostic\/report\.html/);
+  assert.match(read('src/diagnostic/report.html'), /type="module" src="report.js"/);
+  assert.deepEqual(JSON.parse(read('manifest.json')).web_accessible_resources, []);
+  assert.match(router, /requireDiagnosticReport/);
+  for (const action of ['prepareDiagnosticRun', 'executeDiagnosticRun', 'cancelDiagnosticRun', 'openDiagnosticTarget', 'getDiagnosticTargets']) assert.match(router, new RegExp(`case '${action}'`));
+  assert.match(worker, /chrome\.tabs\.onUpdated\.addListener/);
+  assert.match(worker, /chrome\.tabs\.onRemoved\.addListener/);
+  assert.doesNotMatch(runs + probe + report, /storage\.(local|session)|localStorage|sessionStorage|window\.postMessage/);
+  assert.doesNotMatch(probe, /expected|expectation|siteSpoofConfig|EffectivePayload/);
+  assert.match(report, /compareDiagnosticEvidence/);
+  assert.match(report, /expiresAt - Date\.now/);
+  assert.doesNotMatch(report, /\.innerHTML/);
 });
 
 test('manifest permission boundary documents active detection and avoids redundant permissions', () => {
@@ -253,6 +262,16 @@ test('popup uses extension-safe fixed viewport with internal scrolling', () => {
   assert.doesNotMatch(css, /footer\s*\{[^}]*(position:\s*sticky|position:\s*fixed)/s);
 });
 
+test('Popup 与 Options 共用规则文本显示及合并实现', () => {
+  for (const file of ['src/popup/popup.ts', 'src/options/options.ts']) {
+    const script = read(file);
+    assert.match(script, /import\s*\{\s*ruleListToText,\s*rulesFromText\s*\}\s*from\s*'\.\.\/shared\/rule-list'/);
+    assert.match(script, /rulesFromText\(ruleListEl\.value,\s*currentConfig\.rules\)/);
+    assert.match(script, /ruleListEl\.value\s*=\s*ruleListToText\(config\.rules\)/);
+    assert.doesNotMatch(script, /function\s+rulesFromText|existingByDomain|normalizeDomain|createRule/);
+  }
+});
+
 test('extension UI uses OLED security green as the primary action color', () => {
   const styles = [
     read('src/popup/popup.css'),
@@ -266,4 +285,38 @@ test('extension UI uses OLED security green as the primary action color', () => 
     assert.match(css, /--info:\s*#60a5fa;/);
     assert.doesNotMatch(css, /--primary:\s*#f59e0b;/);
   });
+});
+
+test('运行时对账在 worker 启动及生命周期事件接线，管理页有常驻状态和受保护重试', () => {
+  const worker = read('src/background/service-worker.ts');
+  assert.match(worker, /onInstalled\.addListener/);
+  assert.match(worker, /onStartup\.addListener/);
+  assert.match(worker, /runBackgroundTask\('运行时对账', services\.initializeExtension\(\)\)/);
+  const router = read('src/background/message-router.ts');
+  assert.ok(router.indexOf('requireExtensionPage(sender);') < router.indexOf("case 'reconcileRuntime'"));
+  assert.match(router, /saved: true/);
+  assert.match(router, /syncReport\.status === 'ok' \? 'ok' : 'partial'/);
+  for (const page of ['popup', 'options']) {
+    const html = read(`src/${page}/${page}.html`);
+    const script = read(`src/${page}/${page}.ts`);
+    assert.match(html, /id="runtimeSyncStatus" role="status" aria-live="polite"/);
+    assert.match(html, /id="retryRuntimeSync"/);
+    assert.match(script, /renderRuntimeSyncReport/);
+    assert.match(script, /action: 'reconcileRuntime'/);
+  }
+});
+
+test('VG-009 Chrome入口和扩展时序报告接线，fixture没有预期桥或runtime marker', () => {
+  const script = read('scripts/chrome-acceptance.mjs');
+  assert.match(script, /fixtures\/injection\/earliest-inline\.html/);
+  assert.match(script, /--injection/);
+  assert.match(script, /chrome-injection-smoke\.mjs/);
+  assert.match(read('src/background/message-router.ts'), /executeInjectionTimingRun[\s\S]*requireDiagnosticReport\(sender\)/);
+  assert.match(read('src/diagnostic/report.ts'), /executeInjectionTimingRun/);
+  const fixture = read('fixtures/injection/earliest-inline.html');
+  assert.match(fixture, /<head>\s*<script>/);
+  assert.match(fixture, /srcdoc\.srcdoc = html/);
+  assert.match(fixture, /blank\.contentDocument\.write\(html\)/);
+  assert.doesNotMatch(fixture, /chrome\.runtime|postMessage|localStorage|expected|__vanish/);
+  assert.doesNotMatch(read('scripts/chrome-injection-smoke.mjs'), /playwright|puppeteer|stun:|https:\/\//i);
 });

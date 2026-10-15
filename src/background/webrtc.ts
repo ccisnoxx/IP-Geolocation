@@ -1,4 +1,5 @@
 import type { SiteSpoofConfig, WebRtcMode } from '../shared/types';
+import { RuntimeSyncOperationError } from '../shared/runtime-sync';
 
 export type WebRtcPolicyValue = 'default' | 'default_public_interface_only' | 'default_public_and_private_interfaces' | 'disable_non_proxied_udp';
 export type WebRtcPolicyLevelOfControl = chrome.types.ChromeSettingGetResultDetails['levelOfControl'];
@@ -37,9 +38,7 @@ function callChromeSetting<T>(
   details: Record<string, unknown>
 ): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
-    let callbackSettled = false;
     const callback = (result?: T) => {
-      callbackSettled = true;
       const error = getChromeRuntimeError();
       if (error) {
         reject(error);
@@ -54,14 +53,7 @@ function callChromeSetting<T>(
         (maybePromise as Promise<T>).then(resolve, reject);
         return;
       }
-      if (method.length < 2) {
-        queueMicrotask(() => {
-          if (callbackSettled) return;
-          const error = getChromeRuntimeError();
-          if (error) reject(error);
-          else resolve(undefined);
-        });
-      }
+      // Chrome 原生函数的 length 不表示回调时机；仅回调/Promise 确认完成。
     } catch (error) {
       reject(error);
     }
@@ -98,7 +90,7 @@ export async function getWebRTCPolicyState(config: SiteSpoofConfig): Promise<Web
       actualPolicy: null,
       levelOfControl: null,
       controlledByThisExtension: false,
-      leakProtectionActive: requestedPolicy === 'disable_non_proxied_udp'
+      leakProtectionActive: false
     };
   }
 
@@ -117,17 +109,31 @@ export async function getWebRTCPolicyState(config: SiteSpoofConfig): Promise<Web
   };
 }
 
-export async function applyWebRTCPolicy(config: SiteSpoofConfig): Promise<WebRtcPolicyState> {
+export async function applyWebRTCPolicy(config: SiteSpoofConfig, releaseConfirmed = false): Promise<WebRtcPolicyState> {
   const setting = getWebRTCPolicySetting();
-  if (!setting) return getWebRTCPolicyState(config);
+  if (!setting?.get || !setting.set || !setting.clear) {
+    throw new RuntimeSyncOperationError('unsupported', '浏览器不支持完整的 WebRTC 策略控制与读取。');
+  }
 
   const policy = resolveRequestedWebRTCPolicy(config);
+  const before = await getWebRTCPolicyState(config);
+  const converged = (state: WebRtcPolicyState) => policy
+    ? state.actualPolicy === policy && state.controlledByThisExtension
+    : state.actualPolicy !== null && state.levelOfControl !== null && !state.controlledByThisExtension;
+  // effective level 不能证明被其他控制者遮蔽的 own override 已清除。
+  // default 只在当前签名已有 clear 确认时跳过；首次对账必须释放自身设置。
+  if (converged(before) && (policy || releaseConfirmed)) return before;
+  if (policy && ['not_controllable', 'controlled_by_other_extensions'].includes(before.levelOfControl || '')) {
+    throw new RuntimeSyncOperationError('not-controllable', 'WebRTC 策略被浏览器或其他扩展控制。');
+  }
   if (policy) {
     await callChromeSetting(setting.set.bind(setting), { value: policy, scope: 'regular' });
   } else {
     await callChromeSetting(setting.clear.bind(setting), { scope: 'regular' });
   }
-  return getWebRTCPolicyState(config);
+  const after = await getWebRTCPolicyState(config);
+  if (!converged(after)) throw new RuntimeSyncOperationError('verification-failed', 'WebRTC 策略更新后仍未确认生效。');
+  return after;
 }
 
 export async function resetWebRTCPolicy(): Promise<void> {

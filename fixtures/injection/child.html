@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<script>
+(() => {
+  function snapshot() {
+    const options = Intl.DateTimeFormat().resolvedOptions();
+    return {
+      language: navigator.language, languages: Array.from(navigator.languages),
+      locale: options.locale, timezone: options.timeZone,
+      offsetMinutes: new Date(1768478400000).getTimezoneOffset(),
+      readyState: document.readyState, scriptIndex: document.scripts.length,
+      inline: Boolean(document.currentScript && !document.currentScript.src),
+      capturedAtMs: performance.now()
+    };
+  }
+  // 必须先同步读取，不能等待消息、DOMContentLoaded、load 或 runtime marker。
+  const earliest = snapshot();
+  window.addEventListener('load', () => {
+    const load = snapshot();
+    const output = document.createElement('script');
+    output.type = 'application/json';
+    output.id = 'injection-observations';
+    output.textContent = JSON.stringify({ version: 1, earliest, load });
+    document.body.appendChild(output);
+    document.querySelector('pre').textContent = output.textContent;
+  }, { once: true });
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="referrer" content="no-referrer">
+<title>最早 inline script 观测</title>
+</head>
+<body>
+<h1>最早 inline script 观测</h1>
+<p>只记录实际 API 值。预期与判定在扩展报告页中；此页面不读取 runtime marker。</p>
+<pre>等待 load 快照</pre>
+</body>
+</html>
