@@ -2,7 +2,7 @@
 
 > **VG-011 安全暂停（2026-10-15 用户确认人工验收通过）**：Chrome 155 已证实旧 `documentId` 可错投替换文档。当前后台在读取 payload 和派发前拒绝所有页面伪装初始化，并撤销动态初始化脚本。语言、时区、位置、Canvas 及 Worker/SharedWorker 伪装暂停；配置仍可保存。DNR 请求头规则、WebRTC 继续各自执行并按实际同步结果报告；二者不补偿页面 API 伪装。重试同步、保存或后台重启不会恢复页面伪装。新闸门不撤销旧 hook，已加载页面及旧 BFCache 文档需关闭并重建；无法确认清理时需自行重启浏览器。恢复完整功能前须验证可靠最终文档绑定或浏览器上游修复。详情见 [调查与实施证据](docs/stabilization/document-id-investigation.md)。
 
-VanishGeo 是 Chromium Manifest V3 扩展，用于按站点规则管理网页可见的语言、时区和位置，并控制 Accept-Language 请求头与浏览器 WebRTC IP 策略。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
+当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，当前提供按站点规则管理的 DNR Accept-Language 请求头与浏览器 WebRTC IP 策略控制；页面级语言、时区、地理位置、Canvas 和 Worker 伪装保持暂停，相关配置仍可保存，保存不会恢复页面注入。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
 
 ## 当前能力与边界
 
@@ -10,10 +10,10 @@ VanishGeo 是 Chromium Manifest V3 扩展，用于按站点规则管理网页可
 - MAIN-world runtime 维护源仍保留用于隔离测试；生产后台已移除其调用依赖。ISOLATED 初始化脚本已撤销，残留通知也在后台拒绝。没有静态全站注入或页面可控配置桥。
 - DNR 根据同一配置解析有效语言，修改匹配 HTTP(S) 请求的 `Accept-Language`。
 - WebRTC 使用 Chrome privacy API 的全局策略，提供 strict、compatible 和 default；该设置影响浏览器普通会话，范围大于站点 allowlist。实际控制权和 ICE 结果需要分别观察。
-- 配置保存后由后台对账页面脚本、DNR、WebRTC 与标签页刷新；Popup/Options 显示同步结果，部分失败为“已保存但未完全生效”，可点击“重试同步”。后台安装、启动或再次唤醒会重试未收敛状态。
+- 配置保存后由后台对账：页面脚本保持撤销，DNR 与 WebRTC 按各自状态运行；Popup/Options 显示同步结果。有启用站点规则时，页面伪装暂停会显示为“已保存但未完全生效”，不保证标签页自动刷新。重试同步、保存和后台唤醒均不会恢复页面注入。
 - 出口位置只在用户点击检测或重新检测时请求外部 provider。候选确认后保存为 verified 档案，auto 位置/时区必须在每条规则上显式绑定该档案。**没有后台定时刷新**；更换代理或网络后需要主动重新检测。
 - 支持自定义环境方案、配置导入/导出；Canvas 字体过滤和同源 HTTP(S) Worker/SharedWorker 的语言/时区包装目前暂停。不提供内置地区整套快捷预设，不新增 GPU、Audio、screen 等设备伪装。
-- 可配置全局时区与 Locale `strict`/`compatible` 模式：默认 strict 保持强制一致性，compatible 保留页面显式参数、只补默认值。生产页面伪装仍暂停，保存模式不会恢复；精确语义见 [配置指南](CONFIG_GUIDE.md#时区与-locale-模式)。
+- 可保存全局时区与 Locale `strict`/`compatible` 模式。其保留语义分别为强制一致性、保留页面显式参数并只补默认值；当前均不在生产页面执行。保存模式不会恢复页面伪装；精确语义见 [配置指南](CONFIG_GUIDE.md#时区与-locale-模式)。
 - 扩展侧一次性诊断报告比较实际值与留在扩展内部的预期值；外部诊断页只做 observation，不给出配置验收 PASS/FAIL。
 
 ## 安装与构建
@@ -58,7 +58,7 @@ npm run test:e2e:chrome -- --dry-run
 
 上述命令只检查 dist 必需文件并打印清单，不安装扩展、不执行浏览器断言。`npm run test:e2e:chrome` 是半自动浏览器入口，仍需人工执行并记录场景。`node scripts/chrome-diagnostic-smoke.mjs` 是单独的真实 Chrome headless 定向 smoke，需要 Node 22+ 原生 WebSocket 和支持 Extensions DevTools domain 的 Chrome；使用合成配置及临时 profile，退出时清理 profile/server，不能替代完整人工验收。
 
-VG-009 最早脚本验收（Node 22+，支持 Extensions CDP domain 的真实 Chrome）：
+历史 VG-009 最早脚本验收（页面注入暂停期间不适用，不能作为当前候选的成功门禁）：
 
 ```bash
 npm run test:e2e:chrome -- --injection --runs=3

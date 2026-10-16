@@ -15,7 +15,10 @@ test('push/PR 与 tag 发布按同一顺序运行门禁，失败不能绕过到�
   for (const file of ['ci.yml', 'release.yml']) {
     const workflow = read(`.github/workflows/${file}`);
     const commands = [...workflow.matchAll(/^\s+run: (.+)$/gm)].map((match) => match[1]);
-    assert.deepEqual(commands.slice(0, gates.length), gates, file);
+    const expected = file === 'release.yml'
+      ? ['node scripts/check-release-version.mjs "$GITHUB_REF_NAME"', ...gates]
+      : gates;
+    assert.deepEqual(commands.slice(0, expected.length), expected, file);
     const build = workflow.indexOf('run: npm run build\n');
     const dryRun = workflow.indexOf('run: npm run test:e2e:chrome -- --dry-run');
     const upload = workflow.indexOf('uses: actions/upload-artifact@');
@@ -39,6 +42,34 @@ test('push/PR 与 tag 发布按同一顺序运行门禁，失败不能绕过到�
       assert.match(workflow, /fail_on_unmatched_files: true/);
       assert.doesNotMatch(workflow, /Initial release of|Bug fixes and improvements/);
     }
+  }
+});
+
+test('发布版本必须与 tag、锁文件两处版本及 manifest 一致，缺失或不一致立即失败', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vanishgeo-version-'));
+  const version = '1.2.3';
+  const script = join(root, 'scripts/check-release-version.mjs');
+  try {
+    const cases = [
+      { label: '一致', tag: 'v1.2.3', lockVersion: version, rootVersion: version, manifestVersion: version, ok: true },
+      { label: 'tag 不一致', tag: 'v1.2.4', lockVersion: version, rootVersion: version, manifestVersion: version },
+      { label: 'tag 缺失', tag: undefined, lockVersion: version, rootVersion: version, manifestVersion: version },
+      { label: '锁文件顶层不一致', tag: 'v1.2.3', lockVersion: '1.2.4', rootVersion: version, manifestVersion: version },
+      { label: '锁文件根包不一致', tag: 'v1.2.3', lockVersion: version, rootVersion: '1.2.4', manifestVersion: version },
+      { label: 'manifest 不一致', tag: 'v1.2.3', lockVersion: version, rootVersion: version, manifestVersion: '1.2.4' }
+    ];
+    for (const entry of cases) {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ version }));
+      writeFileSync(join(dir, 'package-lock.json'), JSON.stringify({ version: entry.lockVersion, packages: { '': { version: entry.rootVersion } } }));
+      writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ version: entry.manifestVersion }));
+      const result = spawnSync(process.execPath, [script, ...(entry.tag ? [entry.tag] : [])], { cwd: dir, encoding: 'utf8' });
+      assert.ifError(result.error);
+      assert.equal(result.status, entry.ok ? 0 : 1, entry.label);
+      if (entry.ok) assert.match(result.stdout, /版本一致性检查通过：v1\.2\.3/);
+      else assert.match(result.stderr, /AssertionError/, entry.label);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

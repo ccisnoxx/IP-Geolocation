@@ -4,7 +4,7 @@
 
 ## 本地候选
 
-当前 package.json 与 manifest.json 都为 2.1.0；真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
+当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面级语言、时区、地理位置、Canvas 和 Worker 伪装仍暂停，保存不会恢复注入；DNR Accept-Language 与 WebRTC 按各自状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
 
 ```bash
 npm ci
@@ -33,8 +33,8 @@ node --import tsx scripts/chrome-intl-smoke.mjs --output <脱敏JSON路径>
 
 ```bash
 mkdir -p release
-(cd dist && zip -r ../release/vanishgeo-v2.1.0-vg014-candidate.zip .)
-node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.0-vg014-candidate.zip --output <脱敏JSON路径>
+(cd dist && zip -r ../release/vanishgeo-v2.1.1-candidate.zip .)
+node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.1-candidate.zip --output <脱敏JSON路径>
 ```
 
 审查器核对版本、权限、入口/资源图、共享 chunk 可达性、远程执行/运行期编译/map/敏感模式和 ZIP 文件/字节一致性。它不能识别所有任意秘密或动态计算 URL，需要与维护源审查共同解释。归档供本地人工检查，未发布；正式发布不得重复利用旧 ZIP 的残留条目。
@@ -46,7 +46,7 @@ node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.0-vg014-candidate.zi
 | CI 触发 | 所有 push 与 pull_request；普通分支/PR 只检查并上传通过门禁的 dist，不创建 Release |
 | Release 触发 | push 名称匹配 v*.*.* 的 tag；不自动创建 tag |
 | 环境 | ubuntu-latest、Node 20、npm ci；保留现有工具链版本 |
-| 同等门禁 | npm ci → 源码 typecheck → 测试 typecheck → npm test → npm run build → Chrome 入口 dry-run |
+| 同等门禁 | npm ci → 源码 typecheck → 测试 typecheck → npm test → npm run build → Chrome 入口 dry-run；release 在 npm ci 前额外检查版本一致性 |
 | 失败传播 | job/step 采用默认成功条件；无 continue-on-error/always；任一门禁失败都跳过后续构建、ZIP、artifact 与 Release |
 | 权限 | 两份 workflow 默认 contents: read；只有 release job 为 contents: write；checkout 不持久化 token |
 | CI artifact | vanishgeo-ci-<commit SHA>，整个 dist/；30 天保留；缺文件视为错误 |
@@ -54,7 +54,7 @@ node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.0-vg014-candidate.zi
 | Release | 保留 softprops/action-gh-release；通过所有门禁和 changelog 后才执行，draft:false、prerelease:false；缺 ZIP 失败 |
 | 发布 artifact | vanishgeo-v<版本>，整个 dist/，30 天；同样位于门禁之后 |
 
-版本仍从 tag 去掉开头 v，用于文件名和 Release，不改写 package/manifest，也未新增两份版本与 tag 的自动一致性检查。例如实际批准 2.1.0 时，tag 为 v2.1.0，ZIP 为 vanishgeo-v2.1.0.zip。workflow 不等待人工浏览器审批，维护者须在获准触发前核对候选和人工验收。VG-014 只核验本地候选的 package/lock/manifest 与 ZIP 一致性，不扩大为自动发布流程改造。当前工作树包含未提交的稳定化波次，正式候选提交与精确 tag 一致性须在未来授权发布时重新确认。
+release 在安装依赖前运行 `node scripts/check-release-version.mjs "$GITHUB_REF_NAME"`，要求 tag 严格等于 `v` 加 package.json 版本，并核对 package-lock.json 的顶层版本、`packages[""].version` 与 manifest.json。任一项缺失或不一致即非零退出，后续构建、打包与发布均不会执行；检查不改写版本或 tag。版本通过后仍从 tag 去掉开头 v，用于文件名和 Release。例如未来明确批准发布 2.1.1 时，tag 应为 v2.1.1，ZIP 为 vanishgeo-v2.1.1.zip；本文不表示它已经发布。workflow 不等待人工浏览器审批，维护者须在获准触发前核对候选和人工验收。本次仅整理版本、文档和检查，不创建或修改 tag、GitHub Release，也不发布。
 
 ## 更新日志与本地回归证据
 
@@ -66,7 +66,7 @@ changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文�
 
 ## 人工发布和恢复
 
-1. 确认获准发布的精确候选、manifest 中的依赖/人工验收、package/manifest/tag 版本及完整 dist；审查要提交的文件，保留无关修改。
+1. 确认获准发布的精确候选、任务清单中的依赖/人工验收、package/lock/manifest/tag 版本及完整 dist；审查要提交的文件，保留无关修改。
 2. 确认目标远端是当前仓库，审阅触发 workflow 的 tag 与日志。经对应授权后由维护者提交/推送 tag；本文不提供自动推送或删除远端 tag 的恢复脚本。
 3. 在当前仓库的 Actions 与 Releases 页面核对结果、ZIP 清单和安装步骤；更新日志应说明实际变化和已知限制，不宣称未做的验收通过。
 4. 构建或发布失败时先查看具体失败和是否已产生 Release/artifact。修复需要新的授权和候选证据；不得盲目删除/移动已发布 tag、重写历史或 force-push。

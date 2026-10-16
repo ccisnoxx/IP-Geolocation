@@ -1,5 +1,7 @@
 # VanishGeo 安装与更新
 
+> 当前源码版本为 **2.1.1（未发布）**。页面级语言、时区、地理位置、Canvas 和 Worker 伪装已暂停。DNR Accept-Language 与 WebRTC 仍按各自配置、控制权和同步状态运行；保存配置、重试同步或重载扩展不会恢复页面注入。
+
 ## 从源码加载
 
 准备 Node.js 20+ 和 npm，在仓库根目录运行：
@@ -12,7 +14,7 @@ npm run build
 1. 在 Chrome 打开 `chrome://extensions/`，启用“开发者模式”。manifest 声明最低 Chrome 119。
 2. 点击“加载已解压的扩展程序”，选择仓库里的 **dist 文件夹**，其根目录直接包含 `manifest.json`。
 3. 确认名称为 VanishGeo，打开 Popup 和完整配置页；可在工具栏固定图标。
-4. 按 [CONFIG_GUIDE](CONFIG_GUIDE.md) 启用所需站点、选择信号与出口档案，然后刷新目标网页。
+4. 按 [CONFIG_GUIDE](CONFIG_GUIDE.md) 配置所需站点、信号与出口档案，查看 DNR 和 WebRTC 各自的同步结果。页面伪装配置仅保存，刷新网页不会恢复注入。
 
 不要加载仓库根目录：TypeScript 维护源不是可直接运行的扩展入口。Edge 可在 `edge://extensions/` 加载同一 dist；兼容性和 privacy API 控制状态须在对应浏览器验证，不能由 Chrome 结果推断。
 
@@ -33,7 +35,8 @@ npm run build
 ## 排查
 
 - 加载失败：确认 dist 根部存在 manifest.json，检查扩展管理页的具体错误；重新构建，不编辑 dist 来修复。
-- 页面没有效果：确认总开关、站点规则、信号和 verified 绑定；保存并刷新普通 HTTP(S) 页。浏览器内部页与扩展页不能作为站点注入验收。
+- 页面语言、时区、位置、Canvas 或 Worker 没有变化：当前页面伪装已暂停，这是预期行为；保存、刷新或重试同步不会恢复。升级前已打开的页面可能保留旧 hook，应关闭后重新打开。
+- Accept-Language 没有变化：确认总开关、站点规则和有效语言配置，查看“请求头规则”同步结果，并在普通 HTTP(S) 目标观察实际请求头；页面的 navigator.language 不随 DNR 改变。
 - WebRTC 状态不一致：在 Options 查看实际 policy 和控制权；其他扩展或浏览器策略可能控制该设置。
 - 类型或构建失败：执行 `npm run typecheck`，依据具体错误修复；依赖安装使用锁文件和 `npm ci`。
 - localhost 诊断：构建后执行 `npm run serve:leak-test`；端口冲突可用 `npm run serve:leak-test -- 8788`，报告页选择相同端口。用 Ctrl+C 停止服务。
