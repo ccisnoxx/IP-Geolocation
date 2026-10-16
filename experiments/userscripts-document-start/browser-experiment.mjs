@@ -182,7 +182,7 @@ try {
   }
   if (process.platform === 'linux') {
     const sandboxPage = await createPage('chrome://sandbox');
-    const sandboxText = await until(() => evaluate(sandboxPage, 'document.body.innerText'), text => text?.includes('Seccomp'));
+    const sandboxText = await until(() => evaluate(sandboxPage, 'document.body?.innerText'), text => text?.includes('Seccomp'));
     evidence.environment.chromeSandbox = chromeSandboxStatus(sandboxText);
     evidence.environment.chromeSandbox.observedPage = sandboxText;
     if (evidence.environment.chromeSandbox.status !== 'PASS') throw new Blocked('CHROME_SANDBOX_UNVERIFIED');

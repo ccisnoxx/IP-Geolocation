@@ -2,7 +2,18 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import vm from 'node:vm';
 import { createFixtureServer, fixtureHtml } from './fixture.mjs';
+
+test('最小 collector 在 sandbox 页 body 尚未创建时继续等待，随后读取真实正文', async () => {
+  const source = await readFile(new URL('./browser-experiment.mjs', import.meta.url), 'utf8');
+  const expression = /const sandboxText = await until\(\(\) => evaluate\(sandboxPage, '([^']+)'\)/.exec(source)?.[1];
+  assert.ok(expression);
+  const context = vm.createContext({ document: { body: null } });
+  assert.equal(vm.runInContext(expression, context), undefined);
+  context.document.body = { innerText: 'Layer 1 Sandbox Namespace\nSeccomp-BPF sandbox Yes' };
+  assert.equal(vm.runInContext(expression, context), context.document.body.innerText);
+});
 
 test('fixture 首个 head inline 同步保存实际值，普通 iframe 有独立文档', async () => {
   const server = createFixtureServer();
