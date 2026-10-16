@@ -68,21 +68,18 @@ test('language spoofing uses native-backed Navigator getter proxies', () => {
   const runtime = read('src/injected/runtime-modules/surfaces/navigator.ts');
   assert.doesNotMatch(runtime, /defineOwnProperty\(navigatorTarget,\s*'language'/);
   assert.doesNotMatch(runtime, /defineOwnProperty\(navigatorTarget,\s*'languages'/);
-  assert.match(runtime, /createNativeProxyFunction\(globals,\s*realmState,\s*nativeGetter/);
-  assert.match(runtime, /defineRegisteredProperty\(globals,\s*realmState,\s*navigatorPrototype,\s*property/);
+  assert.match(runtime, /createNativeProxyFunction\(globals,\s*nativeGetter/);
+  assert.match(runtime, /defineRuntimeProperty\(globals,\s*realmState,\s*navigatorPrototype,\s*property/);
   assert.match(runtime, /installNativeBackedNavigatorGetter\(globals,\s*realmState,\s*'language'/);
   assert.match(runtime, /installNativeBackedNavigatorGetter\(globals,\s*realmState,\s*'languages'/);
 });
 
-test('runtime centralizes hidden markers behind reflection virtualization', () => {
-  const runtime = read('src/injected/runtime-modules/registry.ts');
-  assert.match(runtime, /function getAntiDetectionState/);
-  assert.match(runtime, /registerHiddenProperty\(state,\s*globals,\s*anchor\)/);
-  assert.match(runtime, /objectCtor\.getOwnPropertySymbols/);
-  assert.match(runtime, /reflectCtor\.ownKeys/);
-  assert.match(runtime, /functionCtor\.prototype\.toString/);
-  assert.doesNotMatch(runtime, /__vanishGeo(RuntimeReady|Originals|WorkerHooked|CanvasHooked|GeolocationController|Debug)/);
-  assert.doesNotMatch(runtime, /Symbol\.for\(['"]chrome\.runtime\.vanishgeo\.state/);
+test('页面与 Worker 维护源不写入全局 marker 或替换全局反射 API', () => {
+  for (const file of ['src/injected/runtime-modules/registry.ts', 'src/injected/runtime-modules/worker/registry.ts']) {
+    const runtime = read(file);
+    assert.doesNotMatch(runtime, /hiddenProperties|functionSources|Symbol\.for|reflectionInstalled/);
+    assert.doesNotMatch(runtime, /(?:Object|Reflect|prototype)\.(?:toString|getOwnPropertyDescriptor|getOwnPropertyDescriptors|getOwnPropertyNames|getOwnPropertySymbols|ownKeys)\s*=/);
+  }
 });
 
 test('legacy VanishMe storage key is confined to migration code', () => {

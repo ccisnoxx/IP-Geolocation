@@ -1,6 +1,6 @@
-import type { RuntimePayload } from './types';
+import type { RuntimePayload, RuntimeController } from './types';
 import { workerBootstrap } from 'virtual:vanishgeo-worker';
-import { getAntiDetectionState } from './registry';
+import { createRuntimeState } from './registry';
 import { normalizeTimezonePayload } from './payload';
 import { installLanguageSpoof } from './surfaces/navigator';
 import { installDateTimeSpoof } from './surfaces/intl-date';
@@ -8,18 +8,10 @@ import { installGeolocationSpoof } from './surfaces/geolocation-permissions';
 import { installCanvasSpoof } from './surfaces/canvas-fonts';
 import { buildWorkerPatchSource, installWorkerHooks } from './surfaces/workers';
 
-// 唯一调度入口；首次先建 registry，重复调用仅更新未来 worker。
-export function applyRuntime(payload: RuntimePayload, documentStateKey: string): void {
+// 每次安装创建独立闭包；后续更新必须复用返回的句柄，不从网页对象找回状态。
+export function applyRuntime(payload: RuntimePayload): RuntimeController {
   const root = globalThis as typeof globalThis & Record<string, any>;
-  const runtimeAnchor = Symbol.for(documentStateKey);
-  const state = getAntiDetectionState(root, runtimeAnchor);
-  if (state.runtimeReady) {
-    if (payload && payload.extensionEnabled !== false && payload.enabled !== false) {
-      installWorkerHooks(root, state, buildWorkerPatchSource(payload, documentStateKey, workerBootstrap));
-    }
-    return;
-  }
-  state.runtimeReady = true;
+  const state = createRuntimeState(root);
 
   const log = (message: string) => {
     if (state.debugMode) {
@@ -31,7 +23,7 @@ export function applyRuntime(payload: RuntimePayload, documentStateKey: string):
     if (!payload) return;
     if (payload.extensionEnabled === false || payload.enabled === false) return;
 
-    const realmState = getAntiDetectionState(globals, runtimeAnchor);
+    const realmState = state;
     realmState.debugMode = Boolean(payload.debugMode);
 
     const geolocation = payload.geolocation || (
@@ -50,9 +42,20 @@ export function applyRuntime(payload: RuntimePayload, documentStateKey: string):
     installGeolocationSpoof(globals, realmState, geolocation);
     installDateTimeSpoof(globals, realmState, { timezone: timezonePayload.timezone, language: spoofLanguage, intlMode: payload.intlMode });
     installCanvasSpoof(globals, realmState, payload.canvasConfig);
-    installWorkerHooks(globals, realmState, buildWorkerPatchSource(payload, documentStateKey, workerBootstrap));
+    installWorkerHooks(globals, realmState, buildWorkerPatchSource(payload, workerBootstrap));
     log('applied payload');
   }
 
-  applySpoofToRealm(root, payload);
+  const update = (nextPayload: RuntimePayload) => {
+    if (state.runtimeReady) {
+      if (nextPayload && nextPayload.extensionEnabled !== false && nextPayload.enabled !== false) {
+        installWorkerHooks(root, state, buildWorkerPatchSource(nextPayload, workerBootstrap));
+      }
+      return;
+    }
+    state.runtimeReady = true;
+    applySpoofToRealm(root, nextPayload);
+  };
+  update(payload);
+  return { update };
 }

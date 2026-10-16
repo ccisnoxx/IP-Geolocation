@@ -1,5 +1,5 @@
-import type { RuntimePayload, AntiDetectionState } from '../types';
-import { createNativeProxyFunction, defineRegisteredProperty, replaceMethod } from '../registry';
+import type { RuntimePayload, RuntimeState } from '../types';
+import { createNativeProxyFunction, defineRuntimeProperty, replaceMethod } from '../registry';
 
 export function randomCoordinateInRadius(lat: number, lon: number, radiusMeters: number) {
   if (radiusMeters <= 0) return { latitude: lat, longitude: lon };
@@ -22,7 +22,7 @@ export function randomCoordinateInRadius(lat: number, lon: number, radiusMeters:
   };
 }
 
-export function getStableGeolocationCoordinate(realmState: AntiDetectionState, geolocation: NonNullable<RuntimePayload['geolocation']>) {
+export function getStableGeolocationCoordinate(realmState: RuntimeState, geolocation: NonNullable<RuntimePayload['geolocation']>) {
   const latitude = Number(geolocation.latitude);
   const longitude = Number(geolocation.longitude);
   const radius = Number(geolocation.randomRadiusMeters) > 0 ? Number(geolocation.randomRadiusMeters) : 0;
@@ -46,7 +46,7 @@ export function getStableGeolocationCoordinate(realmState: AntiDetectionState, g
 
 export function buildGeolocationPosition(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   geolocation: NonNullable<RuntimePayload['geolocation']>
 ) {
   const coordinate = getStableGeolocationCoordinate(realmState, geolocation);
@@ -68,7 +68,7 @@ export function buildGeolocationPosition(
 
 export function installGeolocationSpoof(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   geolocation: RuntimePayload['geolocation']
 ): void {
   realmState.values.geolocation = geolocation;
@@ -79,10 +79,10 @@ export function installGeolocationSpoof(
   const navigatorTarget = globals.navigator as Navigator & { geolocation?: Geolocation; permissions?: Permissions };
   if (!navigatorTarget) return;
   if (!navigatorTarget.geolocation) {
-    defineRegisteredProperty(globals, realmState, navigatorTarget, 'geolocation', {
+    defineRuntimeProperty(globals, realmState, navigatorTarget, 'geolocation', {
       value: {},
       configurable: true
-    }, 'geolocation-permissions');
+    });
   }
 
   const watches = new Map<number, ReturnType<typeof setInterval>>();
@@ -143,9 +143,9 @@ export function installGeolocationSpoof(
     watches.delete(watchId);
   };
 
-  replaceMethod(globals, realmState, geoOwner, 'getCurrentPosition', getCurrentPosition, 'geolocation-permissions');
-  replaceMethod(globals, realmState, geoOwner, 'watchPosition', watchPosition, 'geolocation-permissions');
-  replaceMethod(globals, realmState, geoOwner, 'clearWatch', clearWatch, 'geolocation-permissions');
+  replaceMethod(globals, realmState, geoOwner, 'getCurrentPosition', getCurrentPosition);
+  replaceMethod(globals, realmState, geoOwner, 'watchPosition', watchPosition);
+  replaceMethod(globals, realmState, geoOwner, 'clearWatch', clearWatch);
 
   const createGrantedPermissionStatus = (nativeStatus?: PermissionStatus): PermissionStatus => {
     if (nativeStatus && typeof globals.Proxy === 'function') {
@@ -199,7 +199,7 @@ export function installGeolocationSpoof(
       ? originalDescriptor.value
       : permissions.query;
     if (typeof originalQuery === 'function') {
-      const query = createNativeProxyFunction(globals, realmState, originalQuery, (target, thisArg, args) => {
+      const query = createNativeProxyFunction(globals, originalQuery, (target, thisArg, args) => {
         const permissionDesc = args[0] as PermissionDescriptor | undefined;
         if (permissionDesc && permissionDesc.name === 'geolocation') {
           return Promise.resolve(realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, thisArg, args))
@@ -208,10 +208,10 @@ export function installGeolocationSpoof(
         }
         return realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, thisArg, args);
       });
-      defineRegisteredProperty(globals, realmState, queryOwner, 'query', {
+      defineRuntimeProperty(globals, realmState, queryOwner, 'query', {
         ...(originalDescriptor || { configurable: true, enumerable: false, writable: true }),
         value: query
-      }, 'geolocation-permissions', originalDescriptor);
+      });
     }
   }
 }

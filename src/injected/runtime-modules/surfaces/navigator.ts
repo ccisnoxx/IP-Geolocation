@@ -1,9 +1,9 @@
-import type { AntiDetectionState } from '../types';
-import { createNativeProxyFunction, defineRegisteredProperty } from '../registry';
+import type { RuntimeState } from '../types';
+import { createNativeProxyFunction, defineRuntimeProperty } from '../registry';
 
 export function installNativeBackedNavigatorGetter(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   property: string,
   getSpoofedValue: () => unknown
 ): void {
@@ -17,22 +17,22 @@ export function installNativeBackedNavigatorGetter(
   }
 
   const nativeGetter = originalDescriptor.get;
-  const spoofedGetter = createNativeProxyFunction(globals, realmState, nativeGetter, (target, thisArg, args) => {
+  const spoofedGetter = createNativeProxyFunction(globals, nativeGetter, (target, thisArg, args) => {
     if (thisArg === navigatorTarget) {
       return getSpoofedValue();
     }
     return realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, thisArg, args);
   });
 
-  defineRegisteredProperty(globals, realmState, navigatorPrototype, property, {
+  defineRuntimeProperty(globals, realmState, navigatorPrototype, property, {
     ...originalDescriptor,
     get: spoofedGetter
-  }, 'navigator', originalDescriptor);
+  });
 }
 
 export function installLanguageSpoof(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   language: string | null,
   languages: string[] | null
 ): void {

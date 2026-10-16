@@ -1,10 +1,10 @@
-import type { AntiDetectionState } from '../types';
-import { defineRegisteredProperty, replaceMethod } from '../registry';
+import type { RuntimeState } from '../types';
+import { defineRuntimeProperty, replaceMethod } from '../registry';
 import { createIntlPolicy } from '../intl-policy';
 
 export function installDateTimeSpoof(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   config: { timezone?: string | null; language?: string | null; intlMode?: 'strict' | 'compatible' }
 ): void {
   realmState.values.timezone = config && config.timezone ? config.timezone : null;
@@ -128,12 +128,12 @@ export function installDateTimeSpoof(
     if (typeof OriginalCtor.supportedLocalesOf === 'function') {
       SpoofedIntlConstructor.supportedLocalesOf = OriginalCtor.supportedLocalesOf.bind(OriginalCtor);
     }
-    defineRegisteredProperty(globals, realmState, globals.Intl, name, {
+    defineRuntimeProperty(globals, realmState, globals.Intl, name, {
       configurable: true,
       enumerable: false,
       writable: true,
       value: SpoofedIntlConstructor
-    }, 'intl-date', realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, globals.Intl, name));
+    });
   };
 
   if (!realmState.installedSurfaces.has('intl-date-format')) {
@@ -145,12 +145,12 @@ export function installDateTimeSpoof(
     realmState.originals.objectSetPrototypeOf.call(globals.Object || Object, SpoofedDateTimeFormat, OriginalDateTimeFormat);
     SpoofedDateTimeFormat.prototype = OriginalDateTimeFormat.prototype;
     SpoofedDateTimeFormat.supportedLocalesOf = OriginalDateTimeFormat.supportedLocalesOf.bind(OriginalDateTimeFormat);
-    defineRegisteredProperty(globals, realmState, globals.Intl, 'DateTimeFormat', {
+    defineRuntimeProperty(globals, realmState, globals.Intl, 'DateTimeFormat', {
       configurable: true,
       enumerable: false,
       writable: true,
       value: SpoofedDateTimeFormat
-    }, 'intl-date', realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, globals.Intl, 'DateTimeFormat'));
+    });
 
     if (typeof originalResolvedOptions === 'function') {
       replaceMethod(globals, realmState, globals.Intl.DateTimeFormat.prototype, 'resolvedOptions', function resolvedOptions(this: Intl.DateTimeFormat) {
@@ -161,7 +161,7 @@ export function installDateTimeSpoof(
           locale: realmState.values.language || options.locale,
           timeZone: realmState.values.timezone || options.timeZone
         };
-      }, 'intl-date', originalResolvedOptions);
+      });
     }
 
     ['NumberFormat', 'Collator', 'RelativeTimeFormat', 'ListFormat', 'PluralRules', 'DisplayNames', 'Segmenter']
@@ -184,50 +184,50 @@ export function installDateTimeSpoof(
     SpoofedDate.now = OriginalDate.now.bind(OriginalDate);
     SpoofedDate.UTC = OriginalDate.UTC.bind(OriginalDate);
     SpoofedDate.parse = OriginalDate.parse.bind(OriginalDate);
-    defineRegisteredProperty(globals, realmState, globals, 'Date', {
+    defineRuntimeProperty(globals, realmState, globals, 'Date', {
       configurable: true,
       enumerable: false,
       writable: true,
       value: SpoofedDate
-    }, 'intl-date', realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, globals, 'Date'));
+    });
 
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getTimezoneOffset', function getTimezoneOffset(this: Date) {
       return resolveOffset(this);
-    }, 'intl-date', originalGetTimezoneOffset);
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getFullYear', function getFullYear(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCFullYear() : this.getUTCFullYear();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getYear', function getYear(this: Date) {
       return this.getFullYear() - 1900;
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getMonth', function getMonth(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCMonth() : this.getUTCMonth();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getDate', function getDate(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCDate() : this.getUTCDate();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getDay', function getDay(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCDay() : this.getUTCDay();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getHours', function getHours(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCHours() : this.getUTCHours();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getMinutes', function getMinutes(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCMinutes() : this.getUTCMinutes();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getSeconds', function getSeconds(this: Date) {
       const wall = getWallDate(this);
       return wall ? wall.getUTCSeconds() : this.getUTCSeconds();
-    }, 'intl-date');
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getMilliseconds', function getMilliseconds(this: Date) {
       return this.getUTCMilliseconds();
-    }, 'intl-date');
+    });
 
     const pad = (value: number) => String(value).padStart(2, '0');
     const formatOffset = (date: Date) => {
@@ -242,19 +242,19 @@ export function installDateTimeSpoof(
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const month = months[Math.max(0, Math.min(11, Number(parts.month) - 1))];
       return `${parts.weekday} ${month} ${parts.day} ${parts.year}`;
-    }, 'intl-date', originals.dateToDateString);
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'toTimeString', function toTimeString(this: Date) {
       const parts = getParts(this);
       if (!parts) return originals.dateToTimeString.call(this);
       return `${parts.hour}:${parts.minute}:${parts.second} GMT${formatOffset(this)} (${parts.timeZoneName || realmState.values.timezone})`;
-    }, 'intl-date', originals.dateToTimeString);
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'toString', function toString(this: Date) {
       const parts = getParts(this);
       if (!parts) return originals.dateToString.call(this);
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const month = months[Math.max(0, Math.min(11, Number(parts.month) - 1))];
       return `${parts.weekday} ${month} ${parts.day} ${parts.year} ${parts.hour}:${parts.minute}:${parts.second} GMT${formatOffset(this)} (${parts.timeZoneName || realmState.values.timezone})`;
-    }, 'intl-date', originals.dateToString);
+    });
 
     if (globals.Temporal && globals.Temporal.Now) {
       try {
@@ -267,12 +267,12 @@ export function installDateTimeSpoof(
     realmState.installedSurfaces.add('date-locale-methods');
     replaceMethod(globals, realmState, OriginalDate.prototype, 'toLocaleString', function toLocaleString(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
       return originals.dateToLocaleString.call(this, normalizeLocale(locales), normalizeIntlOptions(options));
-    }, 'intl-date', originals.dateToLocaleString);
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'toLocaleDateString', function toLocaleDateString(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
       return originals.dateToLocaleDateString.call(this, normalizeLocale(locales), normalizeIntlOptions(options));
-    }, 'intl-date', originals.dateToLocaleDateString);
+    });
     replaceMethod(globals, realmState, OriginalDate.prototype, 'toLocaleTimeString', function toLocaleTimeString(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
       return originals.dateToLocaleTimeString.call(this, normalizeLocale(locales), normalizeIntlOptions(options));
-    }, 'intl-date', originals.dateToLocaleTimeString);
+    });
   }
 }

@@ -1,4 +1,4 @@
-// 验证 BrowserInsight 一类检测会观察到的页面运行时形态。
+// 验证页面运行时兼容性、配置一致性与隐私边界。
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -6,6 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { generateRuntime, assertSelfContainedFunction } from '../build/self-contained-runtime';
+import type { RuntimeController, RuntimePayload } from '../src/injected/runtime-modules/types';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -53,93 +54,29 @@ function createBrowserLikeContext(extraGlobals: Record<string, unknown> = {}) {
   return { context };
 }
 
-function applyPayload(context: vm.Context, payload: unknown, documentStateKey = 'test-document'): void {
-  (context as Record<string, unknown>).__payload = payload;
-  (context as Record<string, unknown>).__documentStateKey = documentStateKey;
-  vm.runInContext('applyVanishGeoRuntime(__payload, __documentStateKey)', context);
-  delete (context as Record<string, unknown>).__payload;
-  delete (context as Record<string, unknown>).__documentStateKey;
+const controllers = new WeakMap<vm.Context, RuntimeController>();
+function applyPayload(context: vm.Context, payload: unknown): void {
+  const previous = controllers.get(context);
+  if (previous) previous.update(payload as RuntimePayload);
+  else {
+    const install = vm.runInContext('applyVanishGeoRuntime', context) as (payload: unknown) => RuntimeController;
+    controllers.set(context, install(payload));
+  }
 }
 
-test('runtime hides internal anchor and keeps Navigator language descriptors native-looking', () => {
+test('私有安装句柄保持页面 getter 幂等，语言/时区结果一致', () => {
   const { context } = createBrowserLikeContext();
-  vm.runInContext(compileRuntime(), context, { filename: 'runtime.js' });
-
-  applyPayload(context, {
-    extensionEnabled: true,
-    languageConfig: {
-      enabled: true,
-      language: 'ja-JP',
-      languages: ['ja-JP', 'ja'],
-      acceptLanguage: 'ja-JP,ja;q=0.9'
-    },
-    timezoneConfig: {
-      enabled: true,
-      mode: 'manual',
-      timezone: 'Asia/Tokyo'
-    }
-  });
-  const firstLanguageGetter = vm.runInContext(
-    "Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), 'language').get",
-    context
-  );
-  applyPayload(context, {
-    extensionEnabled: true,
-    languageConfig: {
-      enabled: true,
-      language: 'ja-JP',
-      languages: ['ja-JP', 'ja'],
-      acceptLanguage: 'ja-JP,ja;q=0.9'
-    },
-    timezoneConfig: {
-      enabled: true,
-      mode: 'manual',
-      timezone: 'Asia/Tokyo'
-    }
-  });
-  const secondLanguageGetter = vm.runInContext(
-    "Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), 'language').get",
-    context
-  );
-
-  const inspection = vm.runInContext(`(() => {
-    const navigatorPrototype = Object.getPrototypeOf(navigator);
-    const languagesDescriptor = Object.getOwnPropertyDescriptor(navigatorPrototype, 'languages');
-    const anchor = Symbol.for('chrome.runtime.vanishgeo.state');
-    const visibleMarkers = [
-      ...Object.getOwnPropertyNames(window),
-      ...Object.getOwnPropertySymbols(window).map(String),
-      ...Reflect.ownKeys(window).map(String)
-    ].filter((key) => /vanish|chrome\\.runtime/i.test(key) && key !== 'applyVanishGeoRuntime');
-    return {
-      language: navigator.language,
-      languages: Array.from(navigator.languages),
-      ownLanguagesDescriptor: Object.getOwnPropertyDescriptor(navigator, 'languages'),
-      descriptorGetterSource: languagesDescriptor.get.toString(),
-      objectDescriptorSource: Object.getOwnPropertyDescriptor.toString(),
-      functionToStringSource: Function.prototype.toString.toString(),
-      hiddenAnchorDescriptor: Object.getOwnPropertyDescriptor(window, anchor),
-      knownAnchorInGlobal: anchor in window,
-      knownAnchorKey: Symbol.keyFor(anchor),
-      visibleMarkers,
-      locale: Intl.DateTimeFormat().resolvedOptions().locale,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-    };
-  })()`, context);
-
-  assert.equal(inspection.language, 'ja-JP');
-  assert.deepEqual(Array.from(inspection.languages), ['ja-JP', 'ja']);
-  assert.equal(inspection.ownLanguagesDescriptor, undefined);
-  assert.match(inspection.descriptorGetterSource, /\[native code\]/);
-  assert.match(inspection.objectDescriptorSource, /\[native code\]/);
-  assert.match(inspection.functionToStringSource, /\[native code\]/);
-  assert.equal(inspection.hiddenAnchorDescriptor, undefined);
-  assert.equal(inspection.knownAnchorInGlobal, false);
-  assert.equal(inspection.knownAnchorKey, 'chrome.runtime.vanishgeo.state');
-  assert.deepEqual(Array.from(inspection.visibleMarkers), []);
-  assert.equal(inspection.locale, 'ja-JP');
-  assert.equal(inspection.timezone, 'Asia/Tokyo');
-  assert.equal(secondLanguageGetter, firstLanguageGetter);
+  vm.runInContext(compileRuntime(), context);
+  const payload = { extensionEnabled: true,
+    languageConfig: { enabled: true, language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP' },
+    timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' } };
+  applyPayload(context, payload);
+  const first = vm.runInContext("Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), 'language').get", context);
+  applyPayload(context, payload);
+  assert.equal(vm.runInContext('navigator.language', context), 'ja-JP');
+  assert.deepEqual(Array.from(vm.runInContext('navigator.languages', context)), ['ja-JP', 'ja']);
+  assert.equal(vm.runInContext("Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), 'language').get", context), first);
+  assert.equal(vm.runInContext('Intl.DateTimeFormat().resolvedOptions().timeZone', context), 'Asia/Tokyo');
 });
 
 test('worker wrapper remains constructible and prepends the bootstrap before module import', () => {
@@ -199,18 +136,18 @@ test('worker wrapper remains constructible and prepends the bootstrap before mod
   assert.equal(createdBlobs.length, 2);
 
   const workerSource = createdBlobs[0].parts.join('');
-  assert.match(workerSource, /test-document:worker/);
+  assert.doesNotMatch(workerSource, /test-document:worker|stateKey/);
   assert.match(workerSource, /getTimezoneOffset/);
   assert.match(workerSource, /toLocaleString/);
   assert.match(workerSource, /DateTimeFormat/);
   assert.match(workerSource, /await import\("https:\/\/example\.test\/worker\.js"\)/);
   assert.ok(
-    workerSource.indexOf('test-document:worker') < workerSource.lastIndexOf('await import'),
+    workerSource.indexOf('function workerBootstrap') < workerSource.lastIndexOf('await import'),
     'bootstrap prelude must run before the target module worker is imported'
   );
 
   const sharedWorkerSource = createdBlobs[1].parts.join('');
-  assert.match(sharedWorkerSource, /test-document:worker/);
+  assert.doesNotMatch(sharedWorkerSource, /test-document:worker|stateKey/);
   assert.match(sharedWorkerSource, /await import\("https:\/\/example\.test\/shared-worker\.js"\)/);
 
   const crossOriginWorker = vm.runInContext('new Worker("https://cdn.example.test/worker.js", { type: "module" })', context);
@@ -398,7 +335,7 @@ test('Worker 透传 URL/options、构造器反射与派生类保持原生合同'
     assert.equal(wrapper.prototype, original.prototype);
     assert.equal(wrapper.name, original.name);
     assert.equal(wrapper.length, original.length);
-    assert.equal(vm.runInContext(`Function.prototype.toString.call(${ctor})`, h.context), original.toString());
+    assert.match(vm.runInContext(`Function.prototype.toString.call(${ctor})`, h.context), /\[native code\]/);
     assert.throws(() => vm.runInContext(`${ctor}("/worker.js")`, h.context), /class constructor|Class constructor/);
     for (const url of ['https://cdn.example.test/worker.js', 'data:text/javascript,0', 'blob:original']) {
       const value = vm.runInContext(`new ${ctor}(${JSON.stringify(url)}, {type:'module',name:'native',credentials:'include'})`, h.context);
@@ -644,9 +581,9 @@ test('each frame document accepts its own direct runtime invocation without ifra
     }
   };
   const contexts = [createBrowserLikeContext().context, createBrowserLikeContext().context];
-  contexts.forEach((context, index) => {
+  contexts.forEach((context) => {
     vm.runInContext(compileRuntime(), context, { filename: 'runtime.js' });
-    applyPayload(context, payload, `frame-${index}`);
+    applyPayload(context, payload);
   });
 
   assert.doesNotMatch(fs.readFileSync(path.join(projectRoot, 'src/injected/runtime.ts'), 'utf8'), /installIframePropagation/);

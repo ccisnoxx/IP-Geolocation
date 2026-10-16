@@ -35,42 +35,18 @@ export type RuntimePayload = {
   };
 };
 
-export type SurfaceName =
-  | 'navigator'
-  | 'intl-date'
-  | 'geolocation-permissions'
-  | 'canvas'
-  | 'worker'
-  | 'internal';
-
-export type ReflectionOriginals = {
+export type RuntimeOriginals = {
   objectDefineProperty: typeof Object.defineProperty;
   objectGetOwnPropertyDescriptor: typeof Object.getOwnPropertyDescriptor;
-  objectGetOwnPropertyDescriptors: typeof Object.getOwnPropertyDescriptors;
-  objectGetOwnPropertyNames: typeof Object.getOwnPropertyNames;
-  objectGetOwnPropertySymbols: typeof Object.getOwnPropertySymbols;
   objectGetPrototypeOf: typeof Object.getPrototypeOf;
   objectSetPrototypeOf: typeof Object.setPrototypeOf;
-  functionToString: typeof Function.prototype.toString;
   reflectApply: typeof Reflect.apply;
-  reflectGetOwnPropertyDescriptor: typeof Reflect.getOwnPropertyDescriptor;
-  reflectOwnKeys: typeof Reflect.ownKeys;
 };
 
-export type DescriptorEntry = {
-  descriptor: PropertyDescriptor;
-  surface: SurfaceName;
-};
-
-export type AntiDetectionState = {
-  anchor: symbol;
+export type RuntimeState = {
   runtimeReady: boolean;
-  reflectionInstalled: boolean;
   debugMode: boolean;
-  originals: ReflectionOriginals;
-  descriptors: WeakMap<object, Map<PropertyKey, DescriptorEntry>>;
-  functionSources: WeakMap<Function, string>;
-  hiddenProperties: WeakMap<object, Set<PropertyKey>>;
+  originals: RuntimeOriginals;
   installedSurfaces: Set<string>;
   spoofOriginals: Record<string, any>;
   workerPatchSource: string;
@@ -87,4 +63,7 @@ export type AntiDetectionState = {
 
 
 export type RuntimeGlobals = typeof globalThis & Record<string, any>;
-export type WorkerPatchConfig = { stateKey: string; timezone: string | null; language: string | null; languages: string[] | null; intlMode?: 'strict' | 'compatible' };
+export type WorkerPatchConfig = { timezone: string | null; language: string | null; languages: string[] | null; intlMode?: 'strict' | 'compatible' };
+
+// 仅供持有本次安装结果的可信调用方更新未来 Worker；不得发布到页面全局。
+export type RuntimeController = { update(payload: RuntimePayload): void };

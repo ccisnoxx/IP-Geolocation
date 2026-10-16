@@ -88,7 +88,7 @@ async function generateGraph(root: string, worker?: GeneratedRuntime): Promise<G
     load(id) {
       if (id === virtualEntry) return isWorker
         ? `import { applyWorkerRuntime } from ${JSON.stringify(entry)}; applyWorkerRuntime(patchConfig, workerBootstrap);`
-        : `import { applyRuntime } from ${JSON.stringify(entry)}; applyRuntime(payload, documentStateKey);`;
+        : `export { applyRuntime } from ${JSON.stringify(entry)};`;
       if (id === workerId && worker) return { code: worker.code, map: worker.map };
     },
     moduleParsed(info) {
@@ -99,11 +99,12 @@ async function generateGraph(root: string, worker?: GeneratedRuntime): Promise<G
   const result = await build({
     root, configFile: false, publicDir: false, logLevel: 'silent', plugins: [plugin],
     build: { write: false, target: 'es2020', minify: false, sourcemap: true,
-      rollupOptions: { input: virtualEntry, onwarn(warning, warn) {
+      rollupOptions: { input: virtualEntry, preserveEntrySignatures: 'strict', onwarn(warning, warn) {
         if (['CIRCULAR_DEPENDENCY', 'UNRESOLVED_IMPORT'].includes(warning.code || '')) throw new Error(warning.message);
         warn(warning);
-      }, output: { format: 'es', entryFileNames: fileName,
-        banner: `export function ${name}(${isWorker ? 'patchConfig' : 'payload, documentStateKey'}) {`, footer: '}',
+      }, output: { format: isWorker ? 'es' : 'iife', name: 'runtimeExports', entryFileNames: fileName,
+        banner: `export function ${name}(${isWorker ? 'patchConfig' : 'payload'}) {`,
+        footer: isWorker ? '}' : `return runtimeExports.applyRuntime(payload);\n}`,
         sourcemapPathTransform(source) { return isAbsolute(source) ? relative(root, source).replace(/\\/g, '/') : source; }
       } }
     }

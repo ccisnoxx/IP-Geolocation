@@ -1,12 +1,11 @@
-import type { RuntimePayload, AntiDetectionState, WorkerPatchConfig } from '../types';
-import { registerFunctionSource, nativeSourceFor, defineRegisteredProperty } from '../registry';
+import type { RuntimePayload, RuntimeState, WorkerPatchConfig } from '../types';
+import { defineRuntimeProperty } from '../registry';
 import { normalizeTimezonePayload } from '../payload';
 
-export function buildWorkerPatchSource(payload: RuntimePayload, documentStateKey: string, workerBootstrap: (config: WorkerPatchConfig) => void): string {
+export function buildWorkerPatchSource(payload: RuntimePayload, workerBootstrap: (config: WorkerPatchConfig) => void): string {
   const config = payload.languageConfig?.enabled ? payload.languageConfig : null;
   const language = config?.language || null;
   const patchConfig = {
-    stateKey: `${documentStateKey}:worker`,
     intlMode: payload.intlMode === 'compatible' ? 'compatible' : 'strict',
     timezone: normalizeTimezonePayload(payload).timezone,
     language,
@@ -17,7 +16,7 @@ export function buildWorkerPatchSource(payload: RuntimePayload, documentStateKey
 
 export function installWorkerHooks(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   patchSource: string
 ): void {
   if (!patchSource) return;
@@ -136,11 +135,10 @@ schedule(deliver, 0);`
         }
       }
     });
-    registerFunctionSource(realmState, wrapper, nativeSourceFor(realmState, NativeConstructor));
-    defineRegisteredProperty(globals, realmState, globals, property, {
+    defineRuntimeProperty(globals, realmState, globals, property, {
       ...nativeDescriptor,
       value: wrapper
-    }, 'worker', nativeDescriptor);
+    });
   };
   installConstructor('Worker');
   installConstructor('SharedWorker');

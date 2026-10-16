@@ -114,7 +114,7 @@ async function main() {
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
       (() => {
         const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
-        const state = { created: [], revoked: [], Worker, SharedWorker };
+        const state = { created: [], revoked: [], Worker, SharedWorker, functionToString: Function.prototype.toString };
         window.__workerSmoke = state;
         URL.createObjectURL = blob => { const url = create(blob); state.created.push(url); return url; };
         URL.revokeObjectURL = url => { state.revoked.push(url); return revoke(url); };
@@ -142,7 +142,7 @@ async function main() {
       const instance = new Derived('/fixtures/workers/worker-classic.js');
       if (instance.port) instance.port.close(); else instance.terminate();
       return instance instanceof Derived && wrapper.prototype === native.prototype && wrapper.name === native.name
-        && wrapper.length === native.length && wrapper.toString() === native.toString();
+        && wrapper.length === native.length && Function.prototype.toString === __workerSmoke.functionToString;
     })`);
     assert.equal(reflection, true);
     const noNew = await evaluate(target, `['Worker','SharedWorker'].every(key => { try { window[key]('/fixtures/workers/worker-classic.js'); return false; } catch (error) { return error.name === 'TypeError'; } })`);

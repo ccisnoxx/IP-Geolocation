@@ -77,7 +77,7 @@ VanishGeo 是 Chromium Manifest V3 扩展。维护源使用 TypeScript 和 ES mo
 - background 专属 Chrome API 留在 `src/background/`，共享纯配置/派生逻辑留在 `src/shared/`；测试直接 import 同一维护源。
 - ISOLATED content 只发送 `initializeRuntimeForSender`；后台从可信 MessageSender 解析文档 URL/origin，校验扩展身份和 documentId，再决定 MAIN-world 注入。网页不能提交可信 payload。
 - top frame 和 iframe 都按各自 documentId 初始化，保留 `allFrames`、`matchOriginAsFallback` 动态注册边界；不得用父页面遍历 iframe 或页面消息代替授权检查。
-- runtime 函数必须自包含，不能依赖注入后无法访问的模块闭包；页面 hook 和反射虚拟化集中在其 registry。
+- runtime 函数必须自包含，不能依赖注入后无法访问的模块闭包；页面 hook 的闭包状态与原生快照集中在 registry；不替换全局反射 API。
 - Worker/SharedWorker wrapper 属于 runtime，module bootstrap 必须先于动态 import；service worker hook 不属于当前页面 worker 支持范围。
 - 文件名沿用 kebab-case；新增模块按责任命名，不为一次任务建立平行配置/匹配器。
 
@@ -89,6 +89,6 @@ VanishGeo 是 Chromium Manifest V3 扩展。维护源使用 TypeScript 和 ES mo
 
 `build/self-contained-runtime.ts` 先生成 workerBootstrap，再把 worker 静态函数嵌入页面 graph，最终函数体包含所有运行依赖。生成函数外仅纯 export，拒绝外部绑定/import、动态 chunk、运行期编译、循环/缺失依赖和不稳定生成文件名。不要直接把普通模块函数交给 executeScript.func 或对带模块闭包的 worker 函数取 source。
 
-registry.ts 是页面唯一 state/反射所有者；surfaces 显式消费同一 state，entry.ts 保留首次/重复语义与原顺序。worker/registry 拥有独立 realm 原生快照；worker self-reference 显式传入 nested-worker。没有模块级浏览器修改、配置/匹配或存储副本。
+registry.ts 创建页面每次安装的私有 RuntimeState；surfaces 显式消费同一 state，entry.ts 返回调用方私有持有的 update 句柄并保留原安装顺序。无 window/self marker、descriptor 缓存或反射 API 替换；独立序列化调用不共享状态。页面 graph 编译为函数体内的 IIFE namespace，外层返回安装句柄；没有函数外运行依赖。worker/registry 拥有独立 realm 原生快照；worker self-reference 显式传入 nested-worker。没有模块级浏览器修改、配置/匹配或存储副本。
 
 `build/runtime-plugin.ts` 返回组合 source map，登记 page/worker 的实际依赖，build watch 重建 virtual 内容。用于加载的内部模块 ID 有文件位置，但不写维护树生成文件；生产 sourcemap 配置保持不变，无网页 map URL/WAR。后台仍无 runtime 依赖，测试通过临时 bundle 覆盖未来再接入的 facade 序列化合同。恢复生产派发须另行授权并解决最终文档绑定，不由本次模块化隐式恢复。

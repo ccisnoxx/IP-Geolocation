@@ -28,9 +28,11 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 
 ## 页面 hook 与设备透传
 
-Navigator getter、Intl/Date、Geolocation/Permissions、Canvas 字体和 Worker/SharedWorker 的现有 hook 必须经过 `src/injected/runtime-modules/registry.ts` 的中央 registry，由 runtime.ts facade 导出生成函数。保留原生 descriptor 位置、函数 source/name/length、非法 receiver 异常和未注册反射路径的语义；不添加局部 toString 覆盖或可枚举 marker。
+Navigator getter、Intl/Date、Geolocation/Permissions、Canvas 字体和 Worker/SharedWorker 的现有 hook 由 runtime.ts facade 导出生成函数。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
 
-Navigator.prototype getter 不得换成普通闭包。沿用 native-backed proxy/registered descriptor；隐藏状态的枚举与探测要求由中央 registry 和其测试统一管理，不能从旧文档复制固定全局 anchor 名。
+Navigator / WorkerNavigator getter 保留原生 prototype 位置、descriptor flags、name/length 和非法 receiver 异常；仅当前 navigator 返回配置值，其他 receiver 调用原生 getter。属性后来被网页替换、删除或冻结时，反射 API 必须报告实际值。函数 source 由未修改的引擎 API 决定，不保证包装函数与原函数源码文本相同。
+
+`applyVanishGeoRuntime(payload)` 返回私有 `RuntimeController`（仅含 `update(payload)`），调用方持有同次安装的句柄以保留幂等和未来 Worker 配置更新。初次禁用不会安装 surface，之后该句柄仍只更新未来 Worker；不热更新既有页面 surface。不同序列化调用创建独立闭包，不再通过 documentId/Symbol 查回旧状态；生产恢复必须独立设计可信调用方与句柄生命周期，不能把返回函数当作可 JSON 传输的 Chrome scripting result。
 
 无目标检测证据和独立任务授权，不新增 WebGL/GPU、Audio、screen、hardware concurrency、device memory、原生字体库存、codec、WebGPU 等设备指纹伪装。当前已有 Canvas 字体功能不自动授权扩大伪装面。对未接管表面记录原生透传证据，而不是由 IP 地理位置猜测设备属性。
 
@@ -40,7 +42,7 @@ Navigator.prototype getter 不得换成普通闭包。沿用 native-backed proxy
 
 SharedWorker 的 options/name、复用和端口行为，以及 CSP、嵌套 worker、Blob URL 释放、同步/异步失败的可观察结果，应按实际变更选择浏览器验证；不把 Node 构造 mock 或 VM prelude 检查当成完整 Chrome worker 支持证据。
 
-VG-007 的 SharedWorker URL Map 与当前 worker patch source 存在既有隐藏 AntiDetectionState；key 包含原始绝对 URL、type、name、credentials 与完整补丁源签名。同 key 复用，重复注入更新未来 worker 的补丁源而保留缓存/代理；options 的已支持成员按 credentials/name/type 单次转换，key、bootstrap 和原生构造使用同一快照，显式 null name 为字符串 "null"，枚举仍由原生拒绝。新浏览器额外选项保留原生读取，未声明完整新选项转换矩阵。
+SharedWorker URL Map 与当前 worker patch source 存在本次安装闭包的 RuntimeState；key 包含原始绝对 URL、type、name、credentials 与完整补丁源签名。同 key 复用，同一私有句柄的 update 更新未来 worker 的补丁源而保留缓存/代理；options 的已支持成员按 credentials/name/type 单次转换，key、bootstrap 和原生构造使用同一快照，显式 null name 为字符串 "null"，枚举仍由原生拒绝。新浏览器额外选项保留原生读取，未声明完整新选项转换矩阵。
 
 Dedicated（含已有嵌套包装）在原生构造器返回/同步失败后 revoke 临时 Blob URL；Shared 新项同步失败时撤销，已有项不因单次失败被删除，pagehide 清空所有 Shared URL。BFCache 恢复从新缓存周期开始，不承诺跨文档共享或改变存量 worker 配置。异步 CSP/脚本错误保持 error，不以网络重试掩盖失败。
 
@@ -98,7 +100,8 @@ Chrome action popup 保持保守的明确视口（当前 html/body 为 380×600�
 | `tests/background-services.test.ts` | 检测确认、导入降级、刷新、可信 sender、首次初始化和旧键迁移的 mocks |
 | `tests/dnr.test.ts` | 规则生成、语言继承/覆盖/禁用与本地 host 正则的纯逻辑 |
 | `tests/webrtc.test.ts` | policy 映射、clear、不支持状态的 Chrome mocks |
-| `tests/anti-detection-runtime.test.ts` | VM 中 registry、原生语义、直接 frame 调用、worker wrapper 及 debug 日志隐私 |
+| `tests/anti-detection-runtime.test.ts` | VM 中私有更新句柄、直接 frame 调用、worker wrapper/缓存/回收及 debug 日志隐私 |
+| `tests/navigator-contract.test.ts` | 页面/独立 frame realm/实际 Worker prelude 的全局状态不可达、原生反射引用、prototype/receiver 和 descriptor 替换/删除/freeze |
 | `tests/diagnostic-report.test.ts` / `diagnostic-report-ui.test.ts` | 一次性 run、owner/TTL/导航/取消/授权变化、真实值比较与报告本地清除的 Node/mock/VM 合同 |
 | `tests/diagnostic.test.ts` | header/realm/ICE 实际结果归一化及页面 locale 示例 |
 | `tests/leak-test-observation.test.ts` | VM 执行实际页面脚本，旧预期 query 被忽略、API/header/ICE 观测与 UNKNOWN 合同 |
@@ -120,6 +123,16 @@ Chrome action popup 保持保守的明确视口（当前 html/body 为 380×600�
 - `tests/anti-detection-runtime.test.ts` 使用同一生成器执行完整函数，保留原 VM 行为断言；不能读 facade 的 TypeScript 文本当完整 runtime。
 - `tests/runtime-modules.test.ts` 直接导入页面/worker 模块并传入 realm/state；`tests/runtime-build.test.ts` 检查纯逻辑、外部绑定拒绝、最终二次打包函数和 worker/nested 脱离闭包、source map 实际位置与 page/worker watch 重建、缺源/循环失败。
 - 生成器在每次生产 buildStart 执行，即使生产暂停/未引用 runtime，失败仍中断构建；dist 六入口和现有共享 assets 不变。未来恢复调用时插件继续检查最终函数外部绑定。
-- `node --import tsx scripts/runtime-modularization/chrome-equivalence.mjs --baseline-runtime <任务前runtime.ts> --output <脱敏JSON>` 在临时最小扩展中比较旧/新函数，使用真实 scripting API 的当前 documentId、MAIN/ISOLATED、严格 CSP/iframe 和合成位置/worker fixtures。此证据只证明等价，不证明生产派发安全；正式 dist 的暂停使用既有 chrome-safety-gate 独立验证。
+- 历史 VG-012 等价脚本（以当时版本为准；本次闭包状态及原生反射语义变更后不再作为当前等价门禁）：`node --import tsx scripts/runtime-modularization/chrome-equivalence.mjs --baseline-runtime <任务前runtime.ts> --output <脱敏JSON>` 在临时最小扩展中比较旧/新函数，使用真实 scripting API 的当前 documentId、MAIN/ISOLATED、严格 CSP/iframe 和合成位置/worker fixtures。此证据只证明等价，不证明生产派发安全；正式 dist 的暂停使用既有 chrome-safety-gate 独立验证。
 - VG-009 历史 runner 要求配置保存返回 ok，与当前安全暂停的 partial 不兼容；该入口退出2不能当时序FAIL或模块化回归。暂停下补采仍分别记录 earliest/load/postLoad 的实际原生值和相对伪装预期的FAIL；不得把原生保持正确写成伪装PASS。原VG-009竞态与VG-011原生错投证据不改。
 - 两次构建的 source map 能指回维护 TS，不代表 Chrome 复制 func 后 DevTools 自动获得该 map。Chrome119、其他浏览器和完整手工验收单列覆盖缺口。
+
+## Navigator 原生合同回归
+
+`node --import tsx scripts/chrome-navigator-contract.mjs` 使用独立临时 Chrome、三个本地 server 和合成语言，覆盖页面及同源/跨源/srcdoc/about:blank iframe、跨站点 OOPIF、sandbox URL/srcdoc/about:blank opaque origin。跨源保留不同 localhost 端口；跨站点使用 localhost 与 127.0.0.1，Chrome 开启 site-per-process，并以目标实际为独立 iframe target/session、URL 与 frame 身份一致作为 OOPIF 通过条件。不能只凭跨源 URL 或启动参数宣称 OOPIF。
+
+runner 自动附加 iframe target，按各 session 合并 frame tree；默认执行上下文与远程 objectId 都携带所属 session，销毁/清除/分离按 session 清理，不回退顶层。逐 realm 捕获原生基线并核对 prototype/descriptor/getter 自身属性、receiver、原生反射和全局 own keys（含 Proxy/可访问的另一 realm）。跨源及 OOPIF 内保留同源原生子帧作为合法非目标 receiver/反射对照。每次单 frame 安装或 descriptor 替换/删除/freeze 后检查未修改 realm，防止误定向或原型/状态串扰。
+
+sandbox 只设置 allow-scripts，不设置 allow-same-origin；三个文档有效 origin 必须为 null。父子及 opaque sibling 之间的 navigator/构造器/反射访问在安装前/后与 descriptor 变更后保持 SecurityError；不能把相同 null 字符串视为相同 origin。opaque 场景在本 realm 检查原生非法 receiver，并保护跨 origin 拒绝；不通过特权 CDP 把网页无法取得的 Navigator 当作合法跨 realm receiver。内部状态检查使用原生快照、Proxy 枚举和 getter 属性；不扩大生产能力。
+
+实际 classic/module Worker 与 SharedWorker 的生成 Blob 继续先捕获原生基线再执行同一合同探针；更新句柄由 CDP objectId 私有持有。脚本不加载或恢复生产注入、不请求 provider/位置/ICE，finally 清理三个 server/profile/Chrome。Chrome119、sandbox 禁脚本、导航/进程交换生命周期及生产派发资格尚未验证；当前 Chrome 的静态 frame 合同回归不替代这些门槛。

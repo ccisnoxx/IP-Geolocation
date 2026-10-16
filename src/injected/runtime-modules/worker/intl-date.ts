@@ -3,7 +3,7 @@ import type { WorkerState } from './registry';
 import { createIntlPolicy } from '../intl-policy';
 
 export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPatchConfig) {
-  const { root, originalGetOwnPropertyDescriptor, originalFunctionToString, originalSetPrototypeOf, functionSources } = state;
+  const { root, originalGetOwnPropertyDescriptor, originalSetPrototypeOf } = state;
   const language = patchConfig.language;
   if (patchConfig.timezone || language) {
     const OriginalDate = root.Date;
@@ -19,14 +19,8 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
     const policy = createIntlPolicy(patchConfig.intlMode, language, patchConfig.timezone);
     const normalizeLocale = policy.locale;
     const normalizeIntlOptions = policy.options;
-    const registerSource = (replacement: unknown, nativeFunction?: Function) => {
-      if (typeof replacement === 'function' && typeof nativeFunction === 'function') {
-        functionSources.set(replacement, originalFunctionToString.call(nativeFunction));
-      }
-    };
-    const replaceMethod = (owner: object, property: string, replacement: Function, nativeFunction?: Function) => {
+    const replaceMethod = (owner: object, property: string, replacement: Function) => {
       const descriptor = originalGetOwnPropertyDescriptor.call(root.Object, owner, property);
-      registerSource(replacement, nativeFunction || descriptor?.value);
       root.Object.defineProperty(owner, property, {
         ...(descriptor || { configurable: true, enumerable: false, writable: true }),
         value: replacement
@@ -42,7 +36,6 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
       if (typeof OriginalDateTimeFormat.supportedLocalesOf === 'function') {
         (SpoofedDateTimeFormat as any).supportedLocalesOf = OriginalDateTimeFormat.supportedLocalesOf.bind(OriginalDateTimeFormat);
       }
-      registerSource(SpoofedDateTimeFormat, OriginalDateTimeFormat);
       root.Object.defineProperty(root.Intl, 'DateTimeFormat', {
         ...(originalGetOwnPropertyDescriptor.call(root.Object, root.Intl, 'DateTimeFormat') || { configurable: true, enumerable: false, writable: true }),
         value: SpoofedDateTimeFormat
@@ -57,7 +50,7 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
             locale: language || options.locale,
             timeZone: patchConfig.timezone || options.timeZone
           };
-        }, originalResolvedOptions);
+        });
       }
 
       const intlRecord = root.Intl as unknown as Record<string, any>;
@@ -73,7 +66,6 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
           if (typeof OriginalCtor.supportedLocalesOf === 'function') {
             SpoofedIntlConstructor.supportedLocalesOf = OriginalCtor.supportedLocalesOf.bind(OriginalCtor);
           }
-          registerSource(SpoofedIntlConstructor, OriginalCtor);
           root.Object.defineProperty(root.Intl, name, {
             ...(originalGetOwnPropertyDescriptor.call(root.Object, root.Intl, name) || { configurable: true, enumerable: false, writable: true }),
             value: SpoofedIntlConstructor
@@ -168,7 +160,6 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
       SpoofedDate.now = OriginalDate.now.bind(OriginalDate);
       SpoofedDate.UTC = OriginalDate.UTC.bind(OriginalDate);
       SpoofedDate.parse = OriginalDate.parse.bind(OriginalDate);
-      registerSource(SpoofedDate, OriginalDate);
       root.Object.defineProperty(root, 'Date', {
         ...(originalGetOwnPropertyDescriptor.call(root.Object, root, 'Date') || { configurable: true, enumerable: false, writable: true }),
         value: SpoofedDate
@@ -176,7 +167,7 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
 
       replaceMethod(OriginalDate.prototype, 'getTimezoneOffset', function getTimezoneOffset(this: Date) {
         return resolveOffset(this);
-      }, originalGetTimezoneOffset);
+      });
       replaceMethod(OriginalDate.prototype, 'getFullYear', function getFullYear(this: Date) {
         const wall = getWallDate(this);
         return wall ? wall.getUTCFullYear() : this.getUTCFullYear();
@@ -217,36 +208,36 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const month = months[Math.max(0, Math.min(11, Number(parts.month) - 1))];
         return `${parts.weekday} ${month} ${parts.day} ${parts.year}`;
-      }, originalDateToDateString);
+      });
       replaceMethod(OriginalDate.prototype, 'toTimeString', function toTimeString(this: Date) {
         const parts = getParts(this);
         if (!parts) return originalDateToTimeString.call(this);
         return `${parts.hour}:${parts.minute}:${parts.second} GMT${formatOffset(this)} (${parts.timeZoneName || patchConfig.timezone})`;
-      }, originalDateToTimeString);
+      });
       replaceMethod(OriginalDate.prototype, 'toString', function toString(this: Date) {
         const parts = getParts(this);
         if (!parts) return originalDateToString.call(this);
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const month = months[Math.max(0, Math.min(11, Number(parts.month) - 1))];
         return `${parts.weekday} ${month} ${parts.day} ${parts.year} ${parts.hour}:${parts.minute}:${parts.second} GMT${formatOffset(this)} (${parts.timeZoneName || patchConfig.timezone})`;
-      }, originalDateToString);
+      });
     }
 
     if (OriginalDate) {
       if (originalDateToLocaleString) {
         replaceMethod(OriginalDate.prototype, 'toLocaleString', function toLocaleString(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
           return originalDateToLocaleString.call(this, normalizeLocale(locales), normalizeIntlOptions(options));
-        }, originalDateToLocaleString);
+        });
       }
       if (originalDateToLocaleDateString) {
         replaceMethod(OriginalDate.prototype, 'toLocaleDateString', function toLocaleDateString(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
           return originalDateToLocaleDateString.call(this, normalizeLocale(locales), normalizeIntlOptions(options));
-        }, originalDateToLocaleDateString);
+        });
       }
       if (originalDateToLocaleTimeString) {
         replaceMethod(OriginalDate.prototype, 'toLocaleTimeString', function toLocaleTimeString(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
           return originalDateToLocaleTimeString.call(this, normalizeLocale(locales), normalizeIntlOptions(options));
-        }, originalDateToLocaleTimeString);
+        });
       }
     }
   }

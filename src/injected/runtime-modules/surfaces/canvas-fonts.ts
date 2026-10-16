@@ -1,5 +1,5 @@
-import type { RuntimePayload, AntiDetectionState } from '../types';
-import { createNativeProxyFunction, defineRegisteredProperty, replaceMethod } from '../registry';
+import type { RuntimePayload, RuntimeState } from '../types';
+import { createNativeProxyFunction, defineRuntimeProperty, replaceMethod } from '../registry';
 
 export const FONT_SIZE_PATTERN =
   /(?:^|\s)(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|larger|smaller|(?:\d*\.)?\d+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%))(?:\/(?:normal|[\d.]+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%)?))?(?=\s|$)/i;
@@ -59,7 +59,7 @@ export function getFallbackFont(font: string, targetFontKeys: Set<string>): stri
 
 export function installCanvasSpoof(
   globals: typeof globalThis & Record<string, any>,
-  realmState: AntiDetectionState,
+  realmState: RuntimeState,
   canvas: RuntimePayload['canvasConfig']
 ): void {
   if (!canvas || !canvas.enabled || !canvas.spoofFonts || !Array.isArray(canvas.targetFonts)) return;
@@ -87,36 +87,36 @@ export function installCanvasSpoof(
     return originalMeasureText.call(ctx, text);
   }
 
-  const getContext = createNativeProxyFunction(globals, realmState, originalGetContext, (target, thisArg, args) => (
+  const getContext = createNativeProxyFunction(globals, originalGetContext, (target, thisArg, args) => (
     realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, thisArg, args)
   ));
-  defineRegisteredProperty(globals, realmState, globals.HTMLCanvasElement.prototype, 'getContext', {
+  defineRuntimeProperty(globals, realmState, globals.HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
     enumerable: false,
     writable: true,
     value: getContext
-  }, 'canvas', realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, globals.HTMLCanvasElement.prototype, 'getContext'));
+  });
 
   replaceMethod(globals, realmState, globals.CanvasRenderingContext2D.prototype, 'measureText', function measureText(this: CanvasRenderingContext2D, text: string) {
     return measureTextWithFontFallback(this, text);
-  }, 'canvas', originalMeasureText);
+  });
 
   if (globals.document?.fonts && globals.document.fonts.check) {
     const originalCheck = globals.document.fonts.check;
     const fontFaceSetPrototype = realmState.originals.objectGetPrototypeOf.call(globals.Object || Object, globals.document.fonts);
     const checkOwner = fontFaceSetPrototype || globals.document.fonts;
-    const check = createNativeProxyFunction(globals, realmState, originalCheck, (target, thisArg, args) => {
+    const check = createNativeProxyFunction(globals, originalCheck, (target, thisArg, args) => {
       const font = args[0] as string | undefined;
       if (font && typeof font === 'string' && getFallbackFont(font, realmState.values.canvasTargetFontKeys)) {
         return false;
       }
       return realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, thisArg, args);
     });
-    defineRegisteredProperty(globals, realmState, checkOwner, 'check', {
+    defineRuntimeProperty(globals, realmState, checkOwner, 'check', {
       configurable: true,
       enumerable: false,
       writable: true,
       value: check
-    }, 'canvas', realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, checkOwner, 'check'));
+    });
   }
 }

@@ -1,5 +1,5 @@
 declare module 'virtual:vanishgeo-runtime' {
-  export const applyVanishGeoRuntime: (payload: import('./injected/runtime-modules/types').RuntimePayload, documentStateKey: string) => void;
+  export const applyVanishGeoRuntime: (payload: import('./injected/runtime-modules/types').RuntimePayload) => import('./injected/runtime-modules/types').RuntimeController;
 }
 
 declare module 'virtual:vanishgeo-worker' {

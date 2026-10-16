@@ -2,7 +2,7 @@ import type { WorkerPatchConfig } from '../types';
 import type { WorkerState } from './registry';
 
 export function installNestedWorker(state: WorkerState, patchConfig: WorkerPatchConfig, workerBootstrap: (config: WorkerPatchConfig) => void) {
-  const { root, originalFunctionToString, functionSources } = state;
+  const { root } = state;
   const patchSource = `;(${workerBootstrap.toString()})(${JSON.stringify(patchConfig)});`;
   const makeWorkerUrl = (scriptURL: string | URL, options?: WorkerOptions) => {
     const sourceUrl = new URL(String(scriptURL), location.href).href;
@@ -28,7 +28,6 @@ export function installNestedWorker(state: WorkerState, patchConfig: WorkerPatch
         }
       }
     });
-    functionSources.set(WorkerWrapper, originalFunctionToString.call(NativeWorker));
     root.Worker = WorkerWrapper as unknown as typeof Worker;
   }
 }

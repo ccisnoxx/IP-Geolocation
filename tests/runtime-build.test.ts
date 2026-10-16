@@ -10,7 +10,6 @@ import type { RollupWatcher } from 'rollup';
 import { generateRuntime, assertSelfContainedFunction, projectRoot } from '../build/self-contained-runtime';
 import { runtimePlugin } from '../build/runtime-plugin';
 import { normalizeTimezonePayload } from '../src/injected/runtime-modules/payload';
-import { cloneDescriptor } from '../src/injected/runtime-modules/registry';
 import { fontFamilyKey, splitFontFamilies, getFallbackFont } from '../src/injected/runtime-modules/surfaces/canvas-fonts';
 import { randomCoordinateInRadius } from '../src/injected/runtime-modules/surfaces/geolocation-permissions';
 
@@ -26,12 +25,9 @@ function page() {
 const payload = { extensionEnabled: true, languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR'], acceptLanguage: 'fr-FR' },
   timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' } };
 
-test('纯逻辑模块直接导入：timezone、descriptor、位置和字体解析保持既有合同', () => {
+test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有合同', () => {
   assert.deepEqual(normalizeTimezonePayload({ timezone: 'UTC' }), { timezone: null });
   assert.deepEqual(normalizeTimezonePayload({ timezone: 'UTC', timezoneConfig: { enabled: true, mode: 'auto', timezone: '' } }), { timezone: 'UTC' });
-  const descriptor = { value: 3, writable: false, configurable: true, enumerable: false };
-  assert.deepEqual(cloneDescriptor(descriptor), descriptor);
-  assert.notEqual(cloneDescriptor(descriptor), descriptor);
   assert.equal(fontFamilyKey(' "Arial Narrow" '), 'arialnarrow');
   assert.deepEqual(splitFontFamilies('"Font, With Comma", Arial, sans-serif'), ['"Font, With Comma"', 'Arial', 'sans-serif']);
   assert.equal(getFallbackFont('italic 12px "Font, With Comma", monospace', new Set(['font,withcomma'])), 'italic 12px monospace');
@@ -53,15 +49,15 @@ test('构建守卫拒绝外部 helper、动态 import、运行期编译及函数
   assert.throws(() => assertSelfContainedFunction('function r(){', 'r'), /语法/);
 });
 
-test('禁用或空首次调用仍先建立隐藏 registry，重复调用不热更新页面 surface', async () => {
+test('禁用或空首次安装不写全局状态，私有句柄更新不热更新页面 surface', async () => {
   const fn = assertSelfContainedFunction((await generateRuntime()).code, 'applyVanishGeoRuntime');
   for (const initial of ['undefined', 'null', '{extensionEnabled:false}', '{enabled:false}']) {
     const context = page();
-    vm.runInContext(`(${fn})(${initial}, 'disabled-document')`, context);
+    const controller = vm.runInContext(`(${fn})(${initial})`, context);
     assert.equal(vm.runInContext('navigator.language', context), 'en-US');
-    assert.equal(vm.runInContext("Symbol.for('disabled-document') in globalThis", context), true);
+    assert.equal(vm.runInContext("Symbol.for('disabled-document') in globalThis", context), false);
     assert.equal(vm.runInContext("Object.getOwnPropertyDescriptor(globalThis, Symbol.for('disabled-document'))", context), undefined);
-    vm.runInContext(`(${fn})(${JSON.stringify(payload)}, 'disabled-document')`, context);
+    controller.update(payload);
     assert.equal(vm.runInContext('navigator.language', context), 'en-US');
   }
 });
@@ -110,7 +106,7 @@ test('完整页面与 worker 经 facade 二次打包后分别脱离闭包，sour
   const map = JSON.parse(chunk.map.toString());
   assert.ok(map.sources.every((s: string) => !s.startsWith('/') && !s.includes('file:')));
   const sourceMap = new SourceMap(map);
-  for (const [token, file] of [['function cloneDescriptor', 'registry.ts'], ['function installWorkerDateTime', 'worker/intl-date.ts']]) {
+  for (const [token, file] of [['function createRuntimeState', 'registry.ts'], ['function installWorkerDateTime', 'worker/intl-date.ts']]) {
     const position = chunk.code.indexOf(token);
     assert.ok(position > 0);
     const prefix = chunk.code.slice(0, position);

@@ -2,6 +2,8 @@
 
 > 后续安全处置：用户已接受暂停页面伪装的功能代价，后台移除 MAIN runtime 派发并注销初始化脚本；模块化方案和 spike 保留为设计证据，不构成生产恢复授权。见 [实施与验收](./document-id-investigation.md)。
 
+> 2026-10-16 兼容性修订：下文是 VG-011/VG-012 的历史基线。当前维护源已按用户授权移除全局 state/marker 与反射虚拟化，安装改为返回私有 update 句柄，不再承诺独立序列化调用共享状态；当前合同见[质量规范](../../.trellis/spec/frontend/quality-guidelines.md#navigator-原生合同回归)和[修复任务](../../.trellis/tasks/10-16-navigator-native-contract/prd.md)。生产暂停保持，历史等价证据不代表本次变更的验收。
+
 日期：2026-10-15。状态：设计与 spike 已形成，后续安全暂停已于2026-10-15获用户人工验收通过；VG-011 为 done，Trellis completed。原生错投 FAIL 与扩展阻断 PASS 分开保留，见[人工验收记录](../../.trellis/tasks/10-15-vg-011-runtime-modularization/implement.md#人工验收)；任务状态只读 [manifest](./task-manifest.yaml)。本次选择**构建期生成静态自包含函数**，不切换生产入口、不全面迁移 surface。
 
 **证据结论**：多模块编译、二次打包、函数独立序列化，以及真实 Chrome 当前 top/iframe 的最小语言 surface 均可行。但 Chrome 155.0.8059.40 的旧 `documentId` 负向检查为 FAIL。后续[专项调查](./document-id-investigation.md)已排除生成器与 CDP 问题，并在原生产 dist 的受控导航窗口中复现旧 payload 改写未匹配规则的新文档；源码与 BFCache 对照支持其根因。不能把该结果解释为完整定向安全通过，也不能据此批准生产迁移。原始脱敏结果见 [Chrome 证据](../../.trellis/tasks/10-15-vg-011-runtime-modularization/chrome-evidence.json)，全部命令、失败及限制见 [执行记录](../../.trellis/tasks/10-15-vg-011-runtime-modularization/implement.md)。

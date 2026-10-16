@@ -70,7 +70,7 @@ deleteExitLocationProfile(profileId: string): Promise<ConfigSaveResult>;
 
 - `tests/config.test.ts`：迁移幂等、未绑定/未验证/悬空引用、两个规则绑定两个档案。
 - `tests/background-services.test.ts`：同一响应解析、检测确认、重检并发保护、引用删除阻断、导入降级、payload 精确刷新和失败隔离。
-- `tests/anti-detection-runtime.test.ts`：直接 runtime 调用幂等、内部锚点隐藏、frame/worker 行为。
+- `tests/anti-detection-runtime.test.ts`：私有安装句柄幂等、frame/worker 行为；`tests/navigator-contract.test.ts` 保护无全局锚点及原生反射/descriptor 合同。
 - `tests/extension-wiring.test.ts`：无 `postMessage` 桥、ISOLATED 初始化、定向 MAIN-world 注入及 manifest 权限边界。
 - 发布前运行 `npm test`、`npm run typecheck`、`npm run build` 和 Chrome 验收脚本 dry-run。
 
