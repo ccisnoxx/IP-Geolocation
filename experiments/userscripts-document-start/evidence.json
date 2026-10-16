@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "conclusion": "BLOCKED",
+  "exitCode": 2,
+  "environment": {
+    "chromeVersion": "155.0.8059.80",
+    "nodeVersion": "v24.16.0",
+    "realChrome": true,
+    "allowUserScripts": false,
+    "allowUserScriptsEvidence": "Chrome 138+ getScripts 不可用或抛错；未操纵用户开关",
+    "mode": "fresh-temporary-Chrome",
+    "transport": "HTTP loopback",
+    "permissions": [
+      "userScripts"
+    ],
+    "hostPermissions": [
+      "http://localhost/*"
+    ],
+    "apiAvailable": false,
+    "allowUserScriptsUiState": "UNKNOWN"
+  },
+  "mechanism": {
+    "world": "MAIN",
+    "runAt": "document_start",
+    "allFrames": true,
+    "serviceWorker": false,
+    "documentTargetedInjection": false,
+    "source": "扩展包固定模板 + 固定合成 JSON；仅 navigator.language 实验 getter",
+    "register": "UNKNOWN",
+    "update": "UNKNOWN",
+    "narrowUpdate": "UNKNOWN",
+    "unregister": "UNKNOWN"
+  },
+  "scenarios": [
+    {
+      "id": "A-native",
+      "expected": "top/iframe earliest、load、postLoad 均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "B-register-A",
+      "expected": "top/iframe 三阶段均 x-vg-a，两个独立文档",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "B-broad-subpath",
+      "expected": "localhost 任意子路径三阶段均 x-vg-a",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-other-origin",
+      "expected": "127.0.0.1 top/iframe 三阶段均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "C-existing-A",
+      "expected": "update 完成后已有 top/iframe 仍 x-vg-a，文档未重建",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "C-reload-B",
+      "expected": "同 URL 完整 reload 创建新 top/iframe，三阶段均 x-vg-b",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "C-new-tab-B",
+      "expected": "新标签 top/iframe 三阶段均 x-vg-b",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "F-history-away",
+      "expected": "旧 A 导航到 127.0.0.1 后 top/iframe 均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "F-history-back",
+      "expected": "缓存恢复保留 A；文档重建用 B；各阶段无跨文档串用",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "F-history-forward",
+      "expected": "127.0.0.1 前进恢复或重建均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-narrow-inside",
+      "expected": "/matched/sub/* top/iframe 三阶段均 x-vg-b",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-narrow-outside",
+      "expected": "/outside/* top 原生，独立匹配的 /matched/child.html iframe 为 B",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-narrow-near-miss",
+      "expected": "/matchedness/* top 原生，独立匹配 iframe 为 B",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "D-existing-B",
+      "expected": "unregister 后已有 top/iframe 保留 B，文档未重建",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "D-new-native",
+      "expected": "unregister 后新文档 top/iframe 三阶段均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "D-reload-native",
+      "expected": "unregister 后同 URL reload 三阶段均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    }
+  ],
+  "limitations": [
+    "只适用于本次实际 Chrome 版本和 HTTP localhost/127.0.0.1 最小 fixture，未验证 HTTPS。",
+    "不覆盖 about:blank、srcdoc、data:、blob:、sandbox 特殊帧、Worker/SharedWorker。",
+    "不覆盖 Geolocation、Canvas、完整 VanishGeo runtime、已有 Hook 自动撤销。",
+    "不测试反检测、隐藏、恶意网页、安全攻击、真实配置或第三方系统。",
+    "注册调用完成后才导航；不验证正在提交的导航与注册更新竞态、扩展更新或浏览器重启持久性。",
+    "BFCache 是否命中取决于 Chrome；保留原快照可接受，未命中不能声称已验证缓存恢复。",
+    "浏览器自身后台网络未做完整流量审计；扩展和 fixture 不发起外部请求。",
+    "退出 0 仅为最小机制 GO，不授权生产集成、恢复、发布或修改正式权限。"
+  ],
+  "stopReason": "USER_SCRIPTS_UNAVAILABLE",
+  "productionRecoveryPerformed": false,
+  "cleanup": {
+    "status": "PASS",
+    "failures": []
+  },
+  "annotation": {
+    "command": "node experiments/userscripts-document-start/runner.mjs --output experiments/userscripts-document-start/evidence.json",
+    "actualExitCode": 2,
+    "apiSwitchInterpretation": "allowUserScripts=false 根据 API 不可用判断；未直接读取开关 UI，无法区分开关与环境策略。",
+    "postRunSchemaAnnotation": "仅补充未执行阶段 UNKNOWN 及 API/UI 状态字段，没有浏览器新观测；阻断后未重跑 Chrome。",
+    "runnerAfterRun": "仅静态审查补充阶段状态、内部文档实例 token 与上下文切换处理；后续 A–F 路径仍未在真实 Chrome 执行。"
+  }
+}

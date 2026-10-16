@@ -401,6 +401,21 @@ tasks:
       - 证据可复现且包含Chrome版本、命令、正负对照和未验证范围
       - 本地研究完成为review，人工验收后才可done；不授权恢复或发布
 
+  - id: US-EXP
+    title: userScripts document_start 仅 loopback 真实 Chrome 实验
+    phase: R5
+    dependencies: []
+    status: done
+    trellis_task: .trellis/tasks/10-16-userscripts-loopback-fixture
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-16'
+      evidence: .trellis/tasks/10-16-userscripts-loopback-fixture/implement.md#2026-10-16-人工验收确认
+    scope:
+      - 独立 Linux VM 内保留 Chrome sandbox 和仅 loopback 约束的最小真实 fixture
+    acceptance:
+      - linux-evidence.json 为 GO 且用户明确确认人工验收通过；原 macOS BLOCKED 保留
+
   - id: VG-022
     title: 方案B P1私有交接隔离验证
     phase: R5

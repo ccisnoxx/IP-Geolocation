@@ -1,0 +1,1444 @@
+{
+  "schemaVersion": 3,
+  "conclusion": "GO",
+  "exitCode": 0,
+  "environment": {
+    "chromeVersion": "155.0.8059.84",
+    "nodeVersion": "v24.16.0",
+    "platform": "linux",
+    "architecture": "arm64",
+    "realChrome": true,
+    "allowUserScripts": true,
+    "allowUserScriptsUiState": "ENABLED",
+    "apiAvailable": true,
+    "allowUserScriptsEvidence": "默认开关关闭/API 不可用；正常扩展详情页可信鼠标点击后开关开启，getScripts 实际成功",
+    "mode": "fresh-temporary-Chrome",
+    "transport": "HTTP loopback",
+    "chromeSandbox": {
+      "layerOne": true,
+      "pidNamespaces": true,
+      "networkNamespaces": true,
+      "seccompBpf": true,
+      "adequate": true,
+      "status": "PASS",
+      "observedPage": "Sandbox Status\nLayer 1 Sandbox\tNamespace\nPID namespaces\tYes\nNetwork namespaces\tYes\nSeccomp-BPF sandbox\tYes\nSeccomp-BPF sandbox supports TSYNC\tYes\nPtrace Protection with Yama LSM (Broker)\tNo\nPtrace Protection with Yama LSM (Non-broker)\tNo\n\nYou are adequately sandboxed."
+    },
+    "permissions": [
+      "userScripts"
+    ],
+    "hostPermissions": [
+      "http://localhost/*"
+    ],
+    "chromeVersionSource": "CDP_BROWSER_VERSION",
+    "userScriptsSwitch": {
+      "method": "Chrome-extension-details-trusted-pointer",
+      "before": false,
+      "apiBefore": false,
+      "after": true
+    },
+    "chromeStartup": {
+      "status": "NOT_OBSERVED",
+      "policyMode": "NOT_OBSERVED",
+      "permissionDenied": false
+    }
+  },
+  "mechanism": {
+    "world": "MAIN",
+    "runAt": "document_start",
+    "allFrames": true,
+    "serviceWorker": false,
+    "documentTargetedInjection": false,
+    "source": "扩展包固定模板 + 固定合成 JSON；仅 navigator.language 实验 getter",
+    "register": "PASS",
+    "update": "PASS",
+    "narrowUpdate": "PASS",
+    "unregister": "PASS"
+  },
+  "network": {
+    "status": "PASS",
+    "backend": "linux-network-namespace",
+    "policyApplied": true,
+    "scope": "collector-and-spawned-Chrome-process-tree",
+    "checks": {
+      "loopbackTcp": "PASS",
+      "loopbackUdp": "PASS",
+      "deniedTcp4": "PASS",
+      "deniedTcp6": "PASS",
+      "deniedUdp4": "PASS",
+      "deniedUdp6": "PASS",
+      "inherited": "PASS"
+    },
+    "topology": {
+      "onlyLoopbackInterface": true,
+      "ipv4ProhibitDefault": true,
+      "ipv6ProhibitDefault": true,
+      "noExternalRoutes": true,
+      "nonRootCollector": true
+    }
+  },
+  "production": {
+    "status": "PASS",
+    "unchanged": "PASS",
+    "pauseGate": "PASS",
+    "checkedFiles": 380,
+    "changedCount": 0
+  },
+  "scenarios": [
+    {
+      "id": "A-native",
+      "expected": "top/iframe earliest、load、postLoad 均原生",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "B-register-A",
+      "expected": "top/iframe 三阶段均 x-vg-a，两个独立文档",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "B-broad-subpath",
+      "expected": "localhost 任意子路径三阶段均 x-vg-a",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "E-other-origin",
+      "expected": "127.0.0.1 top/iframe 三阶段均原生",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "C-existing-A",
+      "expected": "update 完成后已有 top/iframe 仍 x-vg-a，文档未重建",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true,
+        "sameDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "C-reload-B",
+      "expected": "同 URL 完整 reload 创建新 top/iframe，三阶段均 x-vg-b",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true,
+        "newDocuments": true,
+        "sameURL": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "C-new-tab-B",
+      "expected": "新标签 top/iframe 三阶段均 x-vg-b",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "F-history-away",
+      "expected": "旧 A 导航到 127.0.0.1 后 top/iframe 均原生",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "F-history-back",
+      "expected": "缓存恢复保留 A；文档重建用 B；各阶段无跨文档串用",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              },
+              {
+                "persisted": true,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-a",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-a",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              },
+              {
+                "persisted": true,
+                "sample": {
+                  "value": "x-vg-a",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true,
+        "restoredOriginalDocument": true,
+        "pageshowPersisted": true,
+        "childRestoredOriginalDocument": true,
+        "childPageshowPersisted": true,
+        "bfcacheObserved": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "F-history-forward",
+      "expected": "127.0.0.1 前进恢复或重建均原生",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              },
+              {
+                "persisted": true,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              },
+              {
+                "persisted": true,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true,
+        "restoredOriginalDocument": true,
+        "pageshowPersisted": true,
+        "childRestoredOriginalDocument": true,
+        "childPageshowPersisted": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "E-narrow-inside",
+      "expected": "/matched/sub/* top/iframe 三阶段均 x-vg-b",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "E-narrow-outside",
+      "expected": "/outside/* top 原生，独立匹配的 /matched/child.html iframe 为 B",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "E-narrow-near-miss",
+      "expected": "/matchedness/* top 原生，独立匹配 iframe 为 B",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "D-existing-B",
+      "expected": "unregister 后已有 top/iframe 保留 B，文档未重建",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "x-vg-b",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "x-vg-b",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "x-vg-b",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true,
+        "sameDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "D-new-native",
+      "expected": "unregister 后新文档 top/iframe 三阶段均原生",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    },
+    {
+      "id": "D-reload-native",
+      "expected": "unregister 后同 URL reload 三阶段均原生",
+      "actual": {
+        "frames": [
+          {
+            "frame": "top",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          },
+          {
+            "frame": "same-origin-http-iframe",
+            "earliest": {
+              "value": "<native-control>",
+              "readyState": "loading",
+              "scriptIndex": 1,
+              "inline": true
+            },
+            "load": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "postLoad": {
+              "value": "<native-control>",
+              "readyState": "complete",
+              "scriptIndex": 1,
+              "inline": false
+            },
+            "pageshow": [
+              {
+                "persisted": false,
+                "sample": {
+                  "value": "<native-control>",
+                  "readyState": "complete",
+                  "scriptIndex": 1,
+                  "inline": false
+                }
+              }
+            ]
+          }
+        ],
+        "independentDocuments": true
+      },
+      "status": "PASS",
+      "phases": {
+        "earliest": "PASS",
+        "load": "PASS",
+        "postLoad": "PASS"
+      }
+    }
+  ],
+  "cleanup": {
+    "status": "PASS",
+    "failures": [],
+    "coordinator": "PASS",
+    "staging": "PASS"
+  },
+  "limitations": [
+    "仅 HTTP localhost/127.0.0.1、当前 Chrome 版本与运行平台；未验证 HTTPS 或 macOS 启动修复。",
+    "不覆盖 about:blank、srcdoc、data:、blob:、sandbox 特殊帧、Worker/SharedWorker、Geolocation、Canvas、完整 runtime 或已有 Hook 自动撤销。",
+    "不覆盖进行中的导航与注册更新竞态、扩展更新或浏览器重启持久性。",
+    "BFCache 未命中只证明历史导航重建；不宣称已验证缓存恢复。",
+    "网络约束覆盖本次派生进程树；不约束整台机器其他进程，不宣称已统计所有被拒绝的后台尝试。",
+    "退出 0 仅为最小实验 GO；不授权生产集成、恢复或发布。"
+  ],
+  "stopReason": null,
+  "productionRecoveryPerformed": false,
+  "requiredChecks": {
+    "realChrome138": "PASS",
+    "chromeSandbox": "PASS",
+    "userScriptsSwitch": "PASS",
+    "userScriptsApi": "PASS",
+    "registrations": "PASS",
+    "networkLoopback": "PASS",
+    "productionUnchanged": "PASS",
+    "cleanup": "PASS",
+    "networkNamespace": "PASS",
+    "A-native": "PASS",
+    "B-register-A": "PASS",
+    "B-broad-subpath": "PASS",
+    "E-other-origin": "PASS",
+    "C-existing-A": "PASS",
+    "C-reload-B": "PASS",
+    "C-new-tab-B": "PASS",
+    "F-history-away": "PASS",
+    "F-history-back": "PASS",
+    "F-history-forward": "PASS",
+    "E-narrow-inside": "PASS",
+    "E-narrow-outside": "PASS",
+    "E-narrow-near-miss": "PASS",
+    "D-existing-B": "PASS",
+    "D-new-native": "PASS",
+    "D-reload-native": "PASS"
+  }
+}

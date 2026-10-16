@@ -1,0 +1,273 @@
+{
+  "schemaVersion": 2,
+  "conclusion": "BLOCKED",
+  "exitCode": 2,
+  "environment": {
+    "chromeVersion": "155.0.8059.80",
+    "nodeVersion": "v24.16.0",
+    "realChrome": true,
+    "allowUserScripts": "UNKNOWN",
+    "allowUserScriptsUiState": "NOT_OBSERVED",
+    "apiAvailable": "UNKNOWN",
+    "allowUserScriptsEvidence": "尚未调用 API",
+    "mode": "fresh-temporary-Chrome",
+    "transport": "HTTP loopback",
+    "permissions": [
+      "userScripts"
+    ],
+    "hostPermissions": [
+      "http://localhost/*"
+    ],
+    "chromeDiagnostic": "BROWSER_SANDBOX_INITIALIZATION_FAILED"
+  },
+  "mechanism": {
+    "world": "MAIN",
+    "runAt": "document_start",
+    "allFrames": true,
+    "serviceWorker": false,
+    "documentTargetedInjection": false,
+    "source": "扩展包固定模板 + 固定合成 JSON；仅 navigator.language 实验 getter",
+    "register": "UNKNOWN",
+    "update": "UNKNOWN",
+    "narrowUpdate": "UNKNOWN",
+    "unregister": "UNKNOWN"
+  },
+  "network": {
+    "status": "PASS",
+    "backend": "macOS-sandbox-exec",
+    "policyApplied": true,
+    "scope": "collector-and-spawned-Chrome-process-tree",
+    "checks": {
+      "loopbackTcp": "PASS",
+      "loopbackUdp": "PASS",
+      "deniedTcp4": "PASS",
+      "deniedTcp6": "PASS",
+      "deniedUdp4": "PASS",
+      "deniedUdp6": "PASS",
+      "inherited": "PASS"
+    }
+  },
+  "production": {
+    "status": "PASS",
+    "unchanged": "PASS",
+    "pauseGate": "PASS",
+    "checkedFiles": 380,
+    "changedCount": 0
+  },
+  "scenarios": [
+    {
+      "id": "A-native",
+      "expected": "top/iframe earliest、load、postLoad 均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "B-register-A",
+      "expected": "top/iframe 三阶段均 x-vg-a，两个独立文档",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "B-broad-subpath",
+      "expected": "localhost 任意子路径三阶段均 x-vg-a",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-other-origin",
+      "expected": "127.0.0.1 top/iframe 三阶段均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "C-existing-A",
+      "expected": "update 完成后已有 top/iframe 仍 x-vg-a，文档未重建",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "C-reload-B",
+      "expected": "同 URL 完整 reload 创建新 top/iframe，三阶段均 x-vg-b",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "C-new-tab-B",
+      "expected": "新标签 top/iframe 三阶段均 x-vg-b",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "F-history-away",
+      "expected": "旧 A 导航到 127.0.0.1 后 top/iframe 均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "F-history-back",
+      "expected": "缓存恢复保留 A；文档重建用 B；各阶段无跨文档串用",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "F-history-forward",
+      "expected": "127.0.0.1 前进恢复或重建均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-narrow-inside",
+      "expected": "/matched/sub/* top/iframe 三阶段均 x-vg-b",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-narrow-outside",
+      "expected": "/outside/* top 原生，独立匹配的 /matched/child.html iframe 为 B",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "E-narrow-near-miss",
+      "expected": "/matchedness/* top 原生，独立匹配 iframe 为 B",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "D-existing-B",
+      "expected": "unregister 后已有 top/iframe 保留 B，文档未重建",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "D-new-native",
+      "expected": "unregister 后新文档 top/iframe 三阶段均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    },
+    {
+      "id": "D-reload-native",
+      "expected": "unregister 后同 URL reload 三阶段均原生",
+      "actual": null,
+      "status": "UNKNOWN",
+      "phases": {
+        "earliest": "UNKNOWN",
+        "load": "UNKNOWN",
+        "postLoad": "UNKNOWN"
+      }
+    }
+  ],
+  "cleanup": {
+    "status": "PASS",
+    "failures": []
+  },
+  "limitations": [
+    "仅 HTTP localhost/127.0.0.1、当前 Chrome 版本；未验证 HTTPS。",
+    "不覆盖 about:blank、srcdoc、data:、blob:、sandbox 特殊帧、Worker/SharedWorker、Geolocation、Canvas、完整 runtime 或已有 Hook 自动撤销。",
+    "不覆盖进行中的导航与注册更新竞态、扩展更新或浏览器重启持久性。",
+    "BFCache 未命中只证明历史导航重建；不宣称已验证缓存恢复。",
+    "网络约束覆盖本次派生进程树；不约束整台机器其他进程，不宣称已统计所有被拒绝的后台尝试。",
+    "退出 0 仅为最小实验 GO；不授权生产集成、恢复或发布。"
+  ],
+  "stopReason": "CDP_CLOSED",
+  "productionRecoveryPerformed": false,
+  "requiredChecks": {
+    "realChrome138": "PASS",
+    "userScriptsApi": "UNKNOWN",
+    "registrations": "UNKNOWN",
+    "networkLoopback": "PASS",
+    "productionUnchanged": "PASS",
+    "cleanup": "PASS",
+    "A-native": "UNKNOWN",
+    "B-register-A": "UNKNOWN",
+    "B-broad-subpath": "UNKNOWN",
+    "E-other-origin": "UNKNOWN",
+    "C-existing-A": "UNKNOWN",
+    "C-reload-B": "UNKNOWN",
+    "C-new-tab-B": "UNKNOWN",
+    "F-history-away": "UNKNOWN",
+    "F-history-back": "UNKNOWN",
+    "F-history-forward": "UNKNOWN",
+    "E-narrow-inside": "UNKNOWN",
+    "E-narrow-outside": "UNKNOWN",
+    "E-narrow-near-miss": "UNKNOWN",
+    "D-existing-B": "UNKNOWN",
+    "D-new-native": "UNKNOWN",
+    "D-reload-native": "UNKNOWN"
+  }
+}

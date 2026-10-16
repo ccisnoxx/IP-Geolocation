@@ -1,0 +1,9 @@
+; 本次 Node 及派生 Chrome 的 IP 通信只允许 loopback；不改变 Chrome 自身 sandbox。
+(version 1)
+(allow default)
+(deny network* (with no-log))
+(allow network-bind network-inbound (local ip "localhost:*"))
+(allow network-outbound (remote ip "localhost:*"))
+; 保留本机进程 IPC；拒绝经系统 DNS socket 代理外部查询。
+(allow network* (local unix-socket) (remote unix-socket))
+(deny network-outbound (literal "/private/var/run/mDNSResponder") (with no-log))

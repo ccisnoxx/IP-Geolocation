@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "VanishGeo local userScripts timing experiment",
+  "version": "0.1.0",
+  "minimum_chrome_version": "138",
+  "permissions": ["userScripts"],
+  "host_permissions": ["http://localhost/*"],
+  "web_accessible_resources": []
+}
