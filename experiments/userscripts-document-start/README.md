@@ -101,3 +101,15 @@ limactl stop vg-userscripts-fixture
 ```
 
 生产宿主门禁固定枚举17项，并要求namespace/collector/staging清理与运行期间生产文件不变；改用语言/时区专用入口/无旧派发的边界检查。GO仅代表这组生产 smoke，未验证项仍需独立报告。期望值仅存在扩展管理页与collector断言，localhost自己同步采实际值，无法接收预期桥。扩展update只修改VM里临时dist副本版本，仓库manifest不变；cleanup回收副本。没有第三方站点、provider、位置或ICE请求。生产语言/时区阶段已于2026-10-16通过用户人工验收，见VG-023任务记录；其他页面能力继续暂停。
+
+## 2026-10-16 补充：空 body 与独立自动恢复
+
+本轮补丁及新机器证据停在 review，说明见 [recovery-review.md](./recovery-review.md)。最小 fixture 的空 body 等待已修复，新报告为 [linux-body-ready-evidence.json](./linux-body-ready-evidence.json)。独立恢复使用 `node scripts/chrome-language-timezone-smoke.mjs --recovery-only --output experiments/userscripts-document-start/production-auto-recovery-evidence.json`；[新报告](./production-auto-recovery-evidence.json) 为 scope 明确的7项 GO，不代表本轮完整17项通过。
+
+恢复期间关闭扩展管理页，禁止管理消息，直接在 worker 上下文读回注册后再验证新文档首 inline。原 `linux-evidence.json`、`production-evidence.json` 及历史 BLOCKED 均保留，不覆盖、不追加人工验收，也不改变 Navigator review 或其他页面能力暂停状态。
+
+
+第二组后续就绪修复：`worker-reader.mjs` 先等待原生扩展 API 与预期版本，再读取注册；失效的 target/session/context 重新定位，真实 API 失败仍停止。新证据另存 [production-worker-ready-evidence.json](./production-worker-ready-evidence.json)，本次真实 Chrome GO7；旧候选的更新观测 BLOCKED 与上述历史 JSON 均保留。7项不代表完整17项，新增8项观察器回归也不充当浏览器证据。具体边界见 [补充记录](./recovery-review.md#第二组-worker-就绪与-target-换代补充修复)，本轮仍待人工 review。
+
+
+默认执行上下文缺失的P2已在fixture中最小修复，新增回归先失败后通过；第二组新证据为 [production-default-context-evidence.json](./production-default-context-evidence.json)，真实Chrome GO7，定向检查22/22。P3宿主版本字段校验保持原样；旧候选与全部JSON保留，仍停在review。该7项不能替代完整17项，精确P2协议分支由Node/VM回归覆盖，见 [补充记录](./recovery-review.md#默认执行上下文缺失-p2-最小修复)。

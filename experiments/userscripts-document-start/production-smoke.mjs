@@ -8,11 +8,15 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { probeNetwork, probeInheritedNetwork } from './network-probe.mjs';
 import { chromeSandboxStatus } from './chrome-sandbox-status.mjs';
+import { createWorkerReader } from './worker-reader.mjs';
 
-const required = ['network', 'chrome-sandbox', 'fresh-disabled', 'normal-user-switch', 'register', 'earliest-top-iframe',
+const recoveryOnly = process.argv[2] === '--recovery-only';
+const required = recoveryOnly ? ['network', 'chrome-sandbox', 'fresh-disabled', 'normal-user-switch', 'register',
+  'worker-restart', 'extension-update'] : ['network', 'chrome-sandbox', 'fresh-disabled', 'normal-user-switch', 'register', 'earliest-top-iframe',
   'native-origin', 'paused-surfaces', 'specific-domain', 'snapshot-A-to-B', 'reload-B', 'compatible',
   'dnr-webrtc', 'worker-restart', 'extension-update', 'disabled-snapshot', 'disabled-reload'];
-const evidence = { schemaVersion: 1, conclusion: 'BLOCKED', exitCode: 2, environment: { platform: process.platform, architecture: process.arch, realChrome: false },
+const evidence = { schemaVersion: 2, scope: recoveryOnly ? 'automatic-language-timezone-recovery' : 'full-language-timezone-smoke',
+  conclusion: 'BLOCKED', exitCode: 2, environment: { platform: process.platform, architecture: process.arch, realChrome: false },
   checks: Object.fromEntries(required.map(id => [id, 'UNKNOWN'])), observations: {}, cleanup: { status: 'UNKNOWN', failures: [] }, stopReason: null };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(read, accept = Boolean) {
@@ -24,7 +28,7 @@ async function until(read, accept = Boolean) {
   throw new Error('AUTOMATION_TIMEOUT');
 }
 function fixture(serial, child) {
-  function bootstrap(instance) {
+  function bootstrap(instance, includeWorkers) {
     const read = () => {
       const canvas = document.createElement('canvas').getContext('2d');
       canvas.font = '13px "VanishGeo Synthetic Font"';
@@ -41,12 +45,13 @@ function fixture(serial, child) {
     globalThis.vgRead = read;
     addEventListener('load', () => { vgActual.load = read(); }, { once: true });
     if (navigator.permissions) navigator.permissions.query({ name: 'geolocation' }).then(result => { vgActual.permission = result.state; });
+    if (!includeWorkers) return;
     const worker = new Worker('/worker.js');
     worker.onmessage = event => { vgActual.worker = event.data; worker.terminate(); };
     const shared = new SharedWorker('/shared.js', 'vg-production-smoke');
     shared.port.onmessage = event => { vgActual.shared = event.data; shared.port.close(); };
   }
-  return '<!doctype html><html><head><script>(' + bootstrap.toString() + ')(' + serial + ');</script><meta charset="utf-8"><link rel="icon" href="data:,"></head><body>'
+  return '<!doctype html><html><head><script>(' + bootstrap.toString() + ')(' + serial + ',' + !recoveryOnly + ');</script><meta charset="utf-8"><link rel="icon" href="data:,"></head><body>'
     + (child ? '' : '<iframe src="/child"></iframe>') + '</body></html>';
 }
 let chrome, server, cdp, options, temp;
@@ -93,7 +98,7 @@ try {
     const message = JSON.parse(event.data), request = pending.get(message.id);
     if (!request) return;
     pending.delete(message.id); clearTimeout(request.timer);
-    if (message.error) request.reject(new Error(message.error.message)); else request.resolve(message.result);
+    if (message.error) request.reject(Object.assign(new Error(message.error.message), { cdpCode: message.error.code })); else request.resolve(message.result);
   });
   cdp = { close: () => ws.close(), send(method, params = {}, sessionId) {
     return new Promise((resolve, reject) => {
@@ -103,7 +108,14 @@ try {
   } };
   async function evaluate(page, expression) {
     const result = await cdp.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, page.sessionId);
-    if (result.exceptionDetails) throw new Error('EXTENSION_OR_FIXTURE_EXCEPTION');
+    if (result.exceptionDetails) {
+      evidence.observations.evaluationFailure = {
+        type: result.exceptionDetails.exception?.className || 'Unknown',
+        detail: result.exceptionDetails.exception?.description?.split('\n')[0]
+          .replace(/(?:chrome-extension|https?):\/\/\S+/g, '<local-context>') || 'EXCEPTION'
+      };
+      throw new Error('EXTENSION_OR_FIXTURE_EXCEPTION');
+    }
     return result.result.value;
   }
   async function page(url) {
@@ -114,13 +126,26 @@ try {
   evidence.environment.sandbox = chromeSandboxStatus(await until(() => evaluate(sandbox, 'document.body?.innerText'), text => text?.includes('Seccomp')));
   assert.equal(evidence.environment.sandbox.status, 'PASS'); evidence.checks['chrome-sandbox'] = 'PASS';
   const dist = fileURLToPath(new URL('./dist/', import.meta.url));
+  const initialVersion = JSON.parse(await readFile(join(dist, 'manifest.json'), 'utf8')).version;
   const { id } = await cdp.send('Extensions.loadUnpacked', { path: dist });
   const optionsUrl = 'chrome-extension://' + id + '/options/options.html';
   options = await page(optionsUrl);
   await until(() => evaluate(options, "Boolean(globalThis.chrome?.runtime && document.getElementById('runtimeSyncStatus'))"));
-  const message = request => evaluate(options, 'chrome.runtime.sendMessage(' + JSON.stringify(request) + ')');
-  const readRows = target => evaluate(target, '(() => {const frames=[window,...Array.from(document.querySelectorAll("iframe"),f=>f.contentWindow)]; return frames.every(w=>w.vgActual?.load && w.vgActual.worker && w.vgActual.shared) ? frames.map(w=>({...w.vgActual,current:w.vgRead()})) : null})()');
-  async function document(url) { const target = await page(url); return { target, rows: await until(() => readRows(target)) }; }
+  let recoveryPhase = false;
+  const message = request => {
+    assert.equal(recoveryPhase, false, '自动恢复检查期间禁止管理消息触发对账');
+    return evaluate(options, 'chrome.runtime.sendMessage(' + JSON.stringify(request) + ')');
+  };
+  const readRows = target => evaluate(target, '(() => {const frames=[window,...Array.from(document.querySelectorAll("iframe"),f=>f.contentWindow)]; return frames.every(w=>w.vgActual?.load && (' + recoveryOnly + ' || (w.vgActual.worker && w.vgActual.shared))) ? frames.map(w=>({...w.vgActual,current:w.vgRead()})) : null})()');
+  async function document(url) {
+    const target = await page(url);
+    try { return { target, rows: await until(() => readRows(target)) }; }
+    catch (error) {
+      evidence.observations.incompleteDocument = await evaluate(target,
+        '([window,...Array.from(document.querySelectorAll("iframe"),f=>f.contentWindow)]).map(w=>({readyState:w.document.readyState,hasSample:Boolean(w.vgActual),load:w.vgActual?.load,worker:w.vgActual?.worker,shared:w.vgActual?.shared}))');
+      throw error;
+    }
+  }
   async function reload(document) {
     await cdp.send('Page.enable', {}, document.target.sessionId);
     await cdp.send('Page.reload', {}, document.target.sessionId);
@@ -155,6 +180,11 @@ try {
   config.rules = ['localhost', 'example.test', 'sub.example.test'].map(rule);
   config.rules[2].overrides.language = { mode: 'override', value: { enabled: true, language: 'ko-KR', languages: ['ko-KR'], acceptLanguage: 'ko-KR' } };
   config.rules[2].overrides.timezone = { mode: 'override', value: { enabled: true, mode: 'manual', timezone: 'Asia/Seoul' } };
+  if (recoveryOnly) {
+    config.intlMode = 'compatible';
+    config.globalProfile.language = { enabled: true, mode: 'custom', language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9' };
+    config.globalProfile.timezone.timezone = 'Europe/Paris';
+  }
   const saved = await message({ action: 'setSiteConfig', config });
   assert.equal(saved.syncReport.pageRuntime.state, 'ready'); assert.equal(saved.syncReport.components.contentScripts.status, 'ok');
   evidence.checks.register = 'PASS';
@@ -168,6 +198,8 @@ try {
       }
     }
   }
+  let heldB;
+  if (!recoveryOnly) {
   const heldA = await document(local); configured(heldA.rows, 'ja-JP', 'Asia/Tokyo', -540);
   assert.equal(heldA.rows[0].current.numberLocale, 'ja-JP'); assert.deepEqual(heldA.rows[0].current.languages, ['ja-JP', 'ja']);
   evidence.observations.earliestA = heldA.rows.map(row => ({ language: row.earliest.language, timezone: row.earliest.timezone, offset: row.earliest.offset, readyState: row.readyState, scriptIndex: row.scriptIndex }));
@@ -193,26 +225,85 @@ try {
   evidence.observations.afterSaveB = { sameDocument: old[0].instance === heldA.rows[0].instance, old: old.map(row => row.current), sync: changed.syncReport.pageRuntime };
   evidence.checks['snapshot-A-to-B'] = 'PASS';
   configured(await reload(heldA), 'fr-FR', 'Europe/Paris', -60); evidence.observations.afterReloadB = heldA.rows.map(row => row.earliest); evidence.checks['reload-B'] = 'PASS';
-  const heldB = await document(local); configured(heldB.rows, 'fr-FR', 'Europe/Paris', -60);
+  heldB = await document(local); configured(heldB.rows, 'fr-FR', 'Europe/Paris', -60);
   assert.equal(heldB.rows[0].current.explicit.locale, 'en-US'); assert.equal(heldB.rows[0].current.explicit.timeZone, 'UTC'); evidence.checks.compatible = 'PASS';
   assert.equal(latestHeader, 'fr-FR,fr;q=0.9');
   const policy = await message({ action: 'getWebRtcConfig' }); assert.equal(policy.state.policyState.actualPolicy, 'disable_non_proxied_udp');
   evidence.observations.networkPolicy = { acceptLanguage: latestHeader, webRtcPolicy: policy.state.policyState.actualPolicy };
   evidence.checks['dnr-webrtc'] = 'PASS';
-  await evaluate(options, 'chrome.userScripts.unregister()');
-  await cdp.send('ServiceWorker.enable', {}, options.sessionId); await cdp.send('ServiceWorker.stopAllWorkers', {}, options.sessionId);
-  await until(async () => !(await cdp.send('Target.getTargets')).targetInfos.some(target => target.type === 'service_worker' && target.url.startsWith('chrome-extension://' + id + '/')));
-  assert.equal((await message({ action: 'getSiteConfig' })).syncReport.pageRuntime.state, 'ready');
-  configured((await document(local)).rows, 'fr-FR', 'Europe/Paris', -60); evidence.checks['worker-restart'] = 'PASS';
+  }
+  // 从此处到两个恢复场景结束，管理页全部关闭；只直接读取浏览器注册，不调用业务消息。
+  const expectedScripts = await evaluate(options, 'chrome.userScripts.getScripts()');
+  const canonical = scripts => JSON.stringify(scripts.slice().sort((a, b) => a.id.localeCompare(b.id)));
+  const expected = canonical(expectedScripts);
+  assert.ok(expectedScripts.length > 0);
+  const extensionOrigin = 'chrome-extension://' + id + '/';
+  const targets = async () => (await cdp.send('Target.getTargets')).targetInfos;
+  const workerTarget = async () => (await targets()).find(target => target.type === 'service_worker' && target.url.startsWith(extensionOrigin));
+  const assertNoExtensionPages = async () => {
+    assert.ok(!(await targets()).some(target => target.type === 'page' && target.url.startsWith(extensionOrigin)), '恢复期间不得打开扩展管理页');
+  };
+  for (const target of await targets()) {
+    if (target.type === 'page' && (target.url.startsWith(extensionOrigin) || target.url.startsWith('chrome://extensions'))) {
+      await cdp.send('Target.closeTarget', { targetId: target.targetId });
+    }
+  }
+  options = null; recoveryPhase = true;
+  await assertNoExtensionPages();
+  const lifecycle = await page('about:blank');
+  await cdp.send('ServiceWorker.enable', {}, lifecycle.sessionId);
+  // 先核对本次浏览器实际提供的 CDP 方法，再用它启动已停止的扩展 worker。
+  const protocol = await (await fetch('http://127.0.0.1:' + debugPort + '/json/protocol')).json();
+  assert.ok(protocol.domains.find(domain => domain.domain === 'ServiceWorker')?.commands
+    .find(command => command.name === 'startWorker')?.parameters.some(parameter => parameter.name === 'scopeURL'));
+  const workerReader = createWorkerReader(cdp, extensionOrigin);
+  async function readWorker(expression, version, accept) {
+    try { return await workerReader.read(expression, version, accept); }
+    finally { evidence.observations.workerReadiness = workerReader.diagnostics(); }
+  }
+  async function clearAndStopWorker() {
+    evidence.observations.recoveryStep = 'clear-registrations';
+    const { worker } = await readWorker('null', initialVersion);
+    // 写操作只执行一次；异常不得通过重新附加后重写来掩盖。
+    await evaluate(worker, 'chrome.userScripts.unregister()');
+    assert.deepEqual(await evaluate(worker, 'chrome.userScripts.getScripts()'), []);
+    evidence.observations.recoveryStep = 'stop-worker';
+    await cdp.send('ServiceWorker.stopAllWorkers', {}, lifecycle.sessionId);
+    await until(async () => !await workerTarget());
+    await workerReader.close();
+    await assertNoExtensionPages();
+  }
+  async function observeRecovery(trigger, version) {
+    evidence.observations.recoveryStep = trigger + ':observe-registration';
+    const { value: scripts, readiness } = await readWorker('chrome.userScripts.getScripts()', version, rows => canonical(rows) === expected);
+    await assertNoExtensionPages();
+    evidence.observations.recoveryStep = trigger + ':new-document';
+    const recoveredDocument = await document(local);
+    configured(recoveredDocument.rows, 'fr-FR', 'Europe/Paris', -60);
+    return { trigger, managementPagesClosed: true, managementMessages: 0, registrationsBeforeTrigger: [],
+      workerStoppedBeforeTrigger: true, readback: 'CDP worker context: chrome.userScripts.getScripts()',
+      registeredIds: scripts.map(script => script.id).sort(), exactRegistrationMatch: true,
+      workerReadiness: readiness,
+      newDocument: recoveredDocument.rows.map(row => ({ earliest: row.earliest, load: row.load, current: row.current,
+        readyState: row.readyState, scriptIndex: row.scriptIndex, inline: row.inline })) };
+  }
+  await clearAndStopWorker();
+  await cdp.send('ServiceWorker.startWorker', { scopeURL: extensionOrigin }, lifecycle.sessionId);
+  evidence.observations.workerRestart = await observeRecovery('CDP ServiceWorker.startWorker', initialVersion);
+  evidence.checks['worker-restart'] = 'PASS';
+  await clearAndStopWorker();
   const manifestPath = join(dist, 'manifest.json'); const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   const previousVersion = manifest.version; manifest.version = '2.1.2'; await writeFile(manifestPath, JSON.stringify(manifest));
   const updated = await cdp.send('Extensions.loadUnpacked', { path: dist }); assert.equal(updated.id, id);
-  options = await page(optionsUrl); await until(() => evaluate(options, 'Boolean(chrome.runtime)'));
-  assert.equal(await evaluate(options, 'chrome.runtime.getManifest().version'), '2.1.2');
-  const recovered = await message({ action: 'getSiteConfig' }); assert.equal(recovered.syncReport.pageRuntime.state, 'ready');
-  configured((await document(local)).rows, 'fr-FR', 'Europe/Paris', -60);
-  evidence.observations.update = { previousVersion, candidateVersion: '2.1.2', sameExtension: true, mechanism: 'Extensions.loadUnpacked same staged directory' };
+  const updateRecovery = await observeRecovery('Extensions.loadUnpacked version update', '2.1.2');
+  await workerReader.close();
+  evidence.observations.update = { ...updateRecovery, previousVersion, candidateVersion: '2.1.2', sameExtension: true,
+    mechanism: 'Extensions.loadUnpacked same staged directory', explicitWorkerStart: false };
   evidence.checks['extension-update'] = 'PASS';
+  recoveryPhase = false;
+  if (!recoveryOnly) {
+  options = await page(optionsUrl);
+  await until(() => evaluate(options, "Boolean(globalThis.chrome?.runtime && document.getElementById('runtimeSyncStatus'))"));
   config.rules[0].enabled = false;
   const disabled = await message({ action: 'setSiteConfig', config });
   assert.equal(disabled.syncReport.components.contentScripts.status, 'ok');
@@ -221,6 +312,7 @@ try {
   evidence.observations.afterDisable = { old: (await readRows(heldB.target))[0].current, sync: disabled.syncReport.pageRuntime };
   assert.equal((await readRows(heldB.target))[0].current.language, 'fr-FR'); evidence.checks['disabled-snapshot'] = 'PASS';
   assert.deepEqual((await reload(heldB))[0].current, native); evidence.observations.disabledReload = heldB.rows.map(row => row.earliest); evidence.checks['disabled-reload'] = 'PASS';
+  }
   evidence.stopReason = null;
 } catch (error) {
   evidence.failure = { nextCheck: required.find(id => evidence.checks[id] !== 'PASS') || 'finalization',

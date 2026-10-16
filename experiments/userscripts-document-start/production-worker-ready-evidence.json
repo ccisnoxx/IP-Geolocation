@@ -1,0 +1,444 @@
+{
+  "schemaVersion": 2,
+  "scope": "automatic-language-timezone-recovery",
+  "conclusion": "GO",
+  "exitCode": 0,
+  "environment": {
+    "platform": "linux",
+    "architecture": "arm64",
+    "realChrome": true,
+    "chromeVersion": "155.0.8059.84",
+    "sandbox": {
+      "layerOne": true,
+      "pidNamespaces": true,
+      "networkNamespaces": true,
+      "seccompBpf": true,
+      "adequate": true,
+      "status": "PASS"
+    },
+    "allowUserScripts": {
+      "before": false,
+      "after": true,
+      "method": "normal-details-UI-trusted-pointer"
+    }
+  },
+  "checks": {
+    "network": "PASS",
+    "chrome-sandbox": "PASS",
+    "fresh-disabled": "PASS",
+    "normal-user-switch": "PASS",
+    "register": "PASS",
+    "worker-restart": "PASS",
+    "extension-update": "PASS"
+  },
+  "observations": {
+    "fresh": {
+      "masterEnabled": false,
+      "ruleCount": 0,
+      "pageRuntime": {
+        "state": "switch-required",
+        "registeredRuleCount": null,
+        "reloadRequired": false
+      },
+      "native": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timezone": "Asia/Shanghai",
+        "numberLocale": "en-US",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 8,
+        "offset": -480,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      }
+    },
+    "recoveryStep": "Extensions.loadUnpacked version update:new-document",
+    "workerReadiness": {
+      "attachments": 3,
+      "unavailableContexts": 1,
+      "wrongVersions": 0,
+      "invalidations": 0,
+      "targetChanges": 2
+    },
+    "workerRestart": {
+      "trigger": "CDP ServiceWorker.startWorker",
+      "managementPagesClosed": true,
+      "managementMessages": 0,
+      "registrationsBeforeTrigger": [],
+      "workerStoppedBeforeTrigger": true,
+      "readback": "CDP worker context: chrome.userScripts.getScripts()",
+      "registeredIds": [
+        "vanishgeo-language-timezone-example.test",
+        "vanishgeo-language-timezone-localhost",
+        "vanishgeo-language-timezone-sub.example.test"
+      ],
+      "exactRegistrationMatch": true,
+      "workerReadiness": {
+        "apiReady": true,
+        "version": "2.1.1",
+        "attachments": 2,
+        "unavailableContexts": 0,
+        "wrongVersions": 0,
+        "invalidations": 0,
+        "targetChanges": 1
+      },
+      "newDocument": [
+        {
+          "earliest": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "load": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "current": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "readyState": "loading",
+          "scriptIndex": 1,
+          "inline": true
+        },
+        {
+          "earliest": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "load": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "current": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "readyState": "loading",
+          "scriptIndex": 1,
+          "inline": true
+        }
+      ]
+    },
+    "update": {
+      "trigger": "Extensions.loadUnpacked version update",
+      "managementPagesClosed": true,
+      "managementMessages": 0,
+      "registrationsBeforeTrigger": [],
+      "workerStoppedBeforeTrigger": true,
+      "readback": "CDP worker context: chrome.userScripts.getScripts()",
+      "registeredIds": [
+        "vanishgeo-language-timezone-example.test",
+        "vanishgeo-language-timezone-localhost",
+        "vanishgeo-language-timezone-sub.example.test"
+      ],
+      "exactRegistrationMatch": true,
+      "workerReadiness": {
+        "apiReady": true,
+        "version": "2.1.2",
+        "attachments": 3,
+        "unavailableContexts": 1,
+        "wrongVersions": 0,
+        "invalidations": 0,
+        "targetChanges": 2
+      },
+      "newDocument": [
+        {
+          "earliest": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "load": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "current": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "readyState": "loading",
+          "scriptIndex": 1,
+          "inline": true
+        },
+        {
+          "earliest": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "load": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "current": {
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "locale": "fr-FR",
+            "timezone": "Europe/Paris",
+            "numberLocale": "fr-FR",
+            "explicit": {
+              "locale": "en-US",
+              "calendar": "gregory",
+              "numberingSystem": "latn",
+              "timeZone": "UTC",
+              "year": "numeric",
+              "month": "numeric",
+              "day": "numeric"
+            },
+            "hour": 1,
+            "offset": -60,
+            "font": "13px \"VanishGeo Synthetic Font\""
+          },
+          "readyState": "loading",
+          "scriptIndex": 1,
+          "inline": true
+        }
+      ],
+      "previousVersion": "2.1.1",
+      "candidateVersion": "2.1.2",
+      "sameExtension": true,
+      "mechanism": "Extensions.loadUnpacked same staged directory",
+      "explicitWorkerStart": false
+    }
+  },
+  "cleanup": {
+    "status": "PASS",
+    "failures": [],
+    "coordinator": "PASS",
+    "staging": "PASS"
+  },
+  "stopReason": null,
+  "network": {
+    "backend": "linux-network-namespace",
+    "checks": {
+      "loopbackTcp": "PASS",
+      "loopbackUdp": "PASS",
+      "deniedTcp4": "PASS",
+      "deniedTcp6": "PASS",
+      "deniedUdp4": "PASS",
+      "deniedUdp6": "PASS",
+      "inherited": "PASS"
+    },
+    "onlyLoopback": true,
+    "ipv4Prohibit": true,
+    "ipv6Prohibit": true,
+    "nonRoot": true
+  },
+  "production": {
+    "status": "PASS",
+    "unchanged": "PASS",
+    "languageTimezoneBoundary": "PASS",
+    "checkedFiles": 395,
+    "changedCount": 0
+  }
+}

@@ -22,7 +22,8 @@ export async function collectInsideLinuxVmGuard(options = {}) {
     await execute('limactl', ['copy', '-r', directory + 'extension', `${instance}:${stage}/`], { timeout: 30000 });
     if (options.production) await execute('limactl', ['copy', '-r', fileURLToPath(new URL('../../dist', import.meta.url)), `${instance}:${stage}/dist`], { timeout: 30000 });
     if (interrupted) throw new Error('GUARDED_COLLECTOR_INTERRUPTED');
-    child = spawn('limactl', ['shell', '--workdir', '/tmp', instance, '--', 'sudo', '/usr/local/bin/node', `${stage}/linux-netns.mjs`, ...(options.production ? ['--production'] : [])],
+    child = spawn('limactl', ['shell', '--workdir', '/tmp', instance, '--', 'sudo', '/usr/local/bin/node', `${stage}/linux-netns.mjs`,
+      ...(options.production ? ['--production', ...(options.recoveryOnly ? ['--recovery-only'] : [])] : [])],
       { stdio: ['ignore', 'pipe', 'ignore'] });
     let output = '';
     const timer = setTimeout(() => child.kill('SIGTERM'), 195000);

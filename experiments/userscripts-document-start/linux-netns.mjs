@@ -58,7 +58,7 @@ try {
   const home = command('getent', ['passwd', String(uid)]).trim().split(':')[5];
   checkInterrupted();
   child = spawn('ip', ['netns', 'exec', namespace, 'setpriv', '--reuid', String(uid), '--regid', String(gid), '--init-groups',
-    process.execPath, entry], {
+    process.execPath, entry, ...(process.argv[2] === '--production' && process.argv[3] === '--recovery-only' ? ['--recovery-only'] : [])], {
     detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     env: { PATH: process.env.PATH, HOME: home, LANG: 'C.UTF-8',
       VG_US_EXPERIMENT_TEMP: profile, VG_US_NETWORK_BACKEND: 'linux-netns' }
