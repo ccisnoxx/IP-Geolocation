@@ -8,7 +8,7 @@ const execute = promisify(execFile);
 const instance = 'vg-userscripts-fixture';
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const shell = args => execute('limactl', ['shell', '--workdir', '/tmp', instance, '--', ...args], { timeout: 20000, maxBuffer: 2 * 1024 * 1024 });
-export async function collectInsideLinuxVmGuard() {
+export async function collectInsideLinuxVmGuard(options = {}) {
   let stage, child, result, coordinatorCopied = false, interrupted = false;
   const interrupt = () => { interrupted = true; child?.kill('SIGTERM'); };
   process.once('SIGINT', interrupt);
@@ -20,8 +20,9 @@ export async function collectInsideLinuxVmGuard() {
     await execute('limactl', ['copy', ...files.map(name => directory + name), `${instance}:${stage}/`], { timeout: 30000 });
     coordinatorCopied = true;
     await execute('limactl', ['copy', '-r', directory + 'extension', `${instance}:${stage}/`], { timeout: 30000 });
+    if (options.production) await execute('limactl', ['copy', '-r', fileURLToPath(new URL('../../dist', import.meta.url)), `${instance}:${stage}/dist`], { timeout: 30000 });
     if (interrupted) throw new Error('GUARDED_COLLECTOR_INTERRUPTED');
-    child = spawn('limactl', ['shell', '--workdir', '/tmp', instance, '--', 'sudo', '/usr/local/bin/node', `${stage}/linux-netns.mjs`],
+    child = spawn('limactl', ['shell', '--workdir', '/tmp', instance, '--', 'sudo', '/usr/local/bin/node', `${stage}/linux-netns.mjs`, ...(options.production ? ['--production'] : [])],
       { stdio: ['ignore', 'pipe', 'ignore'] });
     let output = '';
     const timer = setTimeout(() => child.kill('SIGTERM'), 195000);

@@ -169,6 +169,19 @@ export interface EffectiveProfileResult {
 }
 
 export type RuntimeSyncStatus = 'ok' | 'failed' | 'partial';
+// 只有已启用且可解析的页面信号进入注册代码，未启用的字段直接省略。
+export interface LanguageTimezonePayload {
+  intlMode: IntlMode;
+  language?: { language: string; languages: string[] };
+  timezone?: string;
+}
+
+export interface PageRuntimeStatus {
+  state: 'ready' | 'disabled' | 'api-unsupported' | 'permission-required' | 'switch-required' | 'sync-failed';
+  // 只有成功读回后才有数量；失败不能将未知残留注册误报为零。
+  registeredRuleCount: number | null;
+  reloadRequired: boolean;
+}
 export type RuntimeSyncComponent = 'contentScripts' | 'dnr' | 'webrtc' | 'tabReload';
 
 export interface RuntimeSyncError {
@@ -187,6 +200,7 @@ export interface RuntimeSyncReport {
   components: Record<RuntimeSyncComponent, RuntimeSyncComponentReport>;
   metadataError: RuntimeSyncError | null;
   warnings?: RuntimeSyncError[];
+  pageRuntime?: PageRuntimeStatus;
 }
 
 export interface ConfigSaveResult {

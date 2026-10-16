@@ -12,7 +12,7 @@
       <div class="hero-copy">
         <span class="eyebrow">VanishGeo Console</span>
         <h1>环境一致性控制台</h1>
-        <p>管理站点配置、DNR Accept-Language 请求头与 WebRTC 策略；页面伪装配置保留。</p>
+        <p>管理新文档语言/时区快照、DNR Accept-Language 请求头与 WebRTC 策略。</p>
       </div>
       <div class="hero-actions">
         <button id="save" class="btn-primary">保存当前配置</button>
@@ -21,7 +21,8 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">页面级语言、时区、地理位置、Canvas 和 Worker 伪装已暂停。保存配置不会恢复页面注入；DNR Accept-Language 与 WebRTC 按各自同步状态运行。</p>
+      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 仍暂停，相关配置仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
+      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。DNR Accept-Language 与 WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
       <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
@@ -41,7 +42,7 @@
           <h2>2. 选择站点</h2>
           <label for="onboardingDomains">每行一个域名，包含子域名；不预选任何站点</label>
           <textarea id="onboardingDomains" class="input" rows="3" placeholder="example.com"></textarea>
-          <p class="hint">所选站点规则将启用、绑定该出口并继承全局信号；原有站点覆盖将被替换。全局位置和时区改为 auto，其他站点与其他信号设置保留；开启总开关也会启用其他已保存的有效规则。页面伪装仍暂停。未保存的下方表单不参与引导提交。</p>
+          <p class="hint">所选站点规则将启用、绑定该出口并继承全局信号；原有站点覆盖将被替换。全局位置和时区改为 auto，其他站点与其他信号设置保留；开启总开关也会启用其他已保存的有效规则。页面语言/时区须完成 userScripts 注册后在新文档使用，其他页面伪装仍暂停。未保存的下方表单不参与引导提交。</p>
         </div>
         <div class="input-group">
           <h2>3. 检查并明确启用</h2>
@@ -73,7 +74,7 @@
           <label class="toggle-card">
             <span>
               <strong>全局保护</strong>
-              <small>控制已保存的总开关；页面伪装已暂停，DNR/WebRTC 以同步结果为准</small>
+              <small>控制已保存的总开关；语言/时区注册、DNR 与 WebRTC 分别查看同步结果</small>
             </span>
             <input type="checkbox" id="globalEnabled">
           </label>
@@ -158,7 +159,7 @@
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="spoofPermission">
-            <span>伪装地理位置权限</span>
+            <span>保存地理位置权限伪装配置（已暂停）</span>
           </label>
         </div>
 
@@ -169,11 +170,11 @@
               <option value="strict">strict · 强制一致性（默认）</option>
               <option value="compatible">compatible · 尊重显式参数</option>
             </select>
-            <p id="intlModeHelp" class="hint">保留配置语义（当前不在页面执行）：strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。当前页面伪装仍暂停，保存不会恢复。</p>
+            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。模式随新文档快照生效；已有文档与 BFCache 不热更新，需完整重载或关闭重开。</p>
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="timezoneEnabled">
-            <span>保存时区伪装开关（已暂停）</span>
+            <span>启用页面时区配置（新文档快照）</span>
           </label>
           <div class="input-group">
             <label for="timezone">时区</label>
@@ -189,7 +190,7 @@
         <div class="tab-content" data-tab="language">
           <label class="checkbox-label">
             <input type="checkbox" id="languageEnabled">
-            <span>启用语言配置（DNR 可用，页面伪装暂停）</span>
+            <span>启用语言配置（页面新文档快照 / DNR）</span>
           </label>
           <div class="input-group">
             <label for="language">主语言</label>
@@ -257,7 +258,7 @@
             <h2>站点特定规则</h2>
           </div>
         </div>
-        <p class="section-description">每条规则可显式绑定出口位置档案；auto 地理位置和时区需要已确认档案。当前仅保存配置，页面伪装仍暂停。</p>
+        <p class="section-description">每条规则可显式绑定出口位置档案；auto 时区需要已确认档案。语言/时区在注册同步后的新文档使用；地理位置配置仅保存，仍暂停。</p>
         <div id="siteRules" class="site-rules"></div>
       </section>
 
@@ -278,7 +279,7 @@
     </main>
 
     <footer class="save-bar">
-      <span>保存不会恢复页面注入，也不保证标签页自动刷新；DNR 与 WebRTC 以各自同步结果为准。</span>
+      <span>保存后查看语言/时区注册结果；已有页面不会自动刷新，需完整重载或关闭重开。DNR 与 WebRTC 分别查看同步结果。</span>
       <button id="saveFooter" class="btn-primary" type="button">保存当前配置</button>
     </footer>
   </div>

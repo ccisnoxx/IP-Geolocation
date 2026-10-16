@@ -5,3 +5,7 @@ declare module 'virtual:vanishgeo-runtime' {
 declare module 'virtual:vanishgeo-worker' {
   export const workerBootstrap: (patchConfig: import('./injected/runtime-modules/types').WorkerPatchConfig) => void;
 }
+
+declare module 'virtual:vanishgeo-page-runtime-source' {
+  export const pageRuntimeSource: string;
+}

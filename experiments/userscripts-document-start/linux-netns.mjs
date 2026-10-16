@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { createEvidence } from './acceptance.mjs';
 
-const entry = fileURLToPath(new URL('./browser-experiment.mjs', import.meta.url));
+const entry = fileURLToPath(new URL(process.argv[2] === '--production' ? './production-smoke.mjs' : './browser-experiment.mjs', import.meta.url));
 const stage = dirname(entry);
 const marker = join(stage, 'active.json');
 const command = (program, args) => execFileSync(program, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });

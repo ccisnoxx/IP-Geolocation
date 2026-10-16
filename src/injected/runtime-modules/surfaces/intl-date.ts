@@ -5,7 +5,7 @@ import { createIntlPolicy } from '../intl-policy';
 export function installDateTimeSpoof(
   globals: typeof globalThis & Record<string, any>,
   realmState: RuntimeState,
-  config: { timezone?: string | null; language?: string | null; intlMode?: 'strict' | 'compatible' }
+  config: { timezone?: string | null; language?: string | null; intlMode?: 'strict' | 'compatible'; includeTemporal?: boolean }
 ): void {
   realmState.values.timezone = config && config.timezone ? config.timezone : null;
   realmState.values.language = config && config.language ? config.language : realmState.values.language;
@@ -256,7 +256,7 @@ export function installDateTimeSpoof(
       return `${parts.weekday} ${month} ${parts.day} ${parts.year} ${parts.hour}:${parts.minute}:${parts.second} GMT${formatOffset(this)} (${parts.timeZoneName || realmState.values.timezone})`;
     });
 
-    if (globals.Temporal && globals.Temporal.Now) {
+    if (config.includeTemporal !== false && globals.Temporal && globals.Temporal.Now) {
       try {
         globals.Temporal.Now.timeZoneId = () => realmState.values.timezone;
       } catch {}

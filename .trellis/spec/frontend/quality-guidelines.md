@@ -1,6 +1,6 @@
 # 质量规范
 
-> VG-011 安全暂停：后台已删除对页面伪装 runtime 的 import/executeScript 路径，所有 initializeRuntimeForSender 在可信 sender 校验后、配置读取与派发前拒绝。对账只撤销 vanishgeo-runtime-init；有启用 allowlist 时 contentScripts 报 runtime-injection-paused / partial，注销失败仍 failed；DNR/WebRTC 独立报告。保存、重试、后台唤醒都不能恢复。下文原直接 MAIN 注入描述是恢复前的架构合同，当前不执行；恢复须取得可靠最终文档绑定并另获授权，不能用 URL、时间戳、nonce 或事后 ID 检查代替。已执行 hook/BFCache 文档需关闭并重建。证据见 [调查](../../../docs/stabilization/document-id-investigation.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 仍暂停；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 当前技术与权威边界
 
@@ -11,32 +11,33 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 ## 构建与 wiring
 
 - 使用 TypeScript ES module imports，Node 测试通过 tsx 导入维护源；不添加 global/CommonJS 双导出，也不以仓库根可直接加载扩展为要求。
-- manifest、HTML、动态 `registerContentScripts` 引用的是 dist 路径。入口改名/移动必须同步 Vite input、引用和 `tests/extension-wiring.test.ts`，并检查实际构建。
-- `src/injected/runtime.ts` 是 virtual module facade，构建器静态生成自包含函数；安全暂停期间不进入后台 bundle，也不是独立 runtime 入口或 web-accessible 文件。注入函数不能依赖模块闭包和外部 chunk 在页面中的可访问性。
+- manifest 和 HTML 引用 dist 路径；userScripts code 来自固定构建模板字符串。入口改名/移动必须同步 Vite input、引用和 `tests/extension-wiring.test.ts`，并检查实际构建。
+- `src/injected/runtime.ts` 是 virtual module facade，构建器静态生成自包含函数；生产后台只消费语言/时区固定 source；完整函数保留隔离测试，不是独立 runtime 入口或 web-accessible 文件。注入函数不能依赖模块闭包和外部 chunk 在页面中的可访问性。
 - dist 包含共享 assets chunks，完整分发不能只拷贝六个 JS 入口。使用当前构建输出作为证据，不用 Vite 注释推断不存在共享 chunks。
 - 不直接修改 dist，不在业务源码中引用某次构建的哈希 chunk 名。
 
 ## 注入、消息与权限
 
-- manifest 保持 MV3，当前无静态 `content_scripts`，`web_accessible_resources` 为空。动态 matches 只来自 `getContentScriptMatches` 的已启用 allowlist。
-- content 在 ISOLATED world、document_start 通知后台；`allFrames` 和 `matchOriginAsFallback` 不意味着所有 frame 都获授权。后台使用可信 sender 重新解析有效配置并以 `documentIds: [sender.documentId]` 在 MAIN world 执行。
-- `initializeRuntimeForSender` 不接收网页提交的 URL/payload。管理动作必须经过 `requireExtensionPage` 身份/来源校验；不得增加 postMessage 配置桥。
-- 各 frame 独立接受直接 runtime 调用，不用父页面创建 hook 或遍历子帧代替文档授权。about:blank/srcdoc/origin fallback 和跨源匹配须在真实 Chrome 中验证，VM 或源码正则不能证明 Chrome 行为。
+- manifest 保持 MV3、最低 Chrome 138、userScripts 权限、无静态 content_scripts、WAR 为空。正常开启 Allow User Scripts 是用户前置条件，不写 profile/prefs 或用命令行绕过。不可用时 fail closed，区分 API/权限/用户开关/注册失败。
+- 生产注册只来自 validateConfig/resolver 最小 payload 与构建模板；安全 JSON 值，不接受网页或用户 JavaScript，不使用 eval/new Function、远程 import/运行期下载。不得写 IP/provider、完整规则/档案或暂停/未启用信号。
+- Chrome 直接按 MAIN / document_start / matches / excludeMatches / allFrames 执行普通 HTTP(S) 新文档；最长域名优先，即使子规则无有效页面信号。无 content 初始化、worker documentId 或 scripting.executeScript 生产回退；保留的 scripting 只供旧脚本注销及既有诊断采样。
+- 所有注册修改经 services 唯一串行队列，先撤销失效/范围变化并确认，再更新保留项，最后新增并读回。每次失败进入报告；worker 初始化及 onInstalled(update) 幂等恢复。注册完成后才能提示手动完整 reload/关闭重开，不自动刷新，不热更新旧/BFCache 文档。
+- 普通 iframe 按自己的 URL 匹配；about:blank/srcdoc/data/blob/特殊 sandbox 明确 unsupported / UNKNOWN，不启用 origin fallback 或父子帧遍历。管理动作仍 requireExtensionPage，无 postMessage/DOM 配置桥。
 - DNR 从同一有效语言解析生成 Accept-Language，并只管理现有 ID 区间；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
 - manifest 权限或 host scope 变化须有明确任务授权，同步 `PERMISSIONS.md` 和 wiring 测试。不得为测试放宽权限或校验；optional host permissions 需要独立设计拒绝状态、重新注册与 DNR 恢复。
 - Refactor 默认保持 runtime action、storage 键/schema、payload 和入口合同；语义变化必须在任务中明确授权和验收。
 
 ## 页面 hook 与设备透传
 
-Navigator getter、Intl/Date、Geolocation/Permissions、Canvas 字体和 Worker/SharedWorker 的现有 hook 由 runtime.ts facade 导出生成函数。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
+生产只安装 Navigator 语言与 Intl/Date，includeTemporal:false；Geolocation/Permissions、Canvas 和 Worker/SharedWorker 仅完整隔离 runtime 保留。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
 
 Navigator / WorkerNavigator getter 保留原生 prototype 位置、descriptor flags、name/length 和非法 receiver 异常；仅当前 navigator 返回配置值，其他 receiver 调用原生 getter。属性后来被网页替换、删除或冻结时，反射 API 必须报告实际值。函数 source 由未修改的引擎 API 决定，不保证包装函数与原函数源码文本相同。
 
-`applyVanishGeoRuntime(payload)` 返回私有 `RuntimeController`（仅含 `update(payload)`），调用方持有同次安装的句柄以保留幂等和未来 Worker 配置更新。初次禁用不会安装 surface，之后该句柄仍只更新未来 Worker；不热更新既有页面 surface。不同序列化调用创建独立闭包，不再通过 documentId/Symbol 查回旧状态；生产恢复必须独立设计可信调用方与句柄生命周期，不能把返回函数当作可 JSON 传输的 Chrome scripting result。
+`applyVanishGeoRuntime(payload)` 返回私有 `RuntimeController`（仅含 `update(payload)`），调用方持有同次安装的句柄以保留幂等和未来 Worker 配置更新。初次禁用不会安装 surface，之后该句柄仍只更新未来 Worker；不热更新既有页面 surface。不同序列化调用创建独立闭包，不再通过 documentId/Symbol 查回旧状态；生产使用每文档一次执行的专用入口，不导出或更新 controller；不能把完整 runtime 返回函数当作可 JSON 传输的 Chrome scripting result。
 
 无目标检测证据和独立任务授权，不新增 WebGL/GPU、Audio、screen、hardware concurrency、device memory、原生字体库存、codec、WebGPU 等设备指纹伪装。当前已有 Canvas 字体功能不自动授权扩大伪装面。对未接管表面记录原生透传证据，而不是由 IP 地理位置猜测设备属性。
 
-## Worker bootstrap
+## Worker bootstrap（隔离 runtime，生产继续暂停）
 
 页面 wrapper 当前只包装同源 HTTP(S) worker URL，其他 URL 保留原生路径；classic worker 在 prelude 后 `importScripts`，module worker 在 prelude 后 `await import(...)`。不能把实际 module 静态 import 放在补丁正文后，因为模块依赖会先执行。
 
@@ -136,3 +137,9 @@ runner 自动附加 iframe target，按各 session 合并 frame tree；默认执
 sandbox 只设置 allow-scripts，不设置 allow-same-origin；三个文档有效 origin 必须为 null。父子及 opaque sibling 之间的 navigator/构造器/反射访问在安装前/后与 descriptor 变更后保持 SecurityError；不能把相同 null 字符串视为相同 origin。opaque 场景在本 realm 检查原生非法 receiver，并保护跨 origin 拒绝；不通过特权 CDP 把网页无法取得的 Navigator 当作合法跨 realm receiver。内部状态检查使用原生快照、Proxy 枚举和 getter 属性；不扩大生产能力。
 
 实际 classic/module Worker 与 SharedWorker 的生成 Blob 继续先捕获原生基线再执行同一合同探针；更新句柄由 CDP objectId 私有持有。脚本不加载或恢复生产注入、不请求 provider/位置/ICE，finally 清理三个 server/profile/Chrome。Chrome119、sandbox 禁脚本、导航/进程交换生命周期及生产派发资格尚未验证；当前 Chrome 的静态 frame 合同回归不替代这些门槛。
+
+## VG-023 生产语言/时区浏览器证据
+
+实际 dist 的 scripts/chrome-language-timezone-smoke.mjs 运行于独立 Linux VM 的新网络 namespace，仅 loopback、IPv4/IPv6 prohibit、非 root Chrome 和自身 sandbox；通过正常扩展详情 UI 的可信 pointer 开关启用。localhost 最先 inline 同步记录实际值，配置只由扩展管理页提交，不写预期到页面。分别验证顶层/普通 iframe 首读、负对照、父子域优先级、strict/compatible、A→B 旧快照/reload、禁用/reload、worker 重启/扩展 update 恢复、DNR/privacy policy 和暂停 surface。
+
+原最小实验的已人工验收 linux-evidence.json（含真实 BFCache hit）保留；production-evidence.json 是生产定向 smoke，不能把原实验当生产全部 surface 验收。两者均不可被 dry-run/Node/mock 替代；Chrome 138 实机、其他 Chromium、真实 action Popup 和 ICE 网络结果单列未验证。旧 VG-009/full-worker runner 含本阶段不支持能力，只保留历史或隔离回归含义。

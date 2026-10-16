@@ -1,10 +1,10 @@
 # VanishGeo 构建与发布说明
 
-[CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 检查 v*.*.* tag push 并发布。稳定化任务完成不授予提交、push、tag、Release、托管部署或远端设置权限；这些操作需对应明确授权。VG-005 建立本地门禁；VG-014 的候选结论、逐项证据、阻断和回滚见 [release-readiness](docs/stabilization/release-readiness.md)。当前生产页面伪装保持 VG-011 安全暂停，不能按完整功能候选发布。
+[CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 检查 v*.*.* tag push 并发布。稳定化任务完成不授予提交、push、tag、Release、托管部署或远端设置权限；这些操作需对应明确授权。VG-005 建立本地门禁；VG-014 的候选结论、逐项证据、阻断和回滚见 [release-readiness](docs/stabilization/release-readiness.md)。VG-023 仅恢复普通 HTTP(S) 文档语言/时区快照，已于2026-10-16通过用户人工验收；其他页面能力仍暂停，本任务不授权发布。
 
 ## 本地候选
 
-当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面级语言、时区、地理位置、Canvas 和 Worker 伪装仍暂停，保存不会恢复注入；DNR Accept-Language 与 WebRTC 按各自状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
+当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面语言/时区需 Chrome138+、userScripts 权限及正常开启 Allow User Scripts，提前注册后新文档使用快照；Geolocation/Canvas/Worker 仍暂停；DNR Accept-Language 与 WebRTC 按各自状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
 
 ```bash
 npm ci
@@ -17,9 +17,9 @@ git diff --check
 
 真实 Chrome 安装与人工场景需单独记录候选/版本/结果；dry-run 只检查构建入口并打印清单。CI 不执行或宣称完成人工验收。`npm run dev` 是 watch，`npm run preview` 是静态预览。
 
-分发包含完整 dist：manifest、background/content/popup/options/leak-test/diagnostic 六个 JS 入口、页面 HTML/CSS、assets/ 共享 chunks、icons、fixtures、LICENSE 与 NOTICE。生产安全暂停期间后台不导入页面 runtime；其维护源保留供隔离验证，构建期仍运行自包含守卫。没有独立 injected/runtime.js。ZIP 根部直接含 manifest.json。
+分发包含完整 dist：manifest、background/content/popup/options/leak-test/diagnostic 六个 JS 入口、页面 HTML/CSS、assets/ 共享 chunks、icons、fixtures、LICENSE 与 NOTICE。后台只导入固定语言/时区模板字符串；完整 runtime 保留隔离测试，构建期均运行自包含守卫。没有独立 injected/runtime.js。ZIP 根部直接含 manifest.json。
 
-VG-014 当前暂停候选的自动真实 Chrome 集成入口（Node 22+，需支持 Extensions CDP domain 的 Chrome）：
+VG-014 历史暂停候选的自动真实 Chrome 集成入口（不能作为当前VG-023通过门禁）（Node 22+，需支持 Extensions CDP domain 的 Chrome）：
 
 ```bash
 node scripts/chrome-integration-smoke.mjs --output <脱敏JSON路径>
@@ -28,6 +28,8 @@ node --import tsx scripts/chrome-intl-smoke.mjs --output <脱敏JSON路径>
 ```
 
 第一项使用正式 dist、临时 profile、合成 provider 拦截、loopback fixture 和仅本进程的 `.test` host 映射。普通页面仍原生，报告语言/时区与伪装预期不符必须保留 FAIL；runner PASS 表示暂停候选的测试合同通过，不表示完整功能 release-ready。原生位置权限被拒绝；完整诊断仍包含既有 Google STUN，可能看到测试网络出口，证据只保留分类结果。第二项用生产字节一致副本加测试计数 wrapper；第三项的 runtime 模式测试使用独立最小扩展，均不能当作生产派发恢复。
+
+VG-023 生产定向 smoke 与机器证据见 [任务记录](.trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md)；原实验与语言/时区生产阶段均已通过用户人工验收，其他页面能力继续暂停；本次没有发布授权，也不启动后续任务。
 
 本地打包与只读核验（归档名须使用本次获准的候选名，不覆盖已有交付）：
 

@@ -27,11 +27,12 @@ test('manifest uses dynamic injection without background alarms or static all-ur
     'contextMenus',
     'privacy',
     'declarativeNetRequest',
-    'declarativeNetRequestWithHostAccess'
+    'declarativeNetRequestWithHostAccess',
+    'userScripts'
   ]);
   assert.equal(manifest.permissions.includes('activeTab'), false);
   assert.equal(manifest.permissions.includes('alarms'), false);
-  assert.equal(manifest.minimum_chrome_version, '119');
+  assert.equal(manifest.minimum_chrome_version, '138');
   assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
 });
 
@@ -43,7 +44,7 @@ test('保留 runtime 维护源且不作为独立页面文件公开', () => {
   assert.equal(exists('src/injected/injected.ts'), false);
 });
 
-test('安全暂停删除后台 runtime 派发依赖，仅注销原初始化脚本', () => {
+test('生产页面由 userScripts 提前注册，仅清理旧初始化脚本', () => {
   const services = read('src/background/services.ts');
   assert.match(services, /unregisterContentScripts/);
   assert.doesNotMatch(services, /applyVanishGeoRuntime|executeScript|\.registerContentScripts\(/);
@@ -55,7 +56,13 @@ test('content initialization exposes no page-controlled postMessage bridge or pa
   const runtime = read('src/injected/runtime.ts');
   const router = read('src/background/message-router.ts');
 
-  assert.match(content, /initializeRuntimeForSender/);
+  assert.doesNotMatch(content + router + read('src/background/services.ts'), /initializeRuntimeForSender|documentIds|executeScript/);
+  const scripts = read('src/background/page-scripts.ts');
+  assert.match(scripts, /world: 'MAIN'/);
+  assert.match(scripts, /runAt: 'document_start'/);
+  assert.match(scripts, /allFrames: true/);
+  assert.match(scripts, /excludeMatches/);
+  assert.doesNotMatch(scripts, /eval\(|new Function|postMessage|import\(/);
   assert.doesNotMatch(content, /window\.(postMessage|addEventListener)/);
   assert.doesNotMatch(content, /payload|location\.href/);
   assert.doesNotMatch(runtime, /apply-spoof|vanishgeo-extension|window\.postMessage/);

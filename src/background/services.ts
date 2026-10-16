@@ -1,9 +1,9 @@
-// 后台统一持有配置事务、出口检测、标签页刷新和文档级 runtime 注入边界。
+// 后台统一持有配置事务、出口检测及新文档语言/时区注册；既有文档保持快照。
 import { updateAcceptLanguageRules, validateAcceptLanguageCapacity } from './dnr';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, getWebRTCPolicyState } from './webrtc';
 import {
-  getContentScriptMatches,
-  getEffectiveProfile,
+  getLanguageTimezonePayload,
+  getPageRuntimeProfile,
   isUrlMatchedByEnabledRule,
   repairInvalidRuleDomains,
   validateConfig
@@ -45,9 +45,10 @@ import type {
   RuntimeSyncReport,
   WebRtcMode
 } from '../shared/types';
-import { RUNTIME_SYNC_COMPONENT_LABELS, RuntimeSyncOperationError, RUNTIME_INJECTION_PAUSED, syncError, syncSignature } from '../shared/runtime-sync';
+import { RUNTIME_SYNC_COMPONENT_LABELS, RuntimeSyncOperationError, syncError, syncSignature } from '../shared/runtime-sync';
 import type { WebRtcPolicyState } from './webrtc';
 import { rulesFromText } from '../shared/rule-list';
+import { reconcilePageScripts } from './page-scripts';
 import { createDiagnosticRuns } from './diagnostic-runs';
 import type { DiagnosticOwner } from './diagnostic-runs';
 import type { DiagnosticEvidence, DiagnosticRunInfo, InjectionTimingEvidence } from '../shared/diagnostic-report';
@@ -59,7 +60,6 @@ const GEO_API_URLS = [
 ];
 const CONTENT_SCRIPT_ID = 'vanishgeo-runtime-init';
 const LEAK_TEST_URL = 'https://leak.962850.xyz/leak-test/leak-test.html';
-const TAB_RELOAD_CONCURRENCY = 4;
 const PENDING_DETECTION_KEY = 'pendingExitLocationDetection';
 const PENDING_DETECTION_TTL_MS = 5 * 60 * 1000;
 
@@ -111,31 +111,7 @@ function pendingForSignature(metadata: RuntimeSyncMetadata | null, signature: st
 
 function runtimePayloadSignature(config: SiteSpoofConfig, url: string): string | null {
   if (!isScriptableUrl(url)) return null;
-  const resolved = getEffectiveProfile(config, new URL(url).hostname);
-  const payload = resolved.payload;
-  if (!payload) return null;
-  return JSON.stringify({
-    extensionEnabled: payload.extensionEnabled,
-    intlMode: payload.languageConfig || payload.timezone ? payload.intlMode : null,
-    debugMode: payload.debugMode,
-    geolocation: payload.geolocation ? {
-      latitude: payload.geolocation.latitude,
-      longitude: payload.geolocation.longitude,
-      accuracy: payload.geolocation.accuracy,
-      randomize: payload.geolocation.randomize,
-      randomRadiusMeters: payload.geolocation.randomRadiusMeters,
-      spoofPermission: payload.geolocation.spoofPermission
-    } : null,
-    timezone: payload.timezone,
-    languageConfig: payload.languageConfig,
-    canvasConfig: payload.canvasConfig.enabled && payload.canvasConfig.spoofFonts
-      ? {
-          enabled: true,
-          spoofFonts: true,
-          targetFonts: payload.canvasConfig.targetFonts
-        }
-      : null
-  });
+  return JSON.stringify(getLanguageTimezonePayload(config, new URL(url).hostname));
 }
 
 function normalizeDetectedLocation(value: unknown): DetectedExitLocation | null {
@@ -237,7 +213,6 @@ export interface BackgroundServices {
   getWebRtcPolicyState(): Promise<WebRtcPolicyState>;
   setWebRtcGlobalMode(mode: string): Promise<ConfigSaveResult>;
   getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
-  initializeRuntimeForSender(sender: chrome.runtime.MessageSender): Promise<EffectiveProfileResult>;
   getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { url: string; domain: string; scriptable: boolean; config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>;
   detectExitLocation(targetProfileId?: string | null): Promise<ExitLocationDetectionPreview>;
   confirmExitLocationDetection(detectionId: string, name: string): Promise<ConfigSaveResult>;
@@ -258,7 +233,7 @@ export interface BackgroundServices {
   initializeExtension(): Promise<RuntimeSyncReport>;
 }
 
-export function createBackgroundServices(): BackgroundServices {
+export function createBackgroundServices(pageRuntimeSource: string): BackgroundServices {
   const diagnosticRuns = createDiagnosticRuns(getSiteConfig);
   let configMutationQueue: Promise<void> = Promise.resolve();
   let detectionGeneration = 0;
@@ -314,46 +289,6 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
-  async function reloadPendingTabs(metadata: RuntimeSyncMetadata): Promise<void> {
-    if (!metadata.pendingReloads.length) {
-      metadata.report.components.tabReload = { status: 'ok', errors: [] };
-      return;
-    }
-    let tabs: ScriptableTabSnapshot[];
-    try { tabs = await queryScriptableTabs(); }
-    catch {
-      metadata.report.components.tabReload = { status: 'failed', errors: [{ code: 'tab-query-failed', message: '无法读取待刷新标签页，请重试。' }] };
-      return;
-    }
-    // 关闭或已导航的目标不再属于欠账；只保存 URL 摘要，不保存浏览历史。
-    const urls = new Map(await Promise.all(tabs.map(async (tab) => [tab.id, await syncSignature(tab.url)] as const)));
-    const pending = metadata.pendingReloads.filter((item) => urls.get(item.tabId) === item.urlSignature);
-    metadata.pendingReloads = pending;
-    let succeeded = 0;
-    const errors: RuntimeSyncComponentReport['errors'] = [];
-    for (let index = 0; index < pending.length; index += TAB_RELOAD_CONCURRENCY) {
-      const batch = await Promise.all(pending.slice(index, index + TAB_RELOAD_CONCURRENCY).map(async (item) => {
-        try {
-          const current = await chrome.tabs.get(item.tabId);
-          if (!current.url || await syncSignature(current.url) !== item.urlSignature) return item;
-          await chrome.tabs.reload(item.tabId);
-          return item;
-        } catch {
-          errors.push({ code: 'tab-reload-failed', message: `标签页 ${item.tabId} 刷新失败。` });
-          return null;
-        }
-      }));
-      const completed = new Set(batch.filter((item) => item !== null));
-      succeeded += completed.size;
-      metadata.pendingReloads = metadata.pendingReloads.filter((item) => !completed.has(item));
-      metadata.report.components.tabReload = { status: metadata.pendingReloads.length ? 'partial' : 'ok', errors: errors.slice() };
-      await checkpoint(metadata);
-    }
-    metadata.report.components.tabReload = {
-      status: !metadata.pendingReloads.length ? 'ok' : succeeded ? 'partial' : 'failed', errors
-    };
-  }
-
   async function reconcile(config: SiteSpoofConfig, metadata?: RuntimeSyncMetadata): Promise<RuntimeSyncReport> {
     const signature = await runtimeConfigSignature(config);
     const stored = metadata || await getRuntimeSyncMetadata();
@@ -362,13 +297,19 @@ export function createBackgroundServices(): BackgroundServices {
       pendingReloads: pendingForSignature(stored, signature),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
-    const [contentScripts, dnr, webrtc] = await Promise.all([
-      runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript),
+    const [pageSync, dnr, webrtc] = await Promise.all([
+      (async () => {
+        const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
+        if (legacy.status !== 'ok') return { component: legacy,
+          pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false } };
+        return reconcilePageScripts(config, pageRuntimeSource);
+      })(),
       runRuntimeSideEffect('dnr', () => updateAcceptLanguageRules(config)),
       runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(config,
         stored?.report.configSignature === signature && stored.report.components.webrtc.status === 'ok'))
     ]);
-    state.report.components = { ...state.report.components, contentScripts, dnr, webrtc };
+    state.report.components = { ...state.report.components, contentScripts: pageSync.component, dnr, webrtc };
+    state.report.pageRuntime = pageSync.pageRuntime;
     if (state.pendingDetectionCleanup) {
       try {
         await removeConfirmedDetection(state.pendingDetectionCleanup);
@@ -377,21 +318,18 @@ export function createBackgroundServices(): BackgroundServices {
         state.report.warnings = [{ code: 'candidate-cleanup-failed', message: '出口档案已保存，检测候选清理失败，请重试同步。' }];
       }
     }
-    if (state.pendingReloads.length) await checkpoint(state);
-    if ([contentScripts, dnr, webrtc].every((component) => component.status === 'ok')) {
-      await reloadPendingTabs(state);
-    } else {
-      state.report.components.tabReload = state.pendingReloads.length
-        ? { status: 'partial', errors: [{ code: 'waiting-for-runtime', message: '等待运行时组件同步后刷新。' }] }
-        : { status: 'ok', errors: [] };
+    // 不刷新或修改已加载/BFCache文档。只有注册完成后才向管理页提示完整reload。
+    state.report.components.tabReload = { status: 'ok', errors: [] };
+    if (state.pendingReloads.length) {
+      try {
+        const tabs = await queryScriptableTabs();
+        const urls = new Map(await Promise.all(tabs.map(async tab => [tab.id, await syncSignature(tab.url)] as const)));
+        state.pendingReloads = state.pendingReloads.filter(item => urls.get(item.tabId) === item.urlSignature);
+      } catch {
+        state.report.components.tabReload = { status: 'failed', errors: [{ code: 'tab-query-failed', message: '无法确认已有页面状态，请重试同步。' }] };
+      }
     }
-    // 注销结果决定是否可继续现有刷新恢复；暂停本身必须单独可见，不能冒充全部生效。
-    if (getContentScriptMatches(config).length) {
-      state.report.components.contentScripts = {
-        status: contentScripts.status === 'failed' ? 'failed' : 'partial',
-        errors: [RUNTIME_INJECTION_PAUSED, ...contentScripts.errors]
-      };
-    }
+    state.report.pageRuntime.reloadRequired = pageSync.component.status === 'ok' && state.report.components.tabReload.status === 'ok' && state.pendingReloads.length > 0;
     await checkpoint(state, stored);
     return state.report;
   }
@@ -543,15 +481,7 @@ export function createBackgroundServices(): BackgroundServices {
 
   async function getPayloadForUrl(url: string): Promise<EffectiveProfileResult> {
     if (!isScriptableUrl(url)) return { matched: false, rule: null, payload: null, errors: [] };
-    return getEffectiveProfile(await getSiteConfig(), new URL(url).hostname);
-  }
-
-  async function initializeRuntimeForSender(sender: chrome.runtime.MessageSender): Promise<EffectiveProfileResult> {
-    if (sender.id !== chrome.runtime.id) throw new Error('拒绝非本扩展的初始化请求');
-    if (typeof sender.tab?.id !== 'number' || !sender.documentId) throw new Error('初始化请求缺少目标文档');
-    // Chrome 155 可将仍在 BFCache 的旧 documentId 解析为替换文档。
-    // 未核验可靠的最终文档绑定前一律拒绝；必须早于配置读取、序列化和任何 hook。
-    throw new RuntimeSyncOperationError(RUNTIME_INJECTION_PAUSED.code, RUNTIME_INJECTION_PAUSED.message);
+    return getPageRuntimeProfile(await getSiteConfig(), new URL(url).hostname);
   }
 
   async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
@@ -566,7 +496,7 @@ export function createBackgroundServices(): BackgroundServices {
     const domain = isScriptableUrl(url) ? new URL(url).hostname : '';
     const scriptable = Boolean(domain);
     const resolved = scriptable
-      ? getEffectiveProfile(config, domain)
+      ? getPageRuntimeProfile(config, domain)
       : { matched: false, rule: null, payload: null, errors: [] };
     return { url, domain, scriptable, config, syncReport, ...resolved };
   }
@@ -796,7 +726,6 @@ export function createBackgroundServices(): BackgroundServices {
     getWebRtcPolicyState,
     setWebRtcGlobalMode,
     getPayloadForUrl,
-    initializeRuntimeForSender,
     getCurrentTabState,
     detectExitLocation,
     confirmExitLocationDetection,

@@ -1,6 +1,6 @@
 # 状态管理
 
-> VG-011 安全暂停：后台已删除对页面伪装 runtime 的 import/executeScript 路径，所有 initializeRuntimeForSender 在可信 sender 校验后、配置读取与派发前拒绝。对账只撤销 vanishgeo-runtime-init；有启用 allowlist 时 contentScripts 报 runtime-injection-paused / partial，注销失败仍 failed；DNR/WebRTC 独立报告。保存、重试、后台唤醒都不能恢复。下文原直接 MAIN 注入描述是恢复前的架构合同，当前不执行；恢复须取得可靠最终文档绑定并另获授权，不能用 URL、时间戳、nonce 或事后 ID 检查代替。已执行 hook/BFCache 文档需关闭并重建。证据见 [调查](../../../docs/stabilization/document-id-investigation.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 仍暂停；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 场景：出口位置档案与页面运行时一致性
 
@@ -44,8 +44,8 @@ deleteExitLocationProfile(profileId: string): Promise<ConfigSaveResult>;
 - `detectExitLocation` 只产生 `chrome.storage.session` 中的短期候选；确认前不得写入 local 配置。
 - 重检确认保留档案 ID，并以 `baseVerifiedAt` 检测并发修改；引用该 ID 的规则继续跟随更新后的档案。
 - 完整配置导入必须把出口档案降级为 unverified，并清空规则绑定。
-- 配置写入前后按 URL 比较有效 runtime payload 的语义签名，只刷新签名变化的已打开标签页；时间戳、错误文案和管理元数据不得触发刷新。
-- content 初始化请求只能携带 `action: 'initializeRuntimeForSender'`；后台必须使用可信 `MessageSender` 定位文档并在 MAIN world 直接执行 runtime，页面不能提交 payload。
+- 配置写入前后按 URL 比较最小语言/时区 payload 的语义签名，只对变化的已打开标签页记录人工重载待办；时间戳、错误文案、位置、Canvas 或管理元数据不新增待办。
+- 生产页面不发送初始化消息；管理页消息仍经过 requireExtensionPage。后台在注册前从持久化配置解析 payload，网页不能提交 payload。
 
 ### 4. Validation & Error Matrix
 
@@ -62,16 +62,16 @@ deleteExitLocationProfile(profileId: string): Promise<ConfigSaveResult>;
 
 ### 5. Good / Base / Bad Cases
 
-- Good：两个域名分别绑定两个 verified 档案，各自解析对应坐标和时区；重检其中一个档案后只刷新有效 payload 变化的标签页。
+- Good：两个域名分别绑定两个 verified 档案，各自解析对应坐标和时区；重检其中一个档案后只提示有效语言/时区 payload 变化的标签页完整重载。
 - Base：旧配置迁移后显示“待确认旧位置”，规则未绑定；用户重新检测、确认并手动绑定后才启用 auto 信号。
 - Bad：Options 通过 `setSiteConfig` 直接构造 verified IP/坐标，或 content 请求携带页面自报 URL/payload 并由后台信任。
 
 ### 6. Tests Required
 
 - `tests/config.test.ts`：迁移幂等、未绑定/未验证/悬空引用、两个规则绑定两个档案。
-- `tests/background-services.test.ts`：同一响应解析、检测确认、重检并发保护、引用删除阻断、导入降级、payload 精确刷新和失败隔离。
+- `tests/background-services.test.ts`：同一响应解析、检测确认、重检并发保护、引用删除阻断、导入降级、payload 精确重载提示和失败隔离。
 - `tests/anti-detection-runtime.test.ts`：私有安装句柄幂等、frame/worker 行为；`tests/navigator-contract.test.ts` 保护无全局锚点及原生反射/descriptor 合同。
-- `tests/extension-wiring.test.ts`：无 `postMessage` 桥、ISOLATED 初始化、定向 MAIN-world 注入及 manifest 权限边界。
+- `tests/extension-wiring.test.ts`：无 `postMessage` 桥、无旧初始化消息或生产 documentId 回退、提前 MAIN 注册及 manifest 权限边界。
 - 发布前运行 `npm test`、`npm run typecheck`、`npm run build` 和 Chrome 验收脚本 dry-run。
 
 ### 7. Wrong vs Correct
@@ -88,11 +88,11 @@ await chrome.storage.local.set({ lastLocation });
 #### Correct
 
 ```ts
-chrome.runtime.sendMessage({ action: 'initializeRuntimeForSender' });
+// 配置经后台保存、校验与提前注册；页面不发送初始化消息。
 rule.exitLocationProfileId = verifiedProfile.id;
 ```
 
-后台仅根据 `MessageSender` 和持久化配置解析 payload；verified 身份只由检测确认事务创建。
+后台仅根据持久化配置及 config-resolver 解析每条规则的最小 payload；verified 身份只由检测确认事务创建。
 
 ## 场景：管理页规则文本保存
 
@@ -118,11 +118,11 @@ Popup 与 Options 共用 src/shared/rule-list.ts 的 ruleListToText/rulesFromTex
 
 siteSpoofConfig 仍是 schema v2 的唯一 desired state。services 的配置修改和初始化共享串行队列；修改返回 ConfigSaveResult = {config, syncReport}，报告绑定配置 SHA-256，包含 contentScripts/dnr/webrtc/tabReload 的 ok/failed/partial 与可展示固定错误。修改消息 status 为 ok 或 partial，saved:true 只表示配置写入已成功；普通网页不能调用管理页对账 action。
 
-storage 拥有 session runtimeSyncMetadata 读写，只记录摘要、组件状态和待刷新 tab ID/URL 摘要。预写新配置摘要前保存旧摘要欠账，以覆盖 local 写入前/后中断；没有第二份配置。配置写失败恢复旧记录，已保存的配置不因副作用失败回滚。预写/快照/容量失败发生在保存前，保持错误语义；保存后 checkpoint 失败通过 metadataError 可见。浏览器重启/扩展重载会清空 session，已加载新文档按原动态注入路径使用 desired state。
+storage 拥有 session runtimeSyncMetadata 读写，只记录摘要、组件状态和待刷新 tab ID/URL 摘要。预写新配置摘要前保存旧摘要欠账，以覆盖 local 写入前/后中断；没有第二份配置。配置写失败恢复旧记录，已保存的配置不因副作用失败回滚。预写/快照/容量失败发生在保存前，保持错误语义；保存后 checkpoint 失败通过 metadataError 可见。浏览器重启/扩展重载会清空 session，worker 启动及 onInstalled(update) 会按 desired state 恢复 userScripts 注册。
 
-对账先观测实际脚本、动态规则和 privacy 状态，只对差异进行写操作并确认结果；不把期望 policy 当成功。default/禁用不能只由 effective 控制权推断 own override 不存在；必须取得 clear 确认后才允许同一签名跳过。DNR 保存前检查托管 ID、regex、dynamic/unsafe 或 Chrome119 combined session 额度；只修改 1100–2099。全部运行时组件成功后才刷新欠账，四并发、单 tab 错误隔离；关闭/导航目标不再刷新。每批成功清理欠账，API 成功后 checkpoint 前的极窄中断可能导致一次重复刷新（至少一次恢复）。
+对账先观测实际脚本、动态规则和 privacy 状态，只对差异进行写操作并确认结果；不把期望 policy 当成功。default/禁用不能只由 effective 控制权推断 own override 不存在；必须取得 clear 确认后才允许同一签名跳过。DNR 保存前检查托管 ID、regex、dynamic/unsafe 或 Chrome119 combined session 额度；只修改 1100–2099。页面注册读回成功后才设置 pageRuntime.reloadRequired，其他组件继续独立报告。没有 tabs.reload 或页面热更新；关闭/导航清理对应待办，同 URL 已完整重载也可能保守保留提示，不能借提示认定当前页面已更新。已有/BFCache 文档保持旧快照。
 
-worker 顶层、onInstalled/onStartup、管理页读取和显式 reconcileRuntime 使用同一对账路径。Popup/Options 常驻状态，部分失败显示“已保存但未完全生效”；重试只读取保存配置，不能保存未提交表单。相同配置收敛后不重复 Chrome 修改/刷新。
+worker 顶层、onInstalled/onStartup、管理页读取和显式 reconcileRuntime 使用同一对账路径。Popup/Options 常驻状态，部分失败显示“已保存但未完全生效”；重试只读取保存配置，不能保存未提交表单。相同配置收敛后不重复 Chrome 注册修改；不自动刷新。
 
 验证入口：background-services、dnr、webrtc、runtime-sync-ui 和 wiring 测试，以及按本任务实际边界选择的 Chrome 定向证据。确认提交后的候选清理失败也保持 saved/partial，固定 warning 与待清理 detection ID 可恢复；同一检测 ID 重试不重复创建档案。候选发布/确认/取消/清理共享队列，网络检测在队列外。完整 MV3/iframe/worker/ICE、迁移和多窗口编辑仍需独立验收。
 
@@ -142,6 +142,16 @@ schema v2 的全局 intlMode: strict|compatible 由 config-model 归一化，缺
 
 runtime-modules/intl-policy.ts 为页面/worker 共用参数策略。strict 保持历史强制覆盖；compatible 仅 locale===undefined 或原生读取 timeZone===undefined 时补启用的默认信号，显式空 locale 数组、继承/不可枚举 timeZone、getter/原生异常保留。compatible resolvedOptions 回报原生实际结果，不能只改回报而格式化继续覆盖。Date 本地 getter 无显式参数，两模式均使用有效时区；UTC/epoch 仍原路径。首次文档模式固定，重复初始化保持既有未来 worker 更新语义；模式进入完整 worker patch source/SharedWorker 身份，已启动 worker 不热更新。
 
-诊断 probe 无预期参数，采默认及固定 en-US/UTC 显式调用；报告按模式独立比较构造结果、NumberFormat 与 Date locale/format hour，缺证据 UNKNOWN。预期不进入页面 URL/DOM/storage；production MAIN 安全暂停不改，真实模式 Chrome smoke 仅临时最小扩展当前文档，正式 dist 仅测试配置和暂停。
+诊断 probe 无预期参数，采默认及固定 en-US/UTC 显式调用；报告按模式独立比较构造结果、NumberFormat 与 Date locale/format hour，缺证据 UNKNOWN。预期不进入页面 URL/DOM/storage；生产语言/时区入口复用同一 Intl/Date 实现，省略其他 surface 并禁用 Temporal；旧完整模式 smoke 仅作隔离回归。
 
 证据入口：tests/intl-mode.test.ts、rule-list-ui、background-services 与 diagnostic-report；scripts/chrome-intl-smoke.mjs。精确语义、权衡、回退和浏览器限制见 CONFIG_GUIDE；本任务人工验收前 review。
+
+## 场景：提前注册的语言/时区快照（VG-023）
+
+getLanguageTimezonePayload 只返回 intlMode、启用的 language/languages 和 timezone，不含 Accept-Language、位置、IP/provider、档案/规则列表。getPageRuntimeProfile 不解析暂停的 geolocation，避免未绑定的 auto 位置阻断有效手工语言/时区；auto 时区依然要求显式 verified 档案。覆盖值 enabled:false 不产生信号。
+
+compilePageScripts 先 validateConfig，复用域名 matches/domainMatches；每条有效规则生成独立 ID，excludeMatches 包含所有更具体的启用规则，即使子规则无有效页面信号。所有配置值安全 JSON 序列化，无用户 JavaScript/远程代码/页面桥。services 共享队列串行执行：撤销失效或 scope 变化的旧注册并确认 → 更新保留项 → 新增 → 读回确认；失败进入 RuntimeSyncReport，不返回纯成功或提示 reload。DNR/RTC 保留各自失败语义。
+
+pageRuntime 区分 ready、disabled、api-unsupported、permission-required、switch-required、sync-failed；关闭用户开关后 API 调用失败，旧页面 hook 仍保持快照。注册未成功不能宣称新文档已可用。ready 仅表示新建匹配 HTTP(S) 文档可用，当前文档实际值未采样为 UNKNOWN。API 不可用无旧路径回退。Chrome 更新会清注册，onInstalled(update) 和 worker 初始化同一幂等对账重建；新安装安全空配置零注册。
+
+证据：tests/page-scripts.test.ts、background-services、runtime-sync-ui、ui-state、wiring、构建守卫；真实 Chrome 使用 scripts/chrome-language-timezone-smoke.mjs，原人工验收最小实验 BFCache JSON 单独保留，不混为生产 smoke。

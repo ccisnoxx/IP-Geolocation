@@ -1,8 +1,8 @@
 # VanishGeo 配置指南
 
-> **VG-011 安全暂停（2026-10-15 用户确认人工验收通过）**：Chrome 155 已证实旧 `documentId` 可错投替换文档。当前后台在读取 payload 和派发前拒绝所有页面伪装初始化，并撤销动态初始化脚本。语言、时区、位置、Canvas 及 Worker/SharedWorker 伪装暂停；配置仍可保存。DNR 请求头规则、WebRTC 继续各自执行并按实际同步结果报告；二者不补偿页面 API 伪装。重试同步、保存或后台重启不会恢复页面伪装。新闸门不撤销旧 hook，已加载页面及旧 BFCache 文档需关闭并重建；无法确认清理时需自行重启浏览器。恢复完整功能前须验证可靠最终文档绑定或浏览器上游修复。详情见 [调查与实施证据](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 继续暂停。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。DNR 与 WebRTC 仍独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
-当前源码版本为 **2.1.1（未发布）**。配置仍可保存；当前实际执行的是 DNR Accept-Language 与 WebRTC 策略，页面级语言、时区、地理位置、Canvas 和 Worker 伪装保持暂停。保存、同步重试或开启总开关均不会恢复页面注入。扩展不改变代理或网络出口。安装步骤见 [INSTALL](INSTALL.md)，数据处理见 [PRIVACY](PRIVACY.md)。
+当前源码版本为 **2.1.1（未发布）**。页面语言/时区需 Chrome 138+、userScripts 权限及正常开启 Allow User Scripts；配置注册成功后按文档快照执行。DNR 与 WebRTC 独立同步；其他页面能力继续暂停。扩展不改变代理或网络出口。安装步骤见 [INSTALL](INSTALL.md)，数据处理见 [PRIVACY](PRIVACY.md)。
 
 ## 首次配置、升级与重置
 
@@ -17,10 +17,10 @@ Options 配置引导要求三步：点击检测并确认出口 → 显式选择�
 ## 规则与保存
 
 1. 在 Popup 查看当前站点状态，或在 Options 编辑域名列表。域名示例用 `example.com`，本地诊断用 `localhost`。
-2. 开启总开关及目标规则。域名规则通常匹配本域和子域；更具体的启用规则优先。当前动态初始化脚本保持撤销，启用规则和 `<all_urls>` 权限均不会恢复页面注入。
-3. Options 修改后点击“保存当前配置”；Popup 的控件 change/blur 会自动保存，观察保存状态。后台先校验配置与 DNR 容量，再保存并对账；页面脚本保持撤销，DNR、WebRTC 分别报告实际同步状态。有启用站点规则时，总体状态仍显示“已保存但未完全生效”；符合既有条件的标签页可能刷新，但刷新不会恢复页面伪装。
+2. 开启总开关及目标规则。域名规则通常匹配本域和子域；更具体的启用规则优先。后台从同一 resolver 派生最小语言/时区 payload；更具体的启用规则通过 excludeMatches 阻止父域重复执行，即使该子规则没有有效页面信号。
+3. Options 修改后点击“保存当前配置”；Popup 的控件 change/blur 会自动保存，观察保存状态。后台先校验配置与 DNR 容量，再保存并对账；语言/时区脚本提前注册，DNR、WebRTC 分别报告实际同步状态。只有注册同步成功才提示已有受影响文档完整 reload 或关闭重开；不会自动刷新、热更新或撤销旧 hook。
 
-两页常驻“运行时同步状态”区分配置已保存和实际同步；部分失败显示“已保存但未完全生效”及失败组件。点击“重试同步”只按已保存配置重试，不保存当前未保存的表单。安装、浏览器启动和 service worker 再次唤醒也会对账；已收敛组件不重复修改，单个标签页刷新失败不阻断其他标签页。浏览器 API 暂时失败不会回滚配置；容量不足、保存前无法准备刷新快照/恢复记录或配置写入失败则返回错误，不宣称已保存。WebRTC 同步只证明策略操作与可观察状态，不证明 ICE 网络防护。
+两页常驻“运行时同步状态”区分配置已保存和实际同步；部分失败显示“已保存但未完全生效”及失败组件。点击“重试同步”只按已保存配置重试，不保存当前未保存的表单。安装、浏览器启动和 service worker 再次唤醒也会对账；已收敛注册不重复修改，扩展 update 清除的注册会重建。API/权限/用户开关不可用时页面语言/时区 fail closed，无旧路径回退。当前页面实际值未采样时为 UNKNOWN；待重载提示保守保留，不能凭保存成功认定旧文档已使用新值。浏览器 API 暂时失败不会回滚配置；容量不足、保存前无法准备刷新快照/恢复记录或配置写入失败则返回错误，不宣称已保存。WebRTC 同步只证明策略操作与可观察状态，不证明 ICE 网络防护。
 
 文本域名列表显示启用规则，未显示的禁用规则仍保留；重新输入已有禁用域名会保留原 ID、覆盖设置和出口绑定。删除列表中的启用域名会删除该规则。Popup 的“不启用”会删除当前匹配规则，Options 规则卡的“删除”也会删除规则。
 
@@ -43,7 +43,7 @@ auto 表示使用**本规则显式绑定的已确认出口档案**，不表示�
 
 完整配置导入会先检查原始自定义方案；任一方案的字段或 ID 唯一性不合法，整个导入失败，错误指出 `profile.profiles[index]` 和字段。请修正对应条目的坐标、精度、时区、名称或 ID 后重试，该失败导入不会触发配置写入或旧键清理，既有配置不会被替换。旧存储读取只返回有效且 ID 唯一的方案，悬空选中 ID 清空；不会在读取已有 v2 时额外重写原始方案数据。旧 `bpg_config` 中合法零坐标迁移为手工模式。
 
-自定义方案不是内置地区整套预设。Canvas 字体过滤当前暂停，勾选或保存不会启用；它不承诺隐藏所有字体、消除 Canvas 指纹或达到检测评分。页面语言伪装同样暂停，但有效语言配置仍用于 DNR Accept-Language；请求头同步不代表 navigator.language 已改变。未接管的 GPU、Audio、screen、hardware concurrency、device memory、codec、WebGPU 保持原生透传。
+自定义方案不是内置地区整套预设。Canvas 字体过滤当前暂停，勾选或保存不会启用；它不承诺隐藏所有字体、消除 Canvas 指纹或达到检测评分。页面语言仅在 userScripts 注册成功后的匹配新文档使用配置；有效语言同时用于 DNR Accept-Language，请求头同步不代表旧文档的 navigator.language 已改变。未接管的 GPU、Audio、screen、hardware concurrency、device memory、codec、WebGPU 保持原生透传。
 
 WebRTC 为浏览器全局策略，独立于站点 allowlist：
 
@@ -57,7 +57,7 @@ WebRTC 为浏览器全局策略，独立于站点 allowlist：
 
 ## 时区与 Locale 模式
 
-Popup 的“高级配置 → 时区”和 Options 的“时区”页签提供全局 `intlMode`。以下为保留配置和隔离测试的语义，当前不在生产页面执行。该策略使用各匹配规则解析后的语言/时区值；自定义环境方案只保存信号值，应用方案保留当前模式。它与 WebRTC 的同名策略相互独立，也不控制 DNR Accept-Language。
+Popup 的“高级配置 → 时区”和 Options 的“时区”页签提供全局 `intlMode`。以下语义用于注册成功后的匹配新文档。该策略使用各匹配规则解析后的语言/时区值；自定义环境方案只保存信号值，应用方案保留当前模式。它与 WebRTC 的同名策略相互独立，也不控制 DNR Accept-Language。
 
 | 调用 | strict（默认） | compatible |
 |---|---|---|
@@ -72,9 +72,9 @@ compatible 中省略参数或值为 `undefined` 视为未指定；`[]` 是显式
 
 新安装、重置和旧数据缺字段时均默认 strict，保持升级前强制一致性，避免静默改变隐私预期。schema 仍 v2；读取已有 v2 只在内存补 strict，不重写原配置，下一次正常保存才持久化字段。完整导入/导出保留模式；非法显式模式拒绝导入。回退旧版会忽略模式，保存时可能移除字段；无破坏性迁移。
 
-compatible 优先兼容使用固定语言/时区的站点，允许页面显式结果与默认结果不同，降低强制一致性；两种模式都不承诺不可检测。切换后需要重建文档和 Worker；已有 Worker 不热更新。**当前 VG-011 生产 MAIN 派发继续暂停**，模式只可配置及隔离验证，保存或同步重试不会恢复页面伪装，诊断可如实报告默认值 FAIL 与显式调用结果。
+compatible 优先兼容使用固定语言/时区的站点，允许页面显式结果与默认结果不同，降低强制一致性；两种模式都不承诺不可检测。切换并完成注册后需要完整 reload 或关闭重开文档；已有文档及 BFCache 保持旧模式。Worker / SharedWorker 和 Temporal 不在本阶段恢复范围。
 
-定向自动化：`node --import tsx scripts/chrome-intl-smoke.mjs --output <脱敏JSON>`，需要 Node22+ 和支持 Extensions CDP domain 的 Chrome。它在临时最小扩展内通过真实 scripting API 验证两模式的当前 top/iframe、classic/module/shared/nested Worker，另加载正式 dist 验证 Options/Popup 文档保存与旧 v2 重复读取。配置仅在扩展内部，经 func/args 交给当前文档；无页面配置桥，无 provider/位置/ICE 调用。临时 profile/server 在 finally 清理；不等同生产恢复、真实 action Popup 或完整人工验收。
+历史全 surface 隔离自动化（非当前生产支持范围）：`node --import tsx scripts/chrome-intl-smoke.mjs --output <脱敏JSON>`，需要 Node22+ 和支持 Extensions CDP domain 的 Chrome。它在临时最小扩展内通过真实 scripting API 验证两模式的当前 top/iframe、classic/module/shared/nested Worker，另加载正式 dist 验证 Options/Popup 文档保存与旧 v2 重复读取。配置仅在扩展内部，经 func/args 交给当前文档；无页面配置桥，无 provider/位置/ICE 调用。临时 profile/server 在 finally 清理；不等同生产恢复、真实 action Popup 或完整人工验收。
 
 ## 诊断与数据示例
 

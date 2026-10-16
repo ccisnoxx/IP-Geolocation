@@ -1,6 +1,6 @@
 # VanishGeo 安装与更新
 
-> 当前源码版本为 **2.1.1（未发布）**。页面级语言、时区、地理位置、Canvas 和 Worker 伪装已暂停。DNR Accept-Language 与 WebRTC 仍按各自配置、控制权和同步状态运行；保存配置、重试同步或重载扩展不会恢复页面注入。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 继续暂停。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。DNR 与 WebRTC 仍独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 ## 从源码加载
 
@@ -11,10 +11,10 @@ npm ci
 npm run build
 ```
 
-1. 在 Chrome 打开 `chrome://extensions/`，启用“开发者模式”。manifest 声明最低 Chrome 119。
+1. 在 Chrome 打开 `chrome://extensions/`，启用“开发者模式”。manifest 声明最低 Chrome 138。
 2. 点击“加载已解压的扩展程序”，选择仓库里的 **dist 文件夹**，其根目录直接包含 `manifest.json`。
-3. 确认名称为 VanishGeo，打开 Popup 和完整配置页；可在工具栏固定图标。
-4. 按 [CONFIG_GUIDE](CONFIG_GUIDE.md) 配置所需站点、信号与出口档案，查看 DNR 和 WebRTC 各自的同步结果。页面伪装配置仅保存，刷新网页不会恢复注入。
+3. 在 VanishGeo 的“详情”页正常开启 **Allow User Scripts（允许用户脚本）**，再打开 Popup 或 Options，点击“重试同步”；可在工具栏固定图标。
+4. 按 [CONFIG_GUIDE](CONFIG_GUIDE.md) 配置所需站点、信号与出口档案，查看 DNR 和 WebRTC 各自的同步结果。确认页面语言/时区注册成功后，完整 reload 或关闭重开已有目标文档。其他页面能力仍暂停。
 
 不要加载仓库根目录：TypeScript 维护源不是可直接运行的扩展入口。Edge 可在 `edge://extensions/` 加载同一 dist；兼容性和 privacy API 控制状态须在对应浏览器验证，不能由 Chrome 结果推断。
 
@@ -35,7 +35,7 @@ npm run build
 ## 排查
 
 - 加载失败：确认 dist 根部存在 manifest.json，检查扩展管理页的具体错误；重新构建，不编辑 dist 来修复。
-- 页面语言、时区、位置、Canvas 或 Worker 没有变化：当前页面伪装已暂停，这是预期行为；保存、刷新或重试同步不会恢复。升级前已打开的页面可能保留旧 hook，应关闭后重新打开。
+- 页面语言/时区没有变化：先区分 API 不支持、权限缺失、Allow User Scripts 未开启或注册同步失败。注册成功后再完整 reload 或关闭重开；已有 BFCache 文档保留旧快照。about:blank/srcdoc/data/blob/特殊 sandbox 不支持。位置、Canvas 和 Worker 仍暂停。
 - Accept-Language 没有变化：确认总开关、站点规则和有效语言配置，查看“请求头规则”同步结果，并在普通 HTTP(S) 目标观察实际请求头；页面的 navigator.language 不随 DNR 改变。
 - WebRTC 状态不一致：在 Options 查看实际 policy 和控制权；其他扩展或浏览器策略可能控制该设置。
 - 类型或构建失败：执行 `npm run typecheck`，依据具体错误修复；依赖安装使用锁文件和 `npm ci`。

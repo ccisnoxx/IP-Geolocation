@@ -86,3 +86,18 @@ git diff --check
 不覆盖 HTTPS、about:blank、srcdoc、data:、blob:、sandbox 特殊帧、Worker/SharedWorker、Geolocation、Canvas、完整 runtime、已有 Hook 自动清理、进行中的导航/注册更新竞态、扩展更新和浏览器重启持久性；没有恶意页面、攻击、篡改、窃取、绕过、隐藏或反检测测试。
 
 当前 `runtime-injection-paused` 保持。退出0只表示最小实验 GO；真实 runtime、规则编译、配置持久化与注册更新提交语义及生产集成授权仍需独立处理。本目录不实施生产恢复，人工验收前停在 review。
+
+## VG-023 生产语言/时区 smoke（独立于上述已验收最小实验）
+
+用户确认最小实验 GO 后，VG-023 已获生产恢复授权。`production-smoke.mjs` 加载实际 dist，仅合成语言/时区配置，复用同一 Linux namespace/sandbox/正常 UI 开关后端；没有改变原最小实验、acceptance 或 pauseGate 的通过条件。原 `linux-evidence.json` 保持原样，不能将原最小实验的生产暂停检查套用于已授权恢复的候选。
+
+准备独占 VM 与依赖见 linux-fixture-review.md。运行：
+
+```sh
+npm run build
+limactl start vg-userscripts-fixture
+node scripts/chrome-language-timezone-smoke.mjs --output experiments/userscripts-document-start/production-evidence.json
+limactl stop vg-userscripts-fixture
+```
+
+生产宿主门禁固定枚举17项，并要求namespace/collector/staging清理与运行期间生产文件不变；改用语言/时区专用入口/无旧派发的边界检查。GO仅代表这组生产 smoke，未验证项仍需独立报告。期望值仅存在扩展管理页与collector断言，localhost自己同步采实际值，无法接收预期桥。扩展update只修改VM里临时dist副本版本，仓库manifest不变；cleanup回收副本。没有第三方站点、provider、位置或ICE请求。生产语言/时区阶段已于2026-10-16通过用户人工验收，见VG-023任务记录；其他页面能力继续暂停。

@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "VanishGeo",
   "version": "2.1.1",
-  "minimum_chrome_version": "119",
-  "description": "Accept-Language request header and WebRTC policy controls. Page-level spoofing is paused; configuration can still be saved.",
+  "minimum_chrome_version": "138",
+  "description": "Per-document language and timezone for allowlisted HTTP(S) pages via userScripts. Geolocation, Canvas and Workers remain paused.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -17,7 +17,8 @@
     "contextMenus",
     "privacy",
     "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"
+    "declarativeNetRequestWithHostAccess",
+    "userScripts"
   ],
   "host_permissions": [
     "<all_urls>"

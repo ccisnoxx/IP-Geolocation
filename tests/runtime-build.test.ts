@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import ts from 'typescript';
 import { mkdtemp, readFile, writeFile, rm, mkdir, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -73,7 +74,11 @@ test('完整页面与 worker 经 facade 二次打包后分别脱离闭包，sour
   const chunk = chunks[0];
   assert.deepEqual(chunk.imports, []);
   assert.deepEqual(chunk.dynamicImports, []);
-  const fn = assertSelfContainedFunction(chunk.code, 'applyVanishGeoRuntime');
+  const parsed = ts.createSourceFile('runtime.js', chunk.code, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const declaration = parsed.statements.find((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node) && node.name?.text === 'applyVanishGeoRuntime');
+  assert.ok(declaration);
+  const fn = assertSelfContainedFunction(declaration.getText(parsed), 'applyVanishGeoRuntime');
+  assert.ok(chunk.exports.includes('pageRuntimeSource'));
   const context = page();
   vm.runInContext(`(${fn})(${JSON.stringify(payload)}, 'synthetic-document')`, context);
   assert.equal(vm.runInContext('navigator.language', context), 'fr-FR');

@@ -1,4 +1,4 @@
-// 验证后台对出口检测可信边界、配置事务、标签页刷新和文档级注入的统一所有权。
+// 验证后台对出口检测可信边界、配置事务、新文档注册与人工刷新提示的统一所有权。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -83,14 +83,8 @@ function createSingleRuleConfig(
   });
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 interface ChromeMockOptions {
   tabs?: chrome.tabs.Tab[];
-  reloadDelayMs?: number;
-  reloadFailures?: number[];
   sessionStorage?: Record<string, any>;
   initialScripts?: chrome.scripting.RegisteredContentScript[];
 }
@@ -100,16 +94,16 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
   const sessionStorage: Record<string, any> = options.sessionStorage || {};
   const registeredScripts: chrome.scripting.RegisteredContentScript[][] = [];
   let actualScripts: chrome.scripting.RegisteredContentScript[] = options.initialScripts || [];
+  let userScripts: chrome.userScripts.RegisteredUserScript[] = [];
   let dynamicRules: chrome.declarativeNetRequest.Rule[] = [];
   let privacyValue = 'default';
   let privacyControl = 'controllable_by_this_extension';
   const mutations = { content: 0, dnr: 0, webrtc: 0 };
+  const pageMutations = { register: 0, update: 0, unregister: 0 };
   const executeCalls: chrome.scripting.ScriptInjection<any[], any>[] = [];
   const reloadCalls: number[] = [];
   const createdTabUrls: string[] = [];
   let optionsOpened = 0;
-  let activeReloads = 0;
-  let maxActiveReloads = 0;
   const tabs = options.tabs || [];
 
   const storageArea = (target: Record<string, any>) => ({
@@ -130,6 +124,22 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
     storage: {
       local: storageArea(storage),
       session: storageArea(sessionStorage)
+    },
+    permissions: { contains: async () => true },
+    userScripts: {
+      getScripts: async () => structuredClone(userScripts),
+      unregister: async ({ ids }: { ids: string[] }) => {
+        pageMutations.unregister += 1;
+        userScripts = userScripts.filter(script => !ids.includes(script.id));
+      },
+      update: async (scripts: chrome.userScripts.RegisteredUserScript[]) => {
+        pageMutations.update += 1;
+        userScripts = userScripts.map(script => structuredClone(scripts.find(next => next.id === script.id) || script));
+      },
+      register: async (scripts: chrome.userScripts.RegisteredUserScript[]) => {
+        pageMutations.register += 1;
+        userScripts.push(...structuredClone(scripts));
+      }
     },
     scripting: {
       getRegisteredContentScripts: async () => actualScripts,
@@ -179,17 +189,7 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
         if (!tab) throw new Error(`tab ${tabId} not found`);
         return tab;
       },
-      reload: async (tabId: number) => {
-        activeReloads += 1;
-        maxActiveReloads = Math.max(maxActiveReloads, activeReloads);
-        try {
-          if (options.reloadDelayMs) await delay(options.reloadDelayMs);
-          if (options.reloadFailures?.includes(tabId)) throw new Error('reload failed');
-          reloadCalls.push(tabId);
-        } finally {
-          activeReloads -= 1;
-        }
-      },
+      reload: async (tabId: number) => { reloadCalls.push(tabId); },
       create: async ({ url }: { url: string }) => {
         createdTabUrls.push(url);
         return { id: createdTabUrls.length, url } as chrome.tabs.Tab;
@@ -205,12 +205,12 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
   return {
     sessionStorage,
     mutations,
+    pageMutations,
     registeredScripts,
     executeCalls,
     reloadCalls,
     createdTabUrls,
     getOptionsOpened: () => optionsOpened,
-    getMaxActiveReloads: () => maxActiveReloads,
     restore: () => {
       (globalThis as any).chrome = originalChrome;
     }
@@ -303,7 +303,7 @@ test('active detection falls back sequentially and writes a verified profile onl
   }) as any;
 
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const preview = await services.detectExitLocation();
 
     assert.deepEqual(calls, ['https://ipwho.is/', 'https://ipapi.co/json/']);
@@ -324,7 +324,7 @@ test('active detection falls back sequentially and writes a verified profile onl
   }
 });
 
-test('redetection previews old and new identity, then updates the same profile ID and reloads its sites', async () => {
+test('重新检测保留档案 ID，更新新文档时区注册并提示人工重载绑定站点', async () => {
   const config = createSingleRuleConfig();
   config.rules.push({
     ...clone(config.rules[0]),
@@ -355,7 +355,7 @@ test('redetection previews old and new identity, then updates the same profile I
   })) as any;
 
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const cancelled = await services.detectExitLocation('exit-home');
     assert.equal(cancelled.previous?.publicIp, '203.0.113.10');
     assert.equal(cancelled.candidate.publicIp, '203.0.113.99');
@@ -363,12 +363,18 @@ test('redetection previews old and new identity, then updates the same profile I
     assert.equal(storage[SITE_CONFIG_KEY].exitLocationProfiles[0].publicIp, '203.0.113.10');
 
     const preview = await services.detectExitLocation('exit-home');
-    const saved = (await services.confirmExitLocationDetection(preview.detectionId, '新加坡家宽')).config;
+    const result = await services.confirmExitLocationDetection(preview.detectionId, '新加坡家宽');
+    const saved = result.config;
     assert.equal(saved.exitLocationProfiles[0].id, 'exit-home');
     assert.equal(saved.exitLocationProfiles[0].publicIp, '203.0.113.99');
     assert.equal(saved.rules[0].exitLocationProfileId, 'exit-home');
     assert.equal(saved.rules[1].exitLocationProfileId, 'exit-home');
-    assert.deepEqual(mock.reloadCalls.slice().sort((a, b) => a - b), [1, 3]);
+    assert.deepEqual(result.syncReport.pageRuntime, { state: 'ready', registeredRuleCount: 2, reloadRequired: true });
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [1, 3]);
+    const scripts = await chrome.userScripts.getScripts();
+    assert.ok(scripts.every(script => script.js?.[0].code?.includes('Asia/Singapore')));
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.deepEqual(mock.executeCalls, []);
   } finally {
     mock.restore();
     globalThis.fetch = originalFetch;
@@ -383,7 +389,7 @@ test('referenced profiles cannot be deleted until all rule bindings are cleared'
   };
   const mock = installChromeMock(storage);
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     await assert.rejects(services.deleteExitLocationProfile('exit-home'), /example\.com/);
 
     const unbound = clone(config);
@@ -404,7 +410,7 @@ test('generic saves cannot forge verified identity, while imports downgrade prof
   };
   const mock = installChromeMock(storage);
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const forged = clone(config);
     forged.exitLocationProfiles[0].publicIp = '203.0.113.200';
     forged.exitLocationProfiles[0].latitude = 0;
@@ -432,7 +438,7 @@ test('保存和导入在原始 Profile 校验失败时拒绝，不写配置或�
     language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' },
     timezone: { timezone: 'UTC' } };
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const invalid: Array<[Profile[], RegExp]> = [
       [[{ ...valid, geolocation: { ...valid.geolocation, latitude: 95 } }], /latitude/],
       [[{ ...valid, timezone: { timezone: 'Mars/Base' } }], /timezone/],
@@ -469,7 +475,7 @@ test('旧存储未初始化时非法 Profile 保存或导入不触发迁移写�
     geolocation: { latitude: 95, longitude: 0, accuracy: 50 },
     language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' }, timezone: { timezone: 'UTC' } };
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const candidate = { profile: { activeProfileId: null, profiles: [profile] } };
     await assert.rejects(services.importSiteConfig(candidate), /latitude/);
     await assert.rejects(services.saveSiteConfig(candidate), /latitude/);
@@ -481,153 +487,181 @@ test('旧存储未初始化时非法 Profile 保存或导入不触发迁移写�
   } finally { mock.restore(); }
 });
 
-test('only tabs whose effective runtime payload changed are reloaded', async () => {
+test('只有语言/时区快照变化的页面进入人工重载提示；重复保存和暂停信号不新增目标', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
-  config.rules.push({
-    ...clone(config.rules[0]),
-    id: 'rule-other',
-    domain: 'other.test'
-  });
+  config.rules.push({ ...clone(config.rules[0]), id: 'rule-other', domain: 'other.test' });
   const tabs = [
     { id: 1, url: 'https://example.com/page' },
     { id: 2, url: 'https://other.test/page' },
     { id: 3, url: 'chrome://extensions/' }
   ] as chrome.tabs.Tab[];
-  const storage: Record<string, any> = {
-    [SITE_CONFIG_KEY]: config,
-    [RULES_INITIALIZED_KEY]: true
-  };
-  const mock = installChromeMock(storage, { tabs });
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const changed = clone(config);
-    changed.rules[0].overrides.language = {
-      mode: 'override',
-      value: {
-        enabled: true,
-        mode: 'preset',
-        language: 'fr-FR',
-        languages: ['fr-FR', 'fr'],
-        acceptLanguage: 'fr-FR,fr;q=0.9'
-      }
-    };
+    changed.rules[0].overrides.language = { mode: 'override', value: {
+      enabled: true, mode: 'preset', language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9'
+    } };
+    const first = await services.saveSiteConfig(changed);
+    assert.deepEqual(first.syncReport.pageRuntime, { state: 'ready', registeredRuleCount: 2, reloadRequired: true });
+    const pending = clone(mock.sessionStorage.runtimeSyncMetadata.pendingReloads);
+    assert.deepEqual(pending.map((item: any) => item.tabId), [1]);
+    const mutations = { ...mock.pageMutations };
     await services.saveSiteConfig(changed);
-    assert.deepEqual(mock.reloadCalls, [1]);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
+    assert.deepEqual(mock.pageMutations, mutations);
 
-    mock.reloadCalls.length = 0;
-    await services.saveSiteConfig(changed);
-    assert.deepEqual(mock.reloadCalls, []);
+    const pausedOnly = clone(changed);
+    pausedOnly.debugMode = true;
+    pausedOnly.globalProfile.geolocation.country = 'Metadata only';
+    pausedOnly.globalProfile.geolocation.latitude = 0;
+    pausedOnly.globalProfile.geolocation.history = [{ latitude: 0, longitude: 0, accuracy: 50, createdAt: Date.now() }];
+    await services.saveSiteConfig(pausedOnly);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
+    assert.deepEqual(mock.pageMutations, mutations);
 
-    const metadataOnly = clone(changed);
-    metadataOnly.globalProfile.geolocation.country = 'Metadata only';
-    metadataOnly.globalProfile.geolocation.history = [{
-      latitude: 35.68,
-      longitude: 139.76,
-      accuracy: 50,
-      createdAt: Date.now()
-    }];
-    await services.saveSiteConfig(metadataOnly);
-    assert.deepEqual(mock.reloadCalls, []);
-
-    const compatible = clone(metadataOnly);
+    const compatible = clone(pausedOnly);
     compatible.intlMode = 'compatible';
     await services.saveSiteConfig(compatible);
-    assert.deepEqual(mock.reloadCalls.sort(), [1, 2]);
-    mock.reloadCalls.length = 0;
-    await services.saveSiteConfig(compatible);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [1, 2]);
+    const disabled = await services.setExtensionEnabled(false);
+    assert.deepEqual(disabled.syncReport.pageRuntime, { state: 'disabled', registeredRuleCount: 0, reloadRequired: true });
+    assert.deepEqual(await chrome.userScripts.getScripts(), []);
     assert.deepEqual(mock.reloadCalls, []);
-
-    await services.setExtensionEnabled(false);
-    assert.deepEqual(mock.reloadCalls.sort(), [1, 2]);
-  } finally {
-    mock.restore();
-  }
+    assert.deepEqual(mock.executeCalls, []);
+  } finally { mock.restore(); }
 });
 
-test('changed-tab reloads are failure-isolated and limited to four concurrent operations', async () => {
+test('仅修改位置、debug 或 WebRTC 不制造页面重载提示，也不更改页面注册', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
-  const tabs = Array.from({ length: 7 }, (_, index) => ({
-    id: index + 1,
-    url: `https://app${index}.example.com/page`
-  })) as chrome.tabs.Tab[];
-  const storage: Record<string, any> = {
-    [SITE_CONFIG_KEY]: config,
-    [RULES_INITIALIZED_KEY]: true
-  };
-  const mock = installChromeMock(storage, { tabs, reloadDelayMs: 2, reloadFailures: [2] });
-  const originalWarn = console.warn;
-  console.warn = () => undefined;
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, {
+    tabs: [{ id: 1, url: 'https://example.com/' }] as chrome.tabs.Tab[]
+  });
   try {
-    const services = createBackgroundServices();
-    await services.setExtensionEnabled(false);
-    assert.equal(mock.reloadCalls.length, 6);
-    assert.ok(mock.getMaxActiveReloads() <= 4);
-  } finally {
-    console.warn = originalWarn;
-    mock.restore();
-  }
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    await services.initializeExtension();
+    const mutations = { ...mock.pageMutations };
+    const next = clone(config);
+    next.globalProfile.geolocation.latitude = 0;
+    next.globalProfile.geolocation.longitude = 0;
+    next.globalProfile.geolocation.spoofPermission = false;
+    next.debugMode = true;
+    const saved = await services.saveSiteConfig(next);
+    const rtc = await services.setWebRtcGlobalMode('compatible');
+    for (const result of [saved, rtc]) {
+      assert.equal(result.syncReport.status, 'ok');
+      assert.equal(result.syncReport.pageRuntime?.reloadRequired, false);
+    }
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, []);
+    assert.deepEqual(mock.pageMutations, mutations);
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.deepEqual(mock.executeCalls, []);
+  } finally { mock.restore(); }
 });
 
-test('安全暂停在配置读取和任何 runtime 派发前拒绝，重启/保存/同签名重试不能绕过', async () => {
+test('禁用后保留所有受影响文档的人工重载提示；后台重启不会自动刷新或执行旧文档', async () => {
+  const config = createSingleRuleConfig('example.com', { automatic: false });
+  const tabs = Array.from({ length: 7 }, (_, index) => ({ id: index + 1, url: `https://app${index}.example.com/page` })) as chrome.tabs.Tab[];
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
+  try {
+    const saved = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').setExtensionEnabled(false);
+    assert.equal(saved.syncReport.status, 'ok');
+    assert.deepEqual(saved.syncReport.pageRuntime, { state: 'disabled', registeredRuleCount: 0, reloadRequired: true });
+    assert.deepEqual(saved.syncReport.components.tabReload, { status: 'ok', errors: [] });
+    const pending = clone(mock.sessionStorage.runtimeSyncMetadata.pendingReloads);
+    assert.deepEqual(pending.map((item: any) => item.tabId), tabs.map(tab => tab.id));
+    const restarted = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    for (const report of [await restarted.initializeExtension(), (await restarted.reconcileRuntime()).syncReport]) {
+      assert.equal(report.status, 'ok');
+      assert.equal(report.pageRuntime?.reloadRequired, true);
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
+    }
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.deepEqual(mock.executeCalls, []);
+  } finally { mock.restore(); }
+});
+
+test('页面初始化消息路径已移除，重启/保存/同签名重试均不恢复 documentId 注入', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });
   try {
-    let services = createBackgroundServices();
+    let services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     for (const operation of ['initial', 'startup', 'save', 'same-signature'] as const) {
-      if (operation === 'startup') { services = createBackgroundServices(); await services.initializeExtension(); }
+      if (operation === 'startup') { services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}'); await services.initializeExtension(); }
       if (operation === 'save') await services.saveSiteConfig(config);
       if (operation === 'same-signature') await services.reconcileRuntime();
+      assert.equal(Reflect.has(services, 'initializeRuntimeForSender'), false);
+      const router = createBackgroundMessageRouter(services);
       const originalGet = chrome.storage.local.get;
-      chrome.storage.local.get = async () => { throw new Error('不得解析或传送配置'); };
+      chrome.storage.local.get = async () => { throw new Error('旧初始化消息不得读取配置'); };
       try {
         for (const url of ['https://example.com/same', 'https://other.test/replacement', 'about:blank']) {
-          await assert.rejects(services.initializeRuntimeForSender({ id: chrome.runtime.id,
-            tab: { id: 7, url } as chrome.tabs.Tab, documentId: 'old-document', url }),
-          (error: any) => error.code === 'runtime-injection-paused' && /页面伪装已暂停/.test(error.message));
+          await assert.rejects(router.respond({ action: 'initializeRuntimeForSender', payload: { language: 'fr-FR' } }, {
+            id: chrome.runtime.id, tab: { id: 7 } as chrome.tabs.Tab, documentId: 'old-document', url
+          }), /只允许扩展管理页面/);
         }
+        await assert.rejects(router.respond({ action: 'initializeRuntimeForSender' }, {
+          id: chrome.runtime.id, url: chrome.runtime.getURL('options/options.html')
+        }), /未知操作/);
       } finally { chrome.storage.local.get = originalGet; }
-      assert.equal(mock.executeCalls.length, 0);
+      assert.deepEqual(mock.executeCalls, []);
       assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
     }
   } finally { mock.restore(); }
 });
 
-test('初始化仍校验可信 sender，拒绝页面伪造与缺失文档；暂停不返回 payload', async () => {
-  const mock = installChromeMock({ [SITE_CONFIG_KEY]: createSingleRuleConfig(), [RULES_INITIALIZED_KEY]: true });
+test('所有管理动作先校验扩展来源，页面伪造配置或旧初始化动作均不能读取和保存配置', async () => {
+  const config = createSingleRuleConfig();
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage);
   try {
-    const services = createBackgroundServices();
-    const router = createBackgroundMessageRouter(services);
-    const sender = { id: chrome.runtime.id, tab: { id: 7 } as chrome.tabs.Tab,
-      documentId: 'old-document', url: 'https://example.com/' };
-    await assert.rejects(router.respond({ action: 'initializeRuntimeForSender',
-      url: 'https://attacker.test/', payload: { extensionEnabled: true }, safe: true }, sender), /页面伪装已暂停/);
-    await assert.rejects(services.initializeRuntimeForSender({ ...sender, id: 'other-extension' }), /拒绝非本扩展/);
-    await assert.rejects(services.initializeRuntimeForSender({ ...sender, documentId: undefined }), /缺少目标文档/);
-    await assert.rejects(router.respond({ action: 'setExtensionEnabled', enabled: false }, sender), /只允许扩展管理页面/);
-    assert.equal(mock.executeCalls.length, 0);
+    const router = createBackgroundMessageRouter(createBackgroundServices('function applyLanguageTimezoneRuntime() {}'));
+    const originalGet = chrome.storage.local.get;
+    chrome.storage.local.get = async () => { throw new Error('不可信 sender 不得读取配置'); };
+    for (const sender of [
+      { id: chrome.runtime.id, url: 'https://example.com/', documentId: 'old-document', tab: { id: 7 } },
+      { id: 'other-extension', url: chrome.runtime.getURL('options/options.html') },
+      { id: chrome.runtime.id, url: undefined },
+      { id: chrome.runtime.id, url: 'about:blank' }
+    ]) for (const action of ['initializeRuntimeForSender', 'setSiteConfig', 'setExtensionEnabled', 'getSiteConfig']) {
+      await assert.rejects(router.respond({ action, config: { masterEnabled: false }, enabled: false,
+        url: chrome.runtime.getURL('options/options.html'), payload: { extensionEnabled: true } }, sender as chrome.runtime.MessageSender), /只允许扩展管理页面/);
+    }
+    chrome.storage.local.get = originalGet;
+    assert.deepEqual(storage[SITE_CONFIG_KEY], config);
+    assert.deepEqual(mock.sessionStorage, {});
+    assert.deepEqual(mock.executeCalls, []);
+    assert.deepEqual(mock.pageMutations, { register: 0, update: 0, unregister: 0 });
   } finally { mock.restore(); }
 });
 
-test('初始化撤销旧 ISOLATED bootstrap，保持暂停报告且不联网；重复对账不重新注册', async () => {
+test('初始化先撤销旧 ISOLATED bootstrap，再注册新文档语言/时区；重复对账幂等且不联网', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, {
     initialScripts: [{ id: 'vanishgeo-runtime-init', matches: ['*://example.com/*'], js: ['content/content.js'] }]
   });
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => { throw new Error('初始化不应定位'); }) as any;
+  let requests = 0;
+  globalThis.fetch = (async () => { requests += 1; throw new Error('初始化不应定位'); }) as typeof fetch;
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const report = await services.initializeExtension();
-    assert.equal(report.status, 'partial');
-    assert.equal(report.components.contentScripts.status, 'partial');
-    assert.equal(report.components.contentScripts.errors[0].code, 'runtime-injection-paused');
-    assert.equal(report.components.dnr.status, 'ok');
-    assert.equal(report.components.webrtc.status, 'ok');
+    assert.equal(report.status, 'ok');
+    assert.deepEqual(report.pageRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: false });
+    for (const component of Object.values(report.components)) assert.equal(component.status, 'ok');
+    const scripts = await chrome.userScripts.getScripts();
+    assert.equal(scripts.length, 1);
+    assert.equal(scripts[0].world, 'MAIN');
+    assert.equal(scripts[0].runAt, 'document_start');
+    const mutations = { ...mock.pageMutations };
     await Promise.all([services.initializeExtension(), services.reconcileRuntime()]);
+    assert.deepEqual(await chrome.userScripts.getScripts(), scripts);
+    assert.deepEqual(mock.pageMutations, mutations);
     assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
     assert.equal(mock.mutations.content, 1);
     assert.equal(mock.registeredScripts.length, 0);
-    assert.equal(mock.executeCalls.length, 0);
+    assert.deepEqual(mock.executeCalls, []);
+    assert.equal(requests, 0);
   } finally { mock.restore(); globalThis.fetch = originalFetch; }
 });
 
@@ -642,18 +676,20 @@ test('空storage安装/重复初始化安全关闭，不设置strict、注册脚
   let privacySets = 0;
   setting.set = (() => { privacySets += 1; throw new Error('不得设置WebRTC策略'); }) as typeof setting.set;
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     await Promise.all([services.initializeExtension(), services.handleInstalled('install')]);
     assert.deepEqual(storage[SITE_CONFIG_KEY], createInitialConfig());
     assert.equal(storage[RULES_INITIALIZED_KEY], true);
     assert.equal(mock.getOptionsOpened(), 1);
     await services.handleInstalled('update');
-    await createBackgroundServices().initializeExtension();
+    await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
     assert.equal(mock.getOptionsOpened(), 1);
     assert.equal(requests, 0);
     assert.equal(privacySets, 0);
     assert.equal(mock.mutations.content, 0);
     assert.equal(mock.mutations.dnr, 0);
+    assert.deepEqual(mock.pageMutations, { register: 0, update: 0, unregister: 0 });
+    assert.deepEqual(await chrome.userScripts.getScripts(), []);
     assert.deepEqual(mock.reloadCalls, []);
   } finally { setting.set = originalSet; mock.restore(); globalThis.fetch = originalFetch; }
 });
@@ -671,7 +707,7 @@ test('v2升级不覆盖开关、WebRTC、规则、环境方案或出口档案；
     const storage: Record<string, any> = { [SITE_CONFIG_KEY]: config };
     const mock = installChromeMock(storage);
     try {
-      const services = createBackgroundServices();
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
       await services.handleInstalled('update');
       await services.initializeExtension();
       assert.deepEqual(storage[SITE_CONFIG_KEY], before);
@@ -690,7 +726,7 @@ test('引导必须确认并选择已验证档案与合法站点；按选择启�
   const storage: Record<string, any> = {};
   const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/' }] as chrome.tabs.Tab[] });
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const router = createBackgroundMessageRouter(services);
     const sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('options/options.html') };
     const request = { action: 'completeOnboarding', domains: 'example.com', profileId: 'exit-home', webRtcMode: 'default', confirmed: true };
@@ -707,21 +743,25 @@ test('引导必须确认并选择已验证档案与合法站点；按选择启�
     }
     const saved = await router.respond(request, sender);
     assert.equal(saved.saved, true);
-    assert.equal(saved.syncReport.status, 'partial');
-    assert.equal(saved.syncReport.components.contentScripts.errors[0].code, 'runtime-injection-paused');
+    assert.equal(saved.syncReport.status, 'ok');
+    assert.deepEqual(saved.syncReport.pageRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
     assert.equal(saved.config.masterEnabled, true);
     assert.equal(saved.config.webRtc.globalMode, 'default');
     assert.equal(saved.config.rules[0].exitLocationProfileId, 'exit-home');
     assert.equal((await services.getPayloadForUrl('https://example.com/')).payload?.timezone, 'Asia/Tokyo');
     const repeated = await router.respond(request, sender);
     assert.deepEqual(repeated.config, saved.config);
-    assert.deepEqual(mock.reloadCalls, [1]);
+    assert.deepEqual(mock.reloadCalls, []);
     assert.equal(mock.registeredScripts.length, 0);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [1]);
+    assert.deepEqual(mock.pageMutations, { register: 1, update: 0, unregister: 0 });
     const skipped = await router.respond({ action: 'skipOnboarding' }, sender);
     assert.equal(skipped.config.masterEnabled, false);
     assert.equal(skipped.config.webRtc.globalMode, 'default');
     assert.deepEqual(skipped.config.exitLocationProfiles, saved.config.exitLocationProfiles);
     assert.deepEqual(skipped.config.rules, saved.config.rules);
+    assert.deepEqual(skipped.syncReport.pageRuntime, { state: 'disabled', registeredRuleCount: 0, reloadRequired: true });
+    assert.deepEqual(await chrome.userScripts.getScripts(), []);
   } finally { mock.restore(); }
 });
 
@@ -734,7 +774,7 @@ test('引导串行合并当前配置、保留其他规则并尊重显式WebRTC�
   const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
   const mock = installChromeMock(storage);
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const saved = await services.completeOnboarding('example.com', 'exit-home', 'compatible');
     assert.deepEqual(saved.config.rules[0], config.rules[0]);
     assert.equal(new Set(saved.config.rules.map((rule) => rule.id)).size, 2);
@@ -762,7 +802,8 @@ test('引导串行合并当前配置、保留其他规则并尊重显式WebRTC�
       assert.equal(roundtrip.config.globalProfile.timezone.mode, 'auto', page);
       const effective = await services.getPayloadForUrl('https://example.com/');
       assert.equal(effective.payload?.timezone, 'UTC', page);
-      assert.equal(effective.payload?.latitude, 0, page);
+      assert.equal(effective.payload?.latitude, null, page);
+      assert.equal(roundtrip.config.exitLocationProfiles[0].latitude, 0, page);
     }
     chrome.scripting.getRegisteredContentScripts = async () => { throw new Error('合成同步失败'); };
     const partial = await services.completeOnboarding('third.example', 'exit-home', 'strict');
@@ -783,7 +824,7 @@ test('reset清空配置/方案/档案/历史与候选，重置前的在途检测
   const networkStarted = new Promise<void>((done) => { started = done; });
   globalThis.fetch = (() => { started(); return new Promise<Response>((done) => { release = done; }); }) as typeof fetch;
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const detection = services.detectExitLocation();
     await networkStarted;
     const reset = await services.resetSiteConfig();
@@ -797,7 +838,7 @@ test('reset清空配置/方案/档案/历史与候选，重置前的在途检测
   } finally { mock.restore(); globalThis.fetch = originalFetch; }
 });
 
-test('initializeExtension migrates flat legacy location state, removes obsolete keys, and reloads old matched tabs', async () => {
+test('初始化迁移旧位置与配置并移除旧键；匹配的既有页面仅记录人工重载提示', async () => {
   const storage: Record<string, any> = {
     extensionEnabled: true,
     languageConfig: {
@@ -822,8 +863,8 @@ test('initializeExtension migrates flat legacy location state, removes obsolete 
     tabs: [{ id: 1, url: 'https://chatgpt.com/' }] as chrome.tabs.Tab[]
   });
   try {
-    const services = createBackgroundServices();
-    await services.initializeExtension();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    const report = await services.initializeExtension();
 
     assert.equal(storage[SITE_CONFIG_KEY].schemaVersion, 2);
     assert.deepEqual(storage[SITE_CONFIG_KEY].exitLocationProfiles.map((profile: ExitLocationProfile) => ({
@@ -832,7 +873,9 @@ test('initializeExtension migrates flat legacy location state, removes obsolete 
       publicIp: profile.publicIp
     })), [{ id: 'legacy-last-location', verification: 'unverified', publicIp: null }]);
     assert.ok(storage[SITE_CONFIG_KEY].rules.every((rule: { exitLocationProfileId: string | null }) => rule.exitLocationProfileId === null));
-    assert.deepEqual(mock.reloadCalls, [1]);
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.equal(report.pageRuntime?.reloadRequired, true);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [1]);
     [
       'extensionEnabled',
       'languageConfig',
@@ -867,7 +910,7 @@ test('诊断 URL 对所有配置只携带固定 UI 参数，不泄露预期值',
       const before = clone(storage);
       const mock = installChromeMock(storage);
       try {
-        await createBackgroundServices().openDiagnosticTarget('hosted');
+        await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').openDiagnosticTarget('hosted');
         assert.equal(mock.createdTabUrls.length, 1);
         const url = new URL(mock.createdTabUrls[0]);
         assert.equal(url.origin, 'https://leak.962850.xyz');
@@ -890,7 +933,7 @@ test('诊断 launcher 不读取配置或策略，创建标签失败保持显式�
   try {
     chrome.storage.local.get = async () => { throw new Error('不应读取配置'); };
     chrome.privacy.network.webRTCIPHandlingPolicy.get = async () => { throw new Error('不应读取策略'); };
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     await Promise.all([services.openDiagnosticPage(), services.openDiagnosticPage()]);
     assert.deepEqual(mock.createdTabUrls, [
       'chrome-extension://vanishgeo-test/diagnostic/report.html',
@@ -906,7 +949,7 @@ test('诊断 launcher 不读取配置或策略，创建标签失败保持显式�
 test('localhost 目标只带固定 UI 参数且拒绝非法目标或端口', async () => {
   const mock = installChromeMock({});
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     await services.openDiagnosticTarget('localhost', 8788);
     assert.deepEqual(mock.createdTabUrls, ['http://localhost:8788/leak-test/leak-test.html?ui=zh']);
     await assert.rejects(services.openDiagnosticTarget('localhost', 0), /端口无效/);
@@ -915,18 +958,18 @@ test('localhost 目标只带固定 UI 参数且拒绝非法目标或端口', asy
 });
 
 for (const component of ['contentScripts', 'dnr', 'webrtc'] as const) {
-  test(`${component} 保存失败组件可见，worker 再初始化重试且收敛后无重复副作用`, async () => {
+  test(`${component} 保存失败组件可见，worker 再初始化恢复注册与人工重载提示且收敛后幂等`, async () => {
     const config = createSingleRuleConfig('example.com', { automatic: false });
     const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
     const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[] });
-    const target: any = component === 'contentScripts' ? chrome.scripting
+    const target: any = component === 'contentScripts' ? chrome.userScripts
       : component === 'dnr' ? chrome.declarativeNetRequest : chrome.privacy.network.webRTCIPHandlingPolicy;
-    const method = component === 'contentScripts' ? 'getRegisteredContentScripts' : component === 'dnr' ? 'updateDynamicRules' : 'set';
+    const method = component === 'contentScripts' ? 'register' : component === 'dnr' ? 'updateDynamicRules' : 'set';
     const original = target[method];
     target[method] = async () => { throw new Error('合成 API 故障 https://private.example.test/sensitive'); };
     try {
       const next = clone(config); next.globalProfile.language.language = 'de-DE';
-      const router = createBackgroundMessageRouter(createBackgroundServices());
+      const router = createBackgroundMessageRouter(createBackgroundServices('function applyLanguageTimezoneRuntime() {}'));
       const response = await router.respond({ action: 'setSiteConfig', config: next }, {
         id: chrome.runtime.id, url: chrome.runtime.getURL('options/options.html')
       });
@@ -934,60 +977,87 @@ for (const component of ['contentScripts', 'dnr', 'webrtc'] as const) {
       assert.equal(response.saved, true);
       assert.equal(response.config.globalProfile.language.language, 'de-DE');
       assert.equal(response.syncReport.components[component].status, 'failed');
-      assert.ok(response.syncReport.components[component].errors.some((error: any) => error.code === 'browser-api-failed'));
-      assert.equal(response.syncReport.components.tabReload.status, 'partial');
+      assert.ok(response.syncReport.components[component].errors.some((error: any) =>
+        error.code === (component === 'contentScripts' ? 'userscripts-register-failed' : 'browser-api-failed')));
+      assert.deepEqual(response.syncReport.components.tabReload, { status: 'ok', errors: [] });
+      assert.equal(response.syncReport.pageRuntime.reloadRequired, component !== 'contentScripts');
+      for (const other of ['contentScripts', 'dnr', 'webrtc'] as const) {
+        if (other !== component) assert.equal(response.syncReport.components[other].status, 'ok');
+      }
       assert.equal(storage[SITE_CONFIG_KEY].globalProfile.language.language, 'de-DE');
       assert.deepEqual(mock.reloadCalls, []);
       assert.doesNotMatch(JSON.stringify(mock.sessionStorage.runtimeSyncMetadata), /private\.example|sensitive|example\.com|35\.68|139\.76/);
+      const pending = clone(mock.sessionStorage.runtimeSyncMetadata.pendingReloads);
+      assert.deepEqual(pending.map((item: any) => item.tabId), [1]);
       target[method] = original;
-      const restarted = createBackgroundServices();
+      const restarted = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
       const recovered = await restarted.initializeExtension();
-      assert.equal(recovered.status, 'partial');
-      assert.equal(recovered.components.contentScripts.errors[0].code, 'runtime-injection-paused');
+      assert.equal(recovered.status, 'ok');
+      assert.deepEqual(recovered.pageRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
       assert.equal(recovered.configSignature, response.syncReport.configSignature);
-      assert.deepEqual(mock.reloadCalls, [1]);
       const counts = { ...mock.mutations };
+      const pageCounts = { ...mock.pageMutations };
       await Promise.all([restarted.initializeExtension(), restarted.reconcileRuntime()]);
       assert.deepEqual(mock.mutations, counts);
-      assert.deepEqual(mock.reloadCalls, [1]);
-      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, []);
+      assert.deepEqual(mock.pageMutations, pageCounts);
+      assert.deepEqual(mock.reloadCalls, []);
+      assert.deepEqual(mock.executeCalls, []);
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
     } finally { target[method] = original; mock.restore(); }
   });
 }
 
-test('单 tab 刷新失败返回 partial，恢复只重试失败目标且保留有界并发', async () => {
+test('重载提示目标查询失败时保留待办并显式报错；恢复后重新提示且不自动刷新', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
-  const failures = [2];
-  const tabs = Array.from({ length: 7 }, (_, index) => ({ id: index + 1, url: `https://app${index}.example.com/page` })) as chrome.tabs.Tab[];
-  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs, reloadFailures: failures, reloadDelayMs: 1 });
+  const tabs = [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[];
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
+  const original = chrome.tabs.query;
   try {
-    const saved = await createBackgroundServices().setExtensionEnabled(false);
-    assert.equal(saved.syncReport.status, 'partial');
-    assert.equal(saved.syncReport.components.tabReload.status, 'partial');
-    assert.equal(saved.syncReport.components.tabReload.errors[0].code, 'tab-reload-failed');
-    assert.equal(mock.reloadCalls.length, 6);
-    assert.ok(mock.getMaxActiveReloads() <= 4);
-    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [2]);
-    failures.length = 0;
-    assert.equal((await createBackgroundServices().initializeExtension()).status, 'ok');
-    assert.deepEqual(mock.reloadCalls.slice(6), [2]);
-  } finally { mock.restore(); }
+    await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').setExtensionEnabled(false);
+    const pending = clone(mock.sessionStorage.runtimeSyncMetadata.pendingReloads);
+    chrome.tabs.query = async () => { throw new Error('合成查询失败'); };
+    const failed = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.equal(failed.status, 'partial');
+    assert.equal(failed.components.tabReload.status, 'failed');
+    assert.equal(failed.components.tabReload.errors[0].code, 'tab-query-failed');
+    assert.equal(failed.pageRuntime?.reloadRequired, false);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
+    chrome.tabs.query = original;
+    const recovered = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.equal(recovered.status, 'ok');
+    assert.equal(recovered.pageRuntime?.reloadRequired, true);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.deepEqual(mock.executeCalls, []);
+  } finally { chrome.tabs.query = original; mock.restore(); }
 });
 
-test('欠账跨后续保存保留；导航或关闭的旧目标不被重试刷新', async () => {
+test('人工重载待办跨后续保存保留；导航或关闭后仅移除对应旧目标且不刷新任何页面', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
-  const tabs = [{ id: 1, url: 'https://example.com/old' }, { id: 2, url: 'https://example.com/old' }] as chrome.tabs.Tab[];
-  const failures = [1, 2];
-  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs, reloadFailures: failures });
+  const tabs = [
+    { id: 1, url: 'https://example.com/old' },
+    { id: 2, url: 'https://example.com/old' },
+    { id: 3, url: 'https://example.com/retained' }
+  ] as chrome.tabs.Tab[];
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
   try {
-    const services = createBackgroundServices();
-    assert.equal((await services.setExtensionEnabled(false)).syncReport.components.tabReload.status, 'failed');
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    const disabled = await services.setExtensionEnabled(false);
+    assert.equal(disabled.syncReport.pageRuntime?.reloadRequired, true);
     await services.setWebRtcGlobalMode('compatible');
-    assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.length, 2);
-    tabs[0].url = 'https://unmatched.test/new'; tabs.splice(1, 1); failures.length = 0;
-    assert.equal((await createBackgroundServices().initializeExtension()).status, 'ok');
-    assert.deepEqual(mock.reloadCalls, []);
+    assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.length, 3);
+    tabs[0].url = 'https://unmatched.test/new';
+    tabs.splice(1, 1);
+    const retained = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.equal(retained.status, 'ok');
+    assert.equal(retained.pageRuntime?.reloadRequired, true);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [3]);
+    tabs.splice(1, 1);
+    const cleared = await services.initializeExtension();
+    assert.equal(cleared.pageRuntime?.reloadRequired, false);
     assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, []);
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.deepEqual(mock.executeCalls, []);
   } finally { mock.restore(); }
 });
 
@@ -1002,19 +1072,22 @@ test('配置修改与初始化串行，延迟旧副作用不会覆盖后来的�
   const started = new Promise<void>((done) => { reached = done; });
   chrome.scripting.unregisterContentScripts = (async (...args: any[]) => { reached(); await gate; await (original as any)(...args); }) as any;
   try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const first = services.initializeExtension();
     await started;
     const saved = services.setExtensionEnabled(false);
     const last = services.initializeExtension();
     release();
-    assert.equal((await first).status, 'partial');
+    assert.equal((await first).status, 'ok');
     const result = await saved;
     assert.equal(result.config.masterEnabled, false);
     assert.equal((await last).configSignature, result.syncReport.configSignature);
     assert.equal(storage[SITE_CONFIG_KEY].masterEnabled, false);
     assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+    assert.deepEqual(await chrome.userScripts.getScripts(), []);
     assert.deepEqual(await chrome.declarativeNetRequest.getDynamicRules(), []);
+    assert.deepEqual(mock.executeCalls, []);
+    assert.deepEqual(mock.reloadCalls, []);
   } finally { release(); mock.restore(); }
 });
 
@@ -1025,11 +1098,15 @@ test('DNR 可管理容量溢出在配置写入前拒绝，禁用/无语言规则
   try {
     const next = clone(config);
     next.rules = Array.from({ length: 1001 }, (_, index) => ({ ...clone(config.rules[0]), id: `r-${index}`, domain: `site${index}.example.test` }));
-    await assert.rejects(createBackgroundServices().saveSiteConfig(next), /可管理上限/);
+    await assert.rejects(createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(next), /可管理上限/);
     assert.deepEqual(storage[SITE_CONFIG_KEY], config);
     assert.equal(mock.sessionStorage.runtimeSyncMetadata, undefined);
     next.rules[1000].enabled = false;
-    assert.equal((await createBackgroundServices().saveSiteConfig(next)).syncReport.status, 'partial');
+    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(next)).syncReport.status, 'ok');
+    next.rules[1000].enabled = true;
+    next.rules[1000].overrides.language = { mode: 'disable', value: null };
+    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(next)).syncReport.status, 'ok');
+    assert.equal((await chrome.declarativeNetRequest.getDynamicRules()).length, 1000);
   } finally { mock.restore(); }
 });
 
@@ -1040,16 +1117,16 @@ test('session 预写失败不保存；保存后 checkpoint 失败可见且下次
   const original = chrome.storage.session.set;
   try {
     chrome.storage.session.set = async () => { throw new Error('合成 session 故障'); };
-    await assert.rejects(createBackgroundServices().setExtensionEnabled(false), /session/);
+    await assert.rejects(createBackgroundServices('function applyLanguageTimezoneRuntime() {}').setExtensionEnabled(false), /session/);
     assert.equal(storage[SITE_CONFIG_KEY].masterEnabled, true);
     let calls = 0;
     chrome.storage.session.set = (async (...args: any[]) => { if (++calls > 1) throw new Error('合成 checkpoint 故障'); await (original as any)(...args); }) as any;
-    const result = await createBackgroundServices().setExtensionEnabled(false);
+    const result = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').setExtensionEnabled(false);
     assert.equal(storage[SITE_CONFIG_KEY].masterEnabled, false);
     assert.equal(result.syncReport.status, 'partial');
     assert.equal(result.syncReport.metadataError?.code, 'metadata-write-failed');
     chrome.storage.session.set = original;
-    assert.equal((await createBackgroundServices().initializeExtension()).status, 'ok');
+    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension()).status, 'ok');
   } finally { mock.restore(); }
 });
 
@@ -1058,41 +1135,47 @@ test('local 配置写失败恢复旧欠账，不伪造已保存结果', async ()
   const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
   const mock = installChromeMock(storage);
   try {
-    await createBackgroundServices().initializeExtension();
+    await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
     const metadata = clone(mock.sessionStorage.runtimeSyncMetadata);
     chrome.storage.local.set = async () => { throw new Error('合成 local 故障'); };
-    await assert.rejects(createBackgroundServices().setExtensionEnabled(false), /local/);
+    await assert.rejects(createBackgroundServices('function applyLanguageTimezoneRuntime() {}').setExtensionEnabled(false), /local/);
     assert.deepEqual(storage[SITE_CONFIG_KEY], config);
     assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata, metadata);
   } finally { mock.restore(); }
 });
 
-test('保存后 worker 中断仍能用预写欠账恢复，不需要旧配置副本', async () => {
+test('保存后注册失败保留人工重载待办；worker 重启读取实际注册，不信任局部成功报告', async () => {
+  const config = createSingleRuleConfig('example.com', { automatic: false });
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[] });
+  const original = chrome.userScripts.register;
+  try {
+    chrome.userScripts.register = async () => { throw new Error('模拟保存后的注册中断'); };
+    const changed = clone(config); changed.globalProfile.timezone.timezone = 'UTC';
+    const saved = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(changed);
+    assert.equal(saved.syncReport.pageRuntime?.state, 'sync-failed');
+    assert.equal(saved.syncReport.pageRuntime?.reloadRequired, false);
+    const pending = clone(mock.sessionStorage.runtimeSyncMetadata.pendingReloads);
+    assert.deepEqual(pending.map((item: any) => item.tabId), [1]);
+    // 中断时的局部报告不能替代实际 userScripts 读回。
+    mock.sessionStorage.runtimeSyncMetadata.report.components.contentScripts.status = 'ok';
+    chrome.userScripts.register = original;
+    const report = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.equal(report.status, 'ok');
+    assert.deepEqual(report.pageRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
+    assert.ok((await chrome.userScripts.getScripts())[0].js?.[0].code?.includes('UTC'));
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, pending);
+    assert.deepEqual(mock.reloadCalls, []);
+    assert.deepEqual(mock.executeCalls, []);
+  } finally { chrome.userScripts.register = original; mock.restore(); }
+});
+
+test('local 写入前中断恢复旧签名的人工重载待办，local 写入后中断恢复新待办', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
   const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[] });
   try {
-    const original = chrome.scripting.getRegisteredContentScripts;
-    chrome.scripting.getRegisteredContentScripts = async () => { throw new Error('模拟保存后的中断'); };
-    await createBackgroundServices().setExtensionEnabled(true);
-    const changed = clone(config); changed.debugMode = true;
-    await createBackgroundServices().saveSiteConfig(changed);
-    // 预写记录已可恢复；不把局部组件结果当作 actual state。
-    mock.sessionStorage.runtimeSyncMetadata.report.components.contentScripts.status = 'ok';
-    chrome.scripting.getRegisteredContentScripts = original;
-    const report = await createBackgroundServices().initializeExtension();
-    assert.equal(report.status, 'partial');
-    assert.deepEqual(mock.reloadCalls, [1]);
-  } finally { mock.restore(); }
-});
-
-test('local 写入前中断仍保留旧签名的刷新欠账，local 写入后中断恢复新欠账', async () => {
-  const config = createSingleRuleConfig('example.com', { automatic: false });
-  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
-  const failures = [1];
-  const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[], reloadFailures: failures });
-  try {
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     await services.setExtensionEnabled(false);
     const oldConfig = clone(storage[SITE_CONFIG_KEY]);
     const oldReport = clone(mock.sessionStorage.runtimeSyncMetadata.report);
@@ -1110,16 +1193,20 @@ test('local 写入前中断仍保留旧签名的刷新欠账，local 写入后�
     for (const current of [oldConfig, newConfig]) {
       storage[SITE_CONFIG_KEY] = current;
       mock.sessionStorage.runtimeSyncMetadata = clone(prepared);
-      failures.length = 0; mock.reloadCalls.length = 0;
-      const report = await createBackgroundServices().initializeExtension();
-      assert.equal(report.status, current.masterEnabled ? 'partial' : 'ok');
-      assert.deepEqual(mock.reloadCalls, [1]);
+      const report = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+      assert.equal(report.status, 'ok');
+      assert.deepEqual(report.pageRuntime, { state: current.masterEnabled ? 'ready' : 'disabled',
+        registeredRuleCount: current.masterEnabled ? 1 : 0, reloadRequired: true });
+      assert.equal(report.configSignature, current.masterEnabled ? prepared.report.configSignature : prepared.previous.configSignature);
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [1]);
       assert.equal(mock.sessionStorage.runtimeSyncMetadata.previous, undefined);
+      assert.deepEqual(mock.reloadCalls, []);
+      assert.deepEqual(mock.executeCalls, []);
     }
   } finally { mock.restore(); }
 });
 
-test('注销失败或虚假成功均报告失败，仍拒绝派发；恢复后保持暂停且不注册', async () => {
+test('旧 bootstrap 注销失败或虚假成功均阻止新注册；恢复后注册语言/时区且不恢复消息注入', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, {
     initialScripts: [{ id: 'vanishgeo-runtime-init', matches: ['*://example.com/*'], js: ['content/content.js'] }]
@@ -1128,17 +1215,21 @@ test('注销失败或虚假成功均报告失败，仍拒绝派发；恢复后�
     const original = chrome.scripting.unregisterContentScripts;
     for (const failure of ['reject', 'no-op']) {
       chrome.scripting.unregisterContentScripts = async () => { if (failure === 'reject') throw new Error('合成注销故障'); };
-      const services = createBackgroundServices();
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
       const report = await services.initializeExtension();
       assert.equal(report.components.contentScripts.status, 'failed');
-      assert.equal(report.components.contentScripts.errors[0].code, 'runtime-injection-paused');
+      assert.deepEqual(report.pageRuntime, { state: 'sync-failed', registeredRuleCount: null, reloadRequired: false });
       assert.ok(report.components.contentScripts.errors.some((error) => error.code === (failure === 'reject' ? 'browser-api-failed' : 'verification-failed')));
-      await assert.rejects(services.initializeRuntimeForSender({ id: chrome.runtime.id,
-        tab: { id: 7 } as chrome.tabs.Tab, documentId: 'old-document' }), /页面伪装已暂停/);
-      assert.equal(mock.executeCalls.length, 0);
+      assert.equal(report.components.dnr.status, 'ok');
+      assert.equal(report.components.webrtc.status, 'ok');
+      assert.equal(Reflect.has(services, 'initializeRuntimeForSender'), false);
+      assert.deepEqual(await chrome.userScripts.getScripts(), []);
+      assert.deepEqual(mock.executeCalls, []);
     }
     chrome.scripting.unregisterContentScripts = original;
-    assert.equal((await createBackgroundServices().initializeExtension()).components.contentScripts.status, 'partial');
+    const recovered = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.equal(recovered.status, 'ok');
+    assert.deepEqual(recovered.pageRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: false });
     assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
     assert.equal(mock.registeredScripts.length, 0);
   } finally { mock.restore(); }
@@ -1159,7 +1250,7 @@ test('确认已保存后的候选清理失败返回 saved/partial，重试不重
       await (originalRemove as any)(key);
     }) as any;
     const sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('options/options.html') };
-    const router = createBackgroundMessageRouter(createBackgroundServices());
+    const router = createBackgroundMessageRouter(createBackgroundServices('function applyLanguageTimezoneRuntime() {}'));
     for (let index = 0; index < 2; index++) {
       const response = await router.respond({ action: 'confirmExitLocationDetection', detectionId, name: '合成出口' }, sender);
       assert.equal(response.saved, true); assert.equal(response.status, 'partial');
@@ -1169,7 +1260,7 @@ test('确认已保存后的候选清理失败返回 saved/partial，重试不重
     }
     assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingDetectionCleanup, detectionId);
     chrome.storage.session.remove = originalRemove;
-    assert.equal((await createBackgroundServices().initializeExtension()).status, 'partial');
+    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension()).status, 'ok');
     assert.equal(mock.sessionStorage.pendingExitLocationDetection, undefined);
     assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingDetectionCleanup, undefined);
     assert.equal(storage[SITE_CONFIG_KEY].exitLocationProfiles.length, 1);
@@ -1190,7 +1281,7 @@ test('候选清理失败后导入降级，同检测 ID 碰撞须拒绝且保留�
       if (key === 'pendingExitLocationDetection') throw new Error('合成候选清理失败');
       await (originalRemove as any)(key);
     }) as any;
-    const services = createBackgroundServices();
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const confirmed = await services.confirmExitLocationDetection(detectionId, '合成出口');
     const imported = await services.importSiteConfig(confirmed.config);
     assert.equal(imported.config.exitLocationProfiles[0].verification, 'unverified');

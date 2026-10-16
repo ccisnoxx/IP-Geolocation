@@ -76,31 +76,16 @@ function printChecklist(origin, chromePath, launchStatus) {
   urls.forEach((entry) => {
     console.log(`- ${entry.label}: ${entry.url}`);
   });
-  console.log('\nVG-011 当前安全暂停验收：');
-  console.log('- MAIN 页面伪装已暂停，语言/时区/位置/Canvas/worker 保持原生；总开关和站点规则只表示配置。DNR 与 WebRTC 按各自实际状态验收。');
-  console.log('- 重建旧页面及 BFCache 文档；新闸门不能撤销已有 hook。保存、重试同步和后台重启均不得恢复注入。');
-  console.log('- node scripts/runtime-modularization/chrome-safety-gate.mjs 验证真实 Chrome BFCache、跨 origin、同 URL 重载的零生产派发；dry-run 不执行。');
-  console.log('- node scripts/runtime-modularization/document-targeting-investigation.mjs --native-only 保留浏览器错投对照，退出 0 仅表示采集完成，安全判定可仍为 FAIL。');
-  console.log('\n历史功能清单（页面伪装项仅作恢复后的目标，暂停候选不要求其匹配配置；--injection/旧 smoke 不能作为当前安全暂停通过证据）：');
-  console.log('- VG-003: open VanishGeo diagnostic from Popup/Options; it opens the extension `diagnostic/report.html`. Select the localhost or hosted tab and run one diagnostic.');
-  console.log('- The extension report compares language/languages, header echo, timezone/locale, position/watch, WebRTC policy, independently sampled iframe documents, workers and MAIN/ISOLATED pass-through observations. Empty ICE stays UNKNOWN; IP candidates FAIL independently of policy.');
-  console.log('- During a diagnostic reload/navigate/close the target, cancel, or let the 2-minute TTL expire. Confirm an explicit failure/cleared report; reopen the report to confirm there is no persisted snapshot.');
-  console.log('- Verify target page URL/DOM and `/headers.json` requests contain no expected configuration. Report HTML/JS/CSS must not be web accessible resources.');
-  console.log('- Before enabling VanishGeo for `localhost`, open the leak-test observation page and click `Capture pass-through baseline`.');
-  console.log('- In the temporary Chrome profile, enable VanishGeo for `localhost`, reload the localhost pages, then click `Run all checks` on the leak-test observation page.');
-  console.log('- Configure explicit manual fixture values: language `ja-JP`, languages `ja-JP, ja`, Accept-Language `ja-JP,ja;q=0.9`, timezone `Asia/Tokyo`, geolocation with synthetic coordinates, WebRTC `strict`.');
-  console.log('- Separately detect a verified exit profile in Options, bind it to `localhost`, and confirm its IP, country, timezone, and coordinates match the single detection preview.');
-  console.log('- The leak-test page stays in observation mode / UNKNOWN and receives no extension expected values. Manually compare Language, Accept-Language, Timezone, Geolocation and iframe/worker observations with the synthetic configuration; the page issues no profile PASS/FAIL verdict.');
-  console.log('- Open `/headers.json` and confirm `accept-language` matches the configured Accept-Language value after `localhost` is allowlisted.');
-  console.log('- Run the WebRTC ICE check and confirm no local/private or public IP candidate exposure is shown; confirm Chrome WebRTC policy is `disable_non_proxied_udp` from extension options in a separate policy check.');
-  console.log('- On the iframe fixture, confirm same-origin, srcdoc, and about:blank frames match the top-level language/timezone values; cross-origin frames are not part of this P0 acceptance.');
-  console.log('- On the worker fixture, confirm classic Worker, module Worker, and SharedWorker language/timezone values match the top-level page.');
-  console.log('- VG-007：检查 classic/module SharedWorker 同 key 共享 scope、连接计数为 1/2，不同 name 独立；模块依赖顶层 language/timezone 已打补丁。运行 node scripts/chrome-worker-smoke.mjs 可验证定向真实 Chrome 构造、URL 回收和 fallback；这不替代人工验收。');
-  console.log('- VG-009：打开 earliest-inline fixture，在扩展报告选择该 tab，点击“验收最早 inline script”。分别检查 top、same-origin iframe、srcdoc、about:blank 的 earliest/load/postLoad；load PASS 不补足 earliest FAIL。生产页面无新增 marker。');
-  console.log('- VG-009 自动真实 Chrome：npm run test:e2e:chrome -- --injection --runs=3；使用 Node 22+ 原生 WebSocket、临时 profile 和合成配置。退出码 0=全 PASS，1=观测 FAIL/UNKNOWN，2=自动化失败；--output 可保存脱敏 JSON。dry-run 不执行此项。');
-  console.log('- VG-010：fresh install 总开关关闭、空站点、WebRTC browser default；检查配置引导主动检测/确认、选站点、明确启用、跳过和重置。升级已有 v2 保留设置，不自动打开引导。node scripts/chrome-onboarding-smoke.mjs 可在真实临时 Chrome profile 验证，provider 请求在发出前拦截并返回合成数据，不调用真实 provider；dry-run 不执行。');
-  console.log('- Compare pass-through real-device surfaces against the captured baseline: manually inspect WebGL/GPU, Audio sampleRate, screen, hardware, codec, and WebGPU observations; this page does not validate pass-through behavior.');
-  console.log('- Reload the unpacked extension in `chrome://extensions/`, revisit BrowserInsight, and confirm no prototype tampering warning appears.');
+  console.log('\nVG-023 当前语言/时区第一阶段验收（dry-run 不执行浏览器断言）：');
+  console.log('- Chrome 138+；在 chrome://extensions 详情页正常开启 Allow User Scripts。API/权限/用户开关不可用或注册失败时 fail closed，无 documentId 回退。');
+  console.log('- Popup/Options 确认注册成功，再完整 reload 或关闭重开已有页面；旧文档与 BFCache 保持旧快照，无热更新或自动刷新。');
+  console.log('- 普通 HTTP(S) 顶层和 iframe 的首 inline 应读取配置语言/时区；未匹配 origin 保持原生，子域规则优先。');
+  console.log('- Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 仍暂停；about:blank/srcdoc/data/blob/特殊 sandbox 为 unsupported / UNKNOWN。');
+  console.log('- 真实隔离 smoke：node scripts/chrome-language-timezone-smoke.mjs --output experiments/userscripts-document-start/production-evidence.json；必须先准备并启动独立 Linux fixture VM，自身 sandbox 和仅 loopback 均须 PASS。');
+  console.log('- 最小实验 linux-evidence.json 已人工验收；生产 smoke 单独保存 earliest、A→B/reload、disable/reload、恢复与暂停边界证据，不把 dry-run 当真实 Chrome 通过。');
+  console.log('- Accept-Language 与 WebRTC policy 独立报告；policy 同步不等于 ICE 网络防护通过。本阶段 smoke 不访问第三方测试站点、provider 或 STUN。');
+  console.log('- 扩展 diagnostic/report.html 可比较实际值；observation mode leak-test 只展示观测 / UNKNOWN，不接收配置。Capture pass-through baseline / Run all checks 是旧完整清单入口，暂停/不支持项不能算配置 PASS。');
+  console.log('- pass-through real-device surfaces 保持原生；历史 --injection（chrome-injection-smoke.mjs）、worker/geolocation 全能力 runner 不能作本阶段全通过门禁。');
   console.log('\nPress Ctrl+C here when manual validation is complete.');
 }
 

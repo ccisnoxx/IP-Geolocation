@@ -1,5 +1,6 @@
 import './popup.css';
 import { isRuntimeInjectionPaused, renderRuntimeSyncReport } from '../shared/runtime-sync';
+import { getPageRuntimeProfile } from '../shared/config-resolver';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_CANVAS,
@@ -61,6 +62,7 @@ let currentConfig: SiteSpoofConfig = createInitialConfig();
 let currentHostname = '';
 let currentDisableDomain: string | null = null;
 let currentRuleId: string | null = null;
+let currentTabState: { domain: string; scriptable: boolean } | null = null;
 let autoSaveTimer: number | null = null;
 
 function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
@@ -78,6 +80,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
       if (report) renderRuntimeSyncReport(runtimeSyncStatusEl, report);
       const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
       if (config) renderSetupStatus(setupStatusEl, normalizeConfig(config), report);
+      if (currentTabState && (config || report)) renderCurrentSiteStatus({ ...currentTabState, config: config || currentConfig, syncReport: report });
       resolve(response);
     });
   });
@@ -98,7 +101,11 @@ async function retryRuntimeSync(): Promise<void> {
 
 function showAutoSaveToast(report?: RuntimeSyncReport): void {
   autoSaveToast.textContent = isRuntimeInjectionPaused(report) ? '已保存，页面伪装已暂停／部分生效'
-    : report?.status === 'ok' ? '已自动保存并同步' : '已保存，同步状态待确认';
+    : report?.status !== 'ok' ? '已保存，部分同步未完成；请查看同步详情'
+      : report.pageRuntime?.reloadRequired ? '已保存并同步；已有页面需完整重载'
+        : report.pageRuntime?.state === 'ready' ? '已保存；新文档语言/时区注册就绪'
+          : report.pageRuntime?.state === 'disabled' ? '已保存；页面语言/时区注册已关闭'
+            : '已保存；页面语言/时区状态待确认';
   autoSaveToast.dataset.status = report?.status || 'partial';
   if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
   autoSaveToast.classList.add('show');
@@ -123,14 +130,12 @@ function setStatusBadgeClass(kind: string): void {
 }
 
 function renderCurrentSiteStatus(state: any): void {
+  const config = normalizeConfig(state.config || currentConfig);
   const status = deriveCurrentSiteStatus({
     domain: state.domain || '',
     scriptable: Boolean(state.scriptable),
-    config: currentConfig,
-    matched: Boolean(state.matched),
-    rule: state.rule || null,
-    payload: state.payload || null,
-    errors: Array.isArray(state.errors) ? state.errors : [],
+    config,
+    ...getPageRuntimeProfile(config, state.domain || ''),
     syncReport: state.syncReport
   });
   currentDisableDomain = status.disableDomain;
@@ -158,7 +163,7 @@ function updateExitLocationProfile(config: SiteSpoofConfig): void {
   currentExitProfileEl.textContent = !rule
     ? '当前站点没有启用规则'
     : !rule.exitLocationProfileId
-      ? '未选择出口；auto 地理位置和时区不会注入'
+      ? '未选择出口；auto 时区不可用，地理位置配置仍暂停'
       : !profile
         ? `引用的出口位置档案不存在：${rule.exitLocationProfileId}`
         : `${profile.name} · ${profile.publicIp || 'IP 未验证'} · ${profile.country || '国家未知'} · ${profile.timezone || '时区未知'}`;
@@ -257,6 +262,7 @@ async function saveChanges(): Promise<void> {
 async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ state: any }>({ action: 'getCurrentTabState' });
   const state = response.state;
+  currentTabState = { domain: state.domain || '', scriptable: Boolean(state.scriptable) };
   currentConfig = normalizeConfig(state.config);
   currentHostname = state.domain || '';
   currentRuleId = state.rule?.id || null;

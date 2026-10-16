@@ -1,0 +1,242 @@
+// 独立 Linux namespace 内加载实际 dist；页面只记录实际值，配置只经扩展管理页发送。
+import { spawn, execFileSync } from 'node:child_process';
+import { once } from 'node:events';
+import { readFile, writeFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import assert from 'node:assert/strict';
+import { probeNetwork, probeInheritedNetwork } from './network-probe.mjs';
+import { chromeSandboxStatus } from './chrome-sandbox-status.mjs';
+
+const required = ['network', 'chrome-sandbox', 'fresh-disabled', 'normal-user-switch', 'register', 'earliest-top-iframe',
+  'native-origin', 'paused-surfaces', 'specific-domain', 'snapshot-A-to-B', 'reload-B', 'compatible',
+  'dnr-webrtc', 'worker-restart', 'extension-update', 'disabled-snapshot', 'disabled-reload'];
+const evidence = { schemaVersion: 1, conclusion: 'BLOCKED', exitCode: 2, environment: { platform: process.platform, architecture: process.arch, realChrome: false },
+  checks: Object.fromEntries(required.map(id => [id, 'UNKNOWN'])), observations: {}, cleanup: { status: 'UNKNOWN', failures: [] }, stopReason: null };
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function until(read, accept = Boolean) {
+  for (let count = 0; count < 200; count++) {
+    try { const value = await read(); if (accept(value)) return value; }
+    catch (error) { if (!/context|Cannot find|Inspected target/i.test(error.message)) throw error; }
+    await delay(50);
+  }
+  throw new Error('AUTOMATION_TIMEOUT');
+}
+function fixture(serial, child) {
+  function bootstrap(instance) {
+    const read = () => {
+      const canvas = document.createElement('canvas').getContext('2d');
+      canvas.font = '13px "VanishGeo Synthetic Font"';
+      return { language: navigator.language, languages: Array.from(navigator.languages),
+        locale: Intl.DateTimeFormat().resolvedOptions().locale, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        numberLocale: Intl.NumberFormat().resolvedOptions().locale,
+        explicit: Intl.DateTimeFormat('en-US', { timeZone: 'UTC' }).resolvedOptions(),
+        hour: new Date(Date.UTC(2024, 0, 1)).getHours(), offset: new Date(Date.UTC(2024, 0, 1)).getTimezoneOffset(),
+        font: canvas.font };
+    };
+    globalThis.vgActual = { instance, earliest: read(), load: null, readyState: document.readyState,
+      scriptIndex: document.scripts.length, inline: Boolean(document.currentScript && !document.currentScript.src),
+      worker: null, shared: null, permission: null };
+    globalThis.vgRead = read;
+    addEventListener('load', () => { vgActual.load = read(); }, { once: true });
+    if (navigator.permissions) navigator.permissions.query({ name: 'geolocation' }).then(result => { vgActual.permission = result.state; });
+    const worker = new Worker('/worker.js');
+    worker.onmessage = event => { vgActual.worker = event.data; worker.terminate(); };
+    const shared = new SharedWorker('/shared.js', 'vg-production-smoke');
+    shared.port.onmessage = event => { vgActual.shared = event.data; shared.port.close(); };
+  }
+  return '<!doctype html><html><head><script>(' + bootstrap.toString() + ')(' + serial + ');</script><meta charset="utf-8"><link rel="icon" href="data:,"></head><body>'
+    + (child ? '' : '<iframe src="/child"></iframe>') + '</body></html>';
+}
+let chrome, server, cdp, options, temp;
+try {
+  assert.equal(typeof process.send, 'function');
+  const topology = JSON.parse(execFileSync('ip', ['-j', 'link'], { encoding: 'utf8' }));
+  const route4 = JSON.parse(execFileSync('ip', ['-j', 'route', 'show', 'table', 'all'], { encoding: 'utf8' }));
+  const route6 = JSON.parse(execFileSync('ip', ['-j', '-6', 'route', 'show', 'table', 'all'], { encoding: 'utf8' }));
+  const network = await probeNetwork(); network.inherited = await probeInheritedNetwork();
+  assert.ok(Object.values(network).every(value => value === 'PASS'));
+  assert.ok(topology.length === 1 && topology[0].ifname === 'lo' && process.getuid() > 0);
+  assert.ok([route4, route6].every(routes => routes.some(route => route.type === 'prohibit' && route.dst === 'default')));
+  assert.ok([...route4, ...route6].every(route => route.type === 'prohibit' || route.dev === 'lo'));
+  evidence.network = { backend: 'linux-network-namespace', checks: network, onlyLoopback: true, ipv4Prohibit: true, ipv6Prohibit: true, nonRoot: true };
+  evidence.checks.network = 'PASS';
+  let serial = 0, latestHeader;
+  const workerCode = "({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone})";
+  server = createServer((request, response) => {
+    latestHeader = request.headers['accept-language'];
+    if (request.url === '/worker.js' || request.url === '/shared.js') {
+      response.setHeader('Content-Type', 'text/javascript');
+      response.end(request.url === '/worker.js' ? 'postMessage(' + workerCode + ');'
+        : 'onconnect=e=>e.ports[0].postMessage(' + workerCode + ');');
+    } else if (request.url === '/' || request.url === '/child') {
+      response.setHeader('Content-Type', 'text/html'); response.end(fixture(++serial, request.url === '/child'));
+    } else { response.writeHead(404).end(); }
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const port = server.address().port;
+  const local = 'http://localhost:' + port + '/';
+  const nativeUrl = 'http://127.0.0.1:' + port + '/';
+  temp = process.env.VG_US_EXPERIMENT_TEMP;
+  chrome = spawn('/usr/bin/google-chrome', ['--headless=new', '--enable-unsafe-extension-debugging', '--remote-debugging-port=0',
+    '--user-data-dir=' + temp, '--disable-background-networking', '--disable-component-update', '--disable-sync',
+    '--no-first-run', '--no-default-browser-check', '--no-proxy-server',
+    '--host-resolver-rules=MAP example.test 127.0.0.1, MAP sub.example.test 127.0.0.1', 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore'] });
+  const debugPort = await until(async () => { try { return (await readFile(join(temp, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; } catch (error) { if (error.code !== 'ENOENT') throw error; } });
+  const version = await (await fetch('http://127.0.0.1:' + debugPort + '/json/version')).json();
+  evidence.environment.chromeVersion = /\/([\d.]+)/.exec(version.Browser)[1]; evidence.environment.realChrome = true;
+  const ws = new WebSocket('ws://127.0.0.1:' + debugPort + new URL(version.webSocketDebuggerUrl).pathname);
+  await once(ws, 'open');
+  let sequence = 0; const pending = new Map();
+  ws.addEventListener('message', event => {
+    const message = JSON.parse(event.data), request = pending.get(message.id);
+    if (!request) return;
+    pending.delete(message.id); clearTimeout(request.timer);
+    if (message.error) request.reject(new Error(message.error.message)); else request.resolve(message.result);
+  });
+  cdp = { close: () => ws.close(), send(method, params = {}, sessionId) {
+    return new Promise((resolve, reject) => {
+      const id = ++sequence, timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP_TIMEOUT')); }, 10000);
+      pending.set(id, { resolve, reject, timer }); ws.send(JSON.stringify({ id, method, params, sessionId }));
+    });
+  } };
+  async function evaluate(page, expression) {
+    const result = await cdp.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, page.sessionId);
+    if (result.exceptionDetails) throw new Error('EXTENSION_OR_FIXTURE_EXCEPTION');
+    return result.result.value;
+  }
+  async function page(url) {
+    const result = await cdp.send('Target.createTarget', { url });
+    return { ...result, ...await cdp.send('Target.attachToTarget', { targetId: result.targetId, flatten: true }) };
+  }
+  const sandbox = await page('chrome://sandbox');
+  evidence.environment.sandbox = chromeSandboxStatus(await until(() => evaluate(sandbox, 'document.body?.innerText'), text => text?.includes('Seccomp')));
+  assert.equal(evidence.environment.sandbox.status, 'PASS'); evidence.checks['chrome-sandbox'] = 'PASS';
+  const dist = fileURLToPath(new URL('./dist/', import.meta.url));
+  const { id } = await cdp.send('Extensions.loadUnpacked', { path: dist });
+  const optionsUrl = 'chrome-extension://' + id + '/options/options.html';
+  options = await page(optionsUrl);
+  await until(() => evaluate(options, "Boolean(globalThis.chrome?.runtime && document.getElementById('runtimeSyncStatus'))"));
+  const message = request => evaluate(options, 'chrome.runtime.sendMessage(' + JSON.stringify(request) + ')');
+  const readRows = target => evaluate(target, '(() => {const frames=[window,...Array.from(document.querySelectorAll("iframe"),f=>f.contentWindow)]; return frames.every(w=>w.vgActual?.load && w.vgActual.worker && w.vgActual.shared) ? frames.map(w=>({...w.vgActual,current:w.vgRead()})) : null})()');
+  async function document(url) { const target = await page(url); return { target, rows: await until(() => readRows(target)) }; }
+  async function reload(document) {
+    await cdp.send('Page.enable', {}, document.target.sessionId);
+    await cdp.send('Page.reload', {}, document.target.sessionId);
+    const rows = await until(() => readRows(document.target), rows => rows && rows[0].instance !== document.rows[0].instance);
+    document.rows = rows; return rows;
+  }
+  const native = (await document(nativeUrl)).rows[0].current;
+  const fresh = await message({ action: 'getSiteConfig' });
+  assert.equal(fresh.config.masterEnabled, false); assert.deepEqual(fresh.config.rules, []);
+  assert.equal(fresh.syncReport.pageRuntime.state, 'switch-required');
+  assert.equal(fresh.syncReport.components.contentScripts.status, 'failed');
+  evidence.observations.fresh = { masterEnabled: false, ruleCount: 0, pageRuntime: fresh.syncReport.pageRuntime, native };
+  assert.equal((await document(local)).rows[0].current.language, native.language);
+  evidence.checks['fresh-disabled'] = 'PASS';
+  const details = await page('chrome://extensions/?id=' + id);
+  const readToggle = '(() => {const find=root=>{for(const n of root.querySelectorAll("*")){if(n.id==="allow-user-scripts")return n;if(n.shadowRoot){const v=find(n.shadowRoot);if(v)return v}}};const t=find(document)?.shadowRoot?.querySelector("cr-toggle");if(!t)return null;t.scrollIntoView({block:"center"});const r=t.getBoundingClientRect();return {checked:t.checked,disabled:t.disabled,x:r.x+r.width/2,y:r.y+r.height/2}})()';
+  const before = await until(() => evaluate(details, readToggle));
+  assert.equal(before.checked, false); assert.equal(before.disabled, false);
+  await cdp.send('Target.activateTarget', { targetId: details.targetId });
+  for (const type of ['mousePressed', 'mouseReleased']) await cdp.send('Input.dispatchMouseEvent', { type, x: before.x, y: before.y, button: 'left', clickCount: 1 }, details.sessionId);
+  await until(() => evaluate(details, readToggle), row => row?.checked === true);
+  assert.deepEqual(await evaluate(options, 'chrome.userScripts.getScripts()'), []);
+  evidence.environment.allowUserScripts = { before: false, after: true, method: 'normal-details-UI-trusted-pointer' };
+  evidence.checks['normal-user-switch'] = 'PASS';
+  const config = fresh.config;
+  config.masterEnabled = true; config.webRtc.globalMode = 'strict'; config.intlMode = 'strict';
+  config.globalProfile.language = { enabled: true, mode: 'custom', language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP,ja;q=0.9' };
+  config.globalProfile.timezone = { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' };
+  config.canvas = { enabled: true, spoofFonts: true, targetFonts: ['VanishGeo Synthetic Font'] };
+  const rule = domain => ({ id: 'synthetic-' + domain, domain, enabled: true, exitLocationProfileId: null,
+    overrides: { language: { mode: 'inherit', value: null }, timezone: { mode: 'inherit', value: null }, geolocation: { mode: 'inherit', value: null } } });
+  config.rules = ['localhost', 'example.test', 'sub.example.test'].map(rule);
+  config.rules[2].overrides.language = { mode: 'override', value: { enabled: true, language: 'ko-KR', languages: ['ko-KR'], acceptLanguage: 'ko-KR' } };
+  config.rules[2].overrides.timezone = { mode: 'override', value: { enabled: true, mode: 'manual', timezone: 'Asia/Seoul' } };
+  const saved = await message({ action: 'setSiteConfig', config });
+  assert.equal(saved.syncReport.pageRuntime.state, 'ready'); assert.equal(saved.syncReport.components.contentScripts.status, 'ok');
+  evidence.checks.register = 'PASS';
+  function configured(rows, language, timezone, offset) {
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+      assert.equal(row.readyState, 'loading'); assert.equal(row.scriptIndex, 1); assert.equal(row.inline, true);
+      for (const stage of ['earliest', 'load', 'current']) {
+        assert.equal(row[stage].language, language); assert.equal(row[stage].locale, language);
+        assert.equal(row[stage].timezone, timezone); assert.equal(row[stage].offset, offset);
+      }
+    }
+  }
+  const heldA = await document(local); configured(heldA.rows, 'ja-JP', 'Asia/Tokyo', -540);
+  assert.equal(heldA.rows[0].current.numberLocale, 'ja-JP'); assert.deepEqual(heldA.rows[0].current.languages, ['ja-JP', 'ja']);
+  evidence.observations.earliestA = heldA.rows.map(row => ({ language: row.earliest.language, timezone: row.earliest.timezone, offset: row.earliest.offset, readyState: row.readyState, scriptIndex: row.scriptIndex }));
+  evidence.checks['earliest-top-iframe'] = 'PASS';
+  assert.deepEqual((await document(nativeUrl)).rows[0].current, native); evidence.checks['native-origin'] = 'PASS';
+  for (const row of heldA.rows) {
+    assert.equal(row.worker.language, native.language); assert.equal(row.worker.timezone, native.timezone);
+    assert.equal(row.shared.language, native.language); assert.equal(row.shared.timezone, native.timezone);
+    assert.equal(row.current.font, native.font); assert.equal(row.permission, 'prompt');
+  }
+  evidence.observations.paused = heldA.rows.map(row => ({ worker: row.worker, shared: row.shared, font: row.current.font, geolocationPermission: row.permission }));
+  evidence.checks['paused-surfaces'] = 'PASS';
+  const child = await document('http://sub.example.test:' + port + '/'); configured(child.rows, 'ko-KR', 'Asia/Seoul', -540);
+  const registrations = await evaluate(options, 'chrome.userScripts.getScripts()');
+  assert.ok(registrations.find(script => script.id.endsWith('-example.test')).excludeMatches.includes('*://sub.example.test/*'));
+  evidence.observations.specific = { actual: child.rows.map(row => row.earliest),
+    excludes: registrations.find(script => script.id.endsWith('-example.test')).excludeMatches };
+  evidence.checks['specific-domain'] = 'PASS';
+  config.intlMode = 'compatible'; config.globalProfile.language.language = 'fr-FR'; config.globalProfile.language.languages = ['fr-FR', 'fr'];
+  config.globalProfile.language.acceptLanguage = 'fr-FR,fr;q=0.9'; config.globalProfile.timezone.timezone = 'Europe/Paris';
+  const changed = await message({ action: 'setSiteConfig', config }); assert.equal(changed.syncReport.pageRuntime.reloadRequired, true);
+  const old = await readRows(heldA.target); assert.equal(old[0].instance, heldA.rows[0].instance); assert.equal(old[0].current.language, 'ja-JP'); assert.equal(old[0].current.timezone, 'Asia/Tokyo');
+  evidence.observations.afterSaveB = { sameDocument: old[0].instance === heldA.rows[0].instance, old: old.map(row => row.current), sync: changed.syncReport.pageRuntime };
+  evidence.checks['snapshot-A-to-B'] = 'PASS';
+  configured(await reload(heldA), 'fr-FR', 'Europe/Paris', -60); evidence.observations.afterReloadB = heldA.rows.map(row => row.earliest); evidence.checks['reload-B'] = 'PASS';
+  const heldB = await document(local); configured(heldB.rows, 'fr-FR', 'Europe/Paris', -60);
+  assert.equal(heldB.rows[0].current.explicit.locale, 'en-US'); assert.equal(heldB.rows[0].current.explicit.timeZone, 'UTC'); evidence.checks.compatible = 'PASS';
+  assert.equal(latestHeader, 'fr-FR,fr;q=0.9');
+  const policy = await message({ action: 'getWebRtcConfig' }); assert.equal(policy.state.policyState.actualPolicy, 'disable_non_proxied_udp');
+  evidence.observations.networkPolicy = { acceptLanguage: latestHeader, webRtcPolicy: policy.state.policyState.actualPolicy };
+  evidence.checks['dnr-webrtc'] = 'PASS';
+  await evaluate(options, 'chrome.userScripts.unregister()');
+  await cdp.send('ServiceWorker.enable', {}, options.sessionId); await cdp.send('ServiceWorker.stopAllWorkers', {}, options.sessionId);
+  await until(async () => !(await cdp.send('Target.getTargets')).targetInfos.some(target => target.type === 'service_worker' && target.url.startsWith('chrome-extension://' + id + '/')));
+  assert.equal((await message({ action: 'getSiteConfig' })).syncReport.pageRuntime.state, 'ready');
+  configured((await document(local)).rows, 'fr-FR', 'Europe/Paris', -60); evidence.checks['worker-restart'] = 'PASS';
+  const manifestPath = join(dist, 'manifest.json'); const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  const previousVersion = manifest.version; manifest.version = '2.1.2'; await writeFile(manifestPath, JSON.stringify(manifest));
+  const updated = await cdp.send('Extensions.loadUnpacked', { path: dist }); assert.equal(updated.id, id);
+  options = await page(optionsUrl); await until(() => evaluate(options, 'Boolean(chrome.runtime)'));
+  assert.equal(await evaluate(options, 'chrome.runtime.getManifest().version'), '2.1.2');
+  const recovered = await message({ action: 'getSiteConfig' }); assert.equal(recovered.syncReport.pageRuntime.state, 'ready');
+  configured((await document(local)).rows, 'fr-FR', 'Europe/Paris', -60);
+  evidence.observations.update = { previousVersion, candidateVersion: '2.1.2', sameExtension: true, mechanism: 'Extensions.loadUnpacked same staged directory' };
+  evidence.checks['extension-update'] = 'PASS';
+  config.rules[0].enabled = false;
+  const disabled = await message({ action: 'setSiteConfig', config });
+  assert.equal(disabled.syncReport.components.contentScripts.status, 'ok');
+  assert.equal(disabled.syncReport.pageRuntime.reloadRequired, true);
+  assert.ok(!(await evaluate(options, 'chrome.userScripts.getScripts()')).some(script => script.id.endsWith('-localhost')));
+  evidence.observations.afterDisable = { old: (await readRows(heldB.target))[0].current, sync: disabled.syncReport.pageRuntime };
+  assert.equal((await readRows(heldB.target))[0].current.language, 'fr-FR'); evidence.checks['disabled-snapshot'] = 'PASS';
+  assert.deepEqual((await reload(heldB))[0].current, native); evidence.observations.disabledReload = heldB.rows.map(row => row.earliest); evidence.checks['disabled-reload'] = 'PASS';
+  evidence.stopReason = null;
+} catch (error) {
+  evidence.failure = { nextCheck: required.find(id => evidence.checks[id] !== 'PASS') || 'finalization',
+    type: error.code === 'ERR_ASSERTION' ? 'assertion' : 'automation',
+    detail: error.code === 'ERR_ASSERTION' ? String(error.actual) + ' != ' + String(error.expected) :
+      (/^[A-Z_]+$/.test(error.message) ? error.message : 'BROWSER_OPERATION_FAILED') };
+  evidence.stopReason = 'PRODUCTION_SMOKE_INCOMPLETE';
+} finally {
+  if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.close(); }
+  if (chrome?.exitCode === null && chrome.signalCode === null) {
+    const exit = once(chrome, 'exit'); chrome.kill('SIGTERM'); await Promise.race([exit, delay(2000)]);
+    if (chrome.exitCode === null && chrome.signalCode === null) { chrome.kill('SIGKILL'); await exit; }
+  }
+  if (server?.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  if (temp) { try { await rm(temp, { recursive: true, force: true }); } catch { evidence.cleanup.failures.push('PROFILE_CLEANUP_FAILED'); } }
+  evidence.cleanup.status = evidence.cleanup.failures.length ? 'FAIL' : 'PASS';
+  await new Promise((resolve, reject) => process.send({ type: 'experiment-evidence', evidence }, error => error ? reject(error) : resolve()));
+  process.disconnect();
+}

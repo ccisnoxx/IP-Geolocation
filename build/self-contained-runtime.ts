@@ -7,6 +7,7 @@ import ts from 'typescript';
 export const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 export const runtimeModuleId = 'virtual:vanishgeo-runtime';
 export const workerModuleId = 'virtual:vanishgeo-worker';
+export const pageRuntimeSourceId = 'virtual:vanishgeo-page-runtime-source';
 export type GeneratedRuntime = { code: string; map: string; dependencies: string[] };
 
 // 只检查被序列化的函数；不能用扩展模块中的其他声明满足其自由变量。
@@ -70,11 +71,11 @@ export function assertSelfContainedFunction(code: string, name: string): string 
   return `function ${name}(${fn.parameters.map(p => p.getText(tree)).join(', ')}) ${fn.body.getText(tree)}`;
 }
 
-async function generateGraph(root: string, worker?: GeneratedRuntime): Promise<GeneratedRuntime> {
-  const isWorker = !worker;
-  const name = isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
-  const fileName = isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
-  const entry = resolve(root, `src/injected/runtime-modules/${isWorker ? 'worker/' : ''}entry.ts`);
+async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false): Promise<GeneratedRuntime> {
+  const isWorker = !worker && !pageOnly;
+  const name = pageOnly ? 'applyLanguageTimezoneRuntime' : isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
+  const fileName = pageOnly ? 'vanishgeo-page-runtime.js' : isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
+  const entry = resolve(root, `src/injected/runtime-modules/${pageOnly ? 'language-timezone-entry.ts' : `${isWorker ? 'worker/' : ''}entry.ts`}`);
   const virtualEntry = '\0vanishgeo-generation-entry';
   const workerId = resolve(root, 'dist/vanishgeo-worker.js');
   const dependencies = new Set<string>(worker?.dependencies || []);
@@ -88,7 +89,7 @@ async function generateGraph(root: string, worker?: GeneratedRuntime): Promise<G
     load(id) {
       if (id === virtualEntry) return isWorker
         ? `import { applyWorkerRuntime } from ${JSON.stringify(entry)}; applyWorkerRuntime(patchConfig, workerBootstrap);`
-        : `export { applyRuntime } from ${JSON.stringify(entry)};`;
+        : `export { ${pageOnly ? 'applyPageRuntime' : 'applyRuntime'} } from ${JSON.stringify(entry)};`;
       if (id === workerId && worker) return { code: worker.code, map: worker.map };
     },
     moduleParsed(info) {
@@ -104,7 +105,7 @@ async function generateGraph(root: string, worker?: GeneratedRuntime): Promise<G
         warn(warning);
       }, output: { format: isWorker ? 'es' : 'iife', name: 'runtimeExports', entryFileNames: fileName,
         banner: `export function ${name}(${isWorker ? 'patchConfig' : 'payload'}) {`,
-        footer: isWorker ? '}' : `return runtimeExports.applyRuntime(payload);\n}`,
+        footer: isWorker ? '}' : `return runtimeExports.${pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(payload);\n}`,
         sourcemapPathTransform(source) { return isAbsolute(source) ? relative(root, source).replace(/\\/g, '/') : source; }
       } }
     }
@@ -122,4 +123,8 @@ async function generateGraph(root: string, worker?: GeneratedRuntime): Promise<G
 export async function generateRuntime(root = projectRoot): Promise<GeneratedRuntime> {
   const worker = await generateGraph(root);
   return generateGraph(root, worker);
+}
+
+export function generatePageRuntime(root = projectRoot): Promise<GeneratedRuntime> {
+  return generateGraph(root, undefined, true);
 }

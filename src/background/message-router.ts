@@ -1,4 +1,4 @@
-// 消息路由把 content 初始化与扩展管理页动作分开校验。
+// 页面运行时由Chrome直接执行；消息动作只服务扩展管理页。
 import { normalizeWebRtc } from '../shared/config-model';
 import { applyProfileToConfig } from '../shared/profile';
 import type { BackgroundServices } from './services';
@@ -25,10 +25,6 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
   }
 
   async function respond(request: any, sender: chrome.runtime.MessageSender): Promise<any> {
-    if (request?.action === 'initializeRuntimeForSender') {
-      return { status: 'ok', ...(await services.initializeRuntimeForSender(sender)) };
-    }
-
     requireExtensionPage(sender);
     switch (request?.action) {
       case 'getExtensionState':

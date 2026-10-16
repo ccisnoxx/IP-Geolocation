@@ -14,7 +14,7 @@
       <div class="brand-block">
         <span class="eyebrow">Privacy Control</span>
         <h1>VanishGeo</h1>
-        <p>DNR Accept-Language 与 WebRTC 策略控制台</p>
+        <p>页面语言/时区、DNR 与 WebRTC 控制台</p>
       </div>
       <button id="openOptionsHeader" class="icon-btn" title="打开完整配置" aria-label="打开完整配置">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -26,7 +26,8 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">页面级语言、时区、地理位置、Canvas 和 Worker 伪装已暂停。保存配置不会恢复页面注入；DNR Accept-Language 与 WebRTC 按各自同步状态运行。</p>
+      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 仍暂停，相关配置仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
+      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。DNR Accept-Language 与 WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <button id="openOnboarding" class="btn-secondary btn-sm" type="button">打开配置引导</button>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
@@ -36,7 +37,7 @@
       <div class="control-copy">
         <span class="section-kicker">Master Switch</span>
         <strong id="globalStatus">全局保护</strong>
-        <span>控制已保存的总开关；页面伪装已暂停，DNR/WebRTC 以同步结果为准</span>
+        <span>控制已保存的总开关；语言/时区注册、DNR 与 WebRTC 分别查看同步结果</span>
       </div>
       <label class="switch">
         <input type="checkbox" id="globalEnabled">
@@ -143,14 +144,14 @@
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="spoofPermission">
-            <span>伪装权限</span>
+            <span>保存地理位置权限伪装配置（已暂停）</span>
           </label>
           <button id="saveCoordinate" class="btn-secondary btn-sm">保存当前坐标</button>
         </div>
       </details>
 
       <details class="advanced-group">
-        <summary>时区（页面伪装已暂停）</summary>
+        <summary>时区（新文档快照）</summary>
         <div class="config-content">
           <div class="input-group">
             <label for="intlMode">时区与 Locale 模式（全局）</label>
@@ -158,7 +159,7 @@
               <option value="strict">strict · 强制一致性（默认）</option>
               <option value="compatible">compatible · 尊重显式参数</option>
             </select>
-            <p id="intlModeHelp" class="hint">保留配置语义（当前不在页面执行）：strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。当前页面伪装仍暂停，保存不会恢复。</p>
+            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。模式随新文档快照生效；已有文档与 BFCache 不热更新，需完整重载或关闭重开。</p>
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="timezoneEnabled">
@@ -177,7 +178,7 @@
       </details>
 
       <details class="advanced-group">
-        <summary>语言（DNR 可用，页面伪装暂停）</summary>
+        <summary>语言（页面新文档快照 / DNR）</summary>
         <div class="config-content">
           <label class="checkbox-label">
             <input type="checkbox" id="languageEnabled">

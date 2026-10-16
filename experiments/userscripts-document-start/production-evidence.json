@@ -1,0 +1,383 @@
+{
+  "schemaVersion": 1,
+  "conclusion": "GO",
+  "exitCode": 0,
+  "environment": {
+    "platform": "linux",
+    "architecture": "arm64",
+    "realChrome": true,
+    "chromeVersion": "155.0.8059.84",
+    "sandbox": {
+      "layerOne": true,
+      "pidNamespaces": true,
+      "networkNamespaces": true,
+      "seccompBpf": true,
+      "adequate": true,
+      "status": "PASS"
+    },
+    "allowUserScripts": {
+      "before": false,
+      "after": true,
+      "method": "normal-details-UI-trusted-pointer"
+    }
+  },
+  "checks": {
+    "network": "PASS",
+    "chrome-sandbox": "PASS",
+    "fresh-disabled": "PASS",
+    "normal-user-switch": "PASS",
+    "register": "PASS",
+    "earliest-top-iframe": "PASS",
+    "native-origin": "PASS",
+    "paused-surfaces": "PASS",
+    "specific-domain": "PASS",
+    "snapshot-A-to-B": "PASS",
+    "reload-B": "PASS",
+    "compatible": "PASS",
+    "dnr-webrtc": "PASS",
+    "worker-restart": "PASS",
+    "extension-update": "PASS",
+    "disabled-snapshot": "PASS",
+    "disabled-reload": "PASS"
+  },
+  "observations": {
+    "fresh": {
+      "masterEnabled": false,
+      "ruleCount": 0,
+      "pageRuntime": {
+        "state": "switch-required",
+        "registeredRuleCount": null,
+        "reloadRequired": false
+      },
+      "native": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timezone": "Asia/Shanghai",
+        "numberLocale": "en-US",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 8,
+        "offset": -480,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      }
+    },
+    "earliestA": [
+      {
+        "language": "ja-JP",
+        "timezone": "Asia/Tokyo",
+        "offset": -540,
+        "readyState": "loading",
+        "scriptIndex": 1
+      },
+      {
+        "language": "ja-JP",
+        "timezone": "Asia/Tokyo",
+        "offset": -540,
+        "readyState": "loading",
+        "scriptIndex": 1
+      }
+    ],
+    "paused": [
+      {
+        "worker": {
+          "language": "en-US",
+          "timezone": "Asia/Shanghai"
+        },
+        "shared": {
+          "language": "en-US",
+          "timezone": "Asia/Shanghai"
+        },
+        "font": "13px \"VanishGeo Synthetic Font\"",
+        "geolocationPermission": "prompt"
+      },
+      {
+        "worker": {
+          "language": "en-US",
+          "timezone": "Asia/Shanghai"
+        },
+        "shared": {
+          "language": "en-US",
+          "timezone": "Asia/Shanghai"
+        },
+        "font": "13px \"VanishGeo Synthetic Font\"",
+        "geolocationPermission": "prompt"
+      }
+    ],
+    "specific": {
+      "actual": [
+        {
+          "language": "ko-KR",
+          "languages": [
+            "ko-KR"
+          ],
+          "locale": "ko-KR",
+          "timezone": "Asia/Seoul",
+          "numberLocale": "ko-KR",
+          "explicit": {
+            "locale": "ko-KR",
+            "calendar": "gregory",
+            "numberingSystem": "latn",
+            "timeZone": "Asia/Seoul",
+            "year": "numeric",
+            "month": "numeric",
+            "day": "numeric"
+          },
+          "hour": 9,
+          "offset": -540,
+          "font": "13px \"VanishGeo Synthetic Font\""
+        },
+        {
+          "language": "ko-KR",
+          "languages": [
+            "ko-KR"
+          ],
+          "locale": "ko-KR",
+          "timezone": "Asia/Seoul",
+          "numberLocale": "ko-KR",
+          "explicit": {
+            "locale": "ko-KR",
+            "calendar": "gregory",
+            "numberingSystem": "latn",
+            "timeZone": "Asia/Seoul",
+            "year": "numeric",
+            "month": "numeric",
+            "day": "numeric"
+          },
+          "hour": 9,
+          "offset": -540,
+          "font": "13px \"VanishGeo Synthetic Font\""
+        }
+      ],
+      "excludes": [
+        "*://*.sub.example.test/*",
+        "*://sub.example.test/*"
+      ]
+    },
+    "afterSaveB": {
+      "sameDocument": true,
+      "old": [
+        {
+          "language": "ja-JP",
+          "languages": [
+            "ja-JP",
+            "ja"
+          ],
+          "locale": "ja-JP",
+          "timezone": "Asia/Tokyo",
+          "numberLocale": "ja-JP",
+          "explicit": {
+            "locale": "ja-JP",
+            "calendar": "gregory",
+            "numberingSystem": "latn",
+            "timeZone": "Asia/Tokyo",
+            "year": "numeric",
+            "month": "numeric",
+            "day": "numeric"
+          },
+          "hour": 9,
+          "offset": -540,
+          "font": "13px \"VanishGeo Synthetic Font\""
+        },
+        {
+          "language": "ja-JP",
+          "languages": [
+            "ja-JP",
+            "ja"
+          ],
+          "locale": "ja-JP",
+          "timezone": "Asia/Tokyo",
+          "numberLocale": "ja-JP",
+          "explicit": {
+            "locale": "ja-JP",
+            "calendar": "gregory",
+            "numberingSystem": "latn",
+            "timeZone": "Asia/Tokyo",
+            "year": "numeric",
+            "month": "numeric",
+            "day": "numeric"
+          },
+          "hour": 9,
+          "offset": -540,
+          "font": "13px \"VanishGeo Synthetic Font\""
+        }
+      ],
+      "sync": {
+        "state": "ready",
+        "registeredRuleCount": 3,
+        "reloadRequired": true
+      }
+    },
+    "afterReloadB": [
+      {
+        "language": "fr-FR",
+        "languages": [
+          "fr-FR",
+          "fr"
+        ],
+        "locale": "fr-FR",
+        "timezone": "Europe/Paris",
+        "numberLocale": "fr-FR",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 1,
+        "offset": -60,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      },
+      {
+        "language": "fr-FR",
+        "languages": [
+          "fr-FR",
+          "fr"
+        ],
+        "locale": "fr-FR",
+        "timezone": "Europe/Paris",
+        "numberLocale": "fr-FR",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 1,
+        "offset": -60,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      }
+    ],
+    "networkPolicy": {
+      "acceptLanguage": "fr-FR,fr;q=0.9",
+      "webRtcPolicy": "disable_non_proxied_udp"
+    },
+    "update": {
+      "previousVersion": "2.1.1",
+      "candidateVersion": "2.1.2",
+      "sameExtension": true,
+      "mechanism": "Extensions.loadUnpacked same staged directory"
+    },
+    "afterDisable": {
+      "old": {
+        "language": "fr-FR",
+        "languages": [
+          "fr-FR",
+          "fr"
+        ],
+        "locale": "fr-FR",
+        "timezone": "Europe/Paris",
+        "numberLocale": "fr-FR",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 1,
+        "offset": -60,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      },
+      "sync": {
+        "state": "ready",
+        "registeredRuleCount": 2,
+        "reloadRequired": true
+      }
+    },
+    "disabledReload": [
+      {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timezone": "Asia/Shanghai",
+        "numberLocale": "en-US",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 8,
+        "offset": -480,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      },
+      {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timezone": "Asia/Shanghai",
+        "numberLocale": "en-US",
+        "explicit": {
+          "locale": "en-US",
+          "calendar": "gregory",
+          "numberingSystem": "latn",
+          "timeZone": "UTC",
+          "year": "numeric",
+          "month": "numeric",
+          "day": "numeric"
+        },
+        "hour": 8,
+        "offset": -480,
+        "font": "13px \"VanishGeo Synthetic Font\""
+      }
+    ]
+  },
+  "cleanup": {
+    "status": "PASS",
+    "failures": [],
+    "coordinator": "PASS",
+    "staging": "PASS"
+  },
+  "stopReason": null,
+  "network": {
+    "backend": "linux-network-namespace",
+    "checks": {
+      "loopbackTcp": "PASS",
+      "loopbackUdp": "PASS",
+      "deniedTcp4": "PASS",
+      "deniedTcp6": "PASS",
+      "deniedUdp4": "PASS",
+      "deniedUdp6": "PASS",
+      "inherited": "PASS"
+    },
+    "onlyLoopback": true,
+    "ipv4Prohibit": true,
+    "ipv6Prohibit": true,
+    "nonRoot": true
+  },
+  "production": {
+    "status": "PASS",
+    "unchanged": "PASS",
+    "languageTimezoneBoundary": "PASS",
+    "checkedFiles": 384,
+    "changedCount": 0
+  }
+}

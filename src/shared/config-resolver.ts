@@ -36,6 +36,7 @@ import type {
   ExitLocationProfile,
   GeolocationConfig,
   LanguageConfig,
+  LanguageTimezonePayload,
   SignalOverride,
   SiteRule,
   SiteSpoofConfig,
@@ -182,7 +183,8 @@ function resolveSignal<T extends { enabled: boolean }>(
     return globalValue.enabled ? globalValue : null;
   }
   if (override.mode === 'disable') return null;
-  return normalizer(override.value || {});
+  const resolved = normalizer(override.value || {});
+  return resolved.enabled ? resolved : null;
 }
 
 export function resolveEffectiveLanguageForRule(config: SiteSpoofConfig, rule: SiteRule): LanguageConfig | null {
@@ -235,7 +237,7 @@ function resolveGeolocationValue(
   };
 }
 
-export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: string): EffectiveProfileResult {
+function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, includeGeolocation: boolean): EffectiveProfileResult {
   const normalized = normalizeConfig(config);
   if (!normalized.masterEnabled) {
     return { matched: false, rule: null, payload: null, errors: [] };
@@ -248,7 +250,7 @@ export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: 
 
   const language = resolveEffectiveLanguageForRule(normalized, rule);
   const timezoneConfig = resolveSignal(normalized.globalProfile.timezone, rule.overrides.timezone, normalizeTimezone);
-  const geolocationConfig = resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
+  const geolocationConfig = includeGeolocation ? resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation) : null;
   const needsExitLocationProfile = geolocationConfig?.mode === 'auto' || timezoneConfig?.mode === 'auto';
   const selectedProfile = rule.exitLocationProfileId
     ? normalized.exitLocationProfiles.find((profile) => profile.id === rule.exitLocationProfileId) || null
@@ -300,6 +302,25 @@ export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: 
       canvasConfig: canvas
     },
     errors: []
+  };
+}
+
+export function getEffectiveProfile(config: Partial<SiteSpoofConfig>, hostname: string): EffectiveProfileResult {
+  return resolveProfile(config, hostname, true);
+}
+
+// 首阶段只排除暂停的 geolocation；匹配、auto/verified 与语言时区解析仍由同一所有者执行。
+export function getPageRuntimeProfile(config: Partial<SiteSpoofConfig>, hostname: string): EffectiveProfileResult {
+  return resolveProfile(config, hostname, false);
+}
+
+export function getLanguageTimezonePayload(config: Partial<SiteSpoofConfig>, hostname: string): LanguageTimezonePayload | null {
+  const payload = getPageRuntimeProfile(config, hostname).payload;
+  if (!payload || (!payload.languageConfig && !payload.timezone)) return null;
+  return {
+    intlMode: payload.intlMode,
+    ...(payload.languageConfig ? { language: { language: payload.languageConfig.language, languages: payload.languageConfig.languages.slice() } } : {}),
+    ...(payload.timezone ? { timezone: payload.timezone } : {})
   };
 }
 

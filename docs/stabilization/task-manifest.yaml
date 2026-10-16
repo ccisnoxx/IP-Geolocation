@@ -416,6 +416,24 @@ tasks:
     acceptance:
       - linux-evidence.json 为 GO 且用户明确确认人工验收通过；原 macOS BLOCKED 保留
 
+  - id: VG-023
+    title: userScripts document_start 语言与时区生产恢复
+    phase: R6
+    dependencies: [VG-013, US-EXP]
+    status: done
+    trellis_task: .trellis/tasks/10-16-vg-023-userscripts-language-timezone
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-16'
+      evidence: .trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md#2026-10-16-人工验收确认
+    scope:
+      - Chrome138+ userScripts MAIN document_start 注册、最小语言时区payload与每文档快照
+      - 串行撤销更新新增、fail closed、初始化与update恢复、明确UI状态与真实Chrome smoke
+    acceptance:
+      - 普通HTTP(S)顶层与iframe首inline看到语言时区，旧文档/BFCache保留旧快照，完整reload采用新注册
+      - DNR/WebRTC保持，Geolocation/Canvas/Worker继续暂停，无生产documentId回退
+      - 本地验证和独立复核后停review，人工验收前不得done，不push或发布
+
   - id: VG-022
     title: 方案B P1私有交接隔离验证
     phase: R5

@@ -1,0 +1,49 @@
+{
+  "id": "vg-023-userscripts-language-timezone",
+  "name": "vg-023-userscripts-language-timezone",
+  "title": "VG-023：userScripts document_start 语言与时区生产恢复",
+  "description": "生产userScripts MAIN document_start语言/时区快照；实际Chrome155/Linux仅loopback/sandbox 17项PASS，2026-10-16已通过用户人工验收。",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "language-timezone-only",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-16",
+  "completedAt": "2026-10-16",
+  "branch": null,
+  "base_branch": "experiment/userscripts-document-start",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/background/page-scripts.ts",
+    "src/background/services.ts",
+    "src/injected/runtime-modules/language-timezone-entry.ts",
+    "src/shared/config-resolver.ts",
+    "manifest.json",
+    "PERMISSIONS.md",
+    "experiments/userscripts-document-start/production-evidence.json"
+  ],
+  "notes": "US-EXP与VG-023均已通过用户人工验收，清单为done，Trellis为completed。仅语言/时区阶段完成；其他页面能力继续暂停，不启动后续任务，不提交/push/tag/发布。",
+  "meta": {
+    "audit_id": "20261016T133620Z-vg-023-userscripts-production-386e54b2",
+    "machine_acceptance": {
+      "result": "GO",
+      "evidence": "experiments/userscripts-document-start/production-evidence.json",
+      "chrome": "155.0.8059.84",
+      "platform": "Linux ARM64",
+      "mandatory_checks": 17
+    },
+    "human_acceptance": {
+      "status": "accepted",
+      "accepted_at": "2026-10-16",
+      "accepted_by": "用户",
+      "evidence": ".trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md#2026-10-16-人工验收确认"
+    }
+  }
+}

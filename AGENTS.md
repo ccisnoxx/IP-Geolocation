@@ -22,7 +22,7 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 
 # VanishGeo 长期仓库约束
 
-- 保持 Chromium Manifest V3。仅从启用的 allowlist 规则派生动态 content script matches；ISOLATED content script 只通知后台初始化。后台从可信 `MessageSender` 和配置解析 payload，使用 `documentId` 定向执行自包含 MAIN-world runtime。不得增加静态全站注入、页面可控配置桥或信任网页提供的配置/预期值。
+- 保持 Chromium Manifest V3、最低 Chrome 138。仅从 config-model / config-resolver 的启用 allowlist 规则派生 userScripts 的 HTTP(S) matches / excludeMatches，保持最长域名优先级；固定自包含模板加安全 JSON 最小语言/时区 payload，在 MAIN / document_start 提前注册。需要 userScripts 权限和用户正常开启 Allow User Scripts；不可用时 fail closed，无 content 初始化消息、documentId executeScript 或页面桥回退。注册更新串行，先撤销失效/范围变化，再更新，最后新增并验证；worker 初始化与 onInstalled(update) 恢复。每文档快照、不热更新、不自动 reload。仅普通 HTTP(S) 顶层/iframe；Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 继续暂停，其他文档 unsupported / UNKNOWN。
 - `src/shared/config-model.ts`、`config-resolver.ts`、`storage.ts` 分别拥有配置归一化、匹配/解析、迁移/持久化；不得新增平行域名匹配器或配置事实来源。auto 信号只使用规则显式绑定的 verified 出口档案；verified 身份只能由后台检测确认事务建立。
 - `src/background/dnr.ts` 从同一配置解析有效语言并管理 DNR；WebRTC 由 Chrome privacy API 管理。权限、host scope、错误校验和 verified 边界不得为通过测试而放宽。权限变更须同步 `PERMISSIONS.md` 和相关 wiring 测试，并取得对应任务授权。
 - 页面伪装与反检测注册集中在 `src/injected/runtime.ts`。未有目标检测证据和独立任务授权，不新增 WebGL/GPU、Audio、screen、hardware concurrency、device memory、codec、WebGPU 等设备指纹伪装面。保持未接管浏览器 API 的原生透传。

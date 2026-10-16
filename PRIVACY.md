@@ -1,6 +1,6 @@
 # VanishGeo 隐私边界
 
-> **VG-011 安全暂停（2026-10-15 用户确认人工验收通过）**：Chrome 155 已证实旧 `documentId` 可错投替换文档。当前后台在读取 payload 和派发前拒绝所有页面伪装初始化，并撤销动态初始化脚本。语言、时区、位置、Canvas 及 Worker/SharedWorker 伪装暂停；配置仍可保存。DNR 请求头规则、WebRTC 继续各自执行并按实际同步结果报告；二者不补偿页面 API 伪装。重试同步、保存或后台重启不会恢复页面伪装。新闸门不撤销旧 hook，已加载页面及旧 BFCache 文档需关闭并重建；无法确认清理时需自行重启浏览器。恢复完整功能前须验证可靠最终文档绑定或浏览器上游修复。详情见 [调查与实施证据](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 继续暂停。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。DNR 与 WebRTC 仍独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 本说明描述当前维护源的数据流与存储；权限清单见 [PERMISSIONS](PERMISSIONS.md)。VanishGeo 不提供 VPN/代理，不改变正常请求的网络出口，也不承诺匿名或让网页无法观测浏览器。没有后台定时出口刷新，也没有配置同步到开发者服务器的流程。
 
@@ -19,7 +19,7 @@ auto 使用每条规则显式绑定的 verified 档案。verified 只由后台�
 | `chrome.storage.local` 的 `siteSpoofConfig` | schema v2 总开关/debug、全局 Intl strict/compatible 模式、规则域名与绑定/覆盖、语言、时区、手工坐标与精度/随机设置、用户保存的坐标历史、自定义环境方案、Canvas 字体列表；已确认出口档案含名称、公网 IP、坐标、国家、时区、provider 与检测时间 | 跨浏览器重启保留；由用户编辑/删除或重置配置。删除档案前必须解除规则引用；卸载会清除扩展本地存储。没有扩展实现的加密层 |
 | local 的 `vanishgeoRulesInitialized` | 规则初始化/迁移标记 | 用于一次配置迁移；旧配置键按 storage 维护源清理 |
 | `chrome.storage.session` 的 `pendingExitLocationDetection` | 一份待确认 candidate（IP/坐标/国家/时区/provider/时间）、检测 ID、重检目标与旧验证时间、过期时间 | 五分钟后拒绝确认；成功确认/取消/访问已过期候选时删除，新检测覆盖旧候选。没有定时物理删除器；service worker 暂停不等同于 session 清空 |
-| `chrome.storage.session` 的 `runtimeSyncMetadata` | 版本、配置 SHA-256 摘要、脚本/DNR/WebRTC/刷新状态与固定错误类别、待刷新 tab ID 和 URL 摘要；预写时保留旧配置摘要的刷新欠账；已确认检测的待清理 ID | 用于 service worker 暂停后的恢复，收敛后清空欠账。没有配置副本、原始 URL、IP、坐标或原始 API 错误；不进入配置导出。浏览器重启、扩展重载/更新/禁用时 session 清空，避免旧 tab ID 跨会话重用；摘要不承诺匿名化 |
+| `chrome.storage.session` 的 `runtimeSyncMetadata` | 版本、配置 SHA-256 摘要、语言/时区注册/DNR/WebRTC/人工重载提示状态与固定错误类别、待重载 tab ID 和 URL 摘要；预写时保留旧配置摘要的刷新欠账；已确认检测的待清理 ID | 用于 service worker 暂停后的恢复，关闭/导航清理相应人工重载提示；同 URL 完整重载可能保守保留提示。没有配置副本、原始 URL、IP、坐标或原始 API 错误；不进入配置导出。浏览器重启、扩展重载/更新/禁用时 session 清空，避免旧 tab ID 跨会话重用；摘要不承诺匿名化 |
 | 后台诊断内存 | 最小预期信号、run ID、报告/目标文档身份、状态、两分钟 TTL | 消费一次；完成、取消、过期、执行中导航/关闭/配置变更或后台重启失效并释放敏感状态。少量有上限的短期终态只保留原因/所有者 |
 | 扩展报告页面内存与 DOM | 当次预期、实际值、PASS/FAIL/UNKNOWN；不保留 ICE 地址，只展示分类数量 | TTL、清除或离开报告页释放；无诊断持久化、导出或跨会话恢复 |
 | 外部诊断页内存与 DOM | navigator、Intl/Date、位置回调、ICE 候选和设备/realm 的实际观测 | 页面可见；重新加载/关闭释放其内存快照。网页本身仍能读取这些 API |
@@ -32,15 +32,15 @@ auto 使用每条规则显式绑定的 verified 档案。verified 只由后台�
 
 ## 站点注入、DNR 与 WebRTC
 
-manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则域名，也支持后台主动 provider 请求、定向脚本与请求头处理。这是较宽的能力授权，不能解读为没有广泛访问能力；当前安全暂停只注销旧 ISOLATED 初始化脚本，残留可信初始化通知在配置读取与派发前拒绝；主动诊断仍按原入口采集实际值。普通网页不能传入可信 payload，也不能访问扩展报告 actions。
+manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则域名，也支持后台主动 provider 请求、定向脚本与请求头处理。这是较宽的能力授权，不能解读为没有广泛访问能力；当前后台只清理旧 ISOLATED 初始化脚本，不接受页面初始化消息。生产语言/时区使用 userScripts 提前注册，需 Chrome138+ 和用户正常开启 Allow User Scripts；主动诊断仍按原入口采集实际值。普通网页不能传入可信 payload，也不能访问扩展报告 actions。
 
-时区与 Locale 模式保存在同一个 siteSpoofConfig。strict 默认保持强制一致性；compatible 仅对未指定的 locale/timeZone 补配置默认值，页面显式参数与原生错误保留，因此默认/显式结果可能不同。它不改变 navigator/Accept-Language 或 WebRTC 语义，不承诺规避检测。当前两种模式均不绕过生产安全暂停。
+时区与 Locale 模式保存在同一个 siteSpoofConfig。strict 默认保持强制一致性；compatible 仅对未指定的 locale/timeZone 补配置默认值，页面显式参数与原生错误保留，因此默认/显式结果可能不同。它不改变 navigator/Accept-Language 或 WebRTC 语义，不承诺规避检测。两种模式仅用于已成功注册的匹配 HTTP(S) 新文档；注册失败无旧 documentId 路径回退。
 
-诊断在原有实际值采样中额外执行固定 en-US/UTC 的 Intl.DateTimeFormat、NumberFormat 与 Date locale 调用；top/iframe/Worker 分别返回实际默认和显式结果，预期与模式只在扩展内部比较。固定调用不包含用户配置、无新增外部请求，不增加设备表面；旧 fixture 缺显式观测时为 UNKNOWN。定向 Chrome 模式 smoke 只使用本地 fixture、临时 profile 与合成配置，保存的 JSON 只含浏览器版本、模式及布尔/场景结论，不含个人路径、IP、坐标、凭据或文档身份。正式 dist 中的配置/UI smoke 不恢复 MAIN 派发。
+诊断在原有实际值采样中额外执行固定 en-US/UTC 的 Intl.DateTimeFormat、NumberFormat 与 Date locale 调用；top/iframe/Worker 分别返回实际默认和显式结果，预期与模式只在扩展内部比较。固定调用不包含用户配置、无新增外部请求，不增加设备表面；旧 fixture 缺显式观测时为 UNKNOWN。定向 Chrome 模式 smoke 只使用本地 fixture、临时 profile 与合成配置，保存的 JSON 只含浏览器版本、模式及布尔/场景结论，不含个人路径、IP、坐标、凭据或文档身份。VG-023 的独立生产 smoke 使用实际 dist、仅 loopback namespace 与正常用户开关，证据单独保存，不联系第三方站点/provider/STUN。
 
-安全暂停不新建 MAIN hook；旧版本已接管 API 的返回值仍可能对网页可见，直到相应文档被重建。top frame、iframe 及 Worker/SharedWorker 伪装均由暂停入口阻断；service worker hook 不在支持范围。未接管的设备 API 保持原生透传。
+注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 继续暂停；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
 
-DNR 从同一配置解析有效语言，仅修改匹配请求的 Accept-Language；请求仍直接到目标站点，不经过扩展提供的转发服务器。目标、网络出口服务和服务器日志仍可看到正常 IP/请求头。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账只调用现有 Chrome 脚本/DNR/privacy/tabs API，不主动检测出口或 ICE；刷新已有网页会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
+DNR 从同一配置解析有效语言，仅修改匹配请求的 Accept-Language；请求仍直接到目标站点，不经过扩展提供的转发服务器。目标、网络出口服务和服务器日志仍可看到正常 IP/请求头。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账只调用现有 Chrome 脚本/DNR/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
 
 ## 诊断目标页与扩展侧比较
 
