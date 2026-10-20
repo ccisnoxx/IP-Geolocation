@@ -1,5 +1,7 @@
 # 空 body 与自动恢复补充验证
 
+当前补充验收状态：**用户已于 2026-10-17 确认 `77790ce`、`fc40299` 两条 fixture 提交通过人工验收**，范围见文末“2026-10-17 两条 fixture 提交补充人工验收”。以下 2026-10-16 各轮记录中的 review、未取得人工验收及当时的 Git 操作限制均为历史交付状态；原失败、未知和未覆盖范围保留。
+
 2026-10-16；本轮仅修复实验和补充 smoke，停在 review，尚无针对本轮补丁的新人工验收。不修改生产 src/build/manifest，不重写三个本地提交，不暂存或提交，不启动后续稳定化任务，不 push/tag/发布。Navigator 保持 review；US-EXP、VG-023 的既有人工验收状态不变。
 
 ## 修改与独立性
@@ -71,3 +73,22 @@ limactl stop vg-userscripts-fixture
 本轮7项不代表完整17项。未重跑最小25项、完整17项或自然休眠/高频换代/商店升级/Chrome138/HTTPS/OOPIF/生产BFCache矩阵。生产源码、TS测试、构建及依赖输入未变，47文件dist与已验证构建一致，复用既有类型/185测试/build/dry-run证据；dry-run没有浏览器通过含义。
 
 第一组、两个旧fixture候选树、全部原JSON和三条本地提交保留，新JSON不覆盖旧证据。补丁仍停在review，不记人工验收、不改稳定化任务状态。Navigator保持review；Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker与Temporal继续暂停。不暂存、提交、push或发布，不启动后续任务。
+
+## 2026-10-17 两条 fixture 提交补充人工验收
+
+验收人：用户。用户在当前对话明确确认：“77790ce、fc40299 两条 fixture 提交已通过我的人工验收，请同步补充验收记录，明确最小实验 GO25 和独立恢复 GO7 的范围，7项不冒充完整17项。”本节只补录该人工确认，不生成或改写机器证据。
+
+| 已验收提交 | 精确范围 | 机器证据及其边界 |
+| --- | --- | --- |
+| `77790ce431704942df9a31c03e50e88103ff1615` | 第一组3文件：最小 collector 的空 body 等待、对应回归、`linux-body-ready-evidence.json` | 最小实验 GO/0、25个必需项PASS；只证明固定 A/B `navigator.language` 的 API/A–F、文档快照与 BFCache 等最小机制，不是生产语言/时区25项。为保持 pauseGate，在临时 `a4a4055` 暂停基线上运行同一最小实验 JS，未把恢复后的生产树冒充暂停状态。 |
+| `fc40299b9c275de4db2b03c0418056bcc62d1464` | 第二组13文件：独立恢复 collector/后端/宿主、worker-reader、回归、说明及恢复 JSON | 最新 `production-default-context-evidence.json` 为 schema v2、scope=`automatic-language-timezone-recovery`、GO/0、7项PASS；`production-auto-recovery-evidence.json`、`production-worker-ready-evidence.json` 保留各自历史结果。该7项不是完整17项生产 smoke。 |
+
+独立恢复7项仅为 network、chrome-sandbox、fresh-disabled、normal-user-switch、register、worker-restart、extension-update。恢复前先关闭扩展页面与详情页、清空注册并确认旧 worker 停止；恢复期间没有管理面业务消息触发对账。重启使用 `ServiceWorker.startWorker`；更新使用同目录临时未打包扩展 2.1.1→2.1.2、相同扩展 ID，更新段不显式启动 worker。两段均直接精确读回3条注册后再创建新 localhost 顶层及普通 HTTP iframe，首 inline/load/current 的语言、默认 locale、时区及 offset 分别为 fr-FR / fr-FR / Europe/Paris / -60。Chrome 自身 sandbox、仅 loopback 和正常 Allow User Scripts 开关约束保持。
+
+P2 的 `Cannot find default execution context` 回归有修复前失败、修复后22/22定向检查通过的记录；该精确协议错误和确定性的读回期间 target 失效分支由 Node/VM 回归覆盖，本次真实 Chrome 没有触发这些分支。人工验收不将其改写为浏览器已观测事件。
+
+最新 default-context JSON 与上一份 worker-ready JSON 字节相同；其独立执行记录保存在仓库外 `$CODEX_HOME/artifacts/vanishgeo-fixture-candidate-trees/20261016T152931Z-default-context/metadata/chrome-execution-receipt.json`。回执关联会话99279、退出码0、最新执行源码哈希及日志/报告时间，报告 SHA-256 为 `54803995ad05fbc7e9b80d34ae0659a06e2507751e6001f8a1a0e7e989e0926d`；同包 `run-chrome.py` 使用新临时输出且要求目标证据原先不存在，不读取旧 JSON。提交内相同 JSON 本身不能单独证明执行次数，仓库外回执继续保留。提交范围核对记录保存在 `$CODEX_HOME/artifacts/vanishgeo-fixture-local-commits/20261016T154844Z/`。
+
+本次补充验收没有新的完整17项通过证据；前述完整模式超时、旧候选 BLOCKED 和其他未验证矩阵不改为PASS。原 `linux-evidence.json`、`production-evidence.json` 及2026-10-16初次人工验收保持各自历史范围，GO25、GO7不合并、不充当完整生产或其他暂停能力的验收。P3 宿主未独立校验就绪/版本/身份字段的缺口保留，本次不修复、不宣称已闭环。
+
+US-EXP、VG-023 的 done / Trellis completed 及原完成日期不变；本节是已验收任务的补充记录，不新建或启动任务。Navigator 继续 review；Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 和 Temporal 继续暂停。旧候选树、全部 JSON、仓库外执行回执和既有提交保留。本次仅更新记录，执行 diff/引用/范围与保留项完整性核对，复用未变输入的既有测试和构建结果，未重跑 Chrome、完整17项、类型检查、npm test、build 或 dry-run；不暂存、不提交、不 push/tag/发布。

@@ -90,3 +90,15 @@ Chrome/profile/fixture/连接、namespace与VM staging已回收，独占VM停止
 Geolocation、Permissions geolocation、Canvas、Worker、SharedWorker继续暂停；Temporal未恢复。其他文档类型、快照与已知限制不变。未启动后续任务，未修改生产代码或构建输入，未提交、push、创建tag、发布或修改GitHub设置。原VG-022等其他任务保持原状态。
 
 本次只更新验收/状态和对应待验收说明，复用上一轮185/185测试、typecheck、typecheck:tests、build、Chrome dry-run及真实Chrome GO证据；未重复运行。执行git diff --check，并核对本次改动仅在记录与说明文件、原Chrome JSON字节未变。
+
+## 2026-10-17 fixture 提交补充人工验收
+
+用户明确确认 `77790ce`、`fc40299` 两条 fixture 提交已通过人工验收。本任务关联第二组 `fc40299b9c275de4db2b03c0418056bcc62d1464` 的13文件；只补充独立恢复 fixture、worker就绪/target换代观察器及P2回归，不修改生产实现。第一组3文件属于最小实验的空 body 修复，GO25仅证明固定 A/B navigator.language 最小机制，在 US-EXP 记录同步，不能充当生产语言/时区25项或与GO7相加。
+
+最新机器证据 `production-default-context-evidence.json` 为 schema v2、scope=automatic-language-timezone-recovery、真实Chrome GO/0、7项PASS。仅覆盖 network、chrome-sandbox、fresh-disabled、normal-user-switch、register、worker-restart、extension-update；恢复前关闭管理页、清空注册并停止worker，恢复段管理业务消息为0。两段精确读回3条注册，再验证新localhost顶层/普通HTTP iframe首inline、load、current；重启版本2.1.1，更新为同一临时未打包扩展2.1.2，更新段不显式startWorker。保留Chrome自身sandbox、仅loopback与正常Allow User Scripts开关约束。
+
+`Cannot find default execution context` 的P2由修复前失败、修复后22/22定向Node/VM检查证明，本次真实Chrome未触发该精确协议错误。最新JSON与上一份worker-ready JSON字节相同，其独立执行回执仍在仓库外，关联会话99279、退出码0、最新源码哈希及日志/报告时间。完整证据引用、精确范围和限制见 [统一补充人工验收记录](../../../experiments/userscripts-document-start/recovery-review.md#2026-10-17-两条-fixture-提交补充人工验收)。
+
+本次GO7不代表完整17项通过；原 `production-evidence.json` 的2026-10-16历史机器结果与初次人工验收不覆盖，后续完整模式超时及旧候选BLOCKED不改为PASS。P3宿主独立版本/身份校验缺口暂不扩展。VG-023维持done / Trellis completed，原完成日期2026-10-16不变；Navigator保持review，Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker及Temporal继续暂停。
+
+本次仅补记录并检查diff、引用与保留项完整性；复用未变输入的既有类型/185测试/build/dry-run证据，不将dry-run视为真实Chrome，未重跑浏览器或上述门禁。保留旧候选树、全部JSON、仓库外执行回执和既有提交，不暂存、不提交、不启动后续任务、不push/tag/发布。

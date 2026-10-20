@@ -56,3 +56,11 @@ Trellis状态为review，completedAt=null。没有人工验收记录，没有标
 ## 2026-10-16 人工验收确认
 
 用户在当前对话明确确认：“userScripts document_start 实验已通过我的人工验收，请同步验收记录并标记 done”。对应最终证据为 experiments/userscripts-document-start/linux-evidence.json，Chrome155.0.8059.84 Linux ARM64，GO/0，25必需项PASS。按仓库映射，清单US-EXP为done，Trellis为completed；该确认不把原macOS启动BLOCKED改为通过。生产实现另建VG-023，验收后仍须独立review。
+
+## 2026-10-17 fixture 提交补充人工验收
+
+用户明确确认 `77790ce`、`fc40299` 两条 fixture 提交已通过人工验收。本任务关联第一组 `77790ce431704942df9a31c03e50e88103ff1615` 的3文件：最小 collector 空 body 等待、回归及 `linux-body-ready-evidence.json`。该报告为真实 Chrome155.0.8059.84 / Linux ARM64 的最小实验 GO/0、25必需项PASS，只证明固定 A/B navigator.language 的最小机制；为保持 pauseGate，实验 JS 在临时 `a4a4055` 暂停基线上运行。它不是生产语言/时区25项，原 `linux-evidence.json` 与首次人工验收不覆盖、不替换。
+
+第二组13文件及独立恢复 GO7 的补充确认同步于 VG-023 执行记录；GO7不代表完整17项生产 smoke 通过，两种报告不合并。完整范围、P2回归、相同 JSON 的仓库外独立执行回执及保留的失败/未知见 [统一补充人工验收记录](../../../experiments/userscripts-document-start/recovery-review.md#2026-10-17-两条-fixture-提交补充人工验收)。
+
+US-EXP维持done / Trellis completed，原完成日期2026-10-16不变，不新建或启动任务。P3暂不扩展；Navigator保持review，其他页面能力继续暂停。仅补记录，保留旧候选树、全部JSON、仓库外执行回执及既有提交；不修改生产代码，不重跑浏览器或构建/测试，不暂存、不提交、不push/tag/发布。

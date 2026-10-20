@@ -411,6 +411,12 @@ tasks:
       accepted_by: 用户
       accepted_at: '2026-10-16'
       evidence: .trellis/tasks/10-16-userscripts-loopback-fixture/implement.md#2026-10-16-人工验收确认
+      supplements:
+        - accepted_by: 用户
+          accepted_at: '2026-10-17'
+          commits: [77790ce]
+          scope: 第一组3文件空body修复与最小语言实验GO25；不代表生产语言时区25项
+          evidence: .trellis/tasks/10-16-userscripts-loopback-fixture/implement.md#2026-10-17-fixture-提交补充人工验收
     scope:
       - 独立 Linux VM 内保留 Chrome sandbox 和仅 loopback 约束的最小真实 fixture
     acceptance:
@@ -426,6 +432,12 @@ tasks:
       accepted_by: 用户
       accepted_at: '2026-10-16'
       evidence: .trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md#2026-10-16-人工验收确认
+      supplements:
+        - accepted_by: 用户
+          accepted_at: '2026-10-17'
+          commits: [fc40299]
+          scope: 第二组13文件独立恢复GO7及P2回归；不代表完整17项通过，P3暂不扩展
+          evidence: .trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md#2026-10-17-fixture-提交补充人工验收
     scope:
       - Chrome138+ userScripts MAIN document_start 注册、最小语言时区payload与每文档快照
       - 串行撤销更新新增、fail closed、初始化与update恢复、明确UI状态与真实Chrome smoke

@@ -1,3 +1,5 @@
+> 2026-10-17：用户已确认 `77790ce`（第一组3文件）、`fc40299`（第二组13文件）通过补充人工验收。最小实验 GO25 与独立恢复 GO7 的范围、相同 JSON 的独立执行回执及保留缺口见 [补充人工验收记录](./recovery-review.md#2026-10-17-两条-fixture-提交补充人工验收)。GO7不代表完整17项通过；P3暂不扩展，Navigator保持review，其他页面能力继续暂停。下文“待人工验收/review”按对应交付日期保留为历史状态。
+>
 > 2026-10-16：用户已明确确认本实验通过人工验收，US-EXP=done；原文中的“待人工验收/review”为交付时历史状态。人工记录见 .trellis/tasks/10-16-userscripts-loopback-fixture/implement.md。生产恢复在独立VG-023任务实施。
 
 # userScripts document_start 本地兼容性实验
