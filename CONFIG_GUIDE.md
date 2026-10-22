@@ -2,7 +2,7 @@
 
 > **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；字体暴露过滤仍暂停，配置仅保存。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 当前源码版本为 **2.1.1（未发布）**。页面语言/时区需 Chrome 138+、userScripts 权限及正常开启 Allow User Scripts；配置注册成功后按文档快照执行。WebRTC 独立报告；其他页面能力继续暂停。扩展不改变代理或网络出口。安装步骤见 [INSTALL](INSTALL.md)，数据处理见 [PRIVACY](PRIVACY.md)。
 
@@ -45,9 +45,9 @@ auto 表示使用**本规则显式绑定的已确认出口档案**，不表示�
 
 完整配置导入会先检查原始自定义方案；任一方案的字段或 ID 唯一性不合法，整个导入失败，错误指出 `profile.profiles[index]` 和字段。请修正对应条目的坐标、精度、时区、名称或 ID 后重试，该失败导入不会触发配置写入或旧键清理，既有配置不会被替换。旧存储读取只返回有效且 ID 唯一的方案，悬空选中 ID 清空；已规范化 v3 读取不会额外重写配置；v2 首次读取会迁移写回 v3。旧 `bpg_config` 中合法零坐标迁移为手工模式。
 
-自定义方案不是内置地区整套预设。字体配置仅保存；生产仅恢复已验收的语言/时区userScripts。HTTP请求头原生，设备指纹表面不新增伪装。
+自定义方案不是内置地区整套预设。固定内置名单字体过滤已获恢复授权；启用总开关、字体开关及HTTP(S)站点规则并确认注册成功后，仅新文档生效。自定义名单仅保存，不生产派发；不承诺隐藏所有字体、消除 Canvas 指纹或达到检测评分。页面语言仅在 userScripts 注册成功后的匹配新文档使用配置；请求头不再随配置改变，网页语言与原生 Accept-Language 不一致不判为扩展失败。未接管的 GPU、Audio、screen、hardware concurrency、device memory、codec、WebGPU 保持原生透传。
 
-字体暴露过滤提供固定内置 `vendor-software` / 自定义 `custom` 模式。内置名单16项，详见 `src/shared/font-families.ts`；切换内置模式使用固定名单，custom保留用户名单。当前两种模式均仅保存、不生产派发。
+字体暴露过滤在 Popup 和 Options 提供固定内置 `vendor-software` / 自定义 `custom` 模式。内置只读名单共43项：16项厂商／软件字体保留，2026-10-22获用户授权增加19项简体和8项繁体中文字体。完整名单以 `src/shared/font-families.ts` 及界面只读列表为准，包含微软雅黑、宋体、苹方、思源、Noto CJK 等。旧v3内置模式读取时使用当前43项，保留原开关；custom 模式仍保留用户名单且不生产派发。2026-10-22另获授权：仅顶层Canvas文本测量使用包内固定monospace/sans-serif/serif允许名单，无允许项回退sans-serif；FontFaceSet.check及iframe仍使用43项过滤名单。测量与原生绘制可能不一致，影响文本排版和站点兼容性；并非虚拟字体库存。仅总开关、字体开关及HTTP(S) allowlist均启用时注册，新文档生效。
 
 v2 字体迁移确定且幂等：旧 canvas 关闭时使用关闭的新默认；启用且名单与旧宽默认集合等价时换成新内置名单；启用且为自定义集合时迁移为 custom，trim、去空、按规范键去重并保留首次显示值。语言、方案和规则覆盖中的 acceptLanguage 被丢弃，v3 导出不含 canvas/acceptLanguage。规则（含禁用规则）、verified 出口档案、WebRTC、位置、时区及 intlMode 保留；导入仍将出口档案降为 unverified 并清空绑定，非法输入写前拒绝。
 
@@ -89,3 +89,9 @@ compatible 优先兼容使用固定语言/时区的站点，允许页面显式�
 构建后运行 `npm run serve:leak-test`，从扩展“隐私检测”打开报告，打开/选择 localhost 目标。启用 `localhost` 规则，完成信号配置并刷新，再在扩展报告中运行。无须向 URL、cookie、DOM 或页面消息写入预期配置。外部 observation 页显示实际值并保持 UNKNOWN；扩展报告才比较预期与实际。
 
 文档公网 IP 示例只用 `192.0.2.10`、`198.51.100.10` 或 `203.0.113.10`，它们来自 [RFC 5737](https://www.rfc-editor.org/rfc/rfc5737)，不能当作真实出口、provider 检测结果或本地服务地址。分享配置/报告时另行脱敏，不上传真实位置、IP、个人目录或凭据。完整配置导出包含保存的敏感字段；导入会降级出口档案并清空绑定。
+
+## VG-025 固定内置名单字体过滤（2026-10-20 已获恢复授权）
+
+仅在总开关、字体开关和HTTP(S) allowlist规则均启用且模式为vendor-software时，注册包内单文件font-exposure/filter.js（MAIN/document_start/allFrames，无origin fallback）。字体不依赖Allow User Scripts；语言/时区仍独立需要该开关。只覆盖CanvasRenderingContext2D.measureText与FontFaceSet.check；顶层measureText使用三种通用字体允许名单；check及iframe保持43项固定过滤，非目标透传。绘图/像素/导出保持原生，不覆盖DOM尺寸、local()、OffscreenCanvas或Worker。custom名单、位置和Worker继续暂停。
+
+固定字体文件不含用户配置、IP、位置、规则或档案payload，不读storage、不接受页面桥、不新增外部请求或权限。保存与Chrome注册撤销不是原子操作；同步报告确认的是新文档注册。旧hook/BFCache文档需完整重载或关闭重建，不热更新、不自动reload；字体重载提示保守包含可能嵌入受影响iframe的HTTP(S)标签页。恢复授权不等于人工验收通过，当前不提交或发布。

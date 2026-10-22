@@ -330,7 +330,12 @@ test('字体 UI 无请求头编辑或 Canvas 伪装，内置名单只读且独�
     const script = read(`src/${page}/${page}.ts`);
     assert.doesNotMatch(html + script, /acceptLanguage|Canvas spoof|Canvas 指纹伪装|Canvas 字体伪装|DNR 请求头规则|DNR Accept-Language/);
     assert.match(html, /字体暴露过滤/);
-    assert.match(html, /不覆盖 DOM 尺寸.*local\(\).*像素比对.*Worker/);
+    assert.match(html, /id="fontExposureStatus".*aria-live="polite"/);
+    assert.match(script, /renderFontRuntimeStatus\(fontExposureStatusEl, report\)/);
+    assert.match(html, /不影响语言\/时区注册状态/);
+    assert.match(html, /顶层.*measureText\(\).*monospace.*sans-serif.*serif/);
+    assert.match(html, /FontFaceSet.check\(\).*iframe.*内置厂商／软件及简繁中文字体/);
+    assert.match(html, /不覆盖 DOM 尺寸.*local\(\).*像素比对.*OffscreenCanvas.*Worker/);
     assert.match(html, /不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息/);
     assert.match(html, /兼容性/);
     assert.match(html, /value="vendor-software"/);

@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-20",
+  "kind": "source-and-existing-evidence-lifecycle-investigation",
+  "evidence_stage": "启动读取失败清理修复前的源码与模拟故障快照",
+  "task_status": "review",
+  "human_acceptance": "pending",
+  "runtime_root_cause": "UNCONFIRMED",
+  "follow_up_fix": {
+    "record": "startup-read-cleanup-fix.md",
+    "source_read_failure_cleanup": "已修复并通过定向回归、本地门禁及独立只读复核",
+    "runtime_root_cause": "UNCONFIRMED",
+    "real_chrome_fault_injection": "PASS_CONTROLLED_API_REJECTION",
+    "browser_evidence": "chrome-startup-read-failure.json；独立临时Chrome155.0.8059.85，6项通过，不代表现场根因或浏览器卡片停用验收。"
+  },
+  "scope": [
+    "字体固定文件的注册、撤销、命名空间及回读",
+    "配置队列、启动恢复及对账前异常",
+    "已有 Chrome 证据实际覆盖的关闭层级"
+  ],
+  "confirmed_source_facts": [
+    {
+      "fact": "总开关关闭、字体关闭、custom 或无启用 allowlist 时不生成新的字体注册；正常对账会撤销所属命名空间旧注册并回读确认。",
+      "sources": ["src/background/font-scripts.ts:12", "src/background/font-scripts.ts:42", "src/shared/config-resolver.ts:147"]
+    },
+    {
+      "fact": "字体注册显式跨会话持久化；当前 worker 求值、onStartup 及 onInstalled 都触发异步初始化，配置修改与初始化经过同一队列。",
+      "sources": ["src/background/font-scripts.ts:24", "src/background/service-worker.ts:23", "src/background/service-worker.ts:42", "src/background/services.ts:259", "src/background/services.ts:506"]
+    },
+    {
+      "fact": "字体对账之前存在 local 配置读取、迁移及 session 同步记录读取。上述读取拒绝会使该次初始化提前失败，未执行字体清理；worker 入口只记录失败，没有另行清理。",
+      "sources": ["src/background/services.ts:310", "src/background/services.ts:764", "src/shared/storage.ts:19", "src/shared/storage.ts:29", "src/background/service-worker.ts:10"]
+    },
+    {
+      "fact": "字体读取或撤销失败返回 sync-failed/null，不返回 disabled/0；常规 userScripts 权限拒绝被封装为页面组件错误，不阻止后续字体清理。",
+      "sources": ["src/background/font-scripts.ts:61", "src/background/font-scripts.ts:69", "src/background/page-scripts.ts:45", "src/background/services.ts:329"]
+    },
+    {
+      "fact": "字体数量与撤销只覆盖 vanishgeo-font-exposure- 前缀，不能证明其他 ID 的注册不存在。当前维护源中未找到另一个生产注册该字体资产的入口。",
+      "sources": ["src/background/font-scripts.ts:44", "src/background/font-scripts.ts:58"]
+    },
+    {
+      "fact": "包内字体文件被派发后直接安装固定过滤，不在页面内读取配置；是否派发由注册控制。",
+      "sources": ["src/injected/runtime-modules/font-exposure-entry.ts:6", "build/runtime-plugin.ts:20"]
+    },
+    {
+      "fact": "Options 的配置读取调用会重新对账，不是直接沿用上次成功 metadata；常规加载失败路径将字体状态显示为未确认。",
+      "sources": ["src/background/services.ts:422", "src/options/options.ts:115", "src/options/options.ts:317", "src/shared/runtime-sync.ts:23"]
+    }
+  ],
+  "diagnostic": {
+    "kind": "Node 模拟 Chrome API，直接调用当前维护源",
+    "command": "node --import tsx --input-type=module（一次性 stdin 诊断，无持久调试脚本）",
+    "functions": ["compileFontScripts", "createBackgroundServices.initializeExtension", "reconcileFontScripts"],
+    "passed": 6,
+    "failed": 0,
+    "real_chrome_acceptance": false,
+    "cases": [
+      {"id": "master-off-normal-startup", "result": "PASS", "observation": "预置所属字体注册被撤销，disabled/0，无新增；常规 userScripts 权限拒绝不阻止字体清理。"},
+      {"id": "local-read-failure", "result": "PASS", "observation": "人为注入 local 读取拒绝，初始化失败，字体对账未调用，预置所属注册保留；没有返回成功报告。"},
+      {"id": "session-read-failure", "result": "PASS", "observation": "人为注入 session 读取拒绝，初始化失败，字体对账未调用，预置所属注册保留；没有返回成功报告。"},
+      {"id": "pending-startup-window", "result": "PASS", "observation": "暂停首次配置读取时预置所属注册仍存在；解除暂停、正常对账后被撤销。未模拟浏览器实际派发时序。"},
+      {"id": "revocation-failure", "result": "PASS", "observation": "人为注入 unregister 拒绝，所属注册保留，但结果为 sync-failed/null，而非 disabled/0。"},
+      {"id": "non-owned-id-same-asset", "result": "PASS", "observation": "合成的非前缀 ID 引用同一资产时不被清理，字体命名空间报告 disabled/0；不证明现场存在该类注册。"}
+    ]
+  },
+  "existing_chrome_evidence_boundary": {
+    "production_evidence": "chrome-production-restored.json",
+    "master_switch_off_covered": true,
+    "browser_extension_card_disabled_covered": false,
+    "actual_browser_cold_start_covered_by_production_pass": false,
+    "reason": "runner 的 Disable 检查实际发送 setExtensionEnabled(false)，没有操作浏览器扩展卡片停用；临时扩展冷启动曾为 BLOCKED。",
+    "runner_source": "scripts/chrome-font-filter-smoke.mjs:292",
+    "current_dist_font_sha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860",
+    "current_dist_font_matches_production_evidence_sha256": true
+  },
+  "unverified_hypotheses": [
+    {
+      "hypothesis": "现场初始化读取失败或仍在等待，旧持久注册未完成对账。",
+      "support": "代码与模拟故障可复现此条件性机制。",
+      "missing": "现场后台异常与实际注册证据；不能单独解释浏览器层面停用后仍派发，也不能直接解释一次成功的新鲜对账报告为 disabled/0。"
+    },
+    {
+      "hypothesis": "历史或其他入口使用非所属前缀 ID 引用字体资产。",
+      "support": "模拟证明该类注册不会被当前前缀清理或计数。",
+      "missing": "现场实际存在此类注册的证据；当前维护源未找到该生产创建入口，也不能单独解释浏览器层面停用后的派发。"
+    }
+  ],
+  "conclusion": "正常完成的关闭对账没有发现会重新新增字体注册的分支。已定位可保留旧注册的条件性启动失败路径，但尚未将其与真实 Chrome 异常建立因果联系；调用栈资产标签不能单独证明实际注册或停用路径。",
+  "operator_constraints": ["不再请求截图或重启", "本轮不访问或绕过扩展内部控制面访问限制"],
+  "changes": {"production_source": false, "permissions": false, "commit": false, "publish": false},
+  "validation_scope": "本轮仅新增上述源码模拟诊断及记录检查；未重跑真实 Chrome、npm 全套、typecheck 或 build。未修改生产输入，既有通过证据保留各自范围。"
+}

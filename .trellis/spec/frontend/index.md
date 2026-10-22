@@ -13,7 +13,7 @@
 | Guide | Description | Status |
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | TypeScript/Vite 维护源、六个入口、dist/chunk 输出与执行环境分层 | Active |
-| [State Management](./state-management.md) | Schema v3、出口档案事务与 userScripts语言/时区文档快照与人工重载契约 | Active |
+| [State Management](./state-management.md) | Schema v3、出口档案事务与 userScripts语言/时区、固定字体文档快照与人工重载契约 | Active |
 | [Quality Guidelines](./quality-guidelines.md) | MV3 文档注入、runtime 闭包状态与原生 API 合同、构建 wiring、权限/隐私及分层验证证据 | Active |
 
 ---

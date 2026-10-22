@@ -48,6 +48,7 @@ import { RUNTIME_SYNC_COMPONENT_LABELS, RuntimeSyncOperationError, syncError, sy
 import type { WebRtcPolicyState } from './webrtc';
 import { rulesFromText } from '../shared/rule-list';
 import { reconcilePageScripts } from './page-scripts';
+import { hasFontScriptScopeChanged, reconcileFontScripts, syncFontScriptRegistration } from './font-scripts';
 import { createDiagnosticRuns } from './diagnostic-runs';
 import type { DiagnosticOwner } from './diagnostic-runs';
 import type { DiagnosticEvidence, DiagnosticRunInfo, InjectionTimingEvidence } from '../shared/diagnostic-report';
@@ -103,16 +104,25 @@ function summarizeSyncReport(report: RuntimeSyncReport): RuntimeSyncReport {
 
 function pendingForSignature(metadata: RuntimeSyncMetadata | null, signature: string): RuntimeSyncMetadata['pendingReloads'] {
   if (metadata?.version !== 1) return [];
-  if (metadata.report.configSignature === signature) return metadata.pendingReloads.slice();
-  if (metadata.previous?.configSignature === signature) return metadata.previous.pendingReloads.slice();
+  if (metadata.report.configSignature === signature) return structuredClone(metadata.pendingReloads);
+  if (metadata.previous?.configSignature === signature) return structuredClone(metadata.previous.pendingReloads);
   return [];
 }
 
+function pendingFontWindow(metadata: RuntimeSyncMetadata | null, signature: string): boolean {
+  if (metadata?.report.configSignature === signature) return metadata.pendingFontScopeChange === true;
+  return metadata?.previous?.configSignature === signature && metadata.previous.pendingFontScopeChange === true;
+}
 
+function addReloadDebt(pending: RuntimeSyncMetadata['pendingReloads'], item: { tabId: number; urlSignature: string }, surfaces: Array<'page' | 'font'>): void {
+  const existing = pending.find(entry => entry.tabId === item.tabId && entry.urlSignature === item.urlSignature);
+  if (existing) existing.surfaces = [...new Set([...(existing.surfaces || ['page' as const]), ...surfaces])];
+  else pending.push({ ...item, surfaces });
+}
 
-function runtimePayloadSignature(config: SiteSpoofConfig, url: string): string | null {
-  if (!isScriptableUrl(url)) return null;
-  return JSON.stringify(getLanguageTimezonePayload(config, new URL(url).hostname));
+function pagePayloadChanged(previous: SiteSpoofConfig, next: SiteSpoofConfig, url: string): boolean {
+  const hostname = new URL(url).hostname;
+  return JSON.stringify(getLanguageTimezonePayload(previous, hostname)) !== JSON.stringify(getLanguageTimezonePayload(next, hostname));
 }
 
 function normalizeDetectedLocation(value: unknown): DetectedExitLocation | null {
@@ -296,20 +306,32 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     const state: RuntimeSyncMetadata = {
       version: 1, report: pendingSyncReport(signature),
       pendingReloads: pendingForSignature(stored, signature),
+      ...(pendingFontWindow(stored, signature) ? { pendingFontScopeChange: true } : {}),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
     const [pageSync, webrtc] = await Promise.all([
       (async () => {
         const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
-        if (legacy.status !== 'ok') return { component: legacy,
-          pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false } };
-        return reconcilePageScripts(config, pageRuntimeSource);
+        if (legacy.status !== 'ok') {
+          // 旧路径撤销未确认时不新增字体注册，仍尝试清理字体命名空间。
+          const font = await reconcileFontScripts({ ...config, masterEnabled: false });
+          return { component: { status: legacy.status, errors: [...legacy.errors, ...font.errors] },
+            pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false },
+            fontRuntime: { state: 'sync-failed' as const, registeredRuleCount: font.fontRuntime.registeredRuleCount, reloadRequired: false } };
+        }
+        const page = await reconcilePageScripts(config, pageRuntimeSource);
+        const font = await reconcileFontScripts(config);
+        return { ...page, fontRuntime: font.fontRuntime, component: {
+          status: page.component.status === 'ok' ? font.status : page.component.status,
+          errors: [...page.component.errors, ...font.errors]
+        } };
       })(),
       runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(config,
         stored?.report.configSignature === signature && stored.report.components.webrtc.status === 'ok'))
     ]);
     state.report.components = { ...state.report.components, contentScripts: pageSync.component, webrtc };
     state.report.pageRuntime = pageSync.pageRuntime;
+    state.report.fontRuntime = pageSync.fontRuntime;
     if (state.pendingDetectionCleanup) {
       try {
         await removeConfirmedDetection(state.pendingDetectionCleanup);
@@ -320,16 +342,25 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     }
     // 不刷新或修改已加载/BFCache文档。只有注册完成后才向管理页提示完整reload。
     state.report.components.tabReload = { status: 'ok', errors: [] };
-    if (state.pendingReloads.length) {
+    if (state.pendingReloads.length || state.pendingFontScopeChange) {
       try {
         const tabs = await queryScriptableTabs();
         const urls = new Map(await Promise.all(tabs.map(async tab => [tab.id, await syncSignature(tab.url)] as const)));
         state.pendingReloads = state.pendingReloads.filter(item => urls.get(item.tabId) === item.urlSignature);
+        if (state.pendingFontScopeChange) {
+          // allFrames 注册不能从顶层 URL 排除受影响 iframe；保守记录所有普通 HTTP(S) 标签页。
+          for (const [tabId, urlSignature] of urls) addReloadDebt(state.pendingReloads, { tabId, urlSignature }, ['font']);
+          if (state.report.fontRuntime.state !== 'sync-failed') delete state.pendingFontScopeChange;
+        }
       } catch {
         state.report.components.tabReload = { status: 'failed', errors: [{ code: 'tab-query-failed', message: '无法确认已有页面状态，请重试同步。' }] };
       }
     }
-    state.report.pageRuntime.reloadRequired = pageSync.component.status === 'ok' && state.report.components.tabReload.status === 'ok' && state.pendingReloads.length > 0;
+    const reloadKnown = state.report.components.tabReload.status === 'ok';
+    state.report.pageRuntime.reloadRequired = ['ready', 'disabled'].includes(state.report.pageRuntime.state) && reloadKnown
+      && state.pendingReloads.some(item => !item.surfaces || item.surfaces.includes('page'));
+    state.report.fontRuntime.reloadRequired = state.report.fontRuntime.state !== 'sync-failed' && reloadKnown
+      && state.pendingReloads.some(item => item.surfaces?.includes('font'));
     await checkpoint(state, stored);
     return state.report;
   }
@@ -343,15 +374,21 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     const nextSignature = await runtimeConfigSignature(result.config);
     if (nextSignature === previousSignature) return { config: result.config, syncReport: await reconcile(result.config) };
     const oldPending = pendingForSignature(oldMetadata, previousSignature);
-    const pending = oldPending.slice();
+    const oldFontWindow = pendingFontWindow(oldMetadata, previousSignature);
+    const fontScopeChanged = hasFontScriptScopeChanged(previous, result.config);
+    const pending = structuredClone(oldPending);
     for (const tab of tabs) {
-      if (runtimePayloadSignature(previous, tab.url) !== runtimePayloadSignature(result.config, tab.url)) {
-        const item = { tabId: tab.id, urlSignature: await syncSignature(tab.url) };
-        if (!pending.some((entry) => entry.tabId === item.tabId && entry.urlSignature === item.urlSignature)) pending.push(item);
+      const surfaces: Array<'page' | 'font'> = [];
+      if (pagePayloadChanged(previous, result.config, tab.url)) surfaces.push('page');
+      if (fontScopeChanged) surfaces.push('font');
+      if (surfaces.length) {
+        addReloadDebt(pending, { tabId: tab.id, urlSignature: await syncSignature(tab.url) }, surfaces);
       }
     }
     const metadata: RuntimeSyncMetadata = { version: 1, report: pendingSyncReport(nextSignature), pendingReloads: pending,
-      previous: { configSignature: previousSignature, pendingReloads: oldPending },
+      ...(fontScopeChanged || oldFontWindow ? { pendingFontScopeChange: true } : {}),
+      previous: { configSignature: previousSignature, pendingReloads: oldPending,
+        ...(oldFontWindow ? { pendingFontScopeChange: true } : {}) },
       ...(oldMetadata?.pendingDetectionCleanup ? { pendingDetectionCleanup: oldMetadata.pendingDetectionCleanup } : {})
     };
     // 先准备恢复记录。配置写入失败时恢复旧欠账；成功后不回滚用户期望。
@@ -689,23 +726,34 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
 
   function initializeExtension(): Promise<RuntimeSyncReport> {
     return enqueue(async () => {
-      const before = await chrome.storage.local.get(null);
-      const storedConfig = before[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-      const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 3)
-        || Boolean(before[LEGACY_VANISHME_CONFIG_KEY]) || Boolean(before[LAST_LOCATION_KEY])
-        || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
-          .some((key) => Object.prototype.hasOwnProperty.call(before, key));
-      const config = await getSiteConfig();
-      if (hadLegacyConfig) {
-        const signature = await runtimeConfigSignature(config);
-        const old = await getRuntimeSyncMetadata();
-        const pendingReloads = old?.report.configSignature === signature ? old.pendingReloads.slice() : [];
-        for (const tab of await queryScriptableTabs()) {
-          if (isUrlMatchedByEnabledRule(config, tab.url)) pendingReloads.push({ tabId: tab.id, urlSignature: await syncSignature(tab.url) });
+      try {
+        const before = await chrome.storage.local.get(null);
+        const storedConfig = before[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
+        const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 3)
+          || Boolean(before[LEGACY_VANISHME_CONFIG_KEY]) || Boolean(before[LAST_LOCATION_KEY])
+          || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
+            .some((key) => Object.prototype.hasOwnProperty.call(before, key));
+        const config = await getSiteConfig();
+        if (hadLegacyConfig) {
+          const signature = await runtimeConfigSignature(config);
+          const old = await getRuntimeSyncMetadata();
+          const pendingReloads = old?.report.configSignature === signature ? old.pendingReloads.slice() : [];
+          for (const tab of await queryScriptableTabs()) {
+            if (isUrlMatchedByEnabledRule(config, tab.url)) pendingReloads.push({ tabId: tab.id, urlSignature: await syncSignature(tab.url) });
+          }
+          await setRuntimeSyncMetadata({ version: 1, report: pendingSyncReport(signature), pendingReloads });
         }
-        await setRuntimeSyncMetadata({ version: 1, report: pendingSyncReport(signature), pendingReloads });
+        return await reconcile(config);
+      } catch (error) {
+        // 启动状态不可确认时，只撤销所属字体注册；清理仍占用配置队列，不猜测或覆盖配置。
+        const cleanup = await syncFontScriptRegistration([]);
+        if (cleanup.status !== 'ok') {
+          const reason = error instanceof Error ? error.message : String(error);
+          throw Object.assign(new RuntimeSyncOperationError('font-scripts-sync-failed',
+            `启动初始化失败：${reason}；旧字体注册清理未能确认。`), { cause: error });
+        }
+        throw error;
       }
-      return reconcile(config);
     });
   }
 

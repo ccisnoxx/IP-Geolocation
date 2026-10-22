@@ -2,7 +2,7 @@
 
 > **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；字体暴露过滤仍暂停，配置仅保存。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 本说明描述当前维护源的数据流与存储；权限清单见 [PERMISSIONS](PERMISSIONS.md)。VanishGeo 不提供 VPN/代理，不改变正常请求的网络出口，也不承诺匿名或让网页无法观测浏览器。没有后台定时出口刷新，也没有配置同步到开发者服务器的流程。
 
@@ -74,3 +74,10 @@ HTTP Accept-Language 与其他请求头保持原生；当前版本不再申请 D
 扩展报告的“VG-009”入口沿用一次性内存 run、精确报告来源与文档/TTL 校验。MAIN 只读既有快照并补采报告时的实际 API；预期仍由后台现有 resolver 解析、留在扩展内部。ISOLATED 有效 origin 仅用于诊断 fallback 来源，不扩大生产注入授权；不明来源为 UNKNOWN。该入口不启动完整诊断的位置、header、worker、ICE/STUN 或外部 provider 请求。
 
 自动验收只在临时 Chrome profile 中使用合成语言/时区和固定 localhost fixture 路径，通过本机 CDP 读取扩展报告。可选 JSON 输出含浏览器版本、实际语言/时区、固定日期偏移、采样毫秒及阶段判定；不含 IP、坐标、真实文件路径、凭据、完整配置或 run/document ID。JSON 是用户选择的本地交付文件，需自行管理；临时 profile/server 退出时清理。
+
+## 固定字体候选
+
+VG-025 隔离字体脚本只含固定内置名单（16项厂商/软件及2026-10-22授权新增的27项简繁中文字体），无公网IP、位置、规则或档案payload、storage或页面配置桥；2026-10-20用户已授权固定内置名单生产注册；custom、位置及Worker继续暂停。真实Chrome资格runner仅访问loopback，合成目标字体别名通过本机字体加载，无字体下载；完整像素/图像和原生设备值只在进程内对照，正式JSON仅保存布尔、版本与固定源码SHA256。Chrome自身后台网络未做全量监控。
+
+
+VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom、位置和Worker继续暂停。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。

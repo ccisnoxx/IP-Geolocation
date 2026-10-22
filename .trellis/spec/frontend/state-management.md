@@ -1,6 +1,6 @@
 # 状态管理
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；字体暴露过滤仍暂停，配置仅保存；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 场景：出口位置档案与页面运行时一致性
 
@@ -44,7 +44,7 @@ deleteExitLocationProfile(profileId: string): Promise<ConfigSaveResult>;
 - `detectExitLocation` 只产生 `chrome.storage.session` 中的短期候选；确认前不得写入 local 配置。
 - 重检确认保留档案 ID，并以 `baseVerifiedAt` 检测并发修改；引用该 ID 的规则继续跟随更新后的档案。
 - 完整配置导入必须把出口档案降级为 unverified，并清空规则绑定。
-- 配置写入前后按 URL 比较最小语言/时区 payload 的语义签名，只对变化的已打开标签页记录人工重载待办；时间戳、错误文案、位置、仅保存的字体配置或管理元数据不新增待办。
+- 配置写入前后按 URL 比较最小语言/时区 payload 的语义签名，只对变化的已打开标签页记录人工重载待办；时间戳、错误文案、位置、仅保存的custom字体配置或管理元数据不新增待办；固定字体注册范围变化按下述VG-025合同记独立font债。
 - 生产页面不发送初始化消息；管理页消息仍经过 requireExtensionPage。后台在注册前从持久化配置解析 payload，网页不能提交 payload。
 
 ### 4. Validation & Error Matrix
@@ -161,8 +161,24 @@ pageRuntime 区分 ready、disabled、api-unsupported、permission-required、sw
 
 用户最新决定保留已验收语言/时区 userScripts；输入文档复用的 VG-023 编号和全暂停假设不覆盖历史任务，本次编号为 VG-028。
 
-config-model 是 FontExposureConfig 和规范键的唯一配置所有者；fontExposure = {enabled, mode: vendor-software|custom, blockedFamilies}。vendor 使用唯一 VENDOR_SOFTWARE_FONT_FAMILIES；默认关闭，内置16项厂商／软件字体。配置键保持vendor-software，旧v3内置模式读取即归一化至当前固定名单，custom名单和开关不变。v2 canvas 关闭→新默认关闭；启用且旧默认规范集合等价→启用vendor；启用自定义→custom、trim去空按规范键去重并保留首次显示值。v3不得再次使用canvas。全局、Profile与规则override均不保留acceptLanguage；未知旧兼容字段丢弃，显式非法模式/名单/输入在写前拒绝。
+config-model 是 FontExposureConfig 和规范键的唯一配置所有者；fontExposure = {enabled, mode: vendor-software|custom, blockedFamilies}。vendor 使用唯一 VENDOR_SOFTWARE_FONT_FAMILIES；默认关闭；2026-10-22用户授权内置名单从16项厂商／软件扩展至43项，新增19项简体及8项繁体中文字体，仍只作用于启用HTTP(S) allowlist。配置键保持vendor-software，旧v3内置模式读取即归一化至当前固定名单，custom名单和开关不变。v2 canvas 关闭→新默认关闭；启用且旧默认规范集合等价→启用vendor；启用自定义→custom、trim去空按规范键去重并保留首次显示值。v3不得再次使用canvas。全局、Profile与规则override均不保留acceptLanguage；未知旧兼容字段丢弃，显式非法模式/名单/输入在写前拒绝。
 
 storage key不变，v2首次读取迁移写回v3；已规范化v3不重写。规则（含禁用规则）、verified档案、WebRTC、位置、时区、intlMode不丢失；导入继续降级verified和清空绑定。旧宽名单只作私有迁移识别常量。回滚旧构建可能重新生成请求头规则，不能承诺无损降级。
 
 VG-028清理阶段已人工验收。VG-024已移除DNR权限与过渡组件，现行同步仅contentScripts/webrtc/tabReload；旧marker可惰性保留但不得写入/依赖。v2跳级残留可能留在磁盘，但权限缺失时不启用；未来重新引入须独立授权和清理迁移，不能直接恢复权限。
+
+唯一内置字体常量在无副作用font-families模块，config-model保持import/reexport；固定字体entry直接导入常量模块，避免默认规则/配置初始化被打入包内脚本。同模块的CANVAS_MEASUREMENT_ALLOWED_FAMILIES仅为包内固定测量策略，不进入FontExposureConfig或storage：2026-10-22授权仅在生产entry的顶层文档传入，check和iframe的blockedFamilies配置/归一化不变。VG-025候选有人工恢复门禁，用户已于2026-10-20授权固定内置名单恢复，后台按唯一compiler派生注册；custom继续暂停，不得把注册就绪当当前文档已验证应用。仍不得导入完整runtime恢复。
+
+## VG-025 字体运行状态与刷新债
+
+RuntimeSyncReport可选fontRuntime独立于pageRuntime；历史缺字段为UNKNOWN。ready只表示新建匹配HTTP(S)文档的固定名单注册回读成功，不表示当前文档已应用。disabled/paused/custom-paused都须先确认已撤注册；失败数量null，不以零掩盖残留。人工门禁已获用户授权并开启，custom仅保存；contentScripts组件归并两类注册错误，pageRuntime与fontRuntime分别保留实际状态。
+
+启动初始化异常不能跳过旧字体注册清理。services 在同一配置队列内直接以空 desired 调用既有字体对账原语，不依赖配置或 session metadata 读取成功，只撤销 `vanishgeo-font-exposure-` 所属命名空间并回读；其他 ID 即使引用同一资产也保留。清理成功仍抛出原启动错误；清理未确认则抛出 `font-scripts-sync-failed`，保留原错误为 cause 并在消息中明确双重失败，不返回成功报告或伪造数量零。不猜测／覆盖配置、不自动刷新，后续恢复仍走正常初始化对账。
+
+同一session metadata pendingReloads增量可选surfaces:['page'|'font']；旧无标签只算page。保存时用resolver派生语言/时区payload和固定字体有效活动变化，合并债时深拷贝，保留前签名回滚债；不同表面的失败不抹去成功表面的重载提示。主开关/vendor→custom/allowlist撤销影响新文档，旧hook/BFCache须重建；不热更新、不自动reload，未恢复custom名单编辑不制造新债。只新增表面标签，不新增配置或敏感payload事实源。
+
+
+独立复核发现并修复两项重载债遗漏：保存/注销窗口内新开的文档，以及只有iframe命中的顶层页面。字体注册范围变化现在直接比较同一compiler结果，对所有普通HTTP(S)标签页保守记font债（顶层URL无法排除iframe）；UI明确保守提示。预写pendingFontScopeChange保存窗口补录义务，reconcile完成注册后再次query合并窗口新页，字体失败或查询失败保留marker跨中断恢复；成功才清除。previous同时保留旧签名marker，任意后续保存不能丢失尚未完成的补录义务。pendingForSignature深拷贝防止合并污染旧记录。无新增权限或页面文档观察桥。
+
+
+VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom、位置和Worker继续暂停。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。

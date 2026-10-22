@@ -1,6 +1,6 @@
 # 质量规范
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；字体暴露过滤仍暂停，配置仅保存；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 当前技术与权威边界
 
@@ -20,7 +20,7 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 
 - manifest 保持 MV3、最低 Chrome 138、userScripts 权限、无静态 content_scripts、WAR 为空。正常开启 Allow User Scripts 是用户前置条件，不写 profile/prefs 或用命令行绕过。不可用时 fail closed，区分 API/权限/用户开关/注册失败。
 - 生产注册只来自 validateConfig/resolver 最小 payload 与构建模板；安全 JSON 值，不接受网页或用户 JavaScript，不使用 eval/new Function、远程 import/运行期下载。不得写 IP/provider、完整规则/档案或暂停/未启用信号。
-- Chrome 直接按 MAIN / document_start / matches / excludeMatches / allFrames 执行普通 HTTP(S) 新文档；最长域名优先，即使子规则无有效页面信号。无 content 初始化、worker documentId 或 scripting.executeScript 生产回退。
+- Chrome 直接按 MAIN / document_start / matches / excludeMatches / allFrames 执行普通 HTTP(S) 新文档；最长域名优先，即使子规则无有效页面信号。无 content 初始化、worker documentId 或 scripting.executeScript 生产回退；scripting另按同一allowlist派生包内固定字体脚本；不向该脚本传动态payload。
 - 所有注册修改经 services 唯一串行队列，先撤销失效/范围变化并确认，再更新保留项，最后新增并读回。每次失败进入报告；worker 初始化及 onInstalled(update) 幂等恢复。注册完成后才能提示手动完整 reload/关闭重开，不自动刷新，不热更新旧/BFCache 文档。
 - 普通 iframe 按自己的 URL 匹配；about:blank/srcdoc/data/blob/特殊 sandbox 明确 unsupported / UNKNOWN，不启用 origin fallback 或父子帧遍历。管理动作仍 requireExtensionPage，无 postMessage/DOM 配置桥。
 - HTTP 请求头保持原生；manifest 不再声明 DNR 权限，生产不调用 DNR API，无过渡清理组件或标记写入；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
@@ -29,7 +29,7 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 
 ## 页面 hook 与设备透传
 
-生产语言/时区入口仅安装Navigator语言与Intl/Date，includeTemporal:false。Geolocation/Permissions、字体和Worker/SharedWorker继续暂停，完整runtime不生产派发。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
+生产语言/时区入口仅安装Navigator语言与Intl/Date，includeTemporal:false；固定内置字体通过独立包内脚本派发。Geolocation/Permissions、custom字体和Worker/SharedWorker继续暂停，完整runtime不生产派发。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
 
 Navigator / WorkerNavigator getter 保留原生 prototype 位置、descriptor flags、name/length 和非法 receiver 异常；仅当前 navigator 返回配置值，其他 receiver 调用原生 getter。属性后来被网页替换、删除或冻结时，反射 API 必须报告实际值。函数 source 由未修改的引擎 API 决定，不保证包装函数与原函数源码文本相同。
 
@@ -146,4 +146,12 @@ sandbox 只设置 allow-scripts，不设置 allow-same-origin；三个文档有�
 
 ## VG-028 字体与网络收窄
 
-字体生产暂停，维护源仅过滤目标measureText与FontFaceSet.check，内置16项厂商／软件字体；普通字体、绘制、像素、图像导出和未接管API保持原生。header echo只作原生观测，不与网页语言比较PASS/FAIL，不传递预期配置。网络升级与Node/VM/dry-run证据分别记录。
+VG-028历史阶段生产字体过滤暂停；VG-025已获用户授权恢复固定内置名单，维护源 font-exposure 只处理目标 measureText 和 FontFaceSet.check；2026-10-22用户授权固定名单增至43项（16项厂商／软件及27项简繁中文字体），仍仅启用HTTP(S) allowlist；非目标走原生，禁用零hook，不接管getContext/fillText/strokeText/像素/图像导出。descriptor、proxy/toString、receiver与参数转换异常保持可观测原生合同。不扩大到DOM/local()/Worker字体探测。2026-10-22额外授权：固定生产入口仅对命中HTTP(S)白名单的顶层文档给measureText启用包内monospace/sans-serif/serif允许名单；保留字号/样式和允许项顺序，无允许项回退sans-serif，引号同名不算通用关键字。FontFaceSet.check和iframe仍用43项固定名单，完整维护runtime未传允许名单时也保持旧行为。不新增权限、配置、父子遍历或同步回调接管。Canvas测量与实际绘制可能不同，需提示排版/导出兼容性，不能宣称真实字体环境跨OS一致。字体使用独立fontRuntime状态，custom仅保存；ready只表示匹配新文档注册就绪。header echo只作原生观测，不与网页语言比较PASS/FAIL；不传期望配置，不保存完整敏感请求头。真实Chrome原位升级证据与Node/VM/dry-run分开报告。VG-028 阶段未删除权限；VG-024 已删除两项 DNR 权限，历史研究证据不覆写。
+
+
+## VG-025 正式接线候选验证
+
+node --import tsx scripts/chrome-font-filter-smoke.mjs --services-integration --output <脱敏JSON> 在独立临时扩展上下文运行实际services、resolver、storage与字体UI renderer；复用已获授权的生产源码，另打包门禁false的人工暂停变体作撤销负对照。合成localhost/127规则，不读取用户配置、不请求provider，不修改生产源或dist。此模式与额外--browser-restart分开，验证字体注册、独立状态/刷新债、新service实例恢复、custom与scope撤销、总开关及原false门禁；不能称为生产worker事件、浏览器冷启动或人工恢复验收。
+
+
+VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom、位置和Worker继续暂停。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。

@@ -12,6 +12,7 @@ import { generateRuntime, generatePageRuntime, assertSelfContainedFunction, proj
 import { runtimePlugin } from '../build/runtime-plugin';
 import { normalizeTimezonePayload } from '../src/injected/runtime-modules/payload';
 import { fontFamilyKey, splitFontFamilies, getFallbackFont, getAllowedMeasurementFont } from '../src/injected/runtime-modules/surfaces/font-exposure';
+import { CANVAS_MEASUREMENT_ALLOWED_FAMILIES } from '../src/shared/font-families';
 import { randomCoordinateInRadius } from '../src/injected/runtime-modules/surfaces/geolocation-permissions';
 
 function page() {
@@ -36,6 +37,15 @@ test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有
   assert.deepEqual(randomCoordinateInRadius(12, 23, 0), { latitude: 12, longitude: 23 });
 });
 
+test('测量允许名单保留通用字体顺序，未知具名字体和引号同名字体使用回退', () => {
+  const allowed = new Set<string>(CANVAS_MEASUREMENT_ALLOWED_FAMILIES);
+  assert.equal(getAllowedMeasurementFont('72px "Future Font", monospace', allowed), '72px monospace');
+  assert.equal(getAllowedMeasurementFont('italic bold 24px Arial, serif, sans-serif', allowed), 'italic bold 24px serif, sans-serif');
+  assert.equal(getAllowedMeasurementFont('20px "Font, With Comma"', allowed), '20px sans-serif');
+  assert.equal(getAllowedMeasurementFont('20px "serif"', allowed), '20px sans-serif');
+  assert.equal(getAllowedMeasurementFont('20px s erif', allowed), '20px sans-serif');
+  assert.equal(getAllowedMeasurementFont('20px monospace, sans-serif, serif', allowed), null);
+});
 
 test('构建守卫拒绝外部 helper、动态 import、运行期编译及函数外状态', () => {
   assert.throws(() => assertSelfContainedFunction('function r(){missingHelper()}', 'r'), /外部绑定/);

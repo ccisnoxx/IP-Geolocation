@@ -1,0 +1,165 @@
+{
+  "task": "VG-025",
+  "scope": "unmodified-dist-browser-card-disable",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.85",
+  "checks": {
+    "nativePositiveControl": true,
+    "enabledFilterAndMatchingAssetConfirmed": true,
+    "internalMasterOffNewDocumentNative": true,
+    "internalMasterOffFullReloadNative": true,
+    "browserCardDisabledStateConfirmed": true,
+    "browserCardOffNewDocumentNative": true,
+    "browserCardOffFullReloadNative": true,
+    "browserReenablePreservesMasterAndRestoresFilter": true,
+    "exactUninstrumentedDistVerified": true
+  },
+  "productionRecovery": "AUTHORIZED",
+  "cleanup": "PASS",
+  "failure": null,
+  "limitations": [
+    "全新临时Chrome/profile直接加载当前dist原路径，无插桩、无新增驱动页、无权限变更；控制面使用原有Options页",
+    "内部总开关通过受保护管理消息切换；浏览器停用通过chrome://extensions对应卡片的可信鼠标点击并重新读取UI状态，不使用unload或管理API替代",
+    "本轮未重启任何浏览器；不覆盖真正冷启动、Chrome138/其他OS或用户Chrome现场状态",
+    "仅合成loopback探针，不请求provider；浏览器自身后台网络未全量监控；不保存用户路径、实际扩展ID、文档nonce或字体/设备原值"
+  ],
+  "userProfileAccessed": false,
+  "siteRootCause": "UNCONFIRMED",
+  "fontFilterSha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860",
+  "distFingerprint": {
+    "fileCount": 48,
+    "sha256": "b226df8ea498c4c6bdf60bbfb4bf57a3caaac99da2eb3b916384fac92db3b746"
+  },
+  "distBackupMatchesSource": true,
+  "loadedCurrentDistDirectly": true,
+  "sourceCollectionProtocolVerified": true,
+  "observations": {
+    "native": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "internalEnabled": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": false,
+      "targetMetricsEqualMonospace": true,
+      "ordinaryIframeCheck": false,
+      "stackContainsFontAsset": true,
+      "fontAssetParsedInTopDocument": true,
+      "parsedFontAssetMatchesDist": true
+    },
+    "internalOffNew": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "internalOffReload": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "beforeBrowserCardOff": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": false,
+      "targetMetricsEqualMonospace": true,
+      "ordinaryIframeCheck": false,
+      "stackContainsFontAsset": true,
+      "fontAssetParsedInTopDocument": true,
+      "parsedFontAssetMatchesDist": true
+    },
+    "browserDisabledNew": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "browserDisabledReload": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "browserReenabled": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": false,
+      "targetMetricsEqualMonospace": true,
+      "ordinaryIframeCheck": false,
+      "stackContainsFontAsset": true,
+      "fontAssetParsedInTopDocument": true,
+      "parsedFontAssetMatchesDist": true
+    }
+  },
+  "cardStates": {
+    "initial": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "ENABLED",
+      "checked": true,
+      "disabled": false
+    },
+    "internalMasterOff": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "ENABLED",
+      "checked": true,
+      "disabled": false
+    },
+    "browserDisabled": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "DISABLED",
+      "checked": false,
+      "disabled": false
+    },
+    "reenabled": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "ENABLED",
+      "checked": true,
+      "disabled": false
+    }
+  },
+  "internalOffReport": {
+    "masterEnabled": false,
+    "font": {
+      "state": "disabled",
+      "registeredRuleCount": 0,
+      "reloadRequired": true
+    },
+    "browserCardStillEnabled": true
+  },
+  "masterEnabledImmediatelyBeforeBrowserDisable": true,
+  "browserDisableMethod": "extension-card-trusted-pointer-and-fresh-manager-state",
+  "workerTargetPresentAfterCardDisable": false,
+  "oldDocumentRetainsHookBeforeReload": true,
+  "browserDisableOutcome": "NO_INJECTION_OBSERVED",
+  "masterEnabledAfterBrowserReenable": true,
+  "backupDistCopyUnchangedAfterRun": true,
+  "sourceDistUnchangedAfterRun": true
+}

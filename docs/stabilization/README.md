@@ -1,6 +1,18 @@
 # VanishGeo 稳定化执行基线
 
-本目录管理稳定化 R0–R5 的范围、依赖、状态和验收证据。VG-000 与 **VG-001：保留已禁用站点规则并统一规则编辑语义** 均已于 2026-10-14 由用户确认人工验收通过；VG-001 的确认覆盖真实 Chrome Options/Popup 规则编辑保存与重新读取。具体状态只读取 manifest，VG-002 已完成本地实现、验证和托管诊断页部署，用户于 2026-10-14 确认 Chrome 人工验收通过，状态为 done；VG-003 已完成用户指定的扩展侧诊断、本地96项验证及Chrome155定向smoke，用户于 2026-10-14 确认 hosted、localhost、导航、取消和过期场景的 Chrome 人工验收通过，状态为 done。VG-004 已完成文档清理和本地核验，用户于 2026-10-14 确认文档人工验收通过，状态为 done，记录与证据见下方入口；VG-005 按用户授权校准为 CI 与发布测试门禁，已完成本地实现、验证和独立审查，用户于 2026-10-14 确认本地人工验收通过，状态为 done，记录见下方；VG-006 已按用户请求校准为 R2 运行时副作用对账，完成本地实现/121项测试/定向Chrome155与独立审查；用户于 2026-10-14 确认四组件失败与恢复、service worker 重启重试、同签名幂等及 UI 同步状态人工验收通过，状态为 done；VG-007 已完成 SharedWorker 身份缓存与 Blob URL 生命周期修复、本地验证和 Chrome155 定向 smoke，最终独立复核通过；用户于 2026-10-15 确认 SharedWorker 复用、不同 name 隔离、Blob URL 回收和 module 时序的 Chrome 人工验收通过，并接受缓冲阶段 connect.isTrusted=false 的限制，状态为 done；VG-008 已按用户请求校准为 R2 配置迁移、Profile 校验与 UI 正确性，完成本地实现、139项测试、Chrome155定向smoke与独立复核，用户于 2026-10-15 确认 Chrome 人工验收全部通过，状态为 done；VG-009 已完成首个 inline script 时序验收实现、144项Node门禁和真实Chrome155三次定向观测，确认earliest原始值竞态；用户于2026-10-15确认三阶段证据与报告一致并接受该已知限制，当前为done（仅验收能力及证据交付完成，竞态未修复）；VG-010 已按用户请求校准为 R3 首次安装引导与安全默认值，已完成本地实现、151项测试、真实Chrome155 fresh/upgrade定向smoke与最终独立复核；用户于2026-10-15确认全新安装、已有v2升级、引导启用、跳过和重置的Chrome人工验收通过，当前done；VG-011 已完成 R3 运行时模块化设计、最小 spike 与安全暂停，用户于2026-10-15确认安全暂停人工验收通过，当前 done；原生错投 FAIL 与扩展阻断 PASS 分开保留，具体证据见下方；VG-012 已完成运行时模块化，用户于2026-10-15确认当前dist可加载、模块化前后行为等价且VG-011安全暂停保持，当前done，记录见文末；VG-013 已于2026-10-15由用户确认 strict、compatible、旧配置迁移及 VG-011 生产安全暂停人工验收通过，当前done，见文末；VG-014 已按用户请求进入 R4 集成验收，当前状态只读取 manifest；最新结果见 [发布候选报告](./release-readiness.md)。
+## 2026-10-20 VG-024 权限退出（历史）
+
+VG-028与VG-024均已获用户人工验收，manifest为done，Trellis completed；该阶段未提交、未发布、未启动后续任务。该阶段候选删除两项DNR权限及清理组件，生产不依赖DNR API；当时仅保留语言/时区注册、WebRTC及人工重载提示。schema3、已验收userScripts与当时其他表面暂停不变。后续固定字体恢复授权及当前验收停止点见文末“VG-025 当前交付（阶段历史）”。
+
+旧v2跳过清理升级可能残留磁盘规则；无权限时不启用，本版本不再请求DNR，未来重引入必须独立迁移。两条真实Chrome升级路径和最低门禁结果见[VG-024记录](../../.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md)。以下VG-028及更早DNR清理/生成描述属于历史范围与证据，不代表当前候选组件。状态只以[manifest](./task-manifest.yaml)为准。
+
+## 2026-10-20 VG-028 阶段产品契约（历史）
+
+用户确认保留原 VG-023 已验收的语言／时区 userScripts；本次新编号 VG-028 承接两份输入计划的请求头与字体重构，原 VG-023 done 和 VG-022 状态不变。以下历史任务的 DNR 规则生成、schema v2、Canvas 命名与完整暂停描述保留其原始时间点，不代表现行产品行为。
+
+该阶段目标为 schema v3、原生 HTTP 请求头、遗留 DNR 规则只清理、选择性厂商／软件字体暴露过滤维护源。字体/位置/Worker 生产继续暂停，普通字体、Canvas 图像和 WebGL/GPU/UA/硬件保持原生。该阶段 DNR 权限暂留至 VG-024，未实施后续任务。最新状态仅以 [manifest](./task-manifest.yaml) 为准；具体实现、命令结果、独立复核和真实 Chrome 升级证据见 [VG-028 记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。
+
+本目录管理稳定化 R0–R7 的范围、依赖、状态和验收证据。VG-000 与 **VG-001：保留已禁用站点规则并统一规则编辑语义** 均已于 2026-10-14 由用户确认人工验收通过；VG-001 的确认覆盖真实 Chrome Options/Popup 规则编辑保存与重新读取。具体状态只读取 manifest，VG-002 已完成本地实现、验证和托管诊断页部署，用户于 2026-10-14 确认 Chrome 人工验收通过，状态为 done；VG-003 已完成用户指定的扩展侧诊断、本地96项验证及Chrome155定向smoke，用户于 2026-10-14 确认 hosted、localhost、导航、取消和过期场景的 Chrome 人工验收通过，状态为 done。VG-004 已完成文档清理和本地核验，用户于 2026-10-14 确认文档人工验收通过，状态为 done，记录与证据见下方入口；VG-005 按用户授权校准为 CI 与发布测试门禁，已完成本地实现、验证和独立审查，用户于 2026-10-14 确认本地人工验收通过，状态为 done，记录见下方；VG-006 已按用户请求校准为 R2 运行时副作用对账，完成本地实现/121项测试/定向Chrome155与独立审查；用户于 2026-10-14 确认四组件失败与恢复、service worker 重启重试、同签名幂等及 UI 同步状态人工验收通过，状态为 done；VG-007 已完成 SharedWorker 身份缓存与 Blob URL 生命周期修复、本地验证和 Chrome155 定向 smoke，最终独立复核通过；用户于 2026-10-15 确认 SharedWorker 复用、不同 name 隔离、Blob URL 回收和 module 时序的 Chrome 人工验收通过，并接受缓冲阶段 connect.isTrusted=false 的限制，状态为 done；VG-008 已按用户请求校准为 R2 配置迁移、Profile 校验与 UI 正确性，完成本地实现、139项测试、Chrome155定向smoke与独立复核，用户于 2026-10-15 确认 Chrome 人工验收全部通过，状态为 done；VG-009 已完成首个 inline script 时序验收实现、144项Node门禁和真实Chrome155三次定向观测，确认earliest原始值竞态；用户于2026-10-15确认三阶段证据与报告一致并接受该已知限制，当前为done（仅验收能力及证据交付完成，竞态未修复）；VG-010 已按用户请求校准为 R3 首次安装引导与安全默认值，已完成本地实现、151项测试、真实Chrome155 fresh/upgrade定向smoke与最终独立复核；用户于2026-10-15确认全新安装、已有v2升级、引导启用、跳过和重置的Chrome人工验收通过，当前done；VG-011 已完成 R3 运行时模块化设计、最小 spike 与安全暂停，用户于2026-10-15确认安全暂停人工验收通过，当前 done；原生错投 FAIL 与扩展阻断 PASS 分开保留，具体证据见下方；VG-012 已完成运行时模块化，用户于2026-10-15确认当前dist可加载、模块化前后行为等价且VG-011安全暂停保持，当前done，记录见文末；VG-013 已于2026-10-15由用户确认 strict、compatible、旧配置迁移及 VG-011 生产安全暂停人工验收通过，当前done，见文末；VG-014 已按用户请求进入 R4 集成验收，当前状态只读取 manifest；最新结果见 [发布候选报告](./release-readiness.md)。
 
 ## 权威入口
 
@@ -163,9 +175,15 @@ VG-013 本地结果：170/170、源码/测试类型、build、diff与dry-run通�
 
 2026-10-15，用户确认VG-021隔离验证验收通过，接受有限同步表达GO、安全恢复NO_GO及已知限制，见[人工验收记录](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md#人工验收)。manifest由review更新为done，Trellis由review更新为completed。生产伪装继续暂停，不启动恢复实施；研究验收不构成恢复或发布批准。不改版本、不提交、推送或发布，原Chrome证据和未验证范围保持。
 
-## 本地分任务提交范围（2026-10-22）
+## VG-025 当前交付（阶段历史）
 
-本次仅按用户授权整理必要前置任务和VG-029为本地提交；不push、不发布，其他任务保持未提交。任务状态以manifest为准；旧阶段的暂停、测试数量和未提交描述保留历史含义。
+2026-10-21校准：VG-025为`review`、人工验收`pending`，状态只以[manifest](./task-manifest.yaml)为准，人工验收事实见各任务记录；以下区分恢复授权、既有验证和当前验收停止点。
 
-- VG-028：schema v3、原生请求头、16项字体配置与维护源；DNR仅清理历史1100至2099，语言/时区保持，字体/位置/Worker生产暂停。 [执行记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。
-- VG-024：移除两项DNR权限和过渡清理；已清理VG028与旧v2跳级升级分别保留真实Chrome证据。无权限下磁盘残留状态不承诺已清除。 [执行记录](../../.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md)。
+- **VG-025**：2026-10-20用户已明确授权固定内置名单仅按已启用HTTP(S) allowlist派发，生产门禁已为true；custom名单、位置／Permissions geolocation及Worker／SharedWorker继续暂停。真实用户Chrome的关闭基线尚未通过，现场根因`UNCONFIRMED`；G05原生查询未执行，G05／G07均为`UNKNOWN`。独立启动读取失败修复、隔离PASS和固定脚本注册不替代现场归因或当前页面生效判断。自动现场取证已停止，具体访问限制和恢复采集条件见[最新停止记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#当前停止点g05-查询受阻停止自动现场取证2026-10-21)。
+
+
+
+
+## 2026-10-22 VG-025 已接受范围
+
+固定名单和顶层测量允许名单已获用户限定人工验收，当前状态为done；上述2026-10-21的review、现场UNKNOWN及停止说明保留历史含义。具体范围和未验证项见[人工验收记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#2026-10-22-人工验收与收尾)。

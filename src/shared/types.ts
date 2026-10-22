@@ -181,6 +181,11 @@ export interface PageRuntimeStatus {
   registeredRuleCount: number | null;
   reloadRequired: boolean;
 }
+export interface FontRuntimeStatus {
+  state: 'ready' | 'disabled' | 'paused' | 'custom-paused' | 'sync-failed';
+  registeredRuleCount: number | null;
+  reloadRequired: boolean;
+}
 export type RuntimeSyncComponent = 'contentScripts' | 'webrtc' | 'tabReload';
 
 export interface RuntimeSyncError {
@@ -200,6 +205,7 @@ export interface RuntimeSyncReport {
   metadataError: RuntimeSyncError | null;
   warnings?: RuntimeSyncError[];
   pageRuntime?: PageRuntimeStatus;
+  fontRuntime?: FontRuntimeStatus;
 }
 
 export interface ConfigSaveResult {
@@ -211,8 +217,11 @@ export interface ConfigSaveResult {
 export interface RuntimeSyncMetadata {
   version: 1;
   report: RuntimeSyncReport;
-  pendingReloads: Array<{ tabId: number; urlSignature: string }>;
+  // 旧记录未带 surfaces 时仅代表语言/时区；字体生产当时尚未恢复。
+  pendingReloads: Array<{ tabId: number; urlSignature: string; surfaces?: Array<'page' | 'font'> }>;
+  // 保存到注册同步的非原子窗口：完成后仍须补录其间新建的标签页（含 iframe）。
+  pendingFontScopeChange?: boolean;
   // 预写新签名后、local 写入前中断时，仍能恢复旧配置的刷新欠账。
-  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads'] };
+  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads']; pendingFontScopeChange?: boolean };
   pendingDetectionCleanup?: string;
 }

@@ -1,4 +1,7 @@
 // 无配置初始化副作用，固定字体候选与配置模型共用唯一内置名单。
+// 保留 vendor-software 配置键；2026-10-22 获授权加入 27 项简繁中文字体。
+export const CANVAS_MEASUREMENT_ALLOWED_FAMILIES = ['monospace', 'sans-serif', 'serif'] as const;
+
 export const VENDOR_SOFTWARE_FONT_FAMILIES = [
   'MiSans',
   'MIUI',
@@ -15,5 +18,32 @@ export const VENDOR_SOFTWARE_FONT_FAMILIES = [
   'FZShuSong-Z01S',
   'FZKai-Z03S',
   'FZHei-B01S',
-  'FZFangSong-Z02S'
+  'FZFangSong-Z02S',
+  'Microsoft YaHei',
+  'Microsoft YaHei UI',
+  'SimSun',
+  'NSimSun',
+  'SimHei',
+  'KaiTi',
+  'FangSong',
+  'DengXian',
+  'PingFang SC',
+  'Hiragino Sans GB',
+  'STHeiti',
+  'STSong',
+  'Songti SC',
+  'Source Han Sans CN',
+  'Source Han Sans SC',
+  'Noto Sans CJK SC',
+  'Noto Serif CJK SC',
+  'WenQuanYi Micro Hei',
+  'WenQuanYi Zen Hei',
+  'Microsoft JhengHei',
+  'PMingLiU',
+  'MingLiU',
+  'DFKai-SB',
+  'PingFang TC',
+  'PingFang HK',
+  'Source Han Sans TW',
+  'Noto Sans CJK TC'
 ];

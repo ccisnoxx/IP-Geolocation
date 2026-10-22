@@ -503,3 +503,35 @@ tasks:
       - 已清理VG028直接升级与旧v2跳级升级均验证原生header和权限收缩
       - 跳级遗留规则可能留存但不得启用，不重新申请DNR；未来重引入须独立迁移
       - 最低本地门禁和独立只读复核，结束仅review、人工确认后才done
+
+  - id: VG-025
+    title: 固定名单字体暴露过滤的生产恢复
+    phase: R7
+    dependencies: [VG-024, VG-023]
+    status: done
+    trellis_task: .trellis/tasks/10-20-vg-025-font-filter
+    production_restoration_authorization:
+      status: granted
+      date: 2026-10-20
+      scope: 固定内置名单，仅已启用HTTP(S) allowlist；2026-10-22授权增加27项简繁中文字体及顶层Canvas测量允许名单
+      excluded: [custom名单, Geolocation/Permissions geolocation, Worker/SharedWorker]
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      scope: 本次最小字体允许名单改动；仅已启用HTTP(S)白名单顶层measureText，check及iframe沿用现有行为
+      evidence: .trellis/tasks/10-20-vg-025-font-filter/implement.md#2026-10-22-人工验收与收尾
+      excluded:
+        - 全部iframe首读绝对隔离及旁路实验、其他指纹实验
+        - 原用户Chrome现场G05/G07及历史根因确认、Chrome138及其他OS完整验收
+        - 提交、推送、发布和其他任务人工验收
+    scope:
+      - 包内固定 MAIN document_start 字体脚本与 allowlist 派生注册和生产对账
+      - 2026-10-22授权内置名单由16项扩展至43项；保持仅启用HTTP(S) allowlist及原有开关
+      - 2026-10-22增量仅顶层measureText允许monospace/sans-serif/serif，无允许项回退sans-serif；check及iframe不变，无新增权限或配置
+      - 独立字体运行状态、旧文档重载提示及普通用户启用流程
+      - 真实 Chrome 首读、生命周期和原生表面对照；2026-10-20获授权恢复固定名单，custom/位置/Worker仍暂停
+    acceptance:
+      - 无动态敏感 payload、页面桥、documentId 或完整 runtime 恢复
+      - 有限探测覆盖、撤销与旧文档快照边界明确，独立安全复核
+      - 2026-10-22用户确认本次最小字体允许名单改动验收通过，按上述限定范围done；未授权提交发布

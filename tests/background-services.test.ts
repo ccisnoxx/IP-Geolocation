@@ -683,6 +683,128 @@ test('初始化先撤销旧 ISOLATED bootstrap，再注册新文档语言/时区
   } finally { mock.restore(); globalThis.fetch = originalFetch; }
 });
 
+test('启动读取失败仍撤销所属字体注册，保留其他ID及原始错误，恢复后可再次对账', async (t) => {
+  for (const source of [
+    { name: '首次 local 读取', area: 'local', failAt: 1 },
+    { name: '配置 local 读取', area: 'local', failAt: 2 },
+    { name: 'session metadata 读取', area: 'session', failAt: 1 }
+  ] as const) await t.test(source.name, async () => {
+    const config = createInitialConfig();
+    config.fontExposure.enabled = true;
+    const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+    const before = clone(storage);
+    const other = { id: 'other-owned-component', matches: ['*://example.test/*'], js: ['font-exposure/filter.js'] };
+    const mock = installChromeMock(storage, { initialScripts: [
+      { ...other, id: 'vanishgeo-font-exposure-example.test' }, other
+    ] });
+    const area = chrome.storage[source.area];
+    const originalGet = area.get;
+    const readError = new Error(`合成${source.name}失败`);
+    let reads = 0;
+    area.get = (async (...args: unknown[]) => {
+      if (++reads === source.failAt) throw readError;
+      return Reflect.apply(originalGet, area, args);
+    }) as typeof area.get;
+    try {
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+      await assert.rejects(services.initializeExtension(), error => error === readError);
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), [other]);
+      assert.deepEqual(mock.registeredScripts, []);
+      assert.deepEqual(storage, before);
+      assert.deepEqual(mock.sessionStorage, {});
+      assert.deepEqual(mock.pageMutations, { register: 0, update: 0, unregister: 0 });
+      assert.equal(mock.mutations.webrtc, 0);
+      assert.deepEqual(mock.executeCalls, []);
+      assert.deepEqual(mock.reloadCalls, []);
+
+      area.get = originalGet;
+      const restored = await services.initializeExtension();
+      assert.equal(restored.fontRuntime?.state, 'disabled');
+      assert.equal(restored.fontRuntime?.registeredRuleCount, 0);
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), [other]);
+    } finally { mock.restore(); }
+  });
+});
+
+test('启动读取失败且字体撤销失败时保留启动原因并明确清理未确认，不伪报成功', async () => {
+  const config = createInitialConfig();
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { initialScripts: [
+    { id: 'vanishgeo-font-exposure-example.test', matches: ['*://example.test/*'], js: ['font-exposure/filter.js'] }
+  ] });
+  const readError = new Error('合成启动读取失败');
+  const originalGet = chrome.storage.local.get;
+  const originalUnregister = chrome.scripting.unregisterContentScripts;
+  chrome.storage.local.get = (async () => { throw readError; }) as typeof originalGet;
+  chrome.scripting.unregisterContentScripts = async () => { throw new Error('合成字体撤销失败'); };
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    await assert.rejects(services.initializeExtension(), error => {
+      const failure = error as Error & { code?: string; cause?: unknown };
+      assert.equal(failure.code, 'font-scripts-sync-failed');
+      assert.equal(failure.cause, readError);
+      assert.match(failure.message, /合成启动读取失败/);
+      assert.match(failure.message, /字体.*清理.*未.*确认/);
+      return true;
+    });
+    assert.equal((await chrome.scripting.getRegisteredContentScripts()).length, 1);
+    assert.deepEqual(mock.registeredScripts, []);
+    assert.deepEqual(mock.sessionStorage, {});
+    chrome.storage.local.get = originalGet;
+    chrome.scripting.unregisterContentScripts = originalUnregister;
+    const restored = await services.initializeExtension();
+    assert.equal(restored.fontRuntime?.state, 'disabled');
+    assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+  } finally { mock.restore(); }
+});
+
+test('启动读取失败的字体清理完成前，不放行后续配置事务', async () => {
+  const config = createSingleRuleConfig('example.test', { automatic: false });
+  config.fontExposure.enabled = true;
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage, { initialScripts: [
+    { id: 'vanishgeo-font-exposure-example.test', matches: ['*://example.test/*'], js: ['font-exposure/filter.js'] }
+  ] });
+  const readError = new Error('合成首次启动读取失败');
+  const originalGet = chrome.storage.local.get;
+  const originalUnregister = chrome.scripting.unregisterContentScripts;
+  let reads = 0;
+  let signalCleanup!: () => void;
+  let releaseCleanup!: () => void;
+  const cleanupStarted = new Promise<void>(resolve => { signalCleanup = resolve; });
+  const cleanupReleased = new Promise<void>(resolve => { releaseCleanup = resolve; });
+  chrome.storage.local.get = (async (...args: unknown[]) => {
+    if (++reads === 1) throw readError;
+    return Reflect.apply(originalGet, chrome.storage.local, args);
+  }) as typeof originalGet;
+  chrome.scripting.unregisterContentScripts = (async (filter?: chrome.scripting.ContentScriptFilter) => {
+    signalCleanup();
+    await cleanupReleased;
+    await originalUnregister(filter);
+  }) as typeof originalUnregister;
+  let operations: Promise<unknown>[] = [];
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    const failed = assert.rejects(services.initializeExtension(), error => error === readError);
+    const queued = services.setExtensionEnabled(false);
+    operations = [failed, queued];
+    await cleanupStarted;
+    assert.equal(reads, 1);
+    assert.equal(storage[SITE_CONFIG_KEY].masterEnabled, true);
+    releaseCleanup();
+    await failed;
+    const saved = await queued;
+    assert.equal(saved.config.masterEnabled, false);
+    assert.equal(saved.syncReport.fontRuntime?.state, 'disabled');
+    assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+    assert.deepEqual(mock.registeredScripts, []);
+    assert.deepEqual(mock.reloadCalls, []);
+  } finally {
+    releaseCleanup();
+    await Promise.allSettled(operations);
+    mock.restore();
+  }
+});
+
 test('空storage安装/重复初始化安全关闭，不设置strict、注册脚本、刷新或联网；只有install打开引导', async () => {
   const storage: Record<string, any> = {};
   const mock = installChromeMock(storage);
@@ -1318,4 +1440,104 @@ test('移除DNR权限后无API也能保存、启停和worker恢复，旧marker�
       assert.deepEqual(mock.reloadCalls, []);
     } finally { mock.restore(); }
   }
+});
+
+
+test('未启用规则时后台对账撤销旧字体项，不影响语言时区或其他注册', async () => {
+  const value = createInitialConfig();
+  value.masterEnabled = true; value.fontExposure.enabled = true;
+  const storage = { [SITE_CONFIG_KEY]: value };
+  const mock = installChromeMock(storage, { initialScripts: [
+    { id: 'vanishgeo-font-exposure-example.test', matches: ['*://example.test/*'], js: ['font-exposure/filter.js'] },
+    { id: 'other-owned-component', matches: ['*://other.test/*'], js: ['other.js'] }
+  ] });
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    const result = await services.reconcileRuntime();
+    assert.equal(result.syncReport.components.contentScripts.status, 'ok');
+    assert.deepEqual((await chrome.scripting.getRegisteredContentScripts()).map(script => script.id), ['other-owned-component']);
+    assert.deepEqual(mock.registeredScripts, []);
+  } finally { mock.restore(); }
+});
+
+test('获准字体生产接线独立于 userScripts：按实际字体变化保留重载欠账，重启恢复且不自动刷新', async () => {
+    const config = createSingleRuleConfig('example.com', { automatic: false });
+  config.globalProfile.language.enabled = false; config.globalProfile.timezone.enabled = false;
+  config.fontExposure.enabled = false;
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage, { tabs: [
+    { id: 1, url: 'https://example.com/page' }, { id: 2, url: 'https://unmatched.test/page' }
+  ] as chrome.tabs.Tab[] });
+  const originalRegister = chrome.scripting.registerContentScripts;
+  try {
+    chrome.userScripts.getScripts = async () => { throw new Error('Allow User Scripts 未开'); };
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    const changed = clone(config); changed.fontExposure.enabled = true;
+    chrome.scripting.registerContentScripts = async () => { throw new Error('合成字体注册故障'); };
+    const failed = await services.saveSiteConfig(changed);
+    assert.equal(failed.syncReport.fontRuntime?.state, 'sync-failed');
+    assert.equal(failed.syncReport.fontRuntime?.registeredRuleCount, null);
+    assert.equal(failed.syncReport.fontRuntime?.reloadRequired, false);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]), [[1, ['font']], [2, ['font']]]);
+    chrome.scripting.registerContentScripts = originalRegister;
+    const restored = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.deepEqual(restored.fontRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
+    assert.equal(restored.pageRuntime?.reloadRequired, false);
+    assert.notEqual(restored.pageRuntime?.state, 'ready');
+    assert.equal(restored.status, 'partial');
+    assert.equal((await chrome.scripting.getRegisteredContentScripts())[0].world, 'MAIN');
+    const oldPending = clone(mock.sessionStorage.runtimeSyncMetadata.pendingReloads);
+    const custom = clone(changed); custom.fontExposure.mode = 'custom';
+    const saved = await services.saveSiteConfig(custom);
+    assert.equal(saved.syncReport.fontRuntime?.state, 'custom-paused');
+    // 自定义模式也必须提示重载，旧固定 hook 不会被撤销。
+    assert.equal(saved.syncReport.fontRuntime?.reloadRequired, true);
+    assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.previous, undefined);
+    custom.fontExposure.blockedFamilies = ['Synthetic Custom Font'];
+    await services.saveSiteConfig(custom);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads, oldPending);
+    const off = await services.setExtensionEnabled(false);
+    assert.equal(off.syncReport.fontRuntime?.state, 'disabled');
+    assert.equal(off.syncReport.fontRuntime?.reloadRequired, true);
+    assert.deepEqual(mock.executeCalls, []); assert.deepEqual(mock.reloadCalls, []);
+  } finally { mock.restore(); }
+});
+
+test('字体撤销窗口中新开顶层不匹配的页面也保守覆盖 iframe，补录义务跨中断恢复', async () => {
+    const config = createSingleRuleConfig('example.com', { automatic: false });
+  config.globalProfile.language.enabled = false; config.globalProfile.timezone.enabled = false;
+  config.fontExposure.enabled = true;
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const tabs: chrome.tabs.Tab[] = [];
+  const mock = installChromeMock(storage, { tabs });
+  const originalSet = chrome.storage.local.set, originalRevoke = chrome.scripting.unregisterContentScripts;
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    await services.initializeExtension();
+    let oldHookPossible = false;
+    chrome.storage.local.set = (async (items: Record<string, any>) => {
+      await originalSet(items);
+      if (items[SITE_CONFIG_KEY]?.fontExposure.enabled === false) {
+        oldHookPossible = (await chrome.scripting.getRegisteredContentScripts()).length === 1;
+        // 顶层 URL 不匹配，但其普通 iframe 可以匹配 example.com。
+        tabs.push({ id: 9, url: 'https://unmatched.test/with-iframe' } as chrome.tabs.Tab);
+      }
+    }) as typeof chrome.storage.local.set;
+    chrome.scripting.unregisterContentScripts = async () => { throw new Error('合成窗口中断'); };
+    const disabled = clone(config); disabled.fontExposure.enabled = false;
+    const failed = await services.saveSiteConfig(disabled);
+    assert.equal(oldHookPossible, true);
+    assert.equal(failed.syncReport.fontRuntime?.state, 'sync-failed');
+    assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingFontScopeChange, true);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]), [[9, ['font']]]);
+    tabs.push({ id: 10, url: 'https://another.test/late-iframe' } as chrome.tabs.Tab);
+    chrome.scripting.unregisterContentScripts = originalRevoke;
+    const recovered = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension();
+    assert.deepEqual(recovered.fontRuntime, { state: 'disabled', registeredRuleCount: 0, reloadRequired: true });
+    assert.equal(recovered.pageRuntime?.reloadRequired, false);
+    assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingFontScopeChange, undefined);
+    assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => item.tabId), [9, 10]);
+    assert.deepEqual(mock.reloadCalls, []); assert.deepEqual(mock.executeCalls, []);
+  } finally { mock.restore(); }
 });

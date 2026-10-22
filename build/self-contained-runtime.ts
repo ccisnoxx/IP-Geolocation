@@ -71,11 +71,11 @@ export function assertSelfContainedFunction(code: string, name: string): string 
   return `function ${name}(${fn.parameters.map(p => p.getText(tree)).join(', ')}) ${fn.body.getText(tree)}`;
 }
 
-async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false): Promise<GeneratedRuntime> {
-  const isWorker = !worker && !pageOnly;
-  const name = pageOnly ? 'applyLanguageTimezoneRuntime' : isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
-  const fileName = pageOnly ? 'vanishgeo-page-runtime.js' : isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
-  const entry = resolve(root, `src/injected/runtime-modules/${pageOnly ? 'language-timezone-entry.ts' : `${isWorker ? 'worker/' : ''}entry.ts`}`);
+async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false, fontOnly = false): Promise<GeneratedRuntime> {
+  const isWorker = !worker && !pageOnly && !fontOnly;
+  const name = fontOnly ? 'applyFixedFontFilter' : pageOnly ? 'applyLanguageTimezoneRuntime' : isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
+  const fileName = fontOnly ? 'vanishgeo-font-filter.js' : pageOnly ? 'vanishgeo-page-runtime.js' : isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
+  const entry = resolve(root, `src/injected/runtime-modules/${fontOnly ? 'font-exposure-entry.ts' : pageOnly ? 'language-timezone-entry.ts' : `${isWorker ? 'worker/' : ''}entry.ts`}`);
   const virtualEntry = '\0vanishgeo-generation-entry';
   const workerId = resolve(root, 'dist/vanishgeo-worker.js');
   const dependencies = new Set<string>(worker?.dependencies || []);
@@ -89,7 +89,7 @@ async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly =
     load(id) {
       if (id === virtualEntry) return isWorker
         ? `import { applyWorkerRuntime } from ${JSON.stringify(entry)}; applyWorkerRuntime(patchConfig, workerBootstrap);`
-        : `export { ${pageOnly ? 'applyPageRuntime' : 'applyRuntime'} } from ${JSON.stringify(entry)};`;
+        : `export { ${fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'} } from ${JSON.stringify(entry)};`;
       if (id === workerId && worker) return { code: worker.code, map: worker.map };
     },
     moduleParsed(info) {
@@ -104,8 +104,8 @@ async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly =
         if (['CIRCULAR_DEPENDENCY', 'UNRESOLVED_IMPORT'].includes(warning.code || '')) throw new Error(warning.message);
         warn(warning);
       }, output: { format: isWorker ? 'es' : 'iife', name: 'runtimeExports', entryFileNames: fileName,
-        banner: `export function ${name}(${isWorker ? 'patchConfig' : 'payload'}) {`,
-        footer: isWorker ? '}' : `return runtimeExports.${pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(payload);\n}`,
+        banner: `export function ${name}(${fontOnly ? '' : isWorker ? 'patchConfig' : 'payload'}) {`,
+        footer: isWorker ? '}' : `return runtimeExports.${fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${fontOnly ? '' : 'payload'});\n}`,
         sourcemapPathTransform(source) { return isAbsolute(source) ? relative(root, source).replace(/\\/g, '/') : source; }
       } }
     }
@@ -127,4 +127,8 @@ export async function generateRuntime(root = projectRoot): Promise<GeneratedRunt
 
 export function generatePageRuntime(root = projectRoot): Promise<GeneratedRuntime> {
   return generateGraph(root, undefined, true);
+}
+
+export function generateFontFilter(root = projectRoot): Promise<GeneratedRuntime> {
+  return generateGraph(root, undefined, false, true);
 }

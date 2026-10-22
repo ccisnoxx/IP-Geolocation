@@ -1,7 +1,7 @@
 import type { RuntimeSyncComponent, RuntimeSyncError, RuntimeSyncReport } from './types';
 
 export const RUNTIME_SYNC_COMPONENT_LABELS: Record<RuntimeSyncComponent, string> = {
-  contentScripts: '页面语言/时区注册', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
+  contentScripts: '页面脚本注册', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
 };
 
 // 仅用于识别历史暂停报告；新页面注册以 pageRuntime 为准。
@@ -14,9 +14,27 @@ export function isRuntimeInjectionPaused(report?: RuntimeSyncReport): boolean {
   return !report?.pageRuntime && Boolean(report?.components.contentScripts.errors.some((error) => error.code === RUNTIME_INJECTION_PAUSED.code));
 }
 
-export const PAGE_RUNTIME_PAUSED_SURFACES = 'Geolocation / Permissions geolocation、字体暴露过滤、Worker / SharedWorker 仍暂停，相关配置已配置但当前未应用。';
+export const PAGE_RUNTIME_PAUSED_SURFACES = 'Geolocation / Permissions geolocation、Worker / SharedWorker 仍暂停，相关配置已配置但当前未应用。字体暴露过滤独立报告。';
 export const PAGE_RUNTIME_DOCUMENT_SCOPE = 'about:blank、srcdoc、data:、blob: 和特殊 sandbox 文档不支持（unsupported / UNKNOWN）。';
 const DOCUMENT_SNAPSHOT_MESSAGE = '已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。';
+
+export function fontRuntimeMessage(report?: RuntimeSyncReport): string {
+  const font = report?.fontRuntime;
+  if (!font) return '字体暴露过滤注册状态尚未确认，请重试同步；当前页面实际值为 UNKNOWN。';
+  const snapshot = `${font.reloadRequired ? '已有受影响页面需完整重载（reload）或关闭后重新打开；提示保守包含可能嵌入受影响 iframe 的页面。' : ''}${DOCUMENT_SNAPSHOT_MESSAGE}`;
+  switch (font.state) {
+    case 'ready': return `固定内置名单字体过滤已注册 ${font.registeredRuleCount} 条规则，仅供新建且匹配规则的 HTTP(S) 顶层文档和普通 iframe 使用。仅覆盖 measureText() 和 FontFaceSet.check()；不隐藏 DOM 尺寸、local()、像素比对或 Worker 内字体。${snapshot}`;
+    case 'disabled': return `字体过滤当前未注册启用规则。${snapshot}`;
+    case 'paused': return `已配置但当前未应用：固定名单字体过滤仍在人工恢复门禁内，未注册字体脚本。${snapshot}`;
+    case 'custom-paused': return `已配置但当前未应用：自定义名单仅保存，当前不生产派发。${snapshot}`;
+    case 'sync-failed': return '字体注册撤销或同步失败，残留注册数量尚未确认；请查看错误并重试同步，必要时关闭扩展。旧文档须关闭重建，当前页面实际值为 UNKNOWN。';
+  }
+}
+
+export function renderFontRuntimeStatus(element: HTMLElement, report?: RuntimeSyncReport): void {
+  element.textContent = fontRuntimeMessage(report);
+  element.dataset.fontRuntime = report?.fontRuntime?.state || 'unknown';
+}
 
 export function pageRuntimeMessage(report?: RuntimeSyncReport): string {
   const page = report?.pageRuntime;
@@ -55,7 +73,7 @@ export async function syncSignature(value: string): Promise<string> {
 }
 
 export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
-  if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
+  if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${fontRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
   const details = (Object.keys(RUNTIME_SYNC_COMPONENT_LABELS) as RuntimeSyncComponent[])
     .filter((key) => key === 'webrtc' || report.components[key].status !== 'ok')
     .map((key) => {
@@ -65,11 +83,12 @@ export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
     });
   if (report.metadataError) details.push(report.metadataError.message);
   if (report.warnings) details.push(...report.warnings.map((warning) => warning.message));
-  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${details.join('；')}。请求头保持浏览器原生值。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
+  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${fontRuntimeMessage(report)} ${details.join('；')}。请求头保持浏览器原生值。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
 }
 
 export function renderRuntimeSyncReport(element: HTMLElement, report?: RuntimeSyncReport): void {
   element.textContent = runtimeSyncMessage(report);
   element.dataset.status = report?.status || 'partial';
   element.dataset.pageRuntime = report?.pageRuntime?.state || 'unknown';
+  element.dataset.fontRuntime = report?.fontRuntime?.state || 'unknown';
 }

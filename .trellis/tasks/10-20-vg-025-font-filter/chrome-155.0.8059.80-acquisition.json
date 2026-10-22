@@ -1,0 +1,136 @@
+{
+  "task": "VG-025",
+  "date": "2026-10-20",
+  "recordedAt": "2026-10-20T14:59:27.256Z",
+  "scope": "exact-version-isolated-unmodified-dist-browser-card-disable",
+  "requestedBrowserVersion": "155.0.8059.80",
+  "platform": "mac-arm64",
+  "result": "BLOCKED",
+  "phase": "browser-binary-acquisition",
+  "reason": "CODE_SIGNATURE_VERIFICATION_FAILED",
+  "browserProcessStarted": false,
+  "exactVersionRuntimeChecks": {
+    "internalMasterOffNewDocument": "NOT_RUN",
+    "internalMasterOffFullReload": "NOT_RUN",
+    "browserCardOffNewDocument": "NOT_RUN",
+    "browserCardOffFullReload": "NOT_RUN"
+  },
+  "sources": {
+    "exactVersionManifest": {
+      "url": "https://googlechromelabs.github.io/chrome-for-testing/155.0.8059.80.json",
+      "httpStatus": 404
+    },
+    "knownGoodManifest": {
+      "url": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json",
+      "httpStatus": 200,
+      "timestamp": "2026-10-20T10:18:26.698Z",
+      "exactVersionListed": false,
+      "sameBuildVersions": [
+        "155.0.8059.0",
+        "155.0.8059.2",
+        "155.0.8059.12",
+        "155.0.8059.39",
+        "155.0.8059.79",
+        "155.0.8059.84"
+      ]
+    },
+    "archive": {
+      "url": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.80/mac-arm64/chrome-mac-arm64.zip",
+      "httpStatus": 200,
+      "bytes": 192610308,
+      "sha256": "37e08609b6d087fdb84848d90499d0a54b5a8446eddf76de6b95e0d7ef504ff5",
+      "md5": "1acc99786f599d3d0406a6a54d304850",
+      "responseHeaderLengthAndMd5Match": true,
+      "zipDataIntegrity": "PASS",
+      "archivePathsSafe": true,
+      "bundleVersion": "155.0.8059.80",
+      "executableSha256": "6630c648ed049854325b9b9a628bc85551423a207aba83f0d10ca6091f44cf17"
+    }
+  },
+  "packageSecurity": {
+    "strictVerificationCommand": "codesign --verify --deep --strict",
+    "exitCode": 1,
+    "message": "code has no resources but signature indicates they must be present",
+    "signature": "adhoc,linker-signed",
+    "teamIdentifier": null,
+    "sealedResources": "none",
+    "codeResourcesPresentInArchive": false,
+    "spctlReportedAccepted": true,
+    "spctlOverride": "security disabled",
+    "spctlCountedAsSignatureOrNotarizationPass": false,
+    "systemSecuritySettingsChanged": false,
+    "quarantineRemoved": false,
+    "resigned": false,
+    "bundleModifiedOrReconstructed": false,
+    "packageExecuted": false
+  },
+  "localBinaryAvailability": {
+    "installedApplicationMetadataVersion": "155.0.8059.85",
+    "cachedPlaywrightBundleVersion": "149.0.7827.55",
+    "old8059_80FrameworkDirectoryPresent": true,
+    "oldFrameworkUsed": false,
+    "independentCompleteExactBundleFound": false,
+    "readingInstalledMetadataDoesNotEstablishRunningUserBrowserVersion": true
+  },
+  "currentDist": {
+    "fingerprint": {
+      "fileCount": 48,
+      "sha256": "b226df8ea498c4c6bdf60bbfb4bf57a3caaac99da2eb3b916384fac92db3b746"
+    },
+    "fontFilterSha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860",
+    "matchesPriorUninstrumentedControl": true,
+    "rebuilt": false,
+    "modified": false,
+    "loadedThisTurn": false
+  },
+  "priorDifferentVersionControl": {
+    "evidence": "chrome-browser-card-disable.json",
+    "browser": "Chrome/155.0.8059.85",
+    "result": "PASS",
+    "checks": 9,
+    "reusedAsExactVersionEvidence": false
+  },
+  "userBoundary": {
+    "profileAccessed": false,
+    "browserControlled": false,
+    "browserRestarted": false,
+    "installedApplicationReplaced": false,
+    "updatePolicyChanged": false,
+    "screenshotOrRestartRequested": false
+  },
+  "conclusions": [
+    "精确版本官方ZIP可下载；索引未收录不代表该版本包不存在。",
+    "传输和ZIP完整性检查通过，但资源封印缺失、严格签名校验失败；MD5及SHA256记录不代替发布者签名。",
+    "未将带安全override的spctl输出计为有效签名或公证通过，未绕过校验执行。",
+    "同版本运行时对照未执行，不能据此确认或排除版本相关问题，也不改变用户现场根因未确认的结论。"
+  ],
+  "siteRootCause": "UNCONFIRMED",
+  "taskStatus": "review",
+  "humanAcceptance": "pending",
+  "productionCodeChanged": false,
+  "runnerChanged": false,
+  "commitOrReleasePerformed": false,
+  "privacy": "仅获取官方公开浏览器包并只读检查应用元数据；不读取用户Chrome配置文件，不保存个人路径、扩展ID或文档标识。",
+  "cleanup": {
+    "result": "PASS",
+    "downloadAndExtractedBundleRemoved": true,
+    "testProfileCreated": false,
+    "cdpCreated": false,
+    "probeServerCreated": false
+  },
+  "evidenceStage": "historical-initial-acquisition-attempt",
+  "followUpReassessment": {
+    "date": "2026-10-20",
+    "result": "SIGNATURE_ONLY_BLOCK_CORRECTED",
+    "officialCftPublisherUnsignedConfirmed": true,
+    "exactMacArm64ArtifactLinkerAdhocConfirmed": true,
+    "strictBundleFailureRetainedAsObserved": true,
+    "sourceAndArchiveIntegrityRechecked": true,
+    "securityControlsChangedOrBypassed": false,
+    "runtimeEvidence": "chrome-browser-card-disable-155.0.8059.80.json",
+    "runtimeResult": "PASS",
+    "runtimeChecksPassed": 9,
+    "siteRootCause": "UNCONFIRMED",
+    "note": "本记录顶层BLOCKED/NOT_RUN仅保留初次获取时事实；后续已核实正常CfT签名特征并完成真实同版本独立验证。"
+  }
+}

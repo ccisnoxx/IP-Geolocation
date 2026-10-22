@@ -1,5 +1,5 @@
 import './popup.css';
-import { isRuntimeInjectionPaused, renderRuntimeSyncReport } from '../shared/runtime-sync';
+import { isRuntimeInjectionPaused, renderRuntimeSyncReport, renderFontRuntimeStatus } from '../shared/runtime-sync';
 import { getPageRuntimeProfile } from '../shared/config-resolver';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
@@ -18,6 +18,7 @@ import { ruleListToText, rulesFromText } from '../shared/rule-list';
 import type { GeolocationHistory, SiteSpoofConfig } from '../shared/types';
 
 const runtimeSyncStatusEl = document.getElementById('runtimeSyncStatus') as HTMLElement;
+const fontExposureStatusEl = document.getElementById('fontExposureStatus') as HTMLElement;
 const retryRuntimeSyncBtn = document.getElementById('retryRuntimeSync') as HTMLButtonElement;
 const setupStatusEl = document.getElementById('setupStatus') as HTMLElement;
 
@@ -84,6 +85,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
       const report = response.syncReport || response.state?.syncReport;
       if (report) {
         renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+        renderFontRuntimeStatus(fontExposureStatusEl, report);
       }
       const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
       if (config) renderSetupStatus(setupStatusEl, normalizeConfig(config), report);
@@ -96,6 +98,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
 function showOperationError(error: unknown): void {
   runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
   runtimeSyncStatusEl.dataset.status = 'failed';
+  renderFontRuntimeStatus(fontExposureStatusEl);
 }
 
 function runUiTask(task: Promise<unknown>): void { void task.catch(showOperationError); }
@@ -109,7 +112,7 @@ async function retryRuntimeSync(): Promise<void> {
 function showAutoSaveToast(report?: RuntimeSyncReport): void {
   autoSaveToast.textContent = isRuntimeInjectionPaused(report) ? '已保存，页面伪装已暂停／部分生效'
     : report?.status !== 'ok' ? '已保存，部分同步未完成；请查看同步详情'
-      : report.pageRuntime?.reloadRequired ? '已保存并同步；已有页面需完整重载'
+      : (report.pageRuntime?.reloadRequired || report.fontRuntime?.reloadRequired) ? '已保存并同步；已有页面需完整重载'
         : report.pageRuntime?.state === 'ready' ? '已保存；新文档语言/时区注册就绪'
           : report.pageRuntime?.state === 'disabled' ? '已保存；页面语言/时区注册已关闭'
             : '已保存；页面语言/时区状态待确认';

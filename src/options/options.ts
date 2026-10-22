@@ -1,5 +1,5 @@
 import './options.css';
-import { renderRuntimeSyncReport, runtimeSyncMessage } from '../shared/runtime-sync';
+import { renderRuntimeSyncReport, renderFontRuntimeStatus, runtimeSyncMessage } from '../shared/runtime-sync';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_FONT_EXPOSURE,
@@ -26,6 +26,7 @@ import type {
 let currentConfig: SiteSpoofConfig = createInitialConfig();
 
 const runtimeSyncStatusEl = document.getElementById('runtimeSyncStatus') as HTMLElement;
+const fontExposureStatusEl = document.getElementById('fontExposureStatus') as HTMLElement;
 const retryRuntimeSyncBtn = document.getElementById('retryRuntimeSync') as HTMLButtonElement;
 const setupStatusEl = document.getElementById('setupStatus') as HTMLElement;
 const onboardingProfileEl = document.getElementById('onboardingProfile') as HTMLSelectElement;
@@ -95,6 +96,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
       const report = response.syncReport || response.state?.syncReport;
       if (report) {
         renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+        renderFontRuntimeStatus(fontExposureStatusEl, report);
       }
       // getWebRtcConfig.state.config 只是局部 WebRtcConfig，不能投影为完整配置。
       const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
@@ -107,6 +109,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
 function showOperationError(error: unknown): void {
   runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
   runtimeSyncStatusEl.dataset.status = 'failed';
+  renderFontRuntimeStatus(fontExposureStatusEl);
 }
 
 function runUiTask(task: Promise<unknown>): void { void task.catch(showOperationError); }

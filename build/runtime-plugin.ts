@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { generateRuntime, generatePageRuntime, pageRuntimeSourceId, runtimeModuleId, projectRoot, assertSelfContainedFunction } from './self-contained-runtime';
+import { generateRuntime, generatePageRuntime, generateFontFilter, pageRuntimeSourceId, runtimeModuleId, projectRoot, assertSelfContainedFunction } from './self-contained-runtime';
 import type { GeneratedRuntime } from './self-contained-runtime';
 
 export function runtimePlugin(root = projectRoot): Plugin {
@@ -15,6 +15,10 @@ export function runtimePlugin(root = projectRoot): Plugin {
       // 完整隔离 graph 与生产语言/时区 graph 均在构建期执行自包含守卫。
       generated = await generateRuntime(root);
       page = await generatePageRuntime(root);
+      const font = await generateFontFilter(root);
+      font.dependencies.forEach(path => this.addWatchFile(path));
+      this.emitFile({ type: 'asset', fileName: 'font-exposure/filter.js',
+        source: `(${assertSelfContainedFunction(font.code, 'applyFixedFontFilter')})();\n` });
       generated.dependencies.forEach(path => this.addWatchFile(path));
       page.dependencies.forEach(path => this.addWatchFile(path));
     },

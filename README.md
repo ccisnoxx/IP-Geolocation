@@ -2,7 +2,7 @@
 
 > **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；字体暴露过滤仍暂停，配置仅保存。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，保持 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。其他页面能力仍暂停。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
 
@@ -14,13 +14,13 @@
 - WebRTC 使用 Chrome privacy API 的全局策略，提供 strict、compatible 和 default；该设置影响浏览器普通会话，范围大于站点 allowlist。实际控制权和 ICE 结果需要分别观察。
 - 配置保存、worker 初始化和扩展 update 时由后台串行对账：先撤销失效/范围变化的注册，再更新保留规则，最后新增并读回验证。Popup/Options 分别显示 API/权限/用户开关不可用、注册失败、注册成功需重载或新文档可用；不自动刷新页面。
 - 出口位置只在用户点击检测或重新检测时请求外部 provider。候选确认后保存为 verified 档案，auto 位置/时区必须在每条规则上显式绑定该档案。**没有后台定时刷新**；更换代理或网络后需要主动重新检测。
-- 支持自定义环境方案、配置导入/导出；字体配置仅保存、不生产派发；同源 HTTP(S) Worker/SharedWorker 的语言/时区包装继续暂停。不新增 GPU、Audio、screen 等设备伪装。
+- 支持自定义环境方案、配置导入/导出；固定内置字体名单仅在总开关、字体开关和 HTTP(S) allowlist 均启用时注册；自定义名单及同源 HTTP(S) Worker/SharedWorker 的语言/时区包装继续暂停。不新增 GPU、Audio、screen 等设备伪装。
 - 可保存全局时区与 Locale `strict`/`compatible` 模式。其保留语义分别为强制一致性、保留页面显式参数并只补默认值；仅随已验收的语言/时区注册用于匹配新文档，不恢复其他页面能力；精确语义见 [配置指南](CONFIG_GUIDE.md#时区与-locale-模式)。
 - 扩展侧一次性诊断报告比较实际值与留在扩展内部的预期值；外部诊断页只做 observation，不给出配置验收 PASS/FAIL。
 
-## 选择性字体暴露过滤（维护源，生产暂停）
+## 选择性字体暴露过滤（仅启用白名单）
 
-配置为 `fontExposure`，默认关闭，支持16项厂商／软件内置名单和自定义名单。v3替代旧canvas配置；当前仅保存配置和维护隔离测试源，不向生产文档派发。维护源仅处理目标 `measureText()` 与 `FontFaceSet.check()`；普通字体、绘制、像素和图像导出保持原生。不承诺覆盖DOM、local()或Worker字体。
+配置为 `fontExposure`，默认关闭，提供 `vendor-software` 固定内置名单与 `custom` 自定义名单。内置名单包含16项厂商／软件字体及2026-10-22用户授权加入的27项简繁中文字体，覆盖微软雅黑、宋体、苹方、思源、Noto CJK 等；仅在总开关、字体开关和 HTTP(S) allowlist 均启用时生效。2026-10-22增量：匹配HTTP(S)白名单的顶层 `measureText` 仅使用 `monospace`、`sans-serif`、`serif` 测量，移除具名字体，无允许项回退 `sans-serif`；`FontFaceSet.check` 及普通 iframe 仍按原43项名单过滤；不随机化 Canvas 图像，不修改绘制、像素、WebGL/GPU、UA/UA-CH 或硬件信息。测量宽度可能与实际绘制不一致，影响依赖测量的文本排版。DOM 尺寸、`@font-face local()`、像素比对与 Worker 字体探测不在承诺范围；不能称为完全隐藏字体。VG-025 固定名单生产恢复已获授权（`FONT_FILTER_PRODUCTION_APPROVED=true`），custom 名单仍不生产派发。注册就绪不代表当前文档已应用，旧文档及 BFCache 须完整重建。
 
 ## 安装与构建
 
@@ -84,3 +84,8 @@ VG-024 权限退出升级验证可运行 `node scripts/chrome-native-headers-upg
 ## 许可证
 
 采用 MIT License；参见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。NOTICE 保留原作品来源归属。
+
+VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>`，使用实际worker/router/包内固定字体资产和临时profile；不读取用户配置、不修改Allow User Scripts开关。默认不带--production仍是隔离固定脚本资格验证，不替代生产接线或人工验收。
+
+
+VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom、位置和Worker继续暂停。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。

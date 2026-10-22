@@ -143,7 +143,7 @@ test('暂停的 auto 地理位置不阻断语言/手工时区配置，旧报告�
     ...getPageRuntimeProfile(config, 'example.com'), syncReport });
   assert.equal(state.kind, 'enabled');
   assert.doesNotMatch(state.detail, /页面伪装已暂停/);
-  assert.match(state.detail, /Geolocation \/ Permissions geolocation、字体暴露过滤、Worker \/ SharedWorker 仍暂停/);
+  assert.match(state.detail, /Geolocation \/ Permissions geolocation、Worker \/ SharedWorker 仍暂停/);
 });
 
 test('当前站点分别显示 API、权限、Allow User Scripts、同步失败与完整重载状态', () => {

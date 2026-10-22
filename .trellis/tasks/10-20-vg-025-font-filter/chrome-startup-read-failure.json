@@ -1,0 +1,146 @@
+{
+  "task": "VG-025",
+  "scope": "real-chrome-worker-startup-read-failure",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.85",
+  "checks": {
+    "nativePositiveControl": true,
+    "actualStartupReadFailure_local-first": true,
+    "actualStartupReadFailure_local-config": true,
+    "actualStartupReadFailure_session": true,
+    "actualStartupReadFailure_double-failure": true,
+    "actualWorkerRecoveryClearsResidualOwnedRegistration": true
+  },
+  "productionRecovery": "AUTHORIZED_TEST_FIXTURE",
+  "cleanup": "PASS",
+  "failure": null,
+  "limitations": [
+    "独立临时Chrome/profile，使用实际dist后台函数与原始字体资产；仅临时worker注入API拒绝和结果观察，不是完全未改写dist",
+    "读取及双重失败由worker内合成拒绝注入；成功注册/撤销、注册回读及新文档执行使用真实Chrome，不证明实际磁盘损坏或存储故障",
+    "实际MV3 worker stop/wake，不覆盖浏览器冷启动、浏览器卡片停用、Chrome138/其他OS或用户Chrome现场根因",
+    "仅合成loopback配置，不请求provider；Chrome自身后台网络未全量监控；Browser plugin not available，复用仓库隔离CDP执行器"
+  ],
+  "userProfileAccessed": false,
+  "siteRootCause": "UNCONFIRMED",
+  "fontFilterSha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860",
+  "compiledWorkerSha256": "6971d7343c9ce787acc94d0793fbfe31c5293bc2a686256d9e5899d2947b7dd5",
+  "instrumentationOnlyAroundUnchangedWorkerBody": true,
+  "manifestAndPermissionsUnchanged": true,
+  "startupCases": [
+    {
+      "mode": "local-first",
+      "actualWorkerStoppedAndWoken": true,
+      "readFailureInjected": true,
+      "observedFailureCodes": [
+        null
+      ],
+      "nativeRevocationCount": 1,
+      "ownedRegistrationObservedBeforeCleanup": true,
+      "otherIdAndSignaturePreserved": true,
+      "revocationScopeRestricted": true,
+      "nativeRevocationConfirmed": true,
+      "ownedRegistrationRetained": false,
+      "originalErrorPreserved": true,
+      "doubleFailureVisible": null,
+      "noSuccessReport": true,
+      "noRegistrationAdds": true,
+      "configAndMetadataUnchanged": true,
+      "freshDocumentNative": true,
+      "oldDocumentSnapshotRetained": true,
+      "otherIdStillExecutesFontFile": true
+    },
+    {
+      "mode": "local-config",
+      "actualWorkerStoppedAndWoken": true,
+      "readFailureInjected": true,
+      "observedFailureCodes": [
+        null
+      ],
+      "nativeRevocationCount": 1,
+      "ownedRegistrationObservedBeforeCleanup": true,
+      "otherIdAndSignaturePreserved": true,
+      "revocationScopeRestricted": true,
+      "nativeRevocationConfirmed": true,
+      "ownedRegistrationRetained": false,
+      "originalErrorPreserved": true,
+      "doubleFailureVisible": null,
+      "noSuccessReport": true,
+      "noRegistrationAdds": true,
+      "configAndMetadataUnchanged": true,
+      "freshDocumentNative": true,
+      "oldDocumentSnapshotRetained": true,
+      "otherIdStillExecutesFontFile": true
+    },
+    {
+      "mode": "session",
+      "actualWorkerStoppedAndWoken": true,
+      "readFailureInjected": true,
+      "observedFailureCodes": [
+        null
+      ],
+      "nativeRevocationCount": 1,
+      "ownedRegistrationObservedBeforeCleanup": true,
+      "otherIdAndSignaturePreserved": true,
+      "revocationScopeRestricted": true,
+      "nativeRevocationConfirmed": true,
+      "ownedRegistrationRetained": false,
+      "originalErrorPreserved": true,
+      "doubleFailureVisible": null,
+      "noSuccessReport": true,
+      "noRegistrationAdds": true,
+      "configAndMetadataUnchanged": true,
+      "freshDocumentNative": true,
+      "oldDocumentSnapshotRetained": true,
+      "otherIdStillExecutesFontFile": true
+    },
+    {
+      "mode": "double-failure",
+      "actualWorkerStoppedAndWoken": true,
+      "readFailureInjected": true,
+      "observedFailureCodes": [
+        "font-scripts-sync-failed"
+      ],
+      "nativeRevocationCount": 0,
+      "ownedRegistrationObservedBeforeCleanup": true,
+      "otherIdAndSignaturePreserved": true,
+      "revocationScopeRestricted": true,
+      "nativeRevocationConfirmed": false,
+      "ownedRegistrationRetained": true,
+      "originalErrorPreserved": true,
+      "doubleFailureVisible": true,
+      "noSuccessReport": true,
+      "noRegistrationAdds": true,
+      "configAndMetadataUnchanged": true,
+      "freshDocumentNative": false,
+      "oldDocumentSnapshotRetained": true,
+      "otherIdStillExecutesFontFile": true
+    }
+  ],
+  "workerLifecycle": [
+    {
+      "oldTargetDisappeared": true,
+      "freshWorkerBootObserved": true,
+      "targetIdReused": true
+    },
+    {
+      "oldTargetDisappeared": true,
+      "freshWorkerBootObserved": true,
+      "targetIdReused": true
+    },
+    {
+      "oldTargetDisappeared": true,
+      "freshWorkerBootObserved": true,
+      "targetIdReused": true
+    },
+    {
+      "oldTargetDisappeared": true,
+      "freshWorkerBootObserved": true,
+      "targetIdReused": true
+    },
+    {
+      "oldTargetDisappeared": true,
+      "freshWorkerBootObserved": true,
+      "targetIdReused": true
+    }
+  ]
+}

@@ -340,11 +340,12 @@ test('repairInvalidRuleDomains removes stored rules that Chrome cannot register'
   assert.deepEqual(repaired.config.rules.map((rule) => rule.domain), ['example.com', '127.0.0.1']);
 });
 
-test('字体默认值仅包含16项厂商软件名单，vendor模式忽略自定义集合', () => {
+test('字体默认值包含16项厂商软件及27项简繁中文名单，vendor模式忽略自定义集合', () => {
   assert.deepEqual(VENDOR_SOFTWARE_FONT_FAMILIES, [
     'MiSans', 'MIUI', 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'HONOR Sans', 'OPPO Sans',
     'vivo Sans', 'Alibaba PuHuiTi', 'Alibaba Sans', 'DingTalk JinBuTi', 'Douyin Sans',
-    'HYQiHei', 'FZShuSong-Z01S', 'FZKai-Z03S', 'FZHei-B01S', 'FZFangSong-Z02S'
+    'HYQiHei', 'FZShuSong-Z01S', 'FZKai-Z03S', 'FZHei-B01S', 'FZFangSong-Z02S',
+    ...LEGACY_DEFAULT_CANVAS_FAMILIES
   ]);
   assert.deepEqual(DEFAULT_FONT_EXPOSURE, {
     enabled: false, mode: 'vendor-software', blockedFamilies: VENDOR_SOFTWARE_FONT_FAMILIES
@@ -352,6 +353,18 @@ test('字体默认值仅包含16项厂商软件名单，vendor模式忽略自定
   assert.deepEqual(normalizeFontExposure({ enabled: true, mode: 'vendor-software', blockedFamilies: ['Arial'] }), {
     ...DEFAULT_FONT_EXPOSURE, enabled: true
   });
+});
+
+test('v3旧内置名单读取时升级到当前43项，保留开关和custom名单', () => {
+  for (const enabled of [false, true]) {
+    const old = normalizeConfig({ rules: [] });
+    old.fontExposure = { enabled, mode: 'vendor-software', blockedFamilies: ['MiSans', 'MIUI'] };
+    const upgraded = migrateLegacyConfig({ [SITE_CONFIG_KEY]: old });
+    assert.deepEqual(upgraded.fontExposure, { enabled, mode: 'vendor-software', blockedFamilies: VENDOR_SOFTWARE_FONT_FAMILIES });
+    assert.deepEqual(normalizeConfig(upgraded), upgraded);
+    old.fontExposure = { enabled, mode: 'custom', blockedFamilies: ['Microsoft YaHei', 'Arial'] };
+    assert.deepEqual(migrateLegacyConfig({ [SITE_CONFIG_KEY]: old }).fontExposure, old.fontExposure);
+  }
 });
 
 test('v2关闭字体迁为安全默认，启用旧宽名单按规范键集合等价迁为vendor模式', () => {

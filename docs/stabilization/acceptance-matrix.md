@@ -1,5 +1,17 @@
 # 稳定化验收矩阵
 
+## 2026-10-20 VG-024 权限退出（历史）
+
+VG-028与VG-024均已获用户人工验收，manifest为done，Trellis completed；该阶段未提交、未发布、未启动后续任务。该阶段候选删除两项DNR权限及清理组件，生产不依赖DNR API；当时仅保留语言/时区注册、WebRTC及人工重载提示。schema3、已验收userScripts与当时其他表面暂停不变。后续固定字体恢复授权及当前验收停止点见[当前授权与验收停止点](#2026-10-21-当前授权与验收停止点)。
+
+旧v2跳过清理升级可能残留磁盘规则；无权限时不启用，本版本不再请求DNR，未来重引入必须独立迁移。两条真实Chrome升级路径和最低门禁结果见[VG-024记录](../../.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md)。以下VG-028及更早DNR清理/生成描述属于历史范围与证据，不代表当前候选组件。状态只以[manifest](./task-manifest.yaml)为准。
+
+## 2026-10-20 VG-028 阶段产品契约（历史）
+
+用户确认保留原 VG-023 已验收的语言／时区 userScripts；本次新编号 VG-028 承接两份输入计划的请求头与字体重构，原 VG-023 done 和 VG-022 状态不变。以下历史任务的 DNR 规则生成、schema v2、Canvas 命名与完整暂停描述保留其原始时间点，不代表现行产品行为。
+
+该阶段目标为 schema v3、原生 HTTP 请求头、遗留 DNR 规则只清理、选择性厂商／软件字体暴露过滤维护源。字体/位置/Worker 生产继续暂停，普通字体、Canvas 图像和 WebGL/GPU/UA/硬件保持原生。该阶段 DNR 权限暂留至 VG-024，未实施后续任务。最新状态仅以 [manifest](./task-manifest.yaml) 为准；具体实现、命令结果、独立复核和真实 Chrome 升级证据见 [VG-028 记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。
+
 候选基线：`5701b55`，日期：2026-10-14。VG-000 只建立矩阵，不执行后续功能修复。任务状态和依赖只读取 [manifest](./task-manifest.yaml)。
 
 
@@ -167,9 +179,42 @@ VG-013 本地完成：170/170、源码/测试类型、build/diff/dry-run通过�
 
 Chrome155.0.8059.40真实隔离实验20场景，见[报告](./registration-sequence-research.md)和[证据](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/chrome-evidence.json)：位置专属global/lexical四类文档三阶段4/4、切换1001为4/4、严格CSP1/1；重复4/32位列表仅实际01，不完整序列无hook。微任务允许在位片段前运行。原生注册的父页抢占未成功，安全性仍NOT_ESTABLISHED；页面eval正向攻击能翻转组装。storage禁用与注销间隙仍执行旧A、注销不撤销存量hook；完成后的新文档和响应头前更新对照有效。有限表达GO、安全恢复NO_GO；未覆盖完整payload、容量上限、P2/BFCache或生产runtime，不替代VG-015/017负向证据。本地交付时manifest/Trellis均review，待人工验收；用户于2026-10-15确认隔离验证验收通过并接受有限表达GO、安全恢复NO_GO及已知限制，manifest现为done、Trellis为completed，见[人工验收记录](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md#人工验收)。生产暂停保持，不启动恢复实施；任务完成不构成发布批准，不改版本、不提交、推送或发布。
 
-## 本地分任务提交范围（2026-10-22）
 
-本次仅按用户授权整理必要前置任务和VG-029为本地提交；不push、不发布，其他任务保持未提交。任务状态以manifest为准；旧阶段的暂停、测试数量和未提交描述保留历史含义。
+## VG-028 新增验收范围
 
-- VG-028：schema v3、原生请求头、16项字体配置与维护源；DNR仅清理历史1100至2099，语言/时区保持，字体/位置/Worker生产暂停。 [执行记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。
-- VG-024：移除两项DNR权限和过渡清理；已清理VG028与旧v2跳级升级分别保留真实Chrome证据。无权限下磁盘残留状态不承诺已清除。 [执行记录](../../.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md)。
+| 场景 | 通过条件 | 证据与边界 |
+|---|---|---|
+| v2→v3 | 默认宽名单收窄、自定义保留、acceptLanguage/canvas 不写回，规则/档案等保留，v3 稳态幂等 | config/profile/background-services 定向测试；真实 storage 升级另列 |
+| 遗留 DNR | 只删除1100..2099、范围外保留、回读核验、marker 不跳过实际检查，无新增规则或容量门槛 | legacy-dnr-cleanup 与 services 测试；Chrome 原位升级另列 |
+| 字体维护源 | 仅目标 measureText/check，普通字体透传，关闭零hook，descriptor/native代理合同 | VM/构建证据不等同真实Chrome字体恢复；生产仍暂停 |
+| UI/诊断 | 内置只读/custom可编辑并往返保存，当前未应用；header原生观测无配置PASS/FAIL | 表单VM/wiring；真实action Popup人工验收另列 |
+| 已验收语言/时区 | userScripts注册/更新/快照/fail-closed与暂停surface边界不扩大 | 现有定向回归及生产graph检查；不重写原VG-023人工结论 |
+
+命令实际结果和未运行项目以本任务 implement 为准；本任务本地结束只到 review，不授权发布。
+
+## VG-025 增量边界
+
+- VG-025（初轮候选历史证据）：Chrome固定字体候选首inline、实际已加载的合成目标字体、普通字体/Canvas原生差分、HTTP iframe/特殊文档、CSP、真实BFCache hit、document.open、撤销/reload、扩展update与显式重注册；当时生产门禁关闭，跨origin/OOPIF/冷启动/提前篡改完整矩阵未验。本行保留初轮结果及当时缺口，后续局部补证不等于完整矩阵全部通过；当前恢复授权与现场人工验收状态见[当前授权与验收停止点](#2026-10-21-当前授权与验收停止点)。
+
+### VG-025 续作资格（阶段历史）
+
+chrome-qualification-followup.json为18项真实ChromePASS（含6种shorthand原生CSSOM解析、实际跨站OOPIF、共用对账的范围变更/撤回与禁用窗口、页面配置及解析方法篡改）。初轮13项保留为历史。独立chrome-cold-start-blocked.json为BLOCKED：浏览器重启后CDP临时扩展从清单消失，字体持久化不能判PASS/FAIL。该阶段216项Node测试、类型/build/dry-run通过；当时生产集成及人工恢复门禁仍未完成。以上仅记录该阶段证据及边界，不覆盖后续恢复授权，也不代表现场人工验收通过；原始PASS／BLOCKED及未验证范围保留。
+
+
+### 2026-10-21 当前授权与验收停止点
+
+VG-025保持`review`、人工验收`pending`，任务状态只以[task-manifest.yaml](./task-manifest.yaml)为准。VG-025已于2026-10-20获用户明确恢复授权：固定内置名单仅按已启用HTTP(S) allowlist派发，生产门禁已为true；custom名单、Geolocation／Permissions geolocation、Worker／SharedWorker继续暂停。上文VG-024／VG-028及初轮字体候选的暂停或门禁关闭描述属于历史阶段，不代表当前授权状态。
+
+VG-025真实用户Chrome的关闭基线尚未通过，现场根因`UNCONFIRMED`；G05原生查询未执行，G05／G07均为`UNKNOWN`。独立启动读取失败修复、隔离PASS和注册存在不替代现场归因或当前页面生效判断。自动现场取证已停止；访问能力缺口、恢复采集所需的新授权及工具条件见[VG-025最新停止记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#当前停止点g05-查询受阻停止自动现场取证2026-10-21)。
+
+已验收语言／时区恢复保持，不据字体`scripting`异常推定`userScripts`共同故障；位置恢复仍需自身资格证据、独立复核和明确人工恢复授权。当前仅继续文档、合同和既有证据的只读审阅，不操作Chrome、不恢复现场取证、不重复隔离测试或安排自动重试，不暂存、提交或发布。实际dist定向证据与人工验收分开，review不代表done或发布批准；历史证据及原始结果保持不变。
+
+
+### VG-025 2026-10-21 自动恢复 HTTP 标签补证
+
+独立有界面 CfT155.0.8059.80、正常 UI 加载未插桩当前 dist，三次正常冷启动自动恢复唯一活动 HTTP 标签：开启正对照、内部关闭、卡片停用共23项PASS。首inline API/来源栈报告在CDP连接前收到，后续完整刷新/新建先于管理页/Options，关闭路径保持原生且状态保留。开启恢复首inline有字体栈，而晚附加Debugger不回放顶层脚本，恢复首文档完整源码未捕获；不以缺事件断言无注入。见[正式证据与覆盖限制](../../.trellis/tasks/10-20-vg-025-font-filter/browser-card-disable-verification.md)。不覆盖用户现场因果、后台惰性/崩溃恢复及所有历史状态；现场UNCONFIRMED，VG025 review/人验pending，不提交发布。
+
+
+## 2026-10-22 VG-025 已接受范围
+
+固定名单和顶层测量允许名单已获用户限定人工验收，当前状态为done；上述2026-10-21的review、现场UNKNOWN及停止说明保留历史含义。具体范围和未验证项见[人工验收记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#2026-10-22-人工验收与收尾)。

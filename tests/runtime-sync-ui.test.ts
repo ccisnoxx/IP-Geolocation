@@ -119,7 +119,7 @@ for (const page of ['popup', 'options'] as const) {
       assert.match(text, /已有受影响页面需完整重载（reload）或关闭后重新打开/);
       assert.match(text, /BFCache 恢复文档保留原快照，不会热更新或自动刷新/);
       assert.match(text, /当前页面实际值尚未验证/);
-      assert.match(text, /Geolocation \/ Permissions geolocation、字体暴露过滤、Worker \/ SharedWorker 仍暂停/);
+      assert.match(text, /Geolocation \/ Permissions geolocation、Worker \/ SharedWorker 仍暂停/);
       assert.match(text, /about:blank、srcdoc、data:、blob:.*sandbox.*unsupported \/ UNKNOWN/);
       assert.doesNotMatch(text, /全部保护.*生效|当前页面已.*生效/);
     }
@@ -129,6 +129,31 @@ for (const page of ['popup', 'options'] as const) {
     await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
     assert.match(element('runtimeSyncStatus').textContent, /当前未注册启用规则.*使用当前关闭配置/);
     if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '页面语言/时区未注册');
+    const fontStates = {
+      ready: /固定内置名单字体过滤已注册 1 条规则.*仅覆盖 measureText\(\) 和 FontFaceSet.check\(\).*不隐藏 DOM 尺寸/,
+      disabled: /字体过滤当前未注册启用规则/,
+      paused: /已配置但当前未应用.*人工恢复门禁/,
+      'custom-paused': /自定义名单仅保存，当前不生产派发/,
+      'sync-failed': /字体注册撤销或同步失败，残留注册数量尚未确认/
+    } as const;
+    for (const [state, expected] of Object.entries(fontStates)) {
+      nextReport = report();
+      nextReport.fontRuntime = { state: state as keyof typeof fontStates,
+        registeredRuleCount: state === 'sync-failed' ? null : state === 'ready' ? 1 : 0,
+        reloadRequired: state === 'ready' || state === 'disabled' || state === 'custom-paused' };
+      if (state === 'sync-failed') {
+        nextReport.status = 'partial';
+        nextReport.components.contentScripts = { status: 'failed', errors: [{ code: 'font-scripts-sync-failed', message: '合成字体故障' }] };
+      }
+      for (const operation of [page === 'popup' ? 'saveChanges()' : 'saveSettings()', 'loadConfig()', 'retryRuntimeSync()']) {
+        await vm.runInContext(operation, context);
+        assert.match(element('fontExposureStatus').textContent, expected);
+        assert.equal(element('fontExposureStatus').dataset.fontRuntime, state);
+        assert.equal(element('runtimeSyncStatus').dataset.pageRuntime, 'ready');
+        assert.match(element('runtimeSyncStatus').textContent, /页面语言\/时区已注册 1 条规则/);
+        if (nextReport.fontRuntime.reloadRequired) assert.match(element('fontExposureStatus').textContent, /已有受影响页面需完整重载/);
+      }
+    }
     nextReport = report('contentScripts');
     delete nextReport.pageRuntime;
     nextReport.components.contentScripts = { status: 'partial', errors: [runtimeSync.RUNTIME_INJECTION_PAUSED] };
@@ -152,11 +177,12 @@ for (const page of ['popup', 'options'] as const) {
   });
 }
 
-test('Popup 与 Options 静态说明区分语言时区注册与暂停表面', () => {
+test('Popup 与 Options 静态说明区分已授权固定字体与暂停表面', () => {
   for (const page of ['popup', 'options']) {
     const html = readFileSync(new URL(`../src/${page}/${page}.html`, import.meta.url), 'utf8');
     assert.match(html, /Chrome 138\+、userScripts 权限及 Allow User Scripts 开关/);
-    assert.match(html, /Geolocation \/ Permissions geolocation、字体暴露过滤、Worker \/ SharedWorker 仍暂停/);
+    assert.match(html, /Geolocation \/ Permissions geolocation、Worker \/ SharedWorker 仍暂停/);
+    assert.match(html, /固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP\(S\)站点规则均启用时独立注册，自定义名单仅保存/);
     assert.match(html, /about:blank、srcdoc、data:、blob:.*unsupported \/ UNKNOWN/);
     assert.match(html, /BFCache 恢复文档保留原快照/);
     assert.doesNotMatch(html, /时区（页面伪装已暂停）|语言（DNR 可用，页面伪装暂停）|当前不在页面执行|保存配置不会恢复页面注入/);
