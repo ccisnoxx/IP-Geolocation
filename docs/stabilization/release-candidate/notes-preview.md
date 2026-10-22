@@ -1,5 +1,6 @@
 ## 更新日志（自 v2.1.0）
 
+- chore(release): 完善发布说明并记录候选资料验收 (9c4af62)
 - test(release): 记录 Chrome 138 人工验收与真实浏览器证据 (51d1283)
 - chore(release): 校准发布审查并恢复验收证据 (d56ee9c)
 - docs(VG-022): 记录研究处置验收并恢复任务资料 (7cd47f2)
