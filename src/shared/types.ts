@@ -4,6 +4,7 @@ export type GeolocationMode = 'auto' | 'manual';
 export type OverrideMode = 'inherit' | 'override' | 'disable';
 export type WebRtcMode = 'strict' | 'compatible' | 'default';
 export type IntlMode = 'strict' | 'compatible';
+export type FontExposureMode = 'vendor-software' | 'custom';
 export type ExitLocationVerification = 'verified' | 'unverified';
 
 export interface LanguageConfig {
@@ -11,7 +12,6 @@ export interface LanguageConfig {
   mode: LanguageMode;
   language: string;
   languages: string[];
-  acceptLanguage: string;
 }
 
 export interface TimezoneConfig {
@@ -45,10 +45,10 @@ export interface WebRtcConfig {
   globalMode: WebRtcMode;
 }
 
-export interface CanvasConfig {
+export interface FontExposureConfig {
   enabled: boolean;
-  spoofFonts: boolean;
-  targetFonts: string[];
+  mode: FontExposureMode;
+  blockedFamilies: string[];
 }
 
 export interface SignalOverride<T> {
@@ -81,7 +81,6 @@ export interface Profile {
   language: {
     language: string;
     languages: string[];
-    acceptLanguage: string;
   };
   timezone: {
     timezone: string;
@@ -125,7 +124,7 @@ export interface ExitLocationDetectionPreview {
 }
 
 export interface SiteSpoofConfig {
-  schemaVersion: 2;
+  schemaVersion: 3;
   intlMode: IntlMode;
   masterEnabled: boolean;
   debugMode: boolean;
@@ -135,7 +134,7 @@ export interface SiteSpoofConfig {
     geolocation: GeolocationConfig;
   };
   webRtc: WebRtcConfig;
-  canvas: CanvasConfig;
+  fontExposure: FontExposureConfig;
   profile: ProfileConfig;
   exitLocationProfiles: ExitLocationProfile[];
   rules: SiteRule[];
@@ -158,7 +157,7 @@ export interface EffectivePayload {
   timezoneSource: 'manual' | 'exitProfile' | null;
   languageConfig: LanguageConfig | null;
   timezoneConfig: TimezoneConfig;
-  canvasConfig: CanvasConfig;
+  fontExposureConfig: FontExposureConfig;
 }
 
 export interface EffectiveProfileResult {
@@ -182,7 +181,7 @@ export interface PageRuntimeStatus {
   registeredRuleCount: number | null;
   reloadRequired: boolean;
 }
-export type RuntimeSyncComponent = 'contentScripts' | 'dnr' | 'webrtc' | 'tabReload';
+export type RuntimeSyncComponent = 'contentScripts' | 'legacyDnrCleanup' | 'webrtc' | 'tabReload';
 
 export interface RuntimeSyncError {
   code: string;

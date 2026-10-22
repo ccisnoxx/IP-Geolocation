@@ -11,7 +11,7 @@ const disabled = normalizeRule({
   enabled: false,
   exitLocationProfileId: 'saved-exit',
   overrides: {
-    language: { mode: 'override', value: { language: 'ja-JP', languages: ['ja-JP'], acceptLanguage: 'ja-JP' } },
+    language: { mode: 'override', value: { language: 'ja-JP', languages: ['ja-JP'] } },
     timezone: { mode: 'override', value: { mode: 'manual', timezone: 'UTC' } },
     geolocation: { mode: 'disable', value: null }
   }

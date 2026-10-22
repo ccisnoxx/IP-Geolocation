@@ -9,7 +9,7 @@ import type { captureNavigatorContract } from './helpers/navigator-contract';
 
 type Probe = ReturnType<typeof captureNavigatorContract>;
 const payload = { extensionEnabled: true,
-  languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR' } };
+  languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR', 'fr'] } };
 let runtime: string;
 let probeSource: string;
 before(async () => {

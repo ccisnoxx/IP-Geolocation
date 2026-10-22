@@ -166,3 +166,9 @@ VG-013 本地完成：170/170、源码/测试类型、build/diff/dry-run通过�
 ## VG-021 P0-F：有限表达与安全资格分开
 
 Chrome155.0.8059.40真实隔离实验20场景，见[报告](./registration-sequence-research.md)和[证据](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/chrome-evidence.json)：位置专属global/lexical四类文档三阶段4/4、切换1001为4/4、严格CSP1/1；重复4/32位列表仅实际01，不完整序列无hook。微任务允许在位片段前运行。原生注册的父页抢占未成功，安全性仍NOT_ESTABLISHED；页面eval正向攻击能翻转组装。storage禁用与注销间隙仍执行旧A、注销不撤销存量hook；完成后的新文档和响应头前更新对照有效。有限表达GO、安全恢复NO_GO；未覆盖完整payload、容量上限、P2/BFCache或生产runtime，不替代VG-015/017负向证据。本地交付时manifest/Trellis均review，待人工验收；用户于2026-10-15确认隔离验证验收通过并接受有限表达GO、安全恢复NO_GO及已知限制，manifest现为done、Trellis为completed，见[人工验收记录](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md#人工验收)。生产暂停保持，不启动恢复实施；任务完成不构成发布批准，不改版本、不提交、推送或发布。
+
+## 本地分任务提交范围（2026-10-22）
+
+本次仅按用户授权整理必要前置任务和VG-029为本地提交；不push、不发布，其他任务保持未提交。任务状态以manifest为准；旧阶段的暂停、测试数量和未提交描述保留历史含义。
+
+- VG-028：schema v3、原生请求头、16项字体配置与维护源；DNR仅清理历史1100至2099，语言/时区保持，字体/位置/Worker生产暂停。 [执行记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。

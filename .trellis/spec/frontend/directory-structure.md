@@ -1,6 +1,6 @@
 # 目录结构
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 仍暂停；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；字体暴露过滤仍暂停，配置仅保存；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 当前架构
 
@@ -18,13 +18,12 @@ VanishGeo 是 Chromium Manifest V3 扩展。维护源使用 TypeScript 和 ES mo
 ├── src/
 │   ├── background/
 │   │   ├── service-worker.ts      # 模块 service worker 入口与事件注册
-│   │   ├── services.ts            # 配置事务、检测确认、脚本/DNR/WebRTC、人工重载提示
+│   │   ├── services.ts            # 配置事务、检测确认、脚本/WebRTC、人工重载提示
 │   │   ├── page-scripts.ts        # 安全JSON代码生成及串行userScripts对账
 │   │   ├── message-router.ts      # 消息分派与扩展管理页来源校验
 │   │   ├── context-menu.ts
 │   │   ├── diagnostic-runs.ts     # 一次性内存 run、所有者/TTL/授权与导航状态
 │   │   ├── diagnostic-probe.ts    # 自包含实际值采集，无预期参数
-│   │   ├── dnr.ts
 │   │   └── webrtc.ts
 │   ├── content/content.ts        # 兼容构建空入口，不注册、不发送初始化消息
 │   ├── injected/runtime.ts       # 静态生成完整隔离runtime与生产语言/时区源码的 facade
@@ -68,7 +67,7 @@ VanishGeo 是 Chromium Manifest V3 扩展。维护源使用 TypeScript 和 ES mo
 
 - HTML、manifest、`public/icons/*`、fixtures、LICENSE、NOTICE 通过静态复制进入 dist；页面 CSS 由对应入口导入并输出到页面子目录。
 - 当前构建会输出 `dist/assets/*.js` 共享 chunks。哈希文件名由 Rollup 决定，不能假定共享模块全部内联；打包必须包含整个 dist 所需文件。
-- `src/injected/runtime.ts` 导出隔离测试的完整函数与生产 `pageRuntimeSource` 字符串。后者由 `language-timezone-entry.ts` 静态生成，只安装 Navigator 语言和 Intl/Date，Temporal 明确禁用；不含位置、Canvas 或 worker 安装 graph。后台将它与安全 JSON payload 组成 userScripts code。两者均有自包含构建守卫；无独立 runtime 入口或 WAR。
+- `src/injected/runtime.ts` 导出隔离测试的完整函数与生产 `pageRuntimeSource` 字符串。后者由 `language-timezone-entry.ts` 静态生成，只安装 Navigator 语言和 Intl/Date，Temporal 明确禁用；不含位置、字体暴露过滤或 worker 安装 graph。后台将它与安全 JSON payload 组成 userScripts code。两者均有自包含构建守卫；无独立 runtime 入口或 WAR。
 - `@` 指向 src，TypeScript 和 Vite 都配置了别名；源码 ES module imports 由构建处理，不需要 `module.exports` 或浏览器全局导出。
 - `npm run dev` 是 Vite build watch，开发时仍加载/重载 unpacked dist；`npm run preview` 不代表 Chrome 扩展运行环境。
 

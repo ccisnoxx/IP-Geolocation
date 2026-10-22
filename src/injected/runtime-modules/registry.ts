@@ -27,7 +27,7 @@ export function createRuntimeState(globals: typeof globalThis & Record<string, a
       timezone: null,
       geolocation: null,
       geolocationCoordinate: null,
-      canvasTargetFontKeys: new Set<string>()
+      blockedFontFamilyKeys: new Set<string>()
     }
   };
 }

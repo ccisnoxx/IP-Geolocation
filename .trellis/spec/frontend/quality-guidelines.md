@@ -1,10 +1,10 @@
 # 质量规范
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Canvas、Worker/SharedWorker 仍暂停；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；字体暴露过滤仍暂停，配置仅保存；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 当前技术与权威边界
 
-VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HTML/CSS/DOM 为界面。源码在 src，运行时从 dist 加载；质量检查必须同时考虑类型、ES module 构建 wiring 和 Chrome 文档/权限边界。目录与入口见 [目录结构](./directory-structure.md)，schema v2/verified 事务见 [状态管理](./state-management.md)。
+VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HTML/CSS/DOM 为界面。源码在 src，运行时从 dist 加载；质量检查必须同时考虑类型、ES module 构建 wiring 和 Chrome 文档/权限边界。目录与入口见 [目录结构](./directory-structure.md)，schema v3/verified 事务见 [状态管理](./state-management.md)。
 
 配置归一化、匹配/解析、迁移/持久化分别以 `src/shared/config-model.ts`、`config-resolver.ts`、`storage.ts` 为权威。background/services 拥有副作用和配置修改事务，injected/runtime 拥有 MAIN-world 页面 hook。新增 UI、诊断或测试不得复制域名匹配器、可信配置桥或 storage 事实来源。
 
@@ -20,22 +20,22 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 
 - manifest 保持 MV3、最低 Chrome 138、userScripts 权限、无静态 content_scripts、WAR 为空。正常开启 Allow User Scripts 是用户前置条件，不写 profile/prefs 或用命令行绕过。不可用时 fail closed，区分 API/权限/用户开关/注册失败。
 - 生产注册只来自 validateConfig/resolver 最小 payload 与构建模板；安全 JSON 值，不接受网页或用户 JavaScript，不使用 eval/new Function、远程 import/运行期下载。不得写 IP/provider、完整规则/档案或暂停/未启用信号。
-- Chrome 直接按 MAIN / document_start / matches / excludeMatches / allFrames 执行普通 HTTP(S) 新文档；最长域名优先，即使子规则无有效页面信号。无 content 初始化、worker documentId 或 scripting.executeScript 生产回退；保留的 scripting 只供旧脚本注销及既有诊断采样。
+- Chrome 直接按 MAIN / document_start / matches / excludeMatches / allFrames 执行普通 HTTP(S) 新文档；最长域名优先，即使子规则无有效页面信号。无 content 初始化、worker documentId 或 scripting.executeScript 生产回退。
 - 所有注册修改经 services 唯一串行队列，先撤销失效/范围变化并确认，再更新保留项，最后新增并读回。每次失败进入报告；worker 初始化及 onInstalled(update) 幂等恢复。注册完成后才能提示手动完整 reload/关闭重开，不自动刷新，不热更新旧/BFCache 文档。
 - 普通 iframe 按自己的 URL 匹配；about:blank/srcdoc/data/blob/特殊 sandbox 明确 unsupported / UNKNOWN，不启用 origin fallback 或父子帧遍历。管理动作仍 requireExtensionPage，无 postMessage/DOM 配置桥。
-- DNR 从同一有效语言解析生成 Accept-Language，并只管理现有 ID 区间；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
-- manifest 权限或 host scope 变化须有明确任务授权，同步 `PERMISSIONS.md` 和 wiring 测试。不得为测试放宽权限或校验；optional host permissions 需要独立设计拒绝状态、重新注册与 DNR 恢复。
+- HTTP 请求头保持原生；仅保留DNR权限用于历史1100至2099范围清理和验证，不生成新规则；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
+- manifest 权限或 host scope 变化须有明确任务授权，同步 `PERMISSIONS.md` 和 wiring 测试。不得为测试放宽权限或校验；optional host permissions 需要独立设计拒绝状态、重新注册与失效处理。
 - Refactor 默认保持 runtime action、storage 键/schema、payload 和入口合同；语义变化必须在任务中明确授权和验收。
 
 ## 页面 hook 与设备透传
 
-生产只安装 Navigator 语言与 Intl/Date，includeTemporal:false；Geolocation/Permissions、Canvas 和 Worker/SharedWorker 仅完整隔离 runtime 保留。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
+生产语言/时区入口仅安装Navigator语言与Intl/Date，includeTemporal:false。Geolocation/Permissions、字体和Worker/SharedWorker继续暂停，完整runtime不生产派发。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
 
 Navigator / WorkerNavigator getter 保留原生 prototype 位置、descriptor flags、name/length 和非法 receiver 异常；仅当前 navigator 返回配置值，其他 receiver 调用原生 getter。属性后来被网页替换、删除或冻结时，反射 API 必须报告实际值。函数 source 由未修改的引擎 API 决定，不保证包装函数与原函数源码文本相同。
 
 `applyVanishGeoRuntime(payload)` 返回私有 `RuntimeController`（仅含 `update(payload)`），调用方持有同次安装的句柄以保留幂等和未来 Worker 配置更新。初次禁用不会安装 surface，之后该句柄仍只更新未来 Worker；不热更新既有页面 surface。不同序列化调用创建独立闭包，不再通过 documentId/Symbol 查回旧状态；生产使用每文档一次执行的专用入口，不导出或更新 controller；不能把完整 runtime 返回函数当作可 JSON 传输的 Chrome scripting result。
 
-无目标检测证据和独立任务授权，不新增 WebGL/GPU、Audio、screen、hardware concurrency、device memory、原生字体库存、codec、WebGPU 等设备指纹伪装。当前已有 Canvas 字体功能不自动授权扩大伪装面。对未接管表面记录原生透传证据，而不是由 IP 地理位置猜测设备属性。
+无目标检测证据和独立任务授权，不新增 WebGL/GPU、Audio、screen、hardware concurrency、device memory、原生字体库存、codec、WebGPU 等设备指纹伪装。当前选择性字体暴露过滤维护源不自动授权扩大伪装面。对未接管表面记录原生透传证据，而不是由 IP 地理位置猜测设备属性。
 
 ## Worker bootstrap（隔离 runtime，生产继续暂停）
 
@@ -99,7 +99,6 @@ Chrome action popup 保持保守的明确视口（当前 html/body 为 380×600�
 | `tests/release-gates.test.ts` | CI/release 顺序和最小权限、本地失败传播、合成 Git 历史与浅克隆失败 |
 | `tests/config.test.ts` | 归一化、迁移转换、有效档案/规则解析、allowlist matches |
 | `tests/background-services.test.ts` | 检测确认、导入降级、刷新、可信 sender、首次初始化和旧键迁移的 mocks |
-| `tests/dnr.test.ts` | 规则生成、语言继承/覆盖/禁用与本地 host 正则的纯逻辑 |
 | `tests/webrtc.test.ts` | policy 映射、clear、不支持状态的 Chrome mocks |
 | `tests/anti-detection-runtime.test.ts` | VM 中私有更新句柄、直接 frame 调用、worker wrapper/缓存/回收及 debug 日志隐私 |
 | `tests/navigator-contract.test.ts` | 页面/独立 frame realm/实际 Worker prelude 的全局状态不可达、原生反射引用、prototype/receiver 和 descriptor 替换/删除/freeze |
@@ -143,3 +142,8 @@ sandbox 只设置 allow-scripts，不设置 allow-same-origin；三个文档有�
 实际 dist 的 scripts/chrome-language-timezone-smoke.mjs 运行于独立 Linux VM 的新网络 namespace，仅 loopback、IPv4/IPv6 prohibit、非 root Chrome 和自身 sandbox；通过正常扩展详情 UI 的可信 pointer 开关启用。localhost 最先 inline 同步记录实际值，配置只由扩展管理页提交，不写预期到页面。分别验证顶层/普通 iframe 首读、负对照、父子域优先级、strict/compatible、A→B 旧快照/reload、禁用/reload、worker 重启/扩展 update 恢复、DNR/privacy policy 和暂停 surface。
 
 原最小实验的已人工验收 linux-evidence.json（含真实 BFCache hit）保留；production-evidence.json 是生产定向 smoke，不能把原实验当生产全部 surface 验收。两者均不可被 dry-run/Node/mock 替代；Chrome 138 实机、其他 Chromium、真实 action Popup 和 ICE 网络结果单列未验证。旧 VG-009/full-worker runner 含本阶段不支持能力，只保留历史或隔离回归含义。
+
+
+## VG-028 字体与网络收窄
+
+字体生产暂停，维护源仅过滤目标measureText与FontFaceSet.check，内置16项厂商／软件字体；普通字体、绘制、像素、图像导出和未接管API保持原生。header echo只作原生观测，不与网页语言比较PASS/FAIL，不传递预期配置。网络升级与Node/VM/dry-run证据分别记录。

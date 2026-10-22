@@ -1,0 +1,22 @@
+{
+  "task": "VG-028",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.80",
+  "checks": {
+    "oldRuleActive": true,
+    "upgradeCleanup": true,
+    "foreignRuleRetained": true,
+    "upgradedHeaderNative": true,
+    "configMigration": true,
+    "languageChangesKeepNativeHeader": true,
+    "workerStopWake": true
+  },
+  "scope": "legacy-dnr-same-profile-upgrade",
+  "mechanism": "Extensions.loadUnpacked same staged path; package version unchanged",
+  "limitations": [
+    "未开启 Allow User Scripts，不验证语言/时区首脚本或字体生产恢复",
+    "未监控 Chrome 自身全部后台网络；fixture 仅请求 loopback"
+  ],
+  "cleanup": "PASS",
+  "failure": null
+}

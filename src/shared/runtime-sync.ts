@@ -1,20 +1,20 @@
 import type { RuntimeSyncComponent, RuntimeSyncError, RuntimeSyncReport } from './types';
 
 export const RUNTIME_SYNC_COMPONENT_LABELS: Record<RuntimeSyncComponent, string> = {
-  contentScripts: '页面语言/时区注册', dnr: 'DNR 请求头规则', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
+  contentScripts: '页面语言/时区注册', legacyDnrCleanup: '旧请求头规则清理', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
 };
 
 // 仅用于识别历史暂停报告；新页面注册以 pageRuntime 为准。
 export const RUNTIME_INJECTION_PAUSED: RuntimeSyncError = {
   code: 'runtime-injection-paused',
-  message: '页面伪装已暂停：语言、时区、位置、Canvas 和 worker 伪装均不执行。请求头规则与 WebRTC 按各自状态报告。已有 hook 与旧 BFCache 文档需关闭并重建，暂停不会撤销已执行代码。'
+  message: '历史完整页面 runtime 已暂停：语言、时区、位置、字体暴露过滤和 worker 均不由该路径执行。当前语言/时区注册与 WebRTC 按各自状态报告；请求头保持原生。已有 hook 与旧 BFCache 文档需关闭并重建，暂停不会撤销已执行代码。'
 };
 
 export function isRuntimeInjectionPaused(report?: RuntimeSyncReport): boolean {
   return !report?.pageRuntime && Boolean(report?.components.contentScripts.errors.some((error) => error.code === RUNTIME_INJECTION_PAUSED.code));
 }
 
-export const PAGE_RUNTIME_PAUSED_SURFACES = 'Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 仍暂停，相关配置仅保存。';
+export const PAGE_RUNTIME_PAUSED_SURFACES = 'Geolocation / Permissions geolocation、字体暴露过滤、Worker / SharedWorker 仍暂停，相关配置已配置但当前未应用。';
 export const PAGE_RUNTIME_DOCUMENT_SCOPE = 'about:blank、srcdoc、data:、blob: 和特殊 sandbox 文档不支持（unsupported / UNKNOWN）。';
 const DOCUMENT_SNAPSHOT_MESSAGE = '已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。';
 
@@ -57,10 +57,10 @@ export async function syncSignature(value: string): Promise<string> {
 export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
   if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
   const details = (Object.keys(RUNTIME_SYNC_COMPONENT_LABELS) as RuntimeSyncComponent[])
-    .filter((key) => key === 'dnr' || key === 'webrtc' || report.components[key].status !== 'ok')
+    .filter((key) => key === 'legacyDnrCleanup' || key === 'webrtc' || report.components[key].status !== 'ok')
     .map((key) => {
       const component = report.components[key];
-      const status = component.status === 'ok' ? '已同步' : component.status === 'failed' ? '同步失败' : '部分同步';
+      const status = component.status === 'ok' ? key === 'legacyDnrCleanup' ? '已确认旧规则不存在（请求头保持原生）' : '已同步' : component.status === 'failed' ? '同步失败' : '部分同步';
       return `${RUNTIME_SYNC_COMPONENT_LABELS[key]}：${status}${component.errors.length ? `（${component.errors.map((error) => error.message).join('；')}）` : ''}`;
     });
   if (report.metadataError) details.push(report.metadataError.message);

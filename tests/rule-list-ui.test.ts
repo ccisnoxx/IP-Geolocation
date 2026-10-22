@@ -11,6 +11,7 @@ import type { SiteSpoofConfig } from '../src/shared/types';
 interface FormElement {
   value: string;
   checked: boolean;
+  hidden: boolean;
 }
 
 // 执行维护源的表单填充和保存函数，观察真正发送的配置；不模拟 Chrome 验收。
@@ -18,14 +19,14 @@ function createFormHarness(page: 'popup' | 'options', initialConfig: SiteSpoofCo
   const source = readFileSync(new URL(`../src/${page}/${page}.ts`, import.meta.url), 'utf8');
   const parsed = ts.createSourceFile(`${page}.ts`, source, ts.ScriptTarget.Latest, true);
   const saveFunction = page === 'popup' ? 'saveChanges' : 'saveSettings';
-  const names = ['populateForm', 'readForm', saveFunction, ...(page === 'popup' ? ['updateTimezoneOffset'] : [])];
+  const names = ['updateFontExposureMode', 'populateForm', 'readForm', saveFunction, ...(page === 'popup' ? ['updateTimezoneOffset'] : [])];
   const functions = parsed.statements
     .filter((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node) && names.includes(node.name?.text || ''));
   assert.equal(functions.length, names.length);
 
   const elements: Record<string, FormElement> = {};
   for (const match of source.matchAll(/const (\w+El) = document\.getElementById\(/g)) {
-    elements[match[1]] = { value: '', checked: false };
+    elements[match[1]] = { value: '', checked: false, hidden: false };
   }
   const writes: SiteSpoofConfig[] = [];
   const context = vm.createContext({
@@ -57,9 +58,9 @@ function createFormHarness(page: 'popup' | 'options', initialConfig: SiteSpoofCo
     let currentConfig = normalizeConfig(initialConfig);
     ${functions.map((node) => node.getText(parsed)).join('\n')}
     populateForm(currentConfig);
-    ({ save: ${saveFunction} });
+    ({ save: ${saveFunction}, updateFontExposureMode });
   `, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText;
-  const api = vm.runInContext(script, context) as { save(): Promise<void> };
+  const api = vm.runInContext(script, context) as { save(): Promise<void>; updateFontExposureMode(): void };
   return { ...api, elements, writes };
 }
 
@@ -79,7 +80,7 @@ for (const page of ['popup', 'options'] as const) {
       { element: 'languageEl', field: 'value', value: 'de-DE', verify: (config) => assert.equal(config.globalProfile.language.language, 'de-DE') },
       { element: 'intlModeEl', field: 'value', value: 'compatible', verify: (config) => assert.equal(config.intlMode, 'compatible') },
       { element: 'timezoneEl', field: 'value', value: 'UTC', verify: (config) => assert.equal(config.globalProfile.timezone.timezone, 'UTC') },
-      { element: 'canvasEnabledEl', field: 'checked', value: true, verify: (config) => assert.equal(config.canvas.enabled, true) },
+      { element: 'fontExposureEnabledEl', field: 'checked', value: true, verify: (config) => assert.equal(config.fontExposure.enabled, true) },
       { element: 'accuracyEl', field: 'value', value: '80', verify: (config) => assert.equal(config.globalProfile.geolocation.accuracy, 80) }
     ];
     for (const change of changes) {
@@ -112,5 +113,40 @@ for (const page of ['popup', 'options'] as const) {
     harness.elements.ruleListEl.value = 'disabled.example';
     await harness.save();
     assert.deepEqual(harness.writes[2].rules, [{ ...rules[0], enabled: true }, rules[2]]);
+  });
+}
+
+for (const page of ['popup', 'options'] as const) {
+  test(`${page} 字体模式加载和保存遵循内置名单，自定义编辑切换前后保留`, async () => {
+    const customFamilies = ['Synthetic Vendor Font', 'Synthetic Editor Font'];
+    const initial = configModel.normalizeConfig({ fontExposure: { enabled: true, mode: 'custom', blockedFamilies: customFamilies } });
+    const ui = createFormHarness(page, initial);
+    assert.equal(ui.elements.fontExposureEnabledEl.checked, true);
+    assert.equal(ui.elements.fontExposureModeEl.value, 'custom');
+    assert.equal(ui.elements.fontExposureBlockedFamiliesEl.value, customFamilies.join('\n'));
+    assert.equal(ui.elements.fontExposureVendorGroupEl.hidden, true);
+    assert.equal(ui.elements.fontExposureCustomGroupEl.hidden, false);
+    assert.equal(ui.elements.fontExposureVendorFamiliesEl.value, configModel.VENDOR_SOFTWARE_FONT_FAMILIES.join('\n'));
+    ui.elements.fontExposureBlockedFamiliesEl.value += '\nSynthetic Draft Font';
+    ui.elements.fontExposureModeEl.value = 'vendor-software';
+    ui.updateFontExposureMode();
+    assert.equal(ui.elements.fontExposureVendorGroupEl.hidden, false);
+    assert.equal(ui.elements.fontExposureCustomGroupEl.hidden, true);
+    ui.elements.fontExposureModeEl.value = 'custom';
+    ui.updateFontExposureMode();
+    assert.match(ui.elements.fontExposureBlockedFamiliesEl.value, /Synthetic Draft Font/);
+    await ui.save();
+    assert.deepEqual(ui.writes[0].fontExposure, { enabled: true, mode: 'custom', blockedFamilies: [...customFamilies, 'Synthetic Draft Font'] });
+    ui.elements.fontExposureModeEl.value = 'vendor-software';
+    ui.updateFontExposureMode();
+    await ui.save();
+    assert.equal(ui.writes[1].fontExposure.mode, 'vendor-software');
+    assert.deepEqual(ui.writes[1].fontExposure.blockedFamilies, [...configModel.VENDOR_SOFTWARE_FONT_FAMILIES]);
+    const reloaded = createFormHarness(page, ui.writes[1]);
+    assert.equal(reloaded.elements.fontExposureModeEl.value, 'vendor-software');
+    assert.equal(reloaded.elements.fontExposureVendorGroupEl.hidden, false);
+    assert.equal(reloaded.elements.fontExposureCustomGroupEl.hidden, true);
+    assert.equal(ui.writes[1].schemaVersion, 3);
+    assert.doesNotMatch(JSON.stringify(ui.writes[1]), /acceptLanguage|"canvas"/);
   });
 }

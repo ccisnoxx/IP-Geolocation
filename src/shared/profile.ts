@@ -23,8 +23,7 @@ export function createCustomProfile(config: SiteSpoofConfig, name: string, descr
     },
     language: {
       language: config.globalProfile.language.language,
-      languages: config.globalProfile.language.languages.slice(),
-      acceptLanguage: config.globalProfile.language.acceptLanguage
+      languages: config.globalProfile.language.languages.slice()
     },
     timezone: { timezone: config.globalProfile.timezone.timezone }
   };

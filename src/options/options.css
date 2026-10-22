@@ -278,6 +278,10 @@ h2 {
   gap: 8px;
 }
 
+.input-group[hidden] {
+  display: none;
+}
+
 .input-group label,
 .checkbox-label {
   color: #c4e5f0;

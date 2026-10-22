@@ -154,7 +154,7 @@ test('leak test has hosted and localhost target workflows for allowlist validati
   assert.match(server, /headers\.json/);
   assert.match(server, /localhost/);
   assert.match(services, /LEAK_TEST_URL/);
-  assert.doesNotMatch(services, /appendExpectedProfileParams|expected[A-Z]|actualWebRtc/);
+  assert.doesNotMatch(services, /appendExpectedProfileParams|expected(?:Profile|Language|Timezone|Latitude|Longitude)|actualWebRtc/);
   assert.doesNotMatch(html, /expected[A-Z]|validation=acceptance/);
   assert.match(html, /name="referrer" content="no-referrer"/);
   assert.match(script, /referrerPolicy:\s*'no-referrer'/);
@@ -221,7 +221,7 @@ test('manifest permission boundary documents active detection and avoids redunda
   assert.equal(manifest.permissions.includes('activeTab'), false);
 });
 
-test('configuration UI wires explicit exit-profile selection, active detection, WebRTC, and Canvas controls', () => {
+test('configuration UI wires explicit exit-profile selection, active detection, WebRTC, and selective font exposure controls', () => {
   const popupHtml = read('src/popup/popup.html');
   const popupScript = read('src/popup/popup.ts');
   const optionsHtml = read('src/options/options.html');
@@ -242,14 +242,15 @@ test('configuration UI wires explicit exit-profile selection, active detection, 
     'detectExitLocation',
     'exitLocationProfiles',
     'webrtcPolicyStatus',
-    'canvasEnabled',
-    'canvasSpoofFonts',
-    'canvasTargetFonts',
+    'fontExposureEnabled',
+    'fontExposureMode',
+    'fontExposureVendorFamilies',
+    'fontExposureBlockedFamilies',
     'resetFonts'
   ].forEach((id) => assert.match(optionsHtml, new RegExp(`id="${id}"`)));
-  assert.match(optionsHtml, /data-tab="canvas"/);
+  assert.match(optionsHtml, /data-tab="font-exposure"/);
   assert.match(optionsScript, /getWebRtcConfig/);
-  assert.match(optionsScript, /DEFAULT_CANVAS/);
+  assert.match(optionsScript, /DEFAULT_FONT_EXPOSURE/);
   assert.match(optionsScript, /confirmExitLocationDetection/);
   assert.match(optionsScript, /renameExitLocationProfile/);
   assert.match(optionsScript, /deleteExitLocationProfile/);
@@ -323,4 +324,34 @@ test('VG-009 Chrome入口和扩展时序报告接线，fixture没有预期桥或
   assert.match(fixture, /blank\.contentDocument\.write\(html\)/);
   assert.doesNotMatch(fixture, /chrome\.runtime|postMessage|localStorage|expected|__vanish/);
   assert.doesNotMatch(read('scripts/chrome-injection-smoke.mjs'), /playwright|puppeteer|stun:|https:\/\//i);
+});
+
+test('字体 UI 无请求头编辑或 Canvas 伪装，内置名单只读且独立报告运行状态', () => {
+  for (const page of ['popup', 'options']) {
+    const html = read(`src/${page}/${page}.html`);
+    const script = read(`src/${page}/${page}.ts`);
+    assert.doesNotMatch(html + script, /acceptLanguage|Canvas spoof|Canvas 指纹伪装|Canvas 字体伪装|DNR 请求头规则|DNR Accept-Language/);
+    assert.match(html, /字体暴露过滤/);
+    assert.match(html, /不覆盖 DOM 尺寸.*local\(\).*像素比对.*Worker/);
+    assert.match(html, /不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息/);
+    assert.match(html, /兼容性/);
+    assert.match(html, /value="vendor-software"/);
+    assert.match(html, /value="custom"/);
+    assert.match(html, /id="fontExposureVendorFamilies"[^>]*readonly/);
+    assert.match(html, /id="fontExposureBlockedFamilies"[^>]*><\/textarea>/);
+    assert.match(script, /VENDOR_SOFTWARE_FONT_FAMILIES/);
+    assert.match(read(`src/${page}/${page}.css`), /\.input-group\[hidden\]\s*\{\s*display:\s*none;/);
+  }
+});
+
+test('请求头权限仅过渡用于遗留清理，不再生成语言改写规则', () => {
+  const services = read('src/background/services.ts');
+  const cleanup = read('src/background/legacy-dnr-cleanup.ts');
+  const permissions = read('PERMISSIONS.md');
+  assert.match(services, /legacy-dnr-cleanup/);
+  assert.doesNotMatch(services, /from ['"].*\/dnr['"]|validateLanguageDnr|reconcileLanguageDnr|syncLanguageDnr/);
+  assert.match(cleanup, /getDynamicRules/);
+  assert.match(cleanup, /removeRuleIds/);
+  assert.doesNotMatch(cleanup, /modifyHeaders|requestHeaders|regexFilter/);
+  assert.match(permissions, /遗留.*清理|旧.*清理/);
 });

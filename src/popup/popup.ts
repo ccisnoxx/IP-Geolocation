@@ -3,7 +3,8 @@ import { isRuntimeInjectionPaused, renderRuntimeSyncReport } from '../shared/run
 import { getPageRuntimeProfile } from '../shared/config-resolver';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
-  DEFAULT_CANVAS,
+  DEFAULT_FONT_EXPOSURE,
+  VENDOR_SOFTWARE_FONT_FAMILIES,
   createInitialConfig,
   getTimezoneOffsetMinutes,
   normalizeConfig,
@@ -48,10 +49,14 @@ const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
 const languageEnabledEl = document.getElementById('languageEnabled') as HTMLInputElement;
 const languageEl = document.getElementById('language') as HTMLInputElement;
 const languagesEl = document.getElementById('languages') as HTMLInputElement;
-const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputElement;
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
-const canvasEnabledEl = document.getElementById('canvasEnabled') as HTMLInputElement;
+const fontExposureEnabledEl = document.getElementById('fontExposureEnabled') as HTMLInputElement;
+const fontExposureModeEl = document.getElementById('fontExposureMode') as HTMLSelectElement;
+const fontExposureVendorFamiliesEl = document.getElementById('fontExposureVendorFamilies') as HTMLTextAreaElement;
+const fontExposureBlockedFamiliesEl = document.getElementById('fontExposureBlockedFamilies') as HTMLTextAreaElement;
+const fontExposureVendorGroupEl = document.getElementById('fontExposureVendorGroup') as HTMLElement;
+const fontExposureCustomGroupEl = document.getElementById('fontExposureCustomGroup') as HTMLElement;
 const resetFontsBtn = document.getElementById('resetFonts') as HTMLButtonElement;
 const openOptionsBtn = document.getElementById('openOptions') as HTMLButtonElement;
 const openLeakTestBtn = document.getElementById('openLeakTest') as HTMLButtonElement;
@@ -77,7 +82,9 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
         return;
       }
       const report = response.syncReport || response.state?.syncReport;
-      if (report) renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+      if (report) {
+        renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+      }
       const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
       if (config) renderSetupStatus(setupStatusEl, normalizeConfig(config), report);
       if (currentTabState && (config || report)) renderCurrentSiteStatus({ ...currentTabState, config: config || currentConfig, syncReport: report });
@@ -174,6 +181,12 @@ function updateTimezoneOffset(): void {
   utcOffsetEl.value = offset === null ? '' : String(-offset / 60);
 }
 
+function updateFontExposureMode(): void {
+  const custom = fontExposureModeEl.value === 'custom';
+  fontExposureVendorGroupEl.hidden = custom;
+  fontExposureCustomGroupEl.hidden = !custom;
+}
+
 function populateForm(config: SiteSpoofConfig): void {
   globalEnabledEl.checked = config.masterEnabled;
   debugModeEl.checked = config.debugMode;
@@ -199,11 +212,14 @@ function populateForm(config: SiteSpoofConfig): void {
   languageEnabledEl.checked = language.enabled;
   languageEl.value = language.language;
   languagesEl.value = language.languages.join(', ');
-  acceptLanguageEl.value = language.acceptLanguage;
 
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
-  canvasEnabledEl.checked = config.canvas.enabled;
+  fontExposureEnabledEl.checked = config.fontExposure.enabled;
+  fontExposureModeEl.value = config.fontExposure.mode;
+  fontExposureVendorFamiliesEl.value = VENDOR_SOFTWARE_FONT_FAMILIES.join('\n');
+  fontExposureBlockedFamiliesEl.value = config.fontExposure.blockedFamilies.join('\n');
+  updateFontExposureMode();
   latitudeEl.placeholder = geo.mode === 'auto' ? '由当前规则的出口档案提供' : '';
   longitudeEl.placeholder = geo.mode === 'auto' ? '由当前规则的出口档案提供' : '';
   timezoneEl.placeholder = timezone.mode === 'auto' ? '由当前规则的出口档案提供' : 'UTC';
@@ -223,8 +239,7 @@ function readForm(): SiteSpoofConfig {
         enabled: languageEnabledEl.checked,
         mode: 'custom',
         language: languageEl.value,
-        languages: languagesEl.value.split(',').map((item) => item.trim()).filter(Boolean),
-        acceptLanguage: acceptLanguageEl.value
+        languages: languagesEl.value.split(',').map((item) => item.trim()).filter(Boolean)
       }),
       timezone: normalizeTimezone({
         enabled: timezoneEnabledEl.checked,
@@ -245,9 +260,12 @@ function readForm(): SiteSpoofConfig {
       })
     },
     webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
-    canvas: {
-      ...currentConfig.canvas,
-      enabled: canvasEnabledEl.checked
+    fontExposure: {
+      enabled: fontExposureEnabledEl.checked,
+      mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
+      blockedFamilies: fontExposureModeEl.value === 'vendor-software'
+        ? [...VENDOR_SOFTWARE_FONT_FAMILIES]
+        : fontExposureBlockedFamiliesEl.value.split('\n').map((item) => item.trim()).filter(Boolean)
     }
   });
 }
@@ -309,7 +327,8 @@ async function saveExitLocationBinding(): Promise<void> {
 }
 
 async function handleResetFonts(): Promise<void> {
-  currentConfig.canvas.targetFonts = DEFAULT_CANVAS.targetFonts;
+  fontExposureModeEl.value = DEFAULT_FONT_EXPOSURE.mode;
+  updateFontExposureMode();
   await saveChanges();
 }
 
@@ -331,10 +350,11 @@ timezoneEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languageEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
 languageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languagesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
-acceptLanguageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 webrtcEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
 webrtcPolicyEl.addEventListener('change', () => { runUiTask(saveChanges()); });
-canvasEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+fontExposureEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+fontExposureModeEl.addEventListener('change', () => { updateFontExposureMode(); runUiTask(saveChanges()); });
+fontExposureBlockedFamiliesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 saveCoordinateBtn.addEventListener('click', () => { runUiTask(handleSaveCoordinate()); });
 currentExitProfileSelectEl.addEventListener('change', () => { runUiTask(saveExitLocationBinding()); });
 manageExitProfilesBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });

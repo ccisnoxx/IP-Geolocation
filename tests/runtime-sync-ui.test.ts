@@ -15,7 +15,7 @@ function report(failed?: RuntimeSyncComponent): RuntimeSyncReport {
   const ok = () => ({ status: 'ok' as const, errors: [] });
   const result: RuntimeSyncReport = { configSignature: 'synthetic-signature', status: 'ok', metadataError: null,
     pageRuntime: { state: 'ready', registeredRuleCount: 1, reloadRequired: false },
-    components: { contentScripts: ok(), dnr: ok(), webrtc: ok(), tabReload: ok() } };
+    components: { contentScripts: ok(), legacyDnrCleanup: ok(), webrtc: ok(), tabReload: ok() } };
   if (failed) {
     result.status = 'partial';
     result.components[failed] = { status: 'failed', errors: [{ code: 'synthetic-failure', message: '合成失败，请重试。' }] };
@@ -71,10 +71,10 @@ for (const page of ['popup', 'options'] as const) {
     vm.runInContext(ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
     await vm.runInContext('loadConfig()', context);
     assert.equal(element('runtimeSyncStatus').dataset.status, 'ok');
-    assert.match(element('runtimeSyncStatus').textContent, /DNR 请求头规则：已同步；WebRTC 策略：已同步/);
+    assert.match(element('runtimeSyncStatus').textContent, /旧请求头规则清理：已确认旧规则不存在（请求头保持原生）；WebRTC 策略：已同步/);
     assert.doesNotMatch(element('setupStatus').textContent, /页面伪装已暂停/);
     if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '新文档语言/时区可用');
-    for (const component of ['contentScripts', 'dnr', 'webrtc', 'tabReload'] as const) {
+    for (const component of ['contentScripts', 'legacyDnrCleanup', 'webrtc', 'tabReload'] as const) {
       nextReport = report(component);
       await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
       assert.match(element('runtimeSyncStatus').textContent, /已保存但未完全生效/);
@@ -119,7 +119,7 @@ for (const page of ['popup', 'options'] as const) {
       assert.match(text, /已有受影响页面需完整重载（reload）或关闭后重新打开/);
       assert.match(text, /BFCache 恢复文档保留原快照，不会热更新或自动刷新/);
       assert.match(text, /当前页面实际值尚未验证/);
-      assert.match(text, /Geolocation \/ Permissions geolocation、Canvas、Worker \/ SharedWorker 仍暂停/);
+      assert.match(text, /Geolocation \/ Permissions geolocation、字体暴露过滤、Worker \/ SharedWorker 仍暂停/);
       assert.match(text, /about:blank、srcdoc、data:、blob:.*sandbox.*unsupported \/ UNKNOWN/);
       assert.doesNotMatch(text, /全部保护.*生效|当前页面已.*生效/);
     }
@@ -136,8 +136,8 @@ for (const page of ['popup', 'options'] as const) {
       await vm.runInContext(operation, context);
       const text = element('runtimeSyncStatus').textContent;
       assert.match(text, /页面伪装已暂停/);
-      assert.match(text, /语言、时区、位置、Canvas 和 worker/);
-      assert.match(text, /请求头规则与 WebRTC 按各自状态/);
+      assert.match(text, /语言、时区、位置、字体暴露过滤和 worker/);
+      assert.match(text, /当前语言\/时区注册与 WebRTC 按各自状态报告；请求头保持原生/);
       assert.match(text, /已有 hook 与旧 BFCache 文档需关闭并重建/);
       assert.match(text, /重试同步不会恢复/);
       assert.match(element('setupStatus').textContent, /历史报告：页面伪装已暂停／部分生效/);
@@ -152,11 +152,11 @@ for (const page of ['popup', 'options'] as const) {
   });
 }
 
-test('Popup 与 Options 静态说明保留暂停表面，语言/时区恢复后不再显示全量暂停', () => {
+test('Popup 与 Options 静态说明区分语言时区注册与暂停表面', () => {
   for (const page of ['popup', 'options']) {
     const html = readFileSync(new URL(`../src/${page}/${page}.html`, import.meta.url), 'utf8');
     assert.match(html, /Chrome 138\+、userScripts 权限及 Allow User Scripts 开关/);
-    assert.match(html, /Geolocation \/ Permissions geolocation、Canvas、Worker \/ SharedWorker 仍暂停/);
+    assert.match(html, /Geolocation \/ Permissions geolocation、字体暴露过滤、Worker \/ SharedWorker 仍暂停/);
     assert.match(html, /about:blank、srcdoc、data:、blob:.*unsupported \/ UNKNOWN/);
     assert.match(html, /BFCache 恢复文档保留原快照/);
     assert.doesNotMatch(html, /时区（页面伪装已暂停）|语言（DNR 可用，页面伪装暂停）|当前不在页面执行|保存配置不会恢复页面注入/);

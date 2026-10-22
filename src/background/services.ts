@@ -1,5 +1,5 @@
 // 后台统一持有配置事务、出口检测及新文档语言/时区注册；既有文档保持快照。
-import { updateAcceptLanguageRules, validateAcceptLanguageCapacity } from './dnr';
+import { cleanupLegacyAcceptLanguageRules } from './legacy-dnr-cleanup';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, getWebRTCPolicyState } from './webrtc';
 import {
   getLanguageTimezonePayload,
@@ -91,7 +91,7 @@ function runtimeConfigSignature(config: SiteSpoofConfig): Promise<string> {
 function pendingSyncReport(configSignature: string): RuntimeSyncReport {
   const pending = (): RuntimeSyncComponentReport => ({ status: 'partial', errors: [{ code: 'pending', message: '等待同步确认。' }] });
   return { configSignature, status: 'partial', components: {
-    contentScripts: pending(), dnr: pending(), webrtc: pending(), tabReload: pending()
+    contentScripts: pending(), legacyDnrCleanup: pending(), webrtc: pending(), tabReload: pending()
   }, metadataError: null };
 }
 
@@ -108,6 +108,8 @@ function pendingForSignature(metadata: RuntimeSyncMetadata | null, signature: st
   if (metadata.previous?.configSignature === signature) return metadata.previous.pendingReloads.slice();
   return [];
 }
+
+
 
 function runtimePayloadSignature(config: SiteSpoofConfig, url: string): string | null {
   if (!isScriptableUrl(url)) return null;
@@ -297,18 +299,18 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
       pendingReloads: pendingForSignature(stored, signature),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
-    const [pageSync, dnr, webrtc] = await Promise.all([
+    const [pageSync, legacyDnrCleanup, webrtc] = await Promise.all([
       (async () => {
         const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
         if (legacy.status !== 'ok') return { component: legacy,
           pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false } };
         return reconcilePageScripts(config, pageRuntimeSource);
       })(),
-      runRuntimeSideEffect('dnr', () => updateAcceptLanguageRules(config)),
+      runRuntimeSideEffect('legacyDnrCleanup', cleanupLegacyAcceptLanguageRules),
       runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(config,
         stored?.report.configSignature === signature && stored.report.components.webrtc.status === 'ok'))
     ]);
-    state.report.components = { ...state.report.components, contentScripts: pageSync.component, dnr, webrtc };
+    state.report.components = { ...state.report.components, contentScripts: pageSync.component, legacyDnrCleanup, webrtc };
     state.report.pageRuntime = pageSync.pageRuntime;
     if (state.pendingDetectionCleanup) {
       try {
@@ -337,7 +339,6 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
   async function persistConfig(previous: SiteSpoofConfig, candidate: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult> {
     const result = validateConfig(candidate);
     if (!result.ok) throw new Error(result.errors.join('; '));
-    await validateAcceptLanguageCapacity(result.config);
     const tabs = await queryScriptableTabs();
     const oldMetadata = await getRuntimeSyncMetadata();
     const previousSignature = await runtimeConfigSignature(previous);
@@ -692,7 +693,7 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     return enqueue(async () => {
       const before = await chrome.storage.local.get(null);
       const storedConfig = before[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-      const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 2)
+      const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 3)
         || Boolean(before[LEGACY_VANISHME_CONFIG_KEY]) || Boolean(before[LAST_LOCATION_KEY])
         || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
           .some((key) => Object.prototype.hasOwnProperty.call(before, key));

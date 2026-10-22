@@ -68,7 +68,7 @@ test('私有安装句柄保持页面 getter 幂等，语言/时区结果一致',
   const { context } = createBrowserLikeContext();
   vm.runInContext(compileRuntime(), context);
   const payload = { extensionEnabled: true,
-    languageConfig: { enabled: true, language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP' },
+    languageConfig: { enabled: true, language: 'ja-JP', languages: ['ja-JP', 'ja'] },
     timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' } };
   applyPayload(context, payload);
   const first = vm.runInContext("Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), 'language').get", context);
@@ -124,8 +124,7 @@ test('worker wrapper remains constructible and prepends the bootstrap before mod
     languageConfig: {
       enabled: true,
       language: 'en-US',
-      languages: ['en-US', 'en'],
-      acceptLanguage: 'en-US,en;q=0.9'
+      languages: ['en-US', 'en']
     }
   });
 
@@ -212,7 +211,7 @@ function createWorkerHarness() {
   vm.runInContext(compileRuntime(), context);
   const payload = (language = 'ja-JP') => ({
     extensionEnabled: true,
-    languageConfig: { enabled: true, language, languages: [language], acceptLanguage: language },
+    languageConfig: { enabled: true, language, languages: [language] },
     timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' }
   });
   applyPayload(context, payload());
@@ -355,8 +354,7 @@ test('Intl and Date timezone formatting stay consistent even with explicit calle
     languageConfig: {
       enabled: true,
       language: 'fr-FR',
-      languages: ['fr-FR', 'fr'],
-      acceptLanguage: 'fr-FR,fr;q=0.9'
+      languages: ['fr-FR', 'fr']
     },
     timezoneConfig: {
       enabled: true,
@@ -545,8 +543,7 @@ test('registry reflection layer leaves unmodified real-device surfaces as pass-t
     languageConfig: {
       enabled: true,
       language: 'en-US',
-      languages: ['en-US', 'en'],
-      acceptLanguage: 'en-US,en;q=0.9'
+      languages: ['en-US', 'en']
     },
     timezoneConfig: {
       enabled: true,
@@ -571,8 +568,7 @@ test('each frame document accepts its own direct runtime invocation without ifra
     languageConfig: {
       enabled: true,
       language: 'fr-FR',
-      languages: ['fr-FR', 'fr'],
-      acceptLanguage: 'fr-FR,fr;q=0.9'
+      languages: ['fr-FR', 'fr']
     },
     timezoneConfig: {
       enabled: true,
@@ -607,7 +603,7 @@ test('debugMode 只记录固定提示，不向页面控制台暴露预期 payloa
     applyPayload(context, {
       extensionEnabled: true,
       debugMode,
-      languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9' },
+      languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR', 'fr'] },
       timezone: 'Europe/Paris',
       timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' },
       geolocation: { enabled: true, latitude: 12.345678, longitude: 23.456789, accuracy: 50 }
@@ -628,4 +624,241 @@ test('debugMode 只记录固定提示，不向页面控制台暴露预期 payloa
     assert.equal(actual.language, 'fr-FR');
     assert.equal(actual.timezone, 'Europe/Paris');
   }
+});
+
+function createFontExposureContext() {
+  const { context } = createBrowserLikeContext();
+  vm.runInContext(`
+    const fontsByContext = new WeakMap();
+    this.CanvasRenderingContext2D = class CanvasRenderingContext2D {
+      constructor() { fontsByContext.set(this, '12px Arial'); }
+      get font() {
+        if (!fontsByContext.has(this)) throw new TypeError('font 非法 receiver');
+        return fontsByContext.get(this);
+      }
+      set font(value) {
+        if (!fontsByContext.has(this)) throw new TypeError('font 非法 receiver');
+        fontsByContext.set(this, value);
+      }
+      measureText(text) {
+        if (!fontsByContext.has(this)) throw new TypeError('measureText 非法 receiver');
+        if (!arguments.length) throw new TypeError('measureText 缺少参数');
+        const value = \`\${text}\`;
+        const font = fontsByContext.get(this);
+        return { width: value.length * (font.includes('MiSans') || font.includes('HarmonyOS') ? 30 : font.includes('monospace') ? 10 : 20), font };
+      }
+      fillText() { return this.font; }
+      strokeText() { return this.font; }
+      getImageData() { return 'native-pixels'; }
+    };
+    this.ctx = new CanvasRenderingContext2D();
+    this.HTMLCanvasElement = class HTMLCanvasElement {
+      getContext(kind) { return kind === '2d' ? ctx : 'native-webgl'; }
+      toDataURL() { return 'native-data-url'; }
+      toBlob() { return 'native-blob'; }
+    };
+    const fontSets = new WeakSet();
+    this.FontFaceSet = class FontFaceSet {
+      constructor() { fontSets.add(this); }
+      check(font, text = '') {
+        if (!fontSets.has(this)) throw new TypeError('check 非法 receiver');
+        if (!arguments.length) throw new TypeError('check 缺少参数');
+        const value = \`\${font}\`;
+        const content = \`\${text}\`;
+        if (!/^12px /.test(value)) throw new SyntaxError('无效字体 shorthand');
+        return !value.includes('Missing') && content !== 'missing-glyph';
+      }
+    };
+    // VM只提供既有12px样本的CSSOM接口；真实CSS grammar由Chrome回归验证。
+    this.document = { fonts: new FontFaceSet(), createElement() {
+      let font = '';
+      return {style: {
+        setProperty(name, value) { if (name === 'font') font = value; },
+        getPropertyValue(name) { return name === 'font-family' ? font.replace(/^12px /, '') : ''; }
+      }};
+    } };
+    this.navigator.userAgent = 'native-UA';
+    this.navigator.userAgentData = { platform: 'native-platform' };
+    this.navigator.hardwareConcurrency = 12;
+    this.navigator.deviceMemory = 8;
+    this.navigator.gpu = { requestAdapter() { return 'native-adapter'; } };
+    this.screen = { width: 1440, height: 900, colorDepth: 30 };
+    this.AudioContext = class AudioContext {};
+    const fontOwners = [
+      [CanvasRenderingContext2D.prototype, ['measureText', 'fillText', 'strokeText', 'getImageData', 'font']],
+      [HTMLCanvasElement.prototype, ['getContext', 'toDataURL', 'toBlob']],
+      [FontFaceSet.prototype, ['check']],
+      [navigator, ['userAgent', 'userAgentData', 'hardwareConcurrency', 'deviceMemory', 'gpu']],
+      [globalThis, ['screen', 'AudioContext']]
+    ];
+    const fontSnapshot = fontOwners.flatMap(([owner, keys]) => keys.map(key => ({
+      owner, key, descriptor: Object.getOwnPropertyDescriptor(owner, key)
+    })));
+    const nativeMeasureText = CanvasRenderingContext2D.prototype.measureText;
+    const nativeFontCheck = FontFaceSet.prototype.check;
+    const nativeFunctionSource = Function.prototype.toString;
+    const nativeReflection = [Object.getOwnPropertyDescriptor, Reflect.ownKeys];
+    const sameDescriptor = (a, b) => ['value', 'get', 'set', 'enumerable', 'configurable', 'writable'].every(key => a[key] === b[key]);
+    const unchangedFontSurfaces = (includeFiltered = false) => fontSnapshot.every(({owner, key, descriptor}) =>
+      !includeFiltered && (key === 'measureText' || key === 'check') || sameDescriptor(descriptor, Object.getOwnPropertyDescriptor(owner, key)));
+  `, context);
+  vm.runInContext(compileRuntime(), context);
+  return context;
+}
+
+const fontExposurePayload = (enabled = true): RuntimePayload => ({
+  extensionEnabled: true,
+  fontExposureConfig: { enabled, mode: 'vendor-software', blockedFamilies: ['MiSans', 'HarmonyOS Sans SC'] }
+});
+
+test('字体维护 runtime 仅过滤目标测量，普通中文/拉丁字体和绘图/设备表面原生透传', () => {
+  const context = createFontExposureContext();
+  applyPayload(context, fontExposurePayload());
+  const value = vm.runInContext(`(() => {
+    const targets = ['12px MiSans', '12px "HarmonyOS Sans SC"', '12px MiSans, Arial'].map(font => {
+      ctx.font = font;
+      const result = ctx.measureText('字A');
+      return {font, measured:result.font, width:result.width, restored:ctx.font===font,
+        fill:ctx.fillText('字A',0,0),stroke:ctx.strokeText('字A',0,0)};
+    });
+    const ordinary = ['Microsoft YaHei', 'Microsoft YaHei UI', 'PingFang SC', 'Noto Sans CJK SC', 'Arial'].map(family => {
+      ctx.font = '12px "' + family + '"';
+      return JSON.stringify(ctx.measureText('字A')) === JSON.stringify(nativeMeasureText.call(ctx, '字A'));
+    });
+    return { targets, ordinary, untouched:unchangedFontSurfaces(),
+      webgl:new HTMLCanvasElement().getContext('webgl'),pixels:ctx.getImageData(),
+      data:new HTMLCanvasElement().toDataURL(),blob:new HTMLCanvasElement().toBlob() };
+  })()`, context);
+  assert.deepEqual(Array.from(value.targets, (row: any) => row.measured), ['12px monospace', '12px monospace', '12px Arial']);
+  assert.deepEqual(Array.from(value.targets, (row: any) => row.width), [20, 20, 40]);
+  assert.ok(value.targets.every((row: any) => row.restored && row.fill === row.font && row.stroke === row.font));
+  assert.ok(value.ordinary.every(Boolean));
+  assert.equal(value.untouched, true);
+  assert.equal(value.webgl, 'native-webgl');
+  assert.equal(value.pixels, 'native-pixels');
+  assert.equal(value.data, 'native-data-url');
+  assert.equal(value.blob, 'native-blob');
+});
+
+test('FontFaceSet.check 目标过滤，非目标、原生异常和单次参数转换保持合同', () => {
+  const context = createFontExposureContext();
+  applyPayload(context, fontExposurePayload());
+  const value = vm.runInContext(`(() => {
+    let conversions = 0;
+    const objectTarget = document.fonts.check({[Symbol.toPrimitive](hint) {
+      if (hint !== 'string') throw new Error('转换 hint 变化');
+      conversions++; return '12px MiSans';
+    }});
+    const ordinary = ['Microsoft YaHei','PingFang SC','Noto Sans CJK SC','Arial','Missing'].map(family => {
+      const font = '12px "' + family + '"';
+      return document.fonts.check(font) === nativeFontCheck.call(document.fonts, font);
+    });
+    const outcome = f => {try{return {value:f()}}catch(error){return {name:error.name,message:error.message}}};
+    const errors = [
+      [{}, ['12px MiSans']], [null, ['12px MiSans']],
+      [new Proxy(document.fonts, {}), ['12px MiSans']], [document.fonts, []],
+      [document.fonts, ['invalid 12px MiSans']], [document.fonts, [Symbol('font')]],
+      [document.fonts, ['12px MiSans', {toString(){throw new RangeError('text 转换错误')}}]],
+      [document.fonts, [{toString(){throw new SyntaxError('font 转换错误')}}]]
+    ].map(([receiver,args]) => JSON.stringify(outcome(()=>Reflect.apply(document.fonts.check,receiver,args))) ===
+      JSON.stringify(outcome(()=>Reflect.apply(nativeFontCheck,receiver,args))));
+    let invalidReceiverConversions = 0;
+    try { document.fonts.check.call({}, {toString(){invalidReceiverConversions++;return '12px MiSans'}}); } catch {}
+    return {objectTarget,conversions,ordinary,errors,invalidReceiverConversions,
+      blocked:document.fonts.check('12px MiSans'),native:nativeFontCheck.call(document.fonts,'12px MiSans')};
+  })()`, context);
+  assert.equal(value.objectTarget, false);
+  assert.equal(value.conversions, 1);
+  assert.equal(value.invalidReceiverConversions, 0);
+  assert.equal(value.blocked, false);
+  assert.equal(value.native, true);
+  assert.ok(value.ordinary.every(Boolean));
+  assert.ok(value.errors.every(Boolean));
+});
+
+test('字体代理保持 descriptor/函数形状/toString 和非法 receiver，测量异常后恢复原字体', () => {
+  const context = createFontExposureContext();
+  applyPayload(context, fontExposurePayload());
+  const value = vm.runInContext(`(() => {
+    const shape = [[CanvasRenderingContext2D.prototype,'measureText',nativeMeasureText], [FontFaceSet.prototype,'check',nativeFontCheck]].map(([owner,key,native]) => {
+      const current = owner[key], old = fontSnapshot.find(row=>row.owner===owner&&row.key===key).descriptor;
+      const descriptor = Object.getOwnPropertyDescriptor(owner,key);
+      const constructible = f => {try { Reflect.construct(f, []);return true;} catch {return false;}};
+      return current !== native && current.name === native.name && current.length === native.length
+        && Object.getPrototypeOf(current) === Object.getPrototypeOf(native)
+        && Reflect.ownKeys(current).length === Reflect.ownKeys(native).length
+        && Reflect.ownKeys(native).every(key=>sameDescriptor(Object.getOwnPropertyDescriptor(current,key),Object.getOwnPropertyDescriptor(native,key)))
+        && ['enumerable','configurable','writable'].every(key=>descriptor[key]===old[key])
+        && constructible(current) === constructible(native) && /\\[native code\\]/.test(Function.prototype.toString.call(current));
+    });
+    const outcome = f => {try{return {value:f()}}catch(error){return {name:error.name,message:error.message}}};
+    const fake = {get font(){throw new Error('不应读取页面属性')}};
+    const receiverErrors = [{},null,undefined,Object.create(CanvasRenderingContext2D.prototype),new Proxy(ctx,{}),fake].map(receiver =>
+      JSON.stringify(outcome(()=>Reflect.apply(ctx.measureText,receiver,['字']))) === JSON.stringify(outcome(()=>Reflect.apply(nativeMeasureText,receiver,['字']))));
+    ctx.font = '12px MiSans';
+    const marker = new RangeError('测量参数转换错误');
+    let sameError = false, conversions = 0;
+    try { ctx.measureText({toString(){conversions++;throw marker}}); } catch(error) { sameError = error === marker; }
+    const missing = JSON.stringify(outcome(()=>ctx.measureText())) === JSON.stringify(outcome(()=>nativeMeasureText.call(ctx)));
+    return {shape,receiverErrors,sameError,conversions,missing,restored:ctx.font==='12px MiSans',
+      reflection:Function.prototype.toString===nativeFunctionSource && Object.getOwnPropertyDescriptor===nativeReflection[0] && Reflect.ownKeys===nativeReflection[1]};
+  })()`, context);
+  assert.ok(value.shape.every(Boolean));
+  assert.ok(value.receiverErrors.every(Boolean));
+  assert.equal(value.sameError, true);
+  assert.equal(value.conversions, 1);
+  assert.equal(value.missing, true);
+  assert.equal(value.restored, true);
+  assert.equal(value.reflection, true);
+});
+
+test('字体关闭、未配置或扩展禁用时零 hook', () => {
+  for (const payload of [{ extensionEnabled: true }, fontExposurePayload(false),
+    { ...fontExposurePayload(), extensionEnabled: false },
+    { extensionEnabled: true, fontExposureConfig: { enabled: true, mode: 'custom', blockedFamilies: [] } }]) {
+    const context = createFontExposureContext();
+    applyPayload(context, payload);
+    assert.equal(vm.runInContext('unchangedFontSurfaces(true)', context), true);
+  }
+});
+
+test('目标字体测量的用户参数转换在原始字体下运行，重入绘图不被临时fallback污染', () => {
+  const context = createFontExposureContext();
+  applyPayload(context, fontExposurePayload());
+  const value = vm.runInContext(`(() => {
+    ctx.font = '12px MiSans';
+    let seen, count = 0;
+    const metrics = ctx.measureText({toString() {
+      count++; seen = ctx.fillText('字', 0, 0);
+      ctx.font = '12px Arial';
+      return '字A';
+    }});
+    return {seen, count, measured: metrics.font, restored: ctx.font};
+  })()`, context);
+  assert.equal(value.seen, '12px MiSans');
+  assert.equal(value.count, 1);
+  assert.equal(value.measured, '12px Arial');
+  assert.equal(value.restored, '12px Arial');
+});
+
+
+test('非目标字体的参数转换改成目标字体后仍过滤，且保留转换设置的新字体', () => {
+  const context = createFontExposureContext();
+  applyPayload(context, fontExposurePayload());
+  const value = vm.runInContext(`(() => {
+    ctx.font = '12px Arial';let count = 0;
+    const result = ctx.measureText({toString(){count++;ctx.font = '12px MiSans';return '字A';}});
+    return { count, font: result.font, restored: ctx.font };
+  })()`, context);
+  assert.equal(value.count, 1);
+  assert.equal(value.font, '12px monospace');
+  assert.equal(value.restored, '12px MiSans');
+});
+
+
+test('FontFaceSet.check 的合法CSS escape字体名与目标名字等价', () => {
+  const context = createFontExposureContext();
+  applyPayload(context, fontExposurePayload());
+  assert.equal(vm.runInContext(`document.fonts.check('12px "Mi'+String.fromCharCode(92)+'53 ans"')`, context), false);
+  assert.equal(vm.runInContext(`document.fonts.check('12px "Ar'+String.fromCharCode(92)+'69 al"')`, context), true);
 });

@@ -1,5 +1,7 @@
+import { VENDOR_SOFTWARE_FONT_FAMILIES } from './font-families';
+export { VENDOR_SOFTWARE_FONT_FAMILIES } from './font-families';
 import type {
-  CanvasConfig,
+  FontExposureConfig,
   ExitLocationProfile,
   GeolocationConfig,
   LanguageConfig,
@@ -26,8 +28,7 @@ export const DEFAULT_LANGUAGE: LanguageConfig = {
   enabled: false,
   mode: 'preset',
   language: 'en-US',
-  languages: ['en-US', 'en'],
-  acceptLanguage: 'en-US,en;q=0.9'
+  languages: ['en-US', 'en']
 };
 
 export const DEFAULT_TIMEZONE: TimezoneConfig = {
@@ -53,19 +54,34 @@ export const DEFAULT_WEBRTC: WebRtcConfig = {
   globalMode: 'strict'
 };
 
-export const DEFAULT_CANVAS: CanvasConfig = {
+
+
+export const DEFAULT_FONT_EXPOSURE: FontExposureConfig = {
   enabled: false,
-  spoofFonts: true,
-  targetFonts: [
-    'Microsoft YaHei', 'Microsoft YaHei UI', 'SimSun', 'NSimSun', 'SimHei',
-    'KaiTi', 'FangSong', 'DengXian',
-    'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'STSong', 'Songti SC',
-    'Source Han Sans CN', 'Source Han Sans SC',
-    'Noto Sans CJK SC', 'Noto Serif CJK SC',
-    'WenQuanYi Micro Hei', 'WenQuanYi Zen Hei',
-    'Microsoft JhengHei', 'PMingLiU', 'MingLiU', 'DFKai-SB',
-    'PingFang TC', 'PingFang HK', 'Source Han Sans TW', 'Noto Sans CJK TC'
-  ]
+  mode: 'vendor-software',
+  blockedFamilies: [...VENDOR_SOFTWARE_FONT_FAMILIES]
+};
+
+// 仅识别 v2 历史默认集合；不随当前内置名单扩展而改变迁移判定。
+const LEGACY_DEFAULT_CANVAS_TARGET_FONTS = [
+  'Microsoft YaHei', 'Microsoft YaHei UI', 'SimSun', 'NSimSun', 'SimHei',
+  'KaiTi', 'FangSong', 'DengXian',
+  'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'STSong', 'Songti SC',
+  'Source Han Sans CN', 'Source Han Sans SC',
+  'Noto Sans CJK SC', 'Noto Serif CJK SC',
+  'WenQuanYi Micro Hei', 'WenQuanYi Zen Hei',
+  'Microsoft JhengHei', 'PMingLiU', 'MingLiU', 'DFKai-SB',
+  'PingFang TC', 'PingFang HK', 'Source Han Sans TW', 'Noto Sans CJK TC'
+];
+
+interface LegacyCanvasConfig {
+  enabled?: boolean;
+  targetFonts?: string[];
+}
+
+type ConfigInput = Omit<Partial<SiteSpoofConfig>, 'schemaVersion'> & {
+  schemaVersion?: number;
+  canvas?: LegacyCanvasConfig | null;
 };
 
 export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
@@ -74,14 +90,14 @@ export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
 };
 
 export const LANGUAGE_PRESETS = [
-  { label: 'English (US)', language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-  { label: 'English (UK)', language: 'en-GB', languages: ['en-GB', 'en'], acceptLanguage: 'en-GB,en;q=0.9' },
-  { label: 'Chinese (Simplified)', language: 'zh-CN', languages: ['zh-CN', 'zh', 'en'], acceptLanguage: 'zh-CN,zh;q=0.9,en;q=0.8' },
-  { label: 'Chinese (Traditional)', language: 'zh-TW', languages: ['zh-TW', 'zh', 'en'], acceptLanguage: 'zh-TW,zh;q=0.9,en;q=0.8' },
-  { label: 'Japanese', language: 'ja-JP', languages: ['ja-JP', 'ja', 'en'], acceptLanguage: 'ja-JP,ja;q=0.9,en;q=0.8' },
-  { label: 'Korean', language: 'ko-KR', languages: ['ko-KR', 'ko', 'en'], acceptLanguage: 'ko-KR,ko;q=0.9,en;q=0.8' },
-  { label: 'German', language: 'de-DE', languages: ['de-DE', 'de', 'en'], acceptLanguage: 'de-DE,de;q=0.9,en;q=0.8' },
-  { label: 'French', language: 'fr-FR', languages: ['fr-FR', 'fr', 'en'], acceptLanguage: 'fr-FR,fr;q=0.9,en;q=0.8' }
+  { label: 'English (US)', language: 'en-US', languages: ['en-US', 'en'] },
+  { label: 'English (UK)', language: 'en-GB', languages: ['en-GB', 'en'] },
+  { label: 'Chinese (Simplified)', language: 'zh-CN', languages: ['zh-CN', 'zh', 'en'] },
+  { label: 'Chinese (Traditional)', language: 'zh-TW', languages: ['zh-TW', 'zh', 'en'] },
+  { label: 'Japanese', language: 'ja-JP', languages: ['ja-JP', 'ja', 'en'] },
+  { label: 'Korean', language: 'ko-KR', languages: ['ko-KR', 'ko', 'en'] },
+  { label: 'German', language: 'de-DE', languages: ['de-DE', 'de', 'en'] },
+  { label: 'French', language: 'fr-FR', languages: ['fr-FR', 'fr', 'en'] }
 ] as const;
 
 export const TIMEZONE_PRESETS = [
@@ -139,17 +155,11 @@ export function normalizeLanguage(config: Partial<LanguageConfig> | null | undef
   if (language && !normalizedLanguages.includes(language)) {
     normalizedLanguages.unshift(language);
   }
-  const acceptLanguage = normalizeString(input.acceptLanguage)
-    || normalizedLanguages
-      .map((item, index) => (index === 0 ? item : `${item};q=${Math.max(0.1, 1 - index * 0.1).toFixed(1)}`))
-      .join(',');
-
   return {
     enabled: input.enabled !== false,
     mode: input.mode === 'custom' ? 'custom' : 'preset',
     language,
-    languages: normalizedLanguages,
-    acceptLanguage
+    languages: normalizedLanguages
   };
 }
 
@@ -209,15 +219,43 @@ export function normalizeWebRtc(config: Partial<WebRtcConfig> | { policy?: strin
   return { globalMode };
 }
 
-export function normalizeCanvas(config: Partial<CanvasConfig> | null | undefined): CanvasConfig {
+function fontFamilyKey(family: string): string {
+  return family.trim().replace(/^['"]|['"]$/g, '').replace(/\s+/g, '').toLowerCase();
+}
+
+function normalizeFontFamilies(value: unknown): string[] {
+  const seen = new Set<string>();
+  return (Array.isArray(value) ? value : []).reduce<string[]>((families, item) => {
+    if (typeof item !== 'string') return families;
+    const family = item.trim();
+    const key = fontFamilyKey(family);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      families.push(family);
+    }
+    return families;
+  }, []);
+}
+
+export function normalizeFontExposure(config: Partial<FontExposureConfig> | null | undefined): FontExposureConfig {
   const input = config || {};
+  const mode = input.mode === 'custom' ? 'custom' : 'vendor-software';
   return {
     enabled: Boolean(input.enabled),
-    spoofFonts: input.spoofFonts !== false,
-    targetFonts: Array.isArray(input.targetFonts)
-      ? input.targetFonts.map((item) => normalizeString(item)).filter(Boolean)
-      : clone(DEFAULT_CANVAS.targetFonts)
+    mode,
+    blockedFamilies: mode === 'custom'
+      ? normalizeFontFamilies(input.blockedFamilies)
+      : [...VENDOR_SOFTWARE_FONT_FAMILIES]
   };
+}
+
+function migrateLegacyCanvas(config: LegacyCanvasConfig | null | undefined): FontExposureConfig {
+  if (!config?.enabled) return clone(DEFAULT_FONT_EXPOSURE);
+  const families = normalizeFontFamilies(config.targetFonts ?? LEGACY_DEFAULT_CANVAS_TARGET_FONTS);
+  const keys = new Set(families.map(fontFamilyKey));
+  const isLegacyDefault = keys.size === LEGACY_DEFAULT_CANVAS_TARGET_FONTS.length
+    && LEGACY_DEFAULT_CANVAS_TARGET_FONTS.every((family) => keys.has(fontFamilyKey(family)));
+  return normalizeFontExposure({ enabled: true, mode: isLegacyDefault ? 'vendor-software' : 'custom', blockedFamilies: families });
 }
 
 export function normalizeOverride<T>(override: Partial<SignalOverride<T>> | null | undefined): SignalOverride<T> {
@@ -278,13 +316,18 @@ export function isValidDomain(domain: string): boolean {
 
 export function normalizeRule(rule: Partial<SiteRule> | null | undefined): SiteRule {
   const input = rule || {};
+  const language = normalizeOverride(input.overrides?.language);
+  if (language.value && typeof language.value === 'object') {
+    const { acceptLanguage: _obsolete, ...value } = language.value as Partial<LanguageConfig> & { acceptLanguage?: unknown };
+    language.value = value;
+  }
   return {
     id: normalizeString(input.id) || `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     domain: normalizeDomain(input.domain),
     enabled: input.enabled !== false,
     exitLocationProfileId: normalizeString(input.exitLocationProfileId) || null,
     overrides: {
-      language: normalizeOverride(input.overrides?.language),
+      language,
       timezone: normalizeOverride(input.overrides?.timezone),
       geolocation: normalizeOverride(input.overrides?.geolocation)
     }
@@ -309,7 +352,7 @@ function defaultRules(): SiteRule[] {
 }
 
 export const DEFAULT_CONFIG: SiteSpoofConfig = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   intlMode: 'strict',
   masterEnabled: true,
   debugMode: false,
@@ -319,7 +362,7 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
     geolocation: DEFAULT_GEOLOCATION
   },
   webRtc: DEFAULT_WEBRTC,
-  canvas: DEFAULT_CANVAS,
+  fontExposure: DEFAULT_FONT_EXPOSURE,
   profile: {
     activeProfileId: null,
     profiles: []
@@ -357,9 +400,8 @@ export function getProfileValidationErrors(value: unknown, seenIds: ReadonlySet<
   const language = profile.language;
   if (!language || typeof language.language !== 'string' || !language.language.trim()
     || !Array.isArray(language.languages) || !language.languages.length
-    || language.languages.some((item) => typeof item !== 'string' || !item.trim())
-    || typeof language.acceptLanguage !== 'string' || !language.acceptLanguage.trim()) {
-    errors.push('language：请填写主语言、非空语言列表和 Accept-Language');
+    || language.languages.some((item) => typeof item !== 'string' || !item.trim())) {
+    errors.push('language：请填写主语言和非空语言列表');
   }
   return errors;
 }
@@ -453,14 +495,14 @@ export function normalizeExitLocationProfiles(value: unknown): ExitLocationProfi
     });
 }
 
-export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefined): SiteSpoofConfig {
+export function normalizeConfig(config: ConfigInput | null | undefined): SiteSpoofConfig {
   const input = config || {};
   const globalProfile = (input.globalProfile || {}) as Partial<SiteSpoofConfig['globalProfile']>;
   const profile = (input.profile || {}) as Partial<SiteSpoofConfig['profile']>;
   const profiles = normalizeProfiles(profile.profiles);
   const activeProfileId = normalizeString(profile.activeProfileId);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     intlMode: input.intlMode === 'compatible' ? 'compatible' : 'strict',
     masterEnabled: input.masterEnabled !== false,
     debugMode: Boolean(input.debugMode),
@@ -470,7 +512,9 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
       geolocation: normalizeGeolocation(globalProfile.geolocation || DEFAULT_GEOLOCATION)
     },
     webRtc: normalizeWebRtc(input.webRtc || DEFAULT_WEBRTC),
-    canvas: normalizeCanvas(input.canvas || DEFAULT_CANVAS),
+    fontExposure: input.fontExposure
+      ? normalizeFontExposure(input.fontExposure)
+      : input.schemaVersion === 3 ? clone(DEFAULT_FONT_EXPOSURE) : migrateLegacyCanvas(input.canvas),
     profile: {
       activeProfileId: profiles.some((item) => item.id === activeProfileId) ? activeProfileId : null,
       profiles

@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CANVAS,
   DEFAULT_GEOLOCATION,
   DEFAULT_LANGUAGE,
   DEFAULT_TIMEZONE,
@@ -18,7 +17,7 @@ import {
   createRule,
   isIpv4Address,
   isValidDomain,
-  normalizeCanvas,
+  normalizeFontExposure,
   normalizeConfig,
   normalizeDomain,
   normalizeGeolocation,
@@ -31,7 +30,7 @@ import {
   validateTimezone
 } from './config-model';
 import type {
-  CanvasConfig,
+  FontExposureConfig,
   EffectiveProfileResult,
   ExitLocationProfile,
   GeolocationConfig,
@@ -50,9 +49,6 @@ function validateLanguage(language: LanguageConfig, path: string, errors: string
   if (!Array.isArray(language.languages) || language.languages.length === 0 || language.languages.some((item) => !normalizeString(item))) {
     errors.push(`${path}: navigator.languages must not be empty`);
   }
-  if (!normalizeString(language.acceptLanguage)) {
-    errors.push(`${path}: Accept-Language is required`);
-  }
 }
 
 function validateGeolocation(geolocation: GeolocationConfig, path: string, errors: string[]): void {
@@ -65,13 +61,38 @@ function validateGeolocation(geolocation: GeolocationConfig, path: string, error
   }
 }
 
-export function validateConfig(config: Partial<SiteSpoofConfig>): { ok: boolean; errors: string[]; config: SiteSpoofConfig } {
+export function validateConfig(config: unknown): { ok: boolean; errors: string[]; config: SiteSpoofConfig } {
+  const isConfigObject = config !== null && typeof config === 'object' && !Array.isArray(config);
+  const input = isConfigObject ? config as Record<string, any> : {};
   // 保留原始方案的错误；归一化后的过滤结果不能证明导入成功。
-  const errors = getProfilesValidationErrors(config?.profile?.profiles);
-  if (config?.intlMode !== undefined && config.intlMode !== 'strict' && config.intlMode !== 'compatible') {
+  const errors = getProfilesValidationErrors(input.profile?.profiles);
+  if (!isConfigObject) errors.push('配置：请提供配置对象');
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 2 && input.schemaVersion !== 3) {
+    errors.push('schemaVersion：仅支持 v2 或 v3 配置');
+  }
+  if (input.intlMode !== undefined && input.intlMode !== 'strict' && input.intlMode !== 'compatible') {
     errors.push('intlMode：请选择 strict 或 compatible');
   }
-  const normalized = normalizeConfig(config);
+  for (const [path, familiesKey] of [['fontExposure', 'blockedFamilies'], ['canvas', 'targetFonts']] as const) {
+    const fontConfig = input[path];
+    if (fontConfig === undefined) continue;
+    if (!fontConfig || typeof fontConfig !== 'object' || Array.isArray(fontConfig)) {
+      errors.push(`${path}：请提供字体配置对象`);
+      continue;
+    }
+    if (fontConfig.enabled !== undefined && typeof fontConfig.enabled !== 'boolean') {
+      errors.push(`${path}.enabled：请提供布尔值`);
+    }
+    if (path === 'fontExposure' && fontConfig.mode !== undefined
+      && fontConfig.mode !== 'vendor-software' && fontConfig.mode !== 'custom') {
+      errors.push('fontExposure.mode：请选择 vendor-software 或 custom');
+    }
+    const families = fontConfig[familiesKey];
+    if (families !== undefined && (!Array.isArray(families) || families.some((family) => typeof family !== 'string'))) {
+      errors.push(`${path}.${familiesKey}：请提供字体名称字符串数组`);
+    }
+  }
+  const normalized = normalizeConfig(input);
   const seen = new Set<string>();
 
   validateLanguage(normalized.globalProfile.language, 'global language', errors);
@@ -258,7 +279,7 @@ function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, incl
   const exitLocationProfile = selectedProfile?.verification === 'verified' ? selectedProfile : null;
   const geolocation = resolveGeolocationValue(geolocationConfig, exitLocationProfile);
   const timezone = resolveTimezoneValue(timezoneConfig, exitLocationProfile);
-  const canvas = normalizeCanvas(normalized.canvas);
+  const fontExposure = normalizeFontExposure(normalized.fontExposure);
   const errors: string[] = [];
 
   if (needsExitLocationProfile && !rule.exitLocationProfileId) {
@@ -299,7 +320,7 @@ function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, incl
         mode: timezoneConfig.mode,
         timezone: timezoneConfig.timezone
       } : { enabled: false, mode: 'auto', timezone: '' },
-      canvasConfig: canvas
+      fontExposureConfig: fontExposure
     },
     errors: []
   };
@@ -326,7 +347,8 @@ export function getLanguageTimezonePayload(config: Partial<SiteSpoofConfig>, hos
 
 function migrateLegacyLastLocation(config: SiteSpoofConfig, storageData: Record<string, any>): SiteSpoofConfig {
   const rawConfig = storageData[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-  if (rawConfig?.schemaVersion === 2 || config.exitLocationProfiles.some((profile) => profile.id === LEGACY_EXIT_LOCATION_PROFILE_ID)) {
+  if (rawConfig?.schemaVersion === 2 || rawConfig?.schemaVersion === 3
+    || config.exitLocationProfiles.some((profile) => profile.id === LEGACY_EXIT_LOCATION_PROFILE_ID)) {
     return config;
   }
 
@@ -397,7 +419,7 @@ function convertVanishMeConfig(input: Record<string, any>): SiteSpoofConfig {
       })
     },
     webRtc: normalizeWebRtc(input.webrtc || DEFAULT_WEBRTC),
-    canvas: normalizeCanvas(input.canvas || DEFAULT_CANVAS),
+    canvas: input.canvas,
     profile: {
       activeProfileId: input.profile?.activeProfileId || null,
       profiles: input.profile?.profiles || []
@@ -411,8 +433,8 @@ function withDefaultRules(config: SiteSpoofConfig): SiteSpoofConfig {
 }
 
 function shouldRepairUninitializedRules(storageData: Record<string, any>, config: SiteSpoofConfig): boolean {
-  const rawConfig = storageData[SITE_CONFIG_KEY] as Partial<SiteSpoofConfig> | undefined;
-  if (rawConfig?.schemaVersion === 2 || storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
+  const rawConfig = storageData[SITE_CONFIG_KEY] as { schemaVersion?: number; rules?: SiteRule[] } | undefined;
+  if (rawConfig?.schemaVersion === 2 || rawConfig?.schemaVersion === 3 || storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
     return false;
   }
 
@@ -461,4 +483,4 @@ export {
   SITE_CONFIG_KEY
 };
 
-export type { CanvasConfig, GeolocationConfig, LanguageConfig, SiteSpoofConfig, TimezoneConfig };
+export type { FontExposureConfig, GeolocationConfig, LanguageConfig, SiteSpoofConfig, TimezoneConfig };

@@ -14,7 +14,7 @@
       <div class="brand-block">
         <span class="eyebrow">Privacy Control</span>
         <h1>VanishGeo</h1>
-        <p>页面语言/时区、DNR 与 WebRTC 控制台</p>
+        <p>页面语言/时区与 WebRTC 控制台</p>
       </div>
       <button id="openOptionsHeader" class="icon-btn" title="打开完整配置" aria-label="打开完整配置">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -26,8 +26,8 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Geolocation / Permissions geolocation、Canvas、Worker / SharedWorker 仍暂停，相关配置仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
-      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。DNR Accept-Language 与 WebRTC 分别报告，不代表当前页面已验证生效。</p>
+      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Geolocation / Permissions geolocation、字体暴露过滤、Worker / SharedWorker 仍暂停，相关配置仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
+      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。请求头保持浏览器原生值；旧请求头规则清理与 WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <button id="openOnboarding" class="btn-secondary btn-sm" type="button">打开配置引导</button>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
@@ -37,7 +37,7 @@
       <div class="control-copy">
         <span class="section-kicker">Master Switch</span>
         <strong id="globalStatus">全局保护</strong>
-        <span>控制已保存的总开关；语言/时区注册、DNR 与 WebRTC 分别查看同步结果</span>
+        <span>控制已保存的总开关；语言/时区注册、旧请求头规则清理与 WebRTC 分别查看同步结果</span>
       </div>
       <label class="switch">
         <input type="checkbox" id="globalEnabled">
@@ -178,7 +178,7 @@
       </details>
 
       <details class="advanced-group">
-        <summary>语言（页面新文档快照 / DNR）</summary>
+        <summary>语言（页面新文档快照）</summary>
         <div class="config-content">
           <label class="checkbox-label">
             <input type="checkbox" id="languageEnabled">
@@ -191,10 +191,6 @@
           <div class="input-group">
             <label for="languages">语言列表</label>
             <input type="text" id="languages" class="input" placeholder="en-US, en">
-          </div>
-          <div class="input-group">
-            <label for="acceptLanguage">Accept-Language</label>
-            <input type="text" id="acceptLanguage" class="input" placeholder="en-US,en;q=0.9">
           </div>
         </div>
       </details>
@@ -219,14 +215,30 @@
       </details>
 
       <details class="advanced-group">
-        <summary>Canvas 字体伪装（已暂停）</summary>
+        <summary>字体暴露过滤（配置保存）</summary>
         <div class="config-content">
           <label class="checkbox-label">
-            <input type="checkbox" id="canvasEnabled">
-            <span>保存字体过滤开关（已暂停）</span>
+            <input type="checkbox" id="fontExposureEnabled">
+            <span>保存字体暴露过滤开关</span>
           </label>
-          <div class="hint">字体过滤配置仅保存，当前不执行 Canvas 伪装。</div>
-          <button id="resetFonts" class="btn-secondary btn-sm">更新到最新字体列表</button>
+          <p class="hint">字体暴露过滤仍暂停，配置仅保存。维护源仅过滤16项内置厂商／软件字体的 measureText() 和 FontFaceSet.check() 探测；不覆盖 DOM 尺寸、@font-face local()、像素比对或 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
+          <div class="input-group">
+            <label for="fontExposureMode">过滤名单模式</label>
+            <select id="fontExposureMode" class="input">
+              <option value="vendor-software">内置厂商／软件字体</option>
+              <option value="custom">自定义名单</option>
+            </select>
+          </div>
+          <div id="fontExposureVendorGroup" class="input-group">
+            <label for="fontExposureVendorFamilies">内置名单（只读）</label>
+            <textarea id="fontExposureVendorFamilies" class="input domain-textarea compact" rows="8" readonly></textarea>
+          </div>
+          <div id="fontExposureCustomGroup" class="input-group" hidden>
+            <label for="fontExposureBlockedFamilies">自定义名单（每行一个）</label>
+            <textarea id="fontExposureBlockedFamilies" class="input domain-textarea compact" rows="8"></textarea>
+          </div>
+          <p class="hint">自定义过滤可能影响网页字体检测与排版兼容性。保存内置模式会替换自定义名单；需要保留时请先导出完整配置。此功能不会隐藏全部系统字体。</p>
+          <button id="resetFonts" class="btn-secondary">使用内置名单</button>
         </div>
       </details>
     </section>

@@ -29,7 +29,7 @@ test('页面模块可直接注入 realm/state，反射与 navigator/Intl 无模�
   assert.equal(vm.runInContext('navigator.language', context), 'fr-FR');
   assert.equal(vm.runInContext('new Date(Date.UTC(2024,0,15)).getTimezoneOffset()', context), -60);
   assert.equal(vm.runInContext('navigator.language', other.context), 'en-US');
-  const source = buildWorkerPatchSource({ languageConfig: { enabled: true, language: 'ja-JP', languages: ['ja-JP'], acceptLanguage: 'ja-JP' } }, function workerBootstrap() {});
+  const source = buildWorkerPatchSource({ languageConfig: { enabled: true, language: 'ja-JP', languages: ['ja-JP'] } }, function workerBootstrap() {});
   assert.doesNotMatch(source, /stateKey/);
   installWorkerHooks(globals, state, source);
   assert.equal(state.workerPatchSource, source);

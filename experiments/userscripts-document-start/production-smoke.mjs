@@ -153,6 +153,8 @@ try {
     document.rows = rows; return rows;
   }
   const native = (await document(nativeUrl)).rows[0].current;
+  const nativeHeader = latestHeader;
+  assert.ok(typeof nativeHeader === 'string' && nativeHeader.length);
   const fresh = await message({ action: 'getSiteConfig' });
   assert.equal(fresh.config.masterEnabled, false); assert.deepEqual(fresh.config.rules, []);
   assert.equal(fresh.syncReport.pageRuntime.state, 'switch-required');
@@ -172,17 +174,17 @@ try {
   evidence.checks['normal-user-switch'] = 'PASS';
   const config = fresh.config;
   config.masterEnabled = true; config.webRtc.globalMode = 'strict'; config.intlMode = 'strict';
-  config.globalProfile.language = { enabled: true, mode: 'custom', language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP,ja;q=0.9' };
+  config.globalProfile.language = { enabled: true, mode: 'custom', language: 'ja-JP', languages: ['ja-JP', 'ja'] };
   config.globalProfile.timezone = { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' };
-  config.canvas = { enabled: true, spoofFonts: true, targetFonts: ['VanishGeo Synthetic Font'] };
+  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['VanishGeo Synthetic Font'] };
   const rule = domain => ({ id: 'synthetic-' + domain, domain, enabled: true, exitLocationProfileId: null,
     overrides: { language: { mode: 'inherit', value: null }, timezone: { mode: 'inherit', value: null }, geolocation: { mode: 'inherit', value: null } } });
   config.rules = ['localhost', 'example.test', 'sub.example.test'].map(rule);
-  config.rules[2].overrides.language = { mode: 'override', value: { enabled: true, language: 'ko-KR', languages: ['ko-KR'], acceptLanguage: 'ko-KR' } };
+  config.rules[2].overrides.language = { mode: 'override', value: { enabled: true, language: 'ko-KR', languages: ['ko-KR'] } };
   config.rules[2].overrides.timezone = { mode: 'override', value: { enabled: true, mode: 'manual', timezone: 'Asia/Seoul' } };
   if (recoveryOnly) {
     config.intlMode = 'compatible';
-    config.globalProfile.language = { enabled: true, mode: 'custom', language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9' };
+    config.globalProfile.language = { enabled: true, mode: 'custom', language: 'fr-FR', languages: ['fr-FR', 'fr'] };
     config.globalProfile.timezone.timezone = 'Europe/Paris';
   }
   const saved = await message({ action: 'setSiteConfig', config });
@@ -219,7 +221,7 @@ try {
     excludes: registrations.find(script => script.id.endsWith('-example.test')).excludeMatches };
   evidence.checks['specific-domain'] = 'PASS';
   config.intlMode = 'compatible'; config.globalProfile.language.language = 'fr-FR'; config.globalProfile.language.languages = ['fr-FR', 'fr'];
-  config.globalProfile.language.acceptLanguage = 'fr-FR,fr;q=0.9'; config.globalProfile.timezone.timezone = 'Europe/Paris';
+  config.globalProfile.timezone.timezone = 'Europe/Paris';
   const changed = await message({ action: 'setSiteConfig', config }); assert.equal(changed.syncReport.pageRuntime.reloadRequired, true);
   const old = await readRows(heldA.target); assert.equal(old[0].instance, heldA.rows[0].instance); assert.equal(old[0].current.language, 'ja-JP'); assert.equal(old[0].current.timezone, 'Asia/Tokyo');
   evidence.observations.afterSaveB = { sameDocument: old[0].instance === heldA.rows[0].instance, old: old.map(row => row.current), sync: changed.syncReport.pageRuntime };
@@ -227,9 +229,12 @@ try {
   configured(await reload(heldA), 'fr-FR', 'Europe/Paris', -60); evidence.observations.afterReloadB = heldA.rows.map(row => row.earliest); evidence.checks['reload-B'] = 'PASS';
   heldB = await document(local); configured(heldB.rows, 'fr-FR', 'Europe/Paris', -60);
   assert.equal(heldB.rows[0].current.explicit.locale, 'en-US'); assert.equal(heldB.rows[0].current.explicit.timeZone, 'UTC'); evidence.checks.compatible = 'PASS';
-  assert.equal(latestHeader, 'fr-FR,fr;q=0.9');
+  assert.equal(latestHeader, nativeHeader);
+  const legacyRules = await evaluate(options, 'chrome.declarativeNetRequest.getDynamicRules().then(r=>r.filter(x=>x.id>=1100&&x.id<=2099).length)');
+  assert.equal(legacyRules, 0);
+  assert.equal(changed.syncReport.components.legacyDnrCleanup.status, 'ok');
   const policy = await message({ action: 'getWebRtcConfig' }); assert.equal(policy.state.policyState.actualPolicy, 'disable_non_proxied_udp');
-  evidence.observations.networkPolicy = { acceptLanguage: latestHeader, webRtcPolicy: policy.state.policyState.actualPolicy };
+  evidence.observations.networkPolicy = { headerNative: latestHeader === nativeHeader, legacyRuleCount: legacyRules, webRtcPolicy: policy.state.policyState.actualPolicy };
   evidence.checks['dnr-webrtc'] = 'PASS';
   }
   // 从此处到两个恢复场景结束，管理页全部关闭；只直接读取浏览器注册，不调用业务消息。

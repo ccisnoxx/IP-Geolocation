@@ -1,4 +1,4 @@
-// 该自包含函数由后台定向执行到 MAIN world，不通过页面消息接收配置。
+// 完整隔离 runtime 的输入；生产 userScripts 只消费独立语言/时区 payload。
 export type RuntimePayload = {
   intlMode?: 'strict' | 'compatible';
   extensionEnabled?: boolean;
@@ -8,7 +8,6 @@ export type RuntimePayload = {
     enabled: boolean;
     language: string;
     languages: string[];
-    acceptLanguage: string;
   } | null;
   timezone?: string | null;
   timezoneConfig?: {
@@ -28,10 +27,10 @@ export type RuntimePayload = {
   } | null;
   latitude?: number | null;
   longitude?: number | null;
-  canvasConfig?: {
+  fontExposureConfig?: {
     enabled: boolean;
-    spoofFonts: boolean;
-    targetFonts: string[];
+    mode: 'vendor-software' | 'custom';
+    blockedFamilies: string[];
   };
 };
 
@@ -57,7 +56,7 @@ export type RuntimeState = {
     timezone: string | null;
     geolocation: RuntimePayload['geolocation'];
     geolocationCoordinate: { key: string; latitude: number; longitude: number } | null;
-    canvasTargetFontKeys: Set<string>;
+    blockedFontFamilyKeys: Set<string>;
   };
 };
 

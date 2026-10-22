@@ -17,7 +17,7 @@ const comparison = compareProduction(before, await captureProduction(root));
 const services = await readFile(new URL('../src/background/services.ts', import.meta.url), 'utf8');
 const entry = await readFile(new URL('../src/injected/runtime-modules/language-timezone-entry.ts', import.meta.url), 'utf8');
 const boundary = !/initializeRuntimeForSender|documentIds|executeScript/.test(services)
-  && !/install(?:Geolocation|Canvas|Worker)|postMessage|eval\(|new Function/.test(entry);
+  && !/install(?:Geolocation|FontExposure|Worker)|postMessage|eval\(|new Function/.test(entry);
 evidence.production = { status: comparison.unchanged === 'PASS' && boundary ? 'PASS' : 'FAIL',
   unchanged: comparison.unchanged, languageTimezoneBoundary: boundary ? 'PASS' : 'FAIL',
   checkedFiles: comparison.checkedFiles, changedCount: comparison.changedCount };

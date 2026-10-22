@@ -213,3 +213,12 @@ Thumbs.db
 !.trellis/tasks/10-15-vg-022-private-handoff-probe/design.md
 !.trellis/tasks/10-15-vg-022-private-handoff-probe/implement.md
 !.trellis/tasks/10-15-vg-022-private-handoff-probe/chrome-evidence.json
+
+# 已验收本地任务的正式记录与脱敏证据
+!.trellis/tasks/10-20-vg-028-header-font-contract/
+.trellis/tasks/10-20-vg-028-header-font-contract/*
+!.trellis/tasks/10-20-vg-028-header-font-contract/task.json
+!.trellis/tasks/10-20-vg-028-header-font-contract/prd.md
+!.trellis/tasks/10-20-vg-028-header-font-contract/design.md
+!.trellis/tasks/10-20-vg-028-header-font-contract/implement.md
+!.trellis/tasks/10-20-vg-028-header-font-contract/chrome-upgrade-evidence.json

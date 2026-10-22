@@ -5,7 +5,7 @@ import { normalizeTimezonePayload } from './payload';
 import { installLanguageSpoof } from './surfaces/navigator';
 import { installDateTimeSpoof } from './surfaces/intl-date';
 import { installGeolocationSpoof } from './surfaces/geolocation-permissions';
-import { installCanvasSpoof } from './surfaces/canvas-fonts';
+import { installFontExposureFilter } from './surfaces/font-exposure';
 import { buildWorkerPatchSource, installWorkerHooks } from './surfaces/workers';
 
 // 每次安装创建独立闭包；后续更新必须复用返回的句柄，不从网页对象找回状态。
@@ -41,7 +41,7 @@ export function applyRuntime(payload: RuntimePayload): RuntimeController {
     installLanguageSpoof(globals, realmState, spoofLanguage, spoofLanguages);
     installGeolocationSpoof(globals, realmState, geolocation);
     installDateTimeSpoof(globals, realmState, { timezone: timezonePayload.timezone, language: spoofLanguage, intlMode: payload.intlMode });
-    installCanvasSpoof(globals, realmState, payload.canvasConfig);
+    installFontExposureFilter(globals, realmState, payload.fontExposureConfig);
     installWorkerHooks(globals, realmState, buildWorkerPatchSource(payload, workerBootstrap));
     log('applied payload');
   }

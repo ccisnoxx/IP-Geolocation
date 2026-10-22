@@ -26,7 +26,7 @@ function realm(mode: 'strict' | 'compatible', worker = false, language = true, t
   `, context);
   vm.runInContext(runtime, context);
   context.payload = { intlMode: mode, extensionEnabled: true,
-    languageConfig: { enabled: language, language: 'fr-FR', languages: ['fr-FR'], acceptLanguage: 'fr-FR' },
+    languageConfig: { enabled: language, language: 'fr-FR', languages: ['fr-FR'] },
     timezoneConfig: { enabled: timezone, mode: 'manual', timezone: 'Europe/Paris' } };
   vm.runInContext(`applyVanishGeoRuntime(payload,'intl-test'); new Worker('/fixture.js')`, context);
   if (!worker) return context;
@@ -100,7 +100,7 @@ for (const worker of [false, true]) {
   });
 }
 
-test('模式缺省 strict、v2 无损幂等转换，compatible 进入 payload，非法显式模式拒绝', () => {
+test('模式缺省 strict、当前 schema 无损幂等归一化，compatible 进入 payload，非法显式模式拒绝', () => {
   const config = normalizeConfig({ rules: [normalizeRule({ domain: 'example.test' })] });
   const old = JSON.parse(JSON.stringify(config)); delete old.intlMode;
   const migrated = migrateLegacyConfig({ siteSpoofConfig: old });

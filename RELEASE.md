@@ -1,10 +1,12 @@
 # VanishGeo 构建与发布说明
 
+> **VG-028（2026-10-20，人工验收通过，未发布）**：VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+
 [CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 检查 v*.*.* tag push 并发布。稳定化任务完成不授予提交、push、tag、Release、托管部署或远端设置权限；这些操作需对应明确授权。VG-005 建立本地门禁；VG-014 的候选结论、逐项证据、阻断和回滚见 [release-readiness](docs/stabilization/release-readiness.md)。VG-023 仅恢复普通 HTTP(S) 文档语言/时区快照，已于2026-10-16通过用户人工验收；其他页面能力仍暂停，本任务不授权发布。
 
 ## 本地候选
 
-当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面语言/时区需 Chrome138+、userScripts 权限及正常开启 Allow User Scripts，提前注册后新文档使用快照；Geolocation/Canvas/Worker 仍暂停；DNR Accept-Language 与 WebRTC 按各自状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
+当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面语言/时区需 Chrome138+、userScripts 权限及正常开启 Allow User Scripts，提前注册后新文档使用快照；Geolocation/Canvas/Worker 仍暂停；HTTP 请求头保持原生，WebRTC 按实际策略状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
 
 ```bash
 npm ci
@@ -66,6 +68,10 @@ changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文�
 
 `tests/release-gates.test.ts` 核对 workflow 顺序/权限/失败旁路，在临时 npm 项目注入失败证明后续构建未到达，并用临时 Git 仓库验证首发、跨 tag、无关分支、第二父提交的已发布 tag、同提交轻量/附注 tag 及浅克隆。合成 tags 只创建在临时 fixture 仓库，finally 删除；不操作当前仓库 tags。这些是本地/静态证据，未实际运行 GitHub Actions、Release API 或真实 Chrome。
 
+## VG-028 本地候选
+
+VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。 两项DNR权限的退出留给后续独立任务，不改版本或发布。
+
 ## 人工发布和恢复
 
 1. 确认获准发布的精确候选、任务清单中的依赖/人工验收、package/lock/manifest/tag 版本及完整 dist；审查要提交的文件，保留无关修改。
@@ -78,8 +84,8 @@ changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文�
 
 ## GitHub repository 元信息建议（仅人工设置）
 
-Description：`Chromium MV3 扩展：按站点管理语言、时区与位置，控制 Accept-Language 和 WebRTC 策略，并提供扩展侧诊断。`
+Description：`Chromium MV3 扩展：按站点协调网页语言、时区与位置，保持请求头原生，选择性过滤字体暴露并控制 WebRTC 策略，并提供扩展侧诊断。`
 
-Topics：`vanishgeo`、`chromium-extension`、`manifest-v3`、`privacy`、`geolocation`、`timezone`、`accept-language`、`webrtc`、`typescript`。
+Topics：`vanishgeo`、`chromium-extension`、`manifest-v3`、`privacy`、`geolocation`、`timezone`、`webrtc`、`typescript`。
 
 只建议在当前仓库 Settings/About 中由维护者设置，不调用远端管理 API，不沿用原作品地址创建或关联仓库。原作品归属仅保留于 [NOTICE](NOTICE)。历史敏感值清理是另一项需人工批准的操作，见 [CONTRIBUTING](CONTRIBUTING.md)。

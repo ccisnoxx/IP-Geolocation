@@ -461,3 +461,24 @@ tasks:
       - 区分连通性和身份可信，早期交接与受控晚交接分别判定
       - 普通页面能力反例及正常对照可复现，证据含版本、命令和未验证范围
       - 不以研究完成授权P2或生产恢复，本地review、人工验收后才可done
+
+  - id: VG-028
+    title: 产品契约 v3、请求头停用与字体暴露模型
+    phase: R6
+    dependencies: [VG-014, VG-023]
+    branch: codex/vg-028-header-font-contract
+    status: done
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-20'
+      evidence: .trellis/tasks/10-20-vg-028-header-font-contract/implement.md#2026-10-20-人工验收
+    trellis_task: .trellis/tasks/10-20-vg-028-header-font-contract
+    scope:
+      - schema v3 与 v2 幂等迁移，停止请求头修改并仅清理核验历史 DNR
+      - 选择性厂商软件字体暴露配置和维护源，UI诊断文档同步
+      - 保留已验收语言时区 userScripts；位置字体Worker生产暂停不变
+    acceptance:
+      - 旧规则范围1100至2099清空且范围外保留，无新增请求头规则，权限仅过渡清理
+      - 自定义名单、禁用规则、verified档案等保留，v3无acceptLanguage和canvas
+      - 普通字体及Canvas图像、WebGL、UA和硬件原生透传，无权限版本host扩大
+      - 本地门禁和独立只读复核，真实Chrome未验证如实记录，结束仅review不发布

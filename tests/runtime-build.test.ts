@@ -8,10 +8,10 @@ import { join, resolve } from 'node:path';
 import { SourceMap } from 'node:module';
 import { build } from 'vite';
 import type { RollupWatcher } from 'rollup';
-import { generateRuntime, assertSelfContainedFunction, projectRoot } from '../build/self-contained-runtime';
+import { generateRuntime, generatePageRuntime, assertSelfContainedFunction, projectRoot } from '../build/self-contained-runtime';
 import { runtimePlugin } from '../build/runtime-plugin';
 import { normalizeTimezonePayload } from '../src/injected/runtime-modules/payload';
-import { fontFamilyKey, splitFontFamilies, getFallbackFont } from '../src/injected/runtime-modules/surfaces/canvas-fonts';
+import { fontFamilyKey, splitFontFamilies, getFallbackFont, getAllowedMeasurementFont } from '../src/injected/runtime-modules/surfaces/font-exposure';
 import { randomCoordinateInRadius } from '../src/injected/runtime-modules/surfaces/geolocation-permissions';
 
 function page() {
@@ -23,7 +23,7 @@ function page() {
     globalThis.navigator=new Navigator();`, context);
   return context;
 }
-const payload = { extensionEnabled: true, languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR'], acceptLanguage: 'fr-FR' },
+const payload = { extensionEnabled: true, languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR'] },
   timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' } };
 
 test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有合同', () => {
@@ -35,6 +35,7 @@ test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有
   assert.equal(getFallbackFont('12px Arial', new Set(['other'])), null);
   assert.deepEqual(randomCoordinateInRadius(12, 23, 0), { latitude: 12, longitude: 23 });
 });
+
 
 test('构建守卫拒绝外部 helper、动态 import、运行期编译及函数外状态', () => {
   assert.throws(() => assertSelfContainedFunction('function r(){missingHelper()}', 'r'), /外部绑定/);
@@ -61,6 +62,29 @@ test('禁用或空首次安装不写全局状态，私有句柄更新不热更�
     controller.update(payload);
     assert.equal(vm.runInContext('navigator.language', context), 'en-US');
   }
+});
+
+test('生产 userScripts 仍是独立语言/时区 graph，不包含字体/位置/Worker 安装', async () => {
+  const generated = await generatePageRuntime();
+  const fn = assertSelfContainedFunction(generated.code, 'applyLanguageTimezoneRuntime');
+  assert.ok(generated.dependencies.some(path => path.endsWith('/language-timezone-entry.ts')));
+  assert.ok(generated.dependencies.every(path => !/\/(?:font-exposure|geolocation-permissions|workers)\.ts$|\/worker\//.test(path)));
+  assert.doesNotMatch(fn, /installFontExposureFilter|installGeolocationSpoof|installWorkerHooks|workerBootstrap/);
+  const context = page();
+  context.location = { href: 'https://example.test/', protocol: 'https:' };
+  context.origin = 'https://example.test';
+  vm.runInContext(`this.CanvasRenderingContext2D=class {measureText(){return 'native-width'}};
+    this.document={fonts:{check(){return true}}};
+    this.nativeMeasure=CanvasRenderingContext2D.prototype.measureText;
+    this.nativeCheck=document.fonts.check;
+    this.nativeWorker=Worker;`, Object.assign(context, { Worker: function Worker() {} }));
+  vm.runInContext(`(${fn})(${JSON.stringify({
+    language: { language: 'fr-FR', languages: ['fr-FR'] }, timezone: 'Europe/Paris', intlMode: 'strict',
+    fontExposureConfig: { enabled: true, mode: 'custom', blockedFamilies: ['MiSans'] }
+  })})`, context);
+  assert.equal(vm.runInContext('navigator.language', context), 'fr-FR');
+  assert.equal(vm.runInContext('Intl.DateTimeFormat().resolvedOptions().timeZone', context), 'Europe/Paris');
+  assert.equal(vm.runInContext('CanvasRenderingContext2D.prototype.measureText===nativeMeasure && document.fonts.check===nativeCheck && Worker===nativeWorker', context), true);
 });
 
 test('完整页面与 worker 经 facade 二次打包后分别脱离闭包，source map 指回维护 TS', async () => {
@@ -128,6 +152,8 @@ test('build watch 对 page/worker 依赖重建，缺源和循环依赖显式失�
   try {
     await mkdir(join(temporary, 'src'), { recursive: true });
     await cp(resolve(projectRoot, 'src/injected'), join(temporary, 'src/injected'), { recursive: true });
+    await mkdir(join(temporary, 'src/shared'), { recursive: true });
+    await cp(resolve(projectRoot, 'src/shared/font-families.ts'), join(temporary, 'src/shared/font-families.ts'));
     const generated = await generateRuntime(temporary);
     assert.ok(generated.dependencies.some(p => p.endsWith('/worker/navigator.ts')));
     const result = await build({ root: temporary, configFile: false, publicDir: false, logLevel: 'silent', plugins: [runtimePlugin(temporary)],

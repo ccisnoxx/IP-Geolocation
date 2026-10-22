@@ -30,11 +30,11 @@ export async function getConfig(): Promise<SiteSpoofConfig> {
   const data = await chrome.storage.local.get(null);
   const config = migrateLegacyConfig(data);
   const storedConfig = data[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-  const needsMigration = storedConfig?.schemaVersion !== 2;
+  const needsMigration = storedConfig?.schemaVersion !== 3;
   if (needsMigration) {
     await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });
   } else if (data[RULES_INITIALIZED_KEY] !== true) {
-    // v2 升级只补标记，不用归一化结果覆盖用户已保存的规则和档案。
+    // v3 稳态只补标记，不用归一化结果覆盖用户已保存的规则和档案。
     await chrome.storage.local.set({ [RULES_INITIALIZED_KEY]: true });
   }
   const obsoleteKeys = [

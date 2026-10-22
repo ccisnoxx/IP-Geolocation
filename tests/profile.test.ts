@@ -8,7 +8,7 @@ import type { Profile } from '../src/shared/types';
 function validProfile(): Profile {
   return { id: 'synthetic', name: '中文方案',
     geolocation: { latitude: 0, longitude: 0, accuracy: 50 },
-    language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' },
+    language: { language: 'en-US', languages: ['en-US'] },
     timezone: { timezone: 'UTC' } };
 }
 
@@ -49,7 +49,7 @@ test('Profile 校验与有效配置共用范围、accuracy、时区、名称和 
 
 test('中文、emoji 和同名方案创建唯一 UUID，缺失坐标或非法 accuracy 不被修复', () => {
   const config = normalizeConfig({ rules: [], globalProfile: {
-    language: { enabled: true, mode: 'preset', language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' },
+    language: { enabled: true, mode: 'preset', language: 'en-US', languages: ['en-US'] },
     timezone: { enabled: true, mode: 'manual', timezone: 'UTC' },
     geolocation: { ...normalizeConfig({}).globalProfile.geolocation, mode: 'manual', latitude: 0, longitude: 0 }
   } });
@@ -57,6 +57,7 @@ test('中文、emoji 和同名方案创建唯一 UUID，缺失坐标或非法 ac
   assert.equal(new Set(profiles.map((p) => p.id)).size, 3);
   profiles.forEach((p) => assert.match(p.id, /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i));
   assert.deepEqual(profiles.map((p) => p.name), ['中文名称', '中文名称', '🌏方案']);
+  profiles.forEach((profile) => assert.equal('acceptLanguage' in profile.language, false));
   assert.deepEqual(config.profile.profiles, []);
   config.globalProfile.geolocation.latitude = null;
   assert.throws(() => createCustomProfile(config, '缺坐标'), /latitude/);
@@ -82,11 +83,16 @@ test('Profile 名称可重复但 trim 后 ID 不可重复，非法列表条目�
 
 test('非法存量方案不被应用，合法零坐标方案 ID 在归一化和应用后保持', () => {
   const profile = validProfile();
-  const config = normalizeConfig({ profile: { activeProfileId: profile.id, profiles: [profile] } });
+  const config = normalizeConfig({ intlMode: 'compatible',
+    fontExposure: { enabled: true, mode: 'custom', blockedFamilies: ['My Font'] },
+    profile: { activeProfileId: profile.id, profiles: [profile] } });
   const applied = applyProfileToConfig(config, profile.id);
   assert.equal(applied.globalProfile.geolocation.mode, 'manual');
   assert.equal(applied.globalProfile.geolocation.latitude, 0);
   assert.equal(applied.profile.activeProfileId, profile.id);
+  assert.equal(applied.intlMode, 'compatible');
+  assert.deepEqual(applied.fontExposure, config.fontExposure);
+  assert.equal('acceptLanguage' in applied.globalProfile.language, false);
   assert.deepEqual(normalizeConfig(applied), applied);
   profile.timezone.timezone = 'Mars/Base';
   const invalid = { ...config, profile: { activeProfileId: profile.id, profiles: [profile] } };

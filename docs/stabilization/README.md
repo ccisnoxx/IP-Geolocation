@@ -162,3 +162,9 @@ VG-013 本地结果：170/170、源码/测试类型、build、diff与dry-run通�
 2026-10-15，用户单独授权VG-020 RFC的P0-F实验，依赖VG-020 done。真实Chrome155临时最小扩展证明位置专属文件可表达4位合成数据且四类文档首inline均4/4；重复文件仅组装01、微任务可在位片段前执行。父页攻击未证明提交前篡改成功，也不构成不可篡改证明；storage禁用到注销间隙仍可安装旧序列、注销不撤销存量getter。结论为有限表达GO、安全恢复NO_GO，详见[研究报告](./registration-sequence-research.md)及[正式JSON](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/chrome-evidence.json)。本地交付时为review、人工验收pending，当前确认见下文；生产暂停、版本、权限和旧证据保持，不启动其他阶段或恢复，不提交/推送/发布。
 
 2026-10-15，用户确认VG-021隔离验证验收通过，接受有限同步表达GO、安全恢复NO_GO及已知限制，见[人工验收记录](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md#人工验收)。manifest由review更新为done，Trellis由review更新为completed。生产伪装继续暂停，不启动恢复实施；研究验收不构成恢复或发布批准。不改版本、不提交、推送或发布，原Chrome证据和未验证范围保持。
+
+## 本地分任务提交范围（2026-10-22）
+
+本次仅按用户授权整理必要前置任务和VG-029为本地提交；不push、不发布，其他任务保持未提交。任务状态以manifest为准；旧阶段的暂停、测试数量和未提交描述保留历史含义。
+
+- VG-028：schema v3、原生请求头、16项字体配置与维护源；DNR仅清理历史1100至2099，语言/时区保持，字体/位置/Worker生产暂停。 [执行记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。

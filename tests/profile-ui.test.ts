@@ -13,14 +13,15 @@ import type { SiteSpoofConfig } from '../src/shared/types';
 function harness(page: 'popup' | 'options') {
   const source = readFileSync(new URL(`../src/${page}/${page}.ts`, import.meta.url), 'utf8');
   const parsed = ts.createSourceFile(`${page}.ts`, source, ts.ScriptTarget.Latest, true);
-  const names = ['populateForm', 'readForm', 'updateTimezoneOffset', 'saveChanges', 'saveSettings',
-    'handleSaveAsCustom', 'closeSaveAsCustomModal', 'handleImportFile', 'handleResetFonts'];
+  const names = ['updateFontExposureMode', 'populateForm', 'readForm', 'updateTimezoneOffset', 'saveChanges', 'saveSettings',
+    'handleSaveAsCustom', 'closeSaveAsCustomModal', 'handleImportFile', 'handleResetFonts', 'exportConfiguration'];
   const functions = parsed.statements.filter((node): node is ts.FunctionDeclaration =>
     ts.isFunctionDeclaration(node) && names.includes(node.name?.text || ''));
   const elements: Record<string, { value: string; checked: boolean }> = {};
   for (const match of source.matchAll(/const (\w+El) = document\.getElementById\(/g)) elements[match[1]] = { value: '', checked: false };
   const alerts: string[] = [];
   const writes: SiteSpoofConfig[] = [];
+  const downloads: Array<{ filename: string; config: SiteSpoofConfig }> = [];
   let failure = false;
   let waitForSave: Promise<void> | null = null;
   const confirmSaveProfileBtn = { disabled: false };
@@ -31,13 +32,14 @@ function harness(page: 'popup' | 'options') {
   let modalCloses = 0;
   let now = '2026-01-15T12:00:00Z';
   const initialConfig = configModel.normalizeConfig({ rules: [], globalProfile: {
-    language: configModel.normalizeLanguage({ language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' }),
+    language: configModel.normalizeLanguage({ language: 'en-US', languages: ['en-US'] }),
     geolocation: configModel.normalizeGeolocation({ mode: 'manual', latitude: 0, longitude: 0, accuracy: 50 }),
     timezone: configModel.normalizeTimezone({ mode: 'manual', timezone: 'UTC' })
   } });
   const context = vm.createContext({ ...configModel, ...elements, initialConfig, createCustomProfile,
     confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn,
     ruleListToText, rulesFromText,
+    downloadJson: (filename: string, config: SiteSpoofConfig) => downloads.push({ filename, config: structuredClone(config) }),
     getTimezoneOffsetMinutes: (timezone: string) => configModel.getTimezoneOffsetMinutes(timezone, now),
     alert: (message: string) => alerts.push(message),
     updateGlobalStatus() {}, updateExitLocationProfile() {}, renderProfiles() {}, renderExitLocationProfiles() {}, renderSiteRules() {}, renderOnboarding() {},
@@ -55,7 +57,7 @@ function harness(page: 'popup' | 'options') {
   vm.runInContext(ts.transpileModule(`let currentConfig = normalizeConfig(initialConfig);
     ${functions.map((node) => node.getText(parsed)).join('\n')}
     populateForm(currentConfig);`, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
-  return { elements, alerts, writes, context, confirmSaveProfileBtn,
+  return { elements, alerts, writes, downloads, context, confirmSaveProfileBtn,
     pendingButtons: [confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn],
     getModalCloses: () => modalCloses,
     call: (expression: string) => vm.runInContext(expression, context),
@@ -179,5 +181,23 @@ test('Popup 实际填充和保存按目标时区显示偏移，包含冬夏、�
     ui.elements.timezoneEl.value = timezone;
     ui.call('updateTimezoneOffset()');
     assert.equal(ui.elements.utcOffsetEl.value, '');
+  }
+});
+
+test('Options 字体自定义和内置模式通过实际导入／导出保留 v3 合同', async () => {
+  const ui = harness('options');
+  for (const mode of ['custom', 'vendor-software'] as const) {
+    const config = configModel.normalizeConfig({ fontExposure: { enabled: false, mode, blockedFamilies: ['Synthetic Imported Font'] } });
+    ui.context.importedText = JSON.stringify(config);
+    await ui.call('handleImportFile({ target: { files: [{ text: async () => importedText }] } })');
+    assert.equal(ui.elements.fontExposureModeEl.value, mode);
+    assert.equal(ui.elements.fontExposureEnabledEl.checked, false);
+    assert.equal(ui.elements.fontExposureBlockedFamiliesEl.value, config.fontExposure.blockedFamilies.join('\n'));
+    ui.call('exportConfiguration()');
+    const exported = ui.downloads.at(-1)!;
+    assert.match(exported.filename, /^vanishgeo-config-.*\.json$/);
+    assert.equal(exported.config.schemaVersion, 3);
+    assert.deepEqual(exported.config.fontExposure, config.fontExposure);
+    assert.doesNotMatch(JSON.stringify(exported.config), /acceptLanguage|"canvas"/);
   }
 });

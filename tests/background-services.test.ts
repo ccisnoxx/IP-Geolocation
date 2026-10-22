@@ -63,8 +63,7 @@ function createSingleRuleConfig(
         enabled: true,
         mode: 'preset',
         language: 'ja-JP',
-        languages: ['ja-JP', 'ja'],
-        acceptLanguage: 'ja-JP,ja;q=0.9'
+        languages: ['ja-JP', 'ja']
       }
     },
     webRtc: { globalMode: 'strict' },
@@ -142,8 +141,8 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
       }
     },
     scripting: {
-      getRegisteredContentScripts: async () => actualScripts,
-      unregisterContentScripts: async () => { mutations.content += 1; actualScripts = []; },
+      getRegisteredContentScripts: async (filter?: { ids?: string[] }) => filter?.ids ? actualScripts.filter(script => filter.ids!.includes(script.id)) : actualScripts,
+      unregisterContentScripts: async (filter?: { ids?: string[] }) => { mutations.content += 1; actualScripts = filter?.ids ? actualScripts.filter(script => !filter.ids!.includes(script.id)) : []; },
       updateContentScripts: async (scripts: chrome.scripting.RegisteredContentScript[]) => {
         mutations.content += 1; actualScripts = scripts;
       },
@@ -224,6 +223,7 @@ test('parseGeoApiResponse accepts complete provider responses from one detection
     latitude: 1.3521,
     longitude: 103.8198,
     country: 'Singapore',
+    country_code: 'sg',
     timezone: { id: 'Asia/Singapore' }
   }, 'ipwho', VERIFIED_AT);
   const ipapi = parseGeoApiResponse({
@@ -231,6 +231,7 @@ test('parseGeoApiResponse accepts complete provider responses from one detection
     latitude: 35.68,
     longitude: 139.76,
     country_name: 'Japan',
+    country_code: 'JP',
     timezone: 'Asia/Tokyo'
   }, 'ipapi', VERIFIED_AT);
   const ipinfo = parseGeoApiResponse({
@@ -297,6 +298,7 @@ test('active detection falls back sequentially and writes a verified profile onl
         latitude: 35.68,
         longitude: 139.76,
         country_name: 'Japan',
+        country_code: 'JP',
         timezone: 'Asia/Tokyo'
       })
     } as Response;
@@ -435,7 +437,7 @@ test('保存和导入在原始 Profile 校验失败时拒绝，不写配置或�
   const mock = installChromeMock(storage);
   const valid: Profile = { id: 'synthetic', name: '中文方案',
     geolocation: { latitude: 0, longitude: 0, accuracy: 50 },
-    language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' },
+    language: { language: 'en-US', languages: ['en-US'] },
     timezone: { timezone: 'UTC' } };
   try {
     const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
@@ -473,7 +475,7 @@ test('旧存储未初始化时非法 Profile 保存或导入不触发迁移写�
   chrome.storage.local.remove = (async () => { removes += 1; }) as any;
   const profile: Profile = { id: 'invalid', name: '非法方案',
     geolocation: { latitude: 95, longitude: 0, accuracy: 50 },
-    language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' }, timezone: { timezone: 'UTC' } };
+    language: { language: 'en-US', languages: ['en-US'] }, timezone: { timezone: 'UTC' } };
   try {
     const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const candidate = { profile: { activeProfileId: null, profiles: [profile] } };
@@ -484,6 +486,33 @@ test('旧存储未初始化时非法 Profile 保存或导入不触发迁移写�
     assert.deepEqual(storage, original);
     assert.deepEqual(mock.sessionStorage, {});
     assert.deepEqual(mock.mutations, { content: 0, dnr: 0, webrtc: 0 });
+  } finally { mock.restore(); }
+});
+
+test('非法字体或schema输入在旧存储迁移前拒绝，合法v2导入去旧字段且档案降级', async () => {
+  const storage: Record<string, any> = { bpg_config: { domainList: ['example.test'] } };
+  const before = structuredClone(storage);
+  const mock = installChromeMock(storage);
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    for (const candidate of [null, [], { schemaVersion: 99 }, { fontExposure: { mode: 'invalid' } },
+      { fontExposure: { mode: 'custom', blockedFamilies: ['MiSans', 1] } }, { canvas: { targetFonts: 'MiSans' } }]) {
+      await assert.rejects(services.importSiteConfig(candidate as any));
+      await assert.rejects(services.saveSiteConfig(candidate as any));
+      assert.deepEqual(storage, before);
+      assert.deepEqual(mock.sessionStorage, {});
+      assert.deepEqual(mock.mutations, { content: 0, dnr: 0, webrtc: 0 });
+    }
+    const legacy: any = { ...createSingleRuleConfig(), schemaVersion: 2,
+      canvas: { enabled: true, targetFonts: [' MiSans ', 'misans', 'Custom Font'] } };
+    delete legacy.fontExposure;
+    legacy.globalProfile.language.acceptLanguage = 'obsolete';
+    const imported = (await services.importSiteConfig(legacy)).config;
+    assert.equal(imported.schemaVersion, 3);
+    assert.deepEqual(imported.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['MiSans', 'Custom Font'] });
+    assert.doesNotMatch(JSON.stringify(imported), /"(?:acceptLanguage|canvas)"/);
+    assert.equal(imported.exitLocationProfiles[0].verification, 'unverified');
+    assert.equal(imported.rules[0].exitLocationProfileId, null);
   } finally { mock.restore(); }
 });
 
@@ -500,7 +529,7 @@ test('只有语言/时区快照变化的页面进入人工重载提示；重复�
     const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const changed = clone(config);
     changed.rules[0].overrides.language = { mode: 'override', value: {
-      enabled: true, mode: 'preset', language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9'
+      enabled: true, mode: 'preset', language: 'fr-FR', languages: ['fr-FR', 'fr']
     } };
     const first = await services.saveSiteConfig(changed);
     assert.deepEqual(first.syncReport.pageRuntime, { state: 'ready', registeredRuleCount: 2, reloadRequired: true });
@@ -702,7 +731,7 @@ test('v2升级不覆盖开关、WebRTC、规则、环境方案或出口档案；
     if (empty) config.rules = [];
     config.profile = { activeProfileId: 'custom', profiles: [{ id: 'custom', name: '保留方案',
       geolocation: { latitude: 0, longitude: 0, accuracy: 50 }, timezone: { timezone: 'UTC' },
-      language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' } }] };
+      language: { language: 'en-US', languages: ['en-US'] } }] };
     const before = clone(config);
     const storage: Record<string, any> = { [SITE_CONFIG_KEY]: config };
     const mock = installChromeMock(storage);
@@ -788,7 +817,7 @@ test('引导串行合并当前配置、保留其他规则并尊重显式WebRTC�
       const source = readFileSync(new URL(`../src/${page}/${page}.ts`, import.meta.url), 'utf8');
       const parsed = ts.createSourceFile('ui.ts', source, ts.ScriptTarget.Latest, true);
       const functions = parsed.statements.filter((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node)
-        && ['populateForm', 'readForm', 'updateTimezoneOffset'].includes(node.name?.text || ''));
+        && ['populateForm', 'readForm', 'updateTimezoneOffset', 'updateFontExposureMode'].includes(node.name?.text || ''));
       const elements = Object.fromEntries([...source.matchAll(/const (\w+El) = document\.getElementById\(/g)]
         .map((match) => [match[1], { value: '', checked: false }]));
       const context = vm.createContext({ ...configModel, ...elements, currentConfig: saved.config, ruleListToText, rulesFromText,
@@ -844,8 +873,7 @@ test('初始化迁移旧位置与配置并移除旧键；匹配的既有页面�
     languageConfig: {
       enabled: true,
       language: 'en-US',
-      languages: ['en-US'],
-      acceptLanguage: 'en-US'
+      languages: ['en-US']
     },
     timezoneConfig: { enabled: true, mode: 'auto', timezone: '' },
     webRtcConfig: { enabled: true, policy: 'disable_non_proxied_udp' },
@@ -866,7 +894,7 @@ test('初始化迁移旧位置与配置并移除旧键；匹配的既有页面�
     const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
     const report = await services.initializeExtension();
 
-    assert.equal(storage[SITE_CONFIG_KEY].schemaVersion, 2);
+    assert.equal(storage[SITE_CONFIG_KEY].schemaVersion, 3);
     assert.deepEqual(storage[SITE_CONFIG_KEY].exitLocationProfiles.map((profile: ExitLocationProfile) => ({
       id: profile.id,
       verification: profile.verification,
@@ -957,14 +985,14 @@ test('localhost 目标只带固定 UI 参数且拒绝非法目标或端口', asy
   } finally { mock.restore(); }
 });
 
-for (const component of ['contentScripts', 'dnr', 'webrtc'] as const) {
+for (const component of ['contentScripts', 'legacyDnrCleanup', 'webrtc'] as const) {
   test(`${component} 保存失败组件可见，worker 再初始化恢复注册与人工重载提示且收敛后幂等`, async () => {
     const config = createSingleRuleConfig('example.com', { automatic: false });
     const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
     const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[] });
     const target: any = component === 'contentScripts' ? chrome.userScripts
-      : component === 'dnr' ? chrome.declarativeNetRequest : chrome.privacy.network.webRTCIPHandlingPolicy;
-    const method = component === 'contentScripts' ? 'register' : component === 'dnr' ? 'updateDynamicRules' : 'set';
+      : component === 'legacyDnrCleanup' ? chrome.declarativeNetRequest : chrome.privacy.network.webRTCIPHandlingPolicy;
+    const method = component === 'contentScripts' ? 'register' : component === 'legacyDnrCleanup' ? 'getDynamicRules' : 'set';
     const original = target[method];
     target[method] = async () => { throw new Error('合成 API 故障 https://private.example.test/sensitive'); };
     try {
@@ -981,7 +1009,7 @@ for (const component of ['contentScripts', 'dnr', 'webrtc'] as const) {
         error.code === (component === 'contentScripts' ? 'userscripts-register-failed' : 'browser-api-failed')));
       assert.deepEqual(response.syncReport.components.tabReload, { status: 'ok', errors: [] });
       assert.equal(response.syncReport.pageRuntime.reloadRequired, component !== 'contentScripts');
-      for (const other of ['contentScripts', 'dnr', 'webrtc'] as const) {
+      for (const other of ['contentScripts', 'legacyDnrCleanup', 'webrtc'] as const) {
         if (other !== component) assert.equal(response.syncReport.components[other].status, 'ok');
       }
       assert.equal(storage[SITE_CONFIG_KEY].globalProfile.language.language, 'de-DE');
@@ -1091,22 +1119,27 @@ test('配置修改与初始化串行，延迟旧副作用不会覆盖后来的�
   } finally { release(); mock.restore(); }
 });
 
-test('DNR 可管理容量溢出在配置写入前拒绝，禁用/无语言规则不占容量', async () => {
+test('配置保存不再做DNR容量预检，语言启用或修改不产生请求头规则', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
   const mock = installChromeMock(storage);
   try {
     const next = clone(config);
     next.rules = Array.from({ length: 1001 }, (_, index) => ({ ...clone(config.rules[0]), id: `r-${index}`, domain: `site${index}.example.test` }));
-    await assert.rejects(createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(next), /可管理上限/);
-    assert.deepEqual(storage[SITE_CONFIG_KEY], config);
-    assert.equal(mock.sessionStorage.runtimeSyncMetadata, undefined);
-    next.rules[1000].enabled = false;
-    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(next)).syncReport.status, 'ok');
-    next.rules[1000].enabled = true;
-    next.rules[1000].overrides.language = { mode: 'disable', value: null };
-    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').saveSiteConfig(next)).syncReport.status, 'ok');
-    assert.equal((await chrome.declarativeNetRequest.getDynamicRules()).length, 1000);
+    // 旧请求头容量不得再成为保存门槛；页面注册仍由其自身 API 决定。
+    (chrome.declarativeNetRequest as any).MAX_NUMBER_OF_REGEX_RULES = 0;
+    chrome.declarativeNetRequest.getSessionRules = async () => { throw new Error('不得执行DNR容量检查'); };
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    const saved = await services.saveSiteConfig(next);
+    assert.equal(saved.syncReport.status, 'ok');
+    assert.equal(saved.config.rules.length, 1001);
+    assert.equal(saved.syncReport.components.legacyDnrCleanup.status, 'ok');
+    next.globalProfile.language.language = 'de-DE';
+    next.globalProfile.language.languages = ['de-DE'];
+    await services.saveSiteConfig(next);
+    await services.setExtensionEnabled(false);
+    assert.equal(mock.mutations.dnr, 0);
+    assert.deepEqual(await chrome.declarativeNetRequest.getDynamicRules(), []);
   } finally { mock.restore(); }
 });
 
@@ -1220,7 +1253,7 @@ test('旧 bootstrap 注销失败或虚假成功均阻止新注册；恢复后注
       assert.equal(report.components.contentScripts.status, 'failed');
       assert.deepEqual(report.pageRuntime, { state: 'sync-failed', registeredRuleCount: null, reloadRequired: false });
       assert.ok(report.components.contentScripts.errors.some((error) => error.code === (failure === 'reject' ? 'browser-api-failed' : 'verification-failed')));
-      assert.equal(report.components.dnr.status, 'ok');
+      assert.equal(report.components.legacyDnrCleanup.status, 'ok');
       assert.equal(report.components.webrtc.status, 'ok');
       assert.equal(Reflect.has(services, 'initializeRuntimeForSender'), false);
       assert.deepEqual(await chrome.userScripts.getScripts(), []);
@@ -1291,5 +1324,25 @@ test('候选清理失败后导入降级，同检测 ID 碰撞须拒绝且保留�
     await assert.rejects(services.confirmExitLocationDetection(detectionId, '再次确认'), /已发生变化.*重新检测/);
     assert.deepEqual(storage[SITE_CONFIG_KEY], before);
     assert.deepEqual(mock.sessionStorage.pendingExitLocationDetection, candidate);
+  } finally { mock.restore(); }
+});
+
+
+test('同配置重复对账与worker再初始化都复核旧DNR，marker不成为清理缓存', async () => {
+  const config = createSingleRuleConfig('example.com', { automatic: false });
+  const storage: Record<string, any> = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage);
+  const rule = (id: number): chrome.declarativeNetRequest.Rule => ({ id,
+    action: { type: 'block' as chrome.declarativeNetRequest.RuleActionType }, condition: { urlFilter: 'never-requested.synthetic' } });
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+    await services.initializeExtension();
+    assert.equal(storage.legacyDnrCleanupV3Complete, true);
+    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [rule(1100), rule(2100)] });
+    assert.equal((await services.reconcileRuntime()).syncReport.components.legacyDnrCleanup.status, 'ok');
+    assert.deepEqual((await chrome.declarativeNetRequest.getDynamicRules()).map(rule => rule.id), [2100]);
+    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [rule(2099)] });
+    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension()).components.legacyDnrCleanup.status, 'ok');
+    assert.deepEqual((await chrome.declarativeNetRequest.getDynamicRules()).map(rule => rule.id), [2100]);
   } finally { mock.restore(); }
 });
