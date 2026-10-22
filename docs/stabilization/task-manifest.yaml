@@ -724,3 +724,35 @@ tasks:
       - 父子classic/module组合及孙级首段语言IntlDate一致，模块依赖与立即撤销消息正常
       - 不扩大权限或绕过CSP，失败可见，撤销及清理不回归
       - 完整本地门禁、独立复核与当前Chrome实测后仅review，不自动提交
+
+  - id: VG-035
+    title: HTTP(S) module Dedicated Worker可行性实验归档与暂停决策
+    phase: R7
+    dependencies: [VG-034]
+    status: done
+    trellis_task: .trellis/tasks/10-23-vg-035-http-worker-feasibility
+    authorization:
+      date: '2026-10-23'
+      scope: 归档当前Chrome实验结论和证据，明确未覆盖范围；仅文档与实验资料，不自动提交
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-23'
+      scope: 实验结论与证据归档验收；HTTP(S) Dedicated Worker和SharedWorker继续暂停
+      evidence: .trellis/tasks/10-23-vg-035-http-worker-feasibility/implement.md#人工验收与本地提交授权
+    acceptance_authorization:
+      date: '2026-10-23'
+      local_commit: true
+      push: false
+    production_decision:
+      http_dedicated_worker: paused
+      shared_worker: paused
+      evidence: docs/stabilization/http-module-worker-feasibility.md
+      scope: 不接入HTTP(S) Worker包装，不恢复SharedWorker，不新增权限；VG-033及VG-034限定Blob范围不变
+    scope:
+      - 归档同源HTTP module Dedicated Worker原生与Blob启动对照及66项结果断言
+      - 区分实测反例、未验证边界及生产覆盖，保留原始证据的记录限制
+    acceptance:
+      - 当前Chrome九组对照可复核，CSP与全局相对地址不等价结论可追溯
+      - HTTPS、Service Worker响应、DNR防护及完整网络生命周期矩阵明确未验证
+      - 用户已验收归档资料并授权本地提交；不推送、不启动恢复实现

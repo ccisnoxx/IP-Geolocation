@@ -1,0 +1,2349 @@
+{
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "createdAt": "2026-10-22T17:36:14.105Z",
+  "scope": "current Chrome; HTTP loopback; no extension config changes",
+  "results": [
+    {
+      "case": "baseline",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=baseline&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=baseline&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/modules/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=baseline&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/4c8ab7ed-d9a0-4a11-96de-8bdb572d1afb",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "page-worker-self",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=page-worker-self&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=page-worker-self&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/modules/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "error",
+          "message": "worker-error"
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "page-worker-none",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "error",
+          "message": "worker-error"
+        },
+        {
+          "mode": "wrapped",
+          "status": "error",
+          "message": "worker-error"
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "page-connect-none",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=page-connect-none&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=page-connect-none&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/modules/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=page-connect-none&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/ff16a1f9-7408-4a91-aabd-09ff6de502ea",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to fetch"
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to fetch"
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": [
+              {
+                "directive": "connect-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/asset.json"
+              }
+            ]
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "response-connect-none",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-connect-none&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=response-connect-none&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to fetch"
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to fetch"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "Error",
+              "message": "xhr-error"
+            },
+            "absoluteFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to fetch"
+            },
+            "relativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": [
+              {
+                "directive": "connect-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/asset.json"
+              }
+            ]
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-connect-none&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/5f7ef0bc-eeb0-4c5f-9d91-7be555df17c4",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "response-worker-none",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-worker-none&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=response-worker-none&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/modules/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "Error",
+              "message": "child-error"
+            },
+            "moduleRelativeChild": {
+              "ok": false,
+              "name": "Error",
+              "message": "child-error"
+            },
+            "violations": [
+              {
+                "directive": "worker-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/child.js"
+              },
+              {
+                "directive": "worker-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/child.js"
+              }
+            ]
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-worker-none&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/baf63f22-ab85-43b1-8192-d693a6153349",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "response-script-none",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-script-none&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=response-script-none&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to fetch dynamically imported module: http://127.0.0.1:63187/modules/dynamic.js"
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/modules/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "Error",
+              "message": "child-error"
+            },
+            "moduleRelativeChild": {
+              "ok": false,
+              "name": "Error",
+              "message": "child-error"
+            },
+            "violations": [
+              {
+                "directive": "script-src-elem",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/dynamic.js"
+              },
+              {
+                "directive": "worker-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/child.js"
+              },
+              {
+                "directive": "worker-src",
+                "disposition": "enforce",
+                "blocked": "http://127.0.0.1:63187/modules/child.js"
+              }
+            ]
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-script-none&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/bc0343c4-069d-4106-a225-56295e8efca7",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "response-report-only",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-report-only&mode=native",
+            "location": "http://127.0.0.1:63187/modules/entry.js?case=response-report-only&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/modules/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": [
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/modules/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/asset.json"
+              },
+              {
+                "directive": "connect-src",
+                "disposition": "report",
+                "blocked": "http://127.0.0.1:63187/asset.json"
+              }
+            ]
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/modules/entry.js?case=response-report-only&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/7bbf6df2-12a5-42cf-a46b-ab414823f82c",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/modules/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/modules/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/modules/child.js",
+                "location": "http://127.0.0.1:63187/modules/child.js"
+              }
+            },
+            "violations": []
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    },
+    {
+      "case": "redirect",
+      "outcomes": [
+        {
+          "mode": "native",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/redirected/entry.js?case=redirect&mode=native",
+            "location": "http://127.0.0.1:63187/redirected/entry.js?case=redirect&mode=native",
+            "first": {
+              "language": "zh-CN",
+              "languages": [
+                "zh-CN",
+                "zh"
+              ],
+              "timezone": "Asia/Shanghai",
+              "winter": -480,
+              "summer": -480
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/redirected/dep.js",
+              "first": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "timezone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/redirected/dynamic.js",
+                "first": {
+                  "language": "zh-CN",
+                  "languages": [
+                    "zh-CN",
+                    "zh"
+                  ],
+                  "timezone": "Asia/Shanghai",
+                  "winter": -480,
+                  "summer": -480
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/redirected/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": true,
+              "value": {
+                "path": "/redirected/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeXHR": {
+              "ok": true,
+              "value": "{\"path\":\"/redirected/asset.json\",\"synthetic\":true}"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/redirected/child.js",
+                "location": "http://127.0.0.1:63187/redirected/child.js"
+              }
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/redirected/child.js",
+                "location": "http://127.0.0.1:63187/redirected/child.js"
+              }
+            },
+            "violations": []
+          }
+        },
+        {
+          "mode": "wrapped",
+          "status": "message",
+          "data": {
+            "entry": "http://127.0.0.1:63187/redirected/entry.js?case=redirect&mode=wrapped",
+            "location": "blob:http://127.0.0.1:63187/dcbdccef-e004-4c77-b9ab-3d4868d4355c",
+            "first": {
+              "language": "en-US",
+              "languages": [
+                "en-US",
+                "en"
+              ],
+              "timezone": "America/Los_Angeles",
+              "winter": 480,
+              "summer": 420
+            },
+            "dep": {
+              "url": "http://127.0.0.1:63187/redirected/dep.js",
+              "first": {
+                "language": "en-US",
+                "languages": [
+                  "en-US",
+                  "en"
+                ],
+                "timezone": "America/Los_Angeles",
+                "winter": 480,
+                "summer": 420
+              }
+            },
+            "dynamic": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/redirected/dynamic.js",
+                "first": {
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "timezone": "America/Los_Angeles",
+                  "winter": 480,
+                  "summer": 420
+                }
+              }
+            },
+            "asset": {
+              "ok": true,
+              "value": {
+                "path": "/redirected/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeFetch": {
+              "ok": false,
+              "name": "TypeError",
+              "message": "Failed to execute 'fetch' on 'WorkerGlobalScope': Failed to parse URL from ./asset.json"
+            },
+            "relativeXHR": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to execute 'open' on 'XMLHttpRequest': Invalid URL"
+            },
+            "absoluteFetch": {
+              "ok": true,
+              "value": {
+                "path": "/asset.json",
+                "synthetic": true
+              }
+            },
+            "relativeChild": {
+              "ok": false,
+              "name": "SyntaxError",
+              "message": "Failed to construct 'Worker': './child.js' is not a valid URL."
+            },
+            "moduleRelativeChild": {
+              "ok": true,
+              "value": {
+                "url": "http://127.0.0.1:63187/redirected/child.js",
+                "location": "http://127.0.0.1:63187/redirected/child.js"
+              }
+            },
+            "violations": []
+          }
+        }
+      ],
+      "sharedUnchanged": true,
+      "controlledBySW": false
+    }
+  ],
+  "requests": [
+    {
+      "path": "/case",
+      "query": "?case=baseline",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'self'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=baseline&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/favicon.ico",
+      "query": "",
+      "method": "GET",
+      "destination": "image",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=baseline&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=page-worker-self",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self'; connect-src 'self'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=page-worker-self&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=page-worker-none",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'none'; connect-src 'self'"
+    },
+    {
+      "path": "/case",
+      "query": "?case=page-connect-none",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'none'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=page-connect-none&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=page-connect-none&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=response-connect-none",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'self'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-connect-none&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": "connect-src 'none'"
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-connect-none&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": "connect-src 'none'"
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=response-worker-none",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'self'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-worker-none&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": "worker-src 'none'"
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-worker-none&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": "worker-src 'none'"
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=response-script-none",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'self'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-script-none&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": "script-src 'none'"
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-script-none&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": "script-src 'none'"
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=response-report-only",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'self'"
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-report-only&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/csp-report",
+      "query": "",
+      "method": "POST",
+      "destination": "report",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/csp-report",
+      "query": "",
+      "method": "POST",
+      "destination": "report",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/csp-report",
+      "query": "",
+      "method": "POST",
+      "destination": "report",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/csp-report",
+      "query": "",
+      "method": "POST",
+      "destination": "report",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/entry.js",
+      "query": "?case=response-report-only&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/modules/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/case",
+      "query": "?case=redirect",
+      "method": "GET",
+      "destination": "document",
+      "responseCSP": "default-src 'self'; script-src 'self' 'nonce-probe' blob:; worker-src 'self' blob:; connect-src 'self'"
+    },
+    {
+      "path": "/redirect.js",
+      "query": "?case=redirect&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/entry.js",
+      "query": "?case=redirect&mode=native",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirect.js",
+      "query": "?case=redirect&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/entry.js",
+      "query": "?case=redirect&mode=wrapped",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/dep.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/dynamic.js",
+      "query": "",
+      "method": "GET",
+      "destination": "script",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/asset.json",
+      "query": "",
+      "method": "GET",
+      "destination": "empty",
+      "responseCSP": null
+    },
+    {
+      "path": "/redirected/child.js",
+      "query": "",
+      "method": "GET",
+      "destination": "worker",
+      "responseCSP": null
+    }
+  ],
+  "verification": {
+    "checks": [
+      "baseline: SharedWorker 未更换",
+      "baseline: 无 Service Worker 控制",
+      "baseline: native 无超时",
+      "baseline: wrapped 无超时",
+      "baseline: 入口与依赖美西快照",
+      "page-worker-self: SharedWorker 未更换",
+      "page-worker-self: 无 Service Worker 控制",
+      "page-worker-self: native 无超时",
+      "page-worker-self: wrapped 无超时",
+      "page-worker-none: SharedWorker 未更换",
+      "page-worker-none: 无 Service Worker 控制",
+      "page-worker-none: native 无超时",
+      "page-worker-none: wrapped 无超时",
+      "page-connect-none: SharedWorker 未更换",
+      "page-connect-none: 无 Service Worker 控制",
+      "page-connect-none: native 无超时",
+      "page-connect-none: wrapped 无超时",
+      "page-connect-none: 入口与依赖美西快照",
+      "response-connect-none: SharedWorker 未更换",
+      "response-connect-none: 无 Service Worker 控制",
+      "response-connect-none: native 无超时",
+      "response-connect-none: wrapped 无超时",
+      "response-connect-none: 入口与依赖美西快照",
+      "response-worker-none: SharedWorker 未更换",
+      "response-worker-none: 无 Service Worker 控制",
+      "response-worker-none: native 无超时",
+      "response-worker-none: wrapped 无超时",
+      "response-worker-none: 入口与依赖美西快照",
+      "response-script-none: SharedWorker 未更换",
+      "response-script-none: 无 Service Worker 控制",
+      "response-script-none: native 无超时",
+      "response-script-none: wrapped 无超时",
+      "response-script-none: 入口与依赖美西快照",
+      "response-report-only: SharedWorker 未更换",
+      "response-report-only: 无 Service Worker 控制",
+      "response-report-only: native 无超时",
+      "response-report-only: wrapped 无超时",
+      "response-report-only: 入口与依赖美西快照",
+      "redirect: SharedWorker 未更换",
+      "redirect: 无 Service Worker 控制",
+      "redirect: native 无超时",
+      "redirect: wrapped 无超时",
+      "redirect: 入口与依赖美西快照",
+      "baseline: 模块相对 dynamic",
+      "baseline: 模块相对 asset",
+      "baseline: 模块相对 moduleRelativeChild",
+      "baseline: 全局相对不兼容 relativeFetch",
+      "baseline: 全局相对不兼容 relativeXHR",
+      "baseline: 全局相对不兼容 relativeChild",
+      "baseline: 依赖最终 URL 相同",
+      "baseline: 全局 URL 改变",
+      "redirect: 模块相对 dynamic",
+      "redirect: 模块相对 asset",
+      "redirect: 模块相对 moduleRelativeChild",
+      "redirect: 全局相对不兼容 relativeFetch",
+      "redirect: 全局相对不兼容 relativeXHR",
+      "redirect: 全局相对不兼容 relativeChild",
+      "redirect: 依赖最终 URL 相同",
+      "redirect: 全局 URL 改变",
+      "页面 worker-src self 阻止包装",
+      "页面 worker-src none 阻止两者",
+      "response-connect-none: 原策略丢失",
+      "response-worker-none: 原策略丢失",
+      "response-script-none: 原策略丢失",
+      "页面连接限制反向继承",
+      "Report-Only 报告丢失"
+    ],
+    "count": 66,
+    "conclusion": "NOT_EQUIVALENT",
+    "scope": "HTTP loopback in current Chrome; HTTPS not executed; no production dispatch or DNR changes",
+    "fixtureNotes": [
+      "page-connect-none 实际 connect-src 仅允许回传 /case-results，禁止全部业务测试资源；requests 中该页面 responseCSP 字段记录的是替换前模板。",
+      "报告来源为浏览器回传与夹具服务端请求记录；当前无 Service Worker 控制。",
+      "HTTP(S) 子 Worker 仅用于路径/CSP探针，不作为本轮语言同步覆盖对象。"
+    ]
+  }
+}

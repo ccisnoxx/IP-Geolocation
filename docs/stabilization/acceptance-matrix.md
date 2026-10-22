@@ -1,5 +1,11 @@
 # 稳定化验收矩阵
 
+## 2026-10-23 HTTP(S) Worker 实验归档与暂停决定
+
+当前用户 Chrome 的九组 HTTP module Dedicated Worker 原生／Blob启动对照确认 CSP 与全局相对地址不等价。66 项历史结果断言用于确认差异，不能计作生产兼容性通过。HTTP(S) Dedicated Worker 继续暂停；SharedWorker 不动；VG-033／VG-034 已验收的限定 Blob 范围保持不变。历史 VG-007 Worker 验收不构成当前恢复授权。
+
+详见 [实验结论及完整未覆盖范围](http-module-worker-feasibility.md)。HTTPS、Service Worker 合成响应、DNR 防护、Chrome 138 和广泛网络／生命周期矩阵仍未验证。VG-035 的资料整理已于 2026-10-23 获用户人工验收，状态为 done，见 [验收记录](../../.trellis/tasks/10-23-vg-035-http-worker-feasibility/implement.md#人工验收与本地提交授权)。用户仅授权本地提交，不推送或启动恢复实现；状态以 [manifest](task-manifest.yaml) 为准。
+
 ## 2026-10-20 VG-024 权限退出（历史）
 
 VG-028与VG-024均已获用户人工验收，manifest为done，Trellis completed；该阶段未提交、未发布、未启动后续任务。该阶段候选删除两项DNR权限及清理组件，生产不依赖DNR API；当时仅保留语言/时区注册、WebRTC及人工重载提示。schema3、已验收userScripts与当时其他表面暂停不变。后续固定字体恢复授权及当前验收停止点见[当前授权与验收停止点](#2026-10-21-当前授权与验收停止点)。

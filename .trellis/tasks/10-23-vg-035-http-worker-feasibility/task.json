@@ -1,0 +1,15 @@
+{
+  "id": "VG-035",
+  "name": "HTTP(S) module Dedicated Worker可行性实验归档与暂停决策",
+  "status": "done",
+  "dependencies": [
+    "VG-034"
+  ],
+  "acceptance": {
+    "status": "accepted",
+    "local_commit_authorized": true,
+    "push_authorized": false,
+    "date": "2026-10-23",
+    "by": "user"
+  }
+}

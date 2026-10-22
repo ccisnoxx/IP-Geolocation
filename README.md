@@ -110,3 +110,5 @@ VG-032语言请求头验证：构建后执行 `node scripts/chrome-header-sync-s
 启动前用同步 XMLHttpRequest 仅核验本页已跟踪的 blob: URL 是否仍在原生存储中，避免同源其他 realm 撤销后复活源码。该步骤不访问 HTTP(S) 或外部网络，但读取成本随 Blob 大小增加；CSP connect-src 禁止读取时会明确警告“本次语言/时区未同步”并保留原生加载，不能当作通过。普通 URL 对象支持；TrustedScriptURL、安装前或其他 realm 创建的 URL 未覆盖。页面 CSP 仍需允许 Blob Worker 及 Blob 脚本依赖。
 
 VG-034（2026-10-23人工验收通过，未发布）进一步覆盖已同步Blob Dedicated Worker链中、各realm安装后自身创建的Blob子Worker，classic/module均继承父级最小快照。未接管父级不会自动覆盖其后代；HTTP(S)与SharedWorker不变。各层沿用VG-033的CSP核验、撤销及生命周期规则，核验在创建者线程同步执行。
+
+HTTP(S) Dedicated Worker 继续暂停，SharedWorker 不变。2026-10-23 当前 Chrome 的独立 HTTP module 对照确认：Blob 启动可保留模块相对路径，但会改变全局相对地址和入口 CSP 语义；不据此恢复生产。详见 [实验结论、证据与未覆盖范围](docs/stabilization/http-module-worker-feasibility.md)。

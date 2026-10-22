@@ -31,3 +31,5 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - 稳定化任务的依赖、范围和状态以 `docs/stabilization/task-manifest.yaml` 为唯一跨任务事实来源。开始前检查依赖全部为 `done`，实施时标记 `in_progress`；实现及本地验证结束后只能标记 `review`，人工验收后才可标记 `done`。Trellis 任务记录保存执行证据并同步状态；历史归档状态不得冒充当前稳定化验收。每次只实施当前获授权任务，不因清单存在而启动后续任务；不自行 push、merge、打 tag 或发布。
 
 - VG-034已于2026-10-23获用户明确授权：仅已同步Blob Dedicated Worker链中各realm自身新建Blob子Worker递归继承同一语言/时区快照；HTTP(S)、SharedWorker、外来Blob与未接管父级仍未覆盖。沿用VG-033安全及生命周期限制；2026-10-23用户人工验收通过并授权本次本地提交，不推送。
+
+- 2026-10-23用户要求HTTP(S) Dedicated Worker继续暂停、SharedWorker不动。VG-035仅归档HTTP module的Blob启动实验：全局相对路径及入口CSP不等价；不得从语言时区首读成功推定生产恢复资格。证据与未覆盖范围见`docs/stabilization/http-module-worker-feasibility.md`，当前状态以task-manifest为准。

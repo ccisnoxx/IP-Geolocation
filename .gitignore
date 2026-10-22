@@ -360,3 +360,10 @@ Thumbs.db
 !.trellis/tasks/10-23-vg-034-nested-blob-worker/design.md
 !.trellis/tasks/10-23-vg-034-nested-blob-worker/implement.md
 !.trellis/tasks/10-23-vg-034-nested-blob-worker/chrome-evidence.json
+
+# VG-035 HTTP Worker 实验归档与暂停记录
+!.trellis/tasks/10-23-vg-035-http-worker-feasibility/
+.trellis/tasks/10-23-vg-035-http-worker-feasibility/*
+!.trellis/tasks/10-23-vg-035-http-worker-feasibility/task.json
+!.trellis/tasks/10-23-vg-035-http-worker-feasibility/prd.md
+!.trellis/tasks/10-23-vg-035-http-worker-feasibility/implement.md
