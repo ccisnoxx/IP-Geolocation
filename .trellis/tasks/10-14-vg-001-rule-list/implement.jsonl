@@ -1,6 +1,0 @@
-{"file": "docs/stabilization/task-manifest.yaml", "reason": "唯一任务状态、依赖和授权范围"}
-{"file": ".trellis/tasks/10-14-vg-001-rule-list/prd.md", "reason": "规则文本目标与依赖阻塞"}
-{"file": ".trellis/tasks/10-14-vg-001-rule-list/design.md", "reason": "恢复后的设计方向与边界"}
-{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "共享模块和维护源归属"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "验证证据层级与安全合同"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "schema v2 和出口档案绑定边界"}

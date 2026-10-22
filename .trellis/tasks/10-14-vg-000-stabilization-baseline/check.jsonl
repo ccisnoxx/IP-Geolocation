@@ -1,6 +1,0 @@
-{"file": "docs/stabilization/task-manifest.yaml", "reason": "唯一稳定化范围、依赖和状态来源"}
-{"file": "docs/stabilization/acceptance-matrix.md", "reason": "验收场景与实际覆盖缺口"}
-{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "当前源码和构建目录规范"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "MV3 浏览器边界与验证合同"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "既有 schema v2 与 verified 身份合同"}
-{"file": ".trellis/tasks/10-14-vg-000-stabilization-baseline/design.md", "reason": "本任务范围、状态映射及回滚设计"}

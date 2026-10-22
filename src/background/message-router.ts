@@ -45,7 +45,7 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
         return savedResponse(await services.resetSiteConfig());
       case 'completeOnboarding':
         if (request.confirmed !== true) throw new Error('请明确确认启用所选站点');
-        return savedResponse(await services.completeOnboarding(request.domains, request.profileId, request.webRtcMode));
+        return savedResponse(await services.completeOnboarding(request.domains, request.profileId, request.webRtcMode, request.recommendation));
       case 'skipOnboarding':
         return savedResponse(await services.skipOnboarding());
       case 'detectExitLocation':

@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "保持MAIN/ISOLATED、自包含两层runtime和生产安全暂停边界"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "类型、测试、真实Chrome和隐私证据分层"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "v2配置单一来源、verified事务及Intl兼容模式合同"}

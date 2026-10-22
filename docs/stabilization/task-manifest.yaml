@@ -462,6 +462,7 @@ tasks:
       - 普通页面能力反例及正常对照可复现，证据含版本、命令和未验证范围
       - 不以研究完成授权P2或生产恢复，本地review、人工验收后才可done
 
+
   - id: VG-028
     title: 产品契约 v3、请求头停用与字体暴露模型
     phase: R6
@@ -482,6 +483,7 @@ tasks:
       - 自定义名单、禁用规则、verified档案等保留，v3无acceptLanguage和canvas
       - 普通字体及Canvas图像、WebGL、UA和硬件原生透传，无权限版本host扩大
       - 本地门禁和独立只读复核，真实Chrome未验证如实记录，结束仅review不发布
+
 
   - id: VG-024
     title: 删除 DNR 权限与过渡清理组件
@@ -535,6 +537,34 @@ tasks:
       - 无动态敏感 payload、页面桥、documentId 或完整 runtime 恢复
       - 有限探测覆盖、撤销与旧文档快照边界明确，独立安全复核
       - 2026-10-22用户确认本次最小字体允许名单改动验收通过，按上述限定范围done；未授权提交发布
+
+  - id: VG-026
+    title: 出口环境推荐与明确确认流程
+    phase: R7
+    dependencies: [VG-024, VG-028]
+    status: review
+    trellis_task: .trellis/tasks/10-20-vg-026-exit-recommendation
+    scope:
+      - 标准国家码、时区置信度和地区 locale 推荐
+      - 保留语言或出口语言、字体和 WebRTC 推荐，普通用户明确确认
+    acceptance:
+      - 推荐无副作用，verified 仍由后台检测确认事务建立
+      - 只修改用户选择站点，不自动恢复暂停 surface
+      - 定向行为验证和独立复核后仅 review
+
+  - id: VG-027
+    title: 可信早期环境交付架构与位置恢复资格
+    phase: R7
+    dependencies: [VG-023, VG-024, VG-028]
+    status: review
+    trellis_task: .trellis/tasks/10-20-vg-027-early-delivery
+    scope:
+      - 核对已恢复语言时区与历史 NO_GO 的架构差异
+      - 交付位置最小化、文档身份、新鲜度和生命周期恢复资格决策
+    acceptance:
+      - 不以字体静态脚本推定动态位置或 Worker 可恢复
+      - 按六项安全门槛明确 GO/NO_GO 与未验证项，位置保持 fail closed
+      - 独立复核后仅 review，研究完成不代表生产恢复
 
   - id: VG-029
     title: 地理位置生产恢复与真实 Chrome 验证

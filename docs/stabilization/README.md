@@ -2,7 +2,7 @@
 
 ## 2026-10-20 VG-024 权限退出（历史）
 
-VG-028与VG-024均已获用户人工验收，manifest为done，Trellis completed；该阶段未提交、未发布、未启动后续任务。该阶段候选删除两项DNR权限及清理组件，生产不依赖DNR API；当时仅保留语言/时区注册、WebRTC及人工重载提示。schema3、已验收userScripts与当时其他表面暂停不变。后续固定字体恢复授权及当前验收停止点见文末“VG-025 当前交付（阶段历史）”。
+VG-028与VG-024均已获用户人工验收，manifest为done，Trellis completed；该阶段未提交、未发布、未启动后续任务。该阶段候选删除两项DNR权限及清理组件，生产不依赖DNR API；当时仅保留语言/时区注册、WebRTC及人工重载提示。schema3、已验收userScripts与当时其他表面暂停不变。后续固定字体恢复授权及当前验收停止点见文末“VG-025～VG-027 当前交付”。
 
 旧v2跳过清理升级可能残留磁盘规则；无权限时不启用，本版本不再请求DNR，未来重引入必须独立迁移。两条真实Chrome升级路径和最低门禁结果见[VG-024记录](../../.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md)。以下VG-028及更早DNR清理/生成描述属于历史范围与证据，不代表当前候选组件。状态只以[manifest](./task-manifest.yaml)为准。
 
@@ -175,11 +175,15 @@ VG-013 本地结果：170/170、源码/测试类型、build、diff与dry-run通�
 
 2026-10-15，用户确认VG-021隔离验证验收通过，接受有限同步表达GO、安全恢复NO_GO及已知限制，见[人工验收记录](../../.trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md#人工验收)。manifest由review更新为done，Trellis由review更新为completed。生产伪装继续暂停，不启动恢复实施；研究验收不构成恢复或发布批准。不改版本、不提交、推送或发布，原Chrome证据和未验证范围保持。
 
-## VG-025 当前交付（阶段历史）
+## VG-025～VG-027 当前交付
 
-2026-10-21校准：VG-025为`review`、人工验收`pending`，状态只以[manifest](./task-manifest.yaml)为准，人工验收事实见各任务记录；以下区分恢复授权、既有验证和当前验收停止点。
+2026-10-21校准：VG-025、VG-026、VG-027均为`review`、人工验收`pending`，状态只以[manifest](./task-manifest.yaml)为准，人工验收事实见各任务记录；以下区分恢复授权、既有验证和当前验收停止点。
 
 - **VG-025**：2026-10-20用户已明确授权固定内置名单仅按已启用HTTP(S) allowlist派发，生产门禁已为true；custom名单、位置／Permissions geolocation及Worker／SharedWorker继续暂停。真实用户Chrome的关闭基线尚未通过，现场根因`UNCONFIRMED`；G05原生查询未执行，G05／G07均为`UNKNOWN`。独立启动读取失败修复、隔离PASS和固定脚本注册不替代现场归因或当前页面生效判断。自动现场取证已停止，具体访问限制和恢复采集条件见[最新停止记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#当前停止点g05-查询受阻停止自动现场取证2026-10-21)。
+- **VG-026**：纯出口推荐、countryCode来源、明确确认、所选规则合并、全局语言／时区／位置设置保留及过期推荐拒绝可独立只读核对；总开关启用及用户明确选择的全局字体／WebRTC影响须在确认前展示，其他规则保持不变。既有Options八项PASS与未开启Allow User Scripts、未覆盖真实action Popup等限制分开保留。推荐开启字体后的实际过滤、关闭／撤销后新文档原生及相应联合人工通过判断，须等待VG-025现场根因和影响范围确认。见[剩余验收核对](../../.trellis/tasks/10-20-vg-026-exit-recommendation/implement.md#2026-10-21-剩余验收只读核对与暂停边界)。
+- **VG-027**：[架构研究](early-environment-delivery.md)的六项门槛、最小位置payload与NO_GO结论可独立只读审阅；位置实测缺口属于未来恢复资格，不要求现在补做实验。不能以固定字体PASS推定动态位置或Worker可恢复，也不能在VG-025现场根因及影响范围未确认时作出依赖关闭／撤销安全保证的联合GO判断。即使VG-025问题解决，位置仍需自身资格证据、独立复核和明确恢复授权。见[剩余验收核对](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md#2026-10-21-剩余验收只读核对与暂停边界)。
+
+VG-026正式依赖VG-024／VG-028、VG-027正式依赖VG-023／VG-024／VG-028，均已done；VG-025不是两项清单依赖。当前暂停的是后续人工验收，不能改写为正式依赖未满足，也不据字体`scripting`异常推定语言／时区`userScripts`共同故障。已验收语言／时区保持，VG-026／VG-027人工验收继续暂停；只继续文档、合同及既有证据的只读审阅，不操作Chrome、不恢复现场取证、不重复隔离测试、不安排自动重试，不暂存、提交或发布。历史阶段记录与原始证据保留，review不代表done或发布批准。
 
 
 ## 2026-10-22 VG-029 定位恢复已验收

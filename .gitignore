@@ -214,7 +214,7 @@ Thumbs.db
 !.trellis/tasks/10-15-vg-022-private-handoff-probe/implement.md
 !.trellis/tasks/10-15-vg-022-private-handoff-probe/chrome-evidence.json
 
-# 已验收本地任务的正式记录与脱敏证据
+# VG-028 正式任务记录与脱敏证据
 !.trellis/tasks/10-20-vg-028-header-font-contract/
 .trellis/tasks/10-20-vg-028-header-font-contract/*
 !.trellis/tasks/10-20-vg-028-header-font-contract/task.json
@@ -222,6 +222,8 @@ Thumbs.db
 !.trellis/tasks/10-20-vg-028-header-font-contract/design.md
 !.trellis/tasks/10-20-vg-028-header-font-contract/implement.md
 !.trellis/tasks/10-20-vg-028-header-font-contract/chrome-upgrade-evidence.json
+
+# VG-024 正式任务记录与脱敏升级证据
 !.trellis/tasks/10-20-vg-024-remove-dnr-permissions/
 .trellis/tasks/10-20-vg-024-remove-dnr-permissions/*
 !.trellis/tasks/10-20-vg-024-remove-dnr-permissions/task.json
@@ -231,6 +233,8 @@ Thumbs.db
 !.trellis/tasks/10-20-vg-024-remove-dnr-permissions/chrome-from-vg028.json
 !.trellis/tasks/10-20-vg-024-remove-dnr-permissions/chrome-from-v2.json
 !.trellis/tasks/10-20-vg-024-remove-dnr-permissions/source-changes.patch
+
+# VG-025/026/027 正式交付记录（其余临时文件仍忽略）
 !.trellis/tasks/10-20-vg-025-font-filter/
 .trellis/tasks/10-20-vg-025-font-filter/*
 !.trellis/tasks/10-20-vg-025-font-filter/task.json
@@ -248,9 +252,27 @@ Thumbs.db
 !.trellis/tasks/10-20-vg-025-font-filter/chrome-browser-card-disable-155.0.8059.80.json
 !.trellis/tasks/10-20-vg-025-font-filter/chrome-browser-card-disable-155.0.8059.80-headed.json
 !.trellis/tasks/10-20-vg-025-font-filter/chrome-normal-ui-persistent-cold-155.0.8059.80.json
+!.trellis/tasks/10-20-vg-026-exit-recommendation/
+.trellis/tasks/10-20-vg-026-exit-recommendation/*
+!.trellis/tasks/10-20-vg-026-exit-recommendation/task.json
+!.trellis/tasks/10-20-vg-026-exit-recommendation/prd.md
+!.trellis/tasks/10-20-vg-026-exit-recommendation/design.md
+!.trellis/tasks/10-20-vg-026-exit-recommendation/implement.md
+!.trellis/tasks/10-20-vg-026-exit-recommendation/implement.jsonl
+!.trellis/tasks/10-20-vg-026-exit-recommendation/check.jsonl
+!.trellis/tasks/10-20-vg-026-exit-recommendation/chrome-evidence.json
+!.trellis/tasks/10-20-vg-027-early-delivery/
+.trellis/tasks/10-20-vg-027-early-delivery/*
+!.trellis/tasks/10-20-vg-027-early-delivery/task.json
+!.trellis/tasks/10-20-vg-027-early-delivery/prd.md
+!.trellis/tasks/10-20-vg-027-early-delivery/design.md
+!.trellis/tasks/10-20-vg-027-early-delivery/implement.md
+
 !.trellis/tasks/10-20-vg-025-font-filter/chrome-qualification-followup.json
 !.trellis/tasks/10-20-vg-025-font-filter/chrome-cold-start-blocked.json
 !.trellis/tasks/10-20-vg-025-font-filter/chrome-http-session-restore-155.0.8059.80.json
+
+# VG-025 最小脱敏现场诊断包，仅两份正式文件
 !.trellis/tasks/10-20-vg-025-font-filter/diagnostic-package/
 .trellis/tasks/10-20-vg-025-font-filter/diagnostic-package/*
 !.trellis/tasks/10-20-vg-025-font-filter/diagnostic-package/README.md
@@ -258,6 +280,8 @@ Thumbs.db
 !.trellis/tasks/10-20-vg-025-font-filter/bounded-readonly-collection-2026-10-21.json
 !.trellis/tasks/10-20-vg-025-font-filter/newcase-runtime-font-source-2026-10-21.js
 !.trellis/tasks/10-20-vg-025-font-filter/newcase-source-collection-2026-10-21.json
+
+# VG-029 地理位置恢复的正式记录与脱敏 Chrome 证据
 !.trellis/tasks/10-22-vg-029-geolocation-recovery/
 .trellis/tasks/10-22-vg-029-geolocation-recovery/*
 !.trellis/tasks/10-22-vg-029-geolocation-recovery/task.json

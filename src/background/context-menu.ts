@@ -1,16 +1,43 @@
 import type { BackgroundServices } from './services';
 
-export function createContextMenus(): void {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: 'enable-globally', title: '全局启用', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'disable-globally', title: '全局禁用', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'separator-1', type: 'separator', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'enable-on-site', title: '在当前站点启用', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'disable-on-site', title: '在当前站点禁用', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'separator-2', type: 'separator', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'open-leak-test', title: '打开诊断页', contexts: ['action'] });
-    chrome.contextMenus.create({ id: 'reset-webrtc', title: '重置 WebRTC 策略', contexts: ['action'] });
+const menuItems: chrome.contextMenus.CreateProperties[] = [
+  { id: 'enable-globally', title: '全局启用', contexts: ['action'] },
+  { id: 'disable-globally', title: '全局禁用', contexts: ['action'] },
+  { id: 'separator-1', type: 'separator', contexts: ['action'] },
+  { id: 'enable-on-site', title: '在当前站点启用', contexts: ['action'] },
+  { id: 'disable-on-site', title: '在当前站点禁用', contexts: ['action'] },
+  { id: 'separator-2', type: 'separator', contexts: ['action'] },
+  { id: 'open-leak-test', title: '打开诊断页', contexts: ['action'] },
+  { id: 'reset-webrtc', title: '重置 WebRTC 策略', contexts: ['action'] }
+];
+
+let pendingCreation: Promise<void> | undefined;
+
+async function rebuildContextMenus(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    chrome.contextMenus.removeAll(() => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
   });
+  for (const item of menuItems) {
+    await new Promise<void>((resolve, reject) => {
+      chrome.contextMenus.create(item, () => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else resolve();
+      });
+    });
+  }
+}
+
+export function createContextMenus(): Promise<void> {
+  // 安装与启动事件可能重叠；清理、全部创建回调结束前共用同一轮初始化。
+  if (!pendingCreation) {
+    pendingCreation = rebuildContextMenus().finally(() => { pendingCreation = undefined; });
+  }
+  return pendingCreation;
 }
 
 export function handleContextMenuClick(services: BackgroundServices, info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): void {

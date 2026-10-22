@@ -1,9 +1,0 @@
-# 实验设计
-
-复用docs/stabilization/alternative-injection-rfc.md方案B。临时扩展仅scripting/tabs及localhost，无WAR/externally_connectable，动态document_start两world分别注册。后台固定合成授权由原生sender路径/来源选择，仅做实验策略，不读取或复制生产resolver/storage。Port对象只在ISOLATED/后台，DOM交付的仅是独立MessagePort能力；不把原生runtime.Port暴露页面。
-
-候选S：同步CustomEvent携带MessagePort，MAIN以闭包随机challenge关联，首次端点后删除公开入口；接受grant前固定类型与challenge检查，防重复/重入。候选W为同source/origin/isTrusted及nonce过滤的postMessage转移端点，作为公开桥正向攻击对照。两个world都提前执行和显式延后broker启动分别测试；后者只代表允许晚交接/重试的候选变体，不推断自然发生频率。
-
-页面攻击只用普通JS/同源父页/opener、捕获监听、原型改写、MessageChannel和eval，不用CDP preload伪装页面能力。页面诊断仅暴露布尔/分类，不能获取候选闭包中的端点或challenge。后台grant可由扩展控制页暂缓，保证身份交接和实际配置到达分开观察。A/B转接需记录后台只授权A、B无broker及MAIN B接收结果，不能用合法同文档送达替代。
-
-HTML和攻击页、扩展包、profile均临时生成，正式只保留runner、脱敏JSON、报告和任务记录。不输出challenge/Port/doc/tab ID、个人路径、原生语言或真实配置，无provider/STUN。所有临时资源finally清理。P1未达标则方案B仍NO_GO；即使有限早期交接可用，P2文档绑定、配置新鲜度和首读问题仍不自动解决。复用不变生产门禁，不重建dist。

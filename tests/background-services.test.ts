@@ -235,14 +235,17 @@ test('parseGeoApiResponse accepts complete provider responses from one detection
     latitude: 1.3521,
     longitude: 103.8198,
     country: 'Singapore',
+    countryCode: 'SG',
     timezone: 'Asia/Singapore',
     provider: 'ipwho',
     detectedAt: VERIFIED_AT
   });
   assert.equal(ipapi?.publicIp, '203.0.113.2');
   assert.equal(ipapi?.timezone, 'Asia/Tokyo');
+  assert.equal(ipapi?.countryCode, 'JP');
   assert.equal(ipinfo?.latitude, 52.52);
   assert.equal(ipinfo?.provider, 'ipinfo');
+  assert.equal(ipinfo?.countryCode, 'DE');
 });
 
 test('parseGeoApiResponse rejects incomplete or internally invalid identity data', () => {
@@ -308,6 +311,7 @@ test('active detection falls back sequentially and writes a verified profile onl
     assert.equal(confirmed.exitLocationProfiles[0].name, '东京出口');
     assert.equal(confirmed.exitLocationProfiles[0].verification, 'verified');
     assert.equal(confirmed.exitLocationProfiles[0].publicIp, '203.0.113.21');
+    assert.equal(confirmed.exitLocationProfiles[0].countryCode, 'JP');
     assert.equal(mock.sessionStorage.pendingExitLocationDetection, undefined);
   } finally {
     mock.restore();
@@ -1446,6 +1450,99 @@ test('移除DNR权限后无API也能保存、启停和worker恢复，旧marker�
       assert.deepEqual(mock.reloadCalls, []);
     } finally { mock.restore(); }
   }
+});
+
+test('国家代码只取同次 provider 的明确代码字段，不由国家名称/region/时区补全', () => {
+  const identity = { ip: '203.0.113.1', latitude: 0, longitude: 0, country: 'Japan', timezone: 'Asia/Tokyo' };
+  assert.equal(parseGeoApiResponse(identity, 'https://ipwho.is/')?.countryCode, null);
+  assert.equal(parseGeoApiResponse({ ...identity, country_code: 'ZZ' }, 'https://ipwho.is/')?.countryCode, null);
+  assert.equal(parseGeoApiResponse({ ...identity, country: 'jp' }, 'https://ipapi.co/json/')?.countryCode, 'JP');
+  assert.equal(parseGeoApiResponse({ ...identity, country: 'JP' }, 'unknown')?.countryCode, null);
+  assert.equal(parseGeoApiResponse({ ip: identity.ip, loc: '0,0', region: 'JP', timezone: identity.timezone }, 'ipinfo')?.countryCode, null);
+});
+
+test('推荐应用保留我的语言和未选规则/全局信号；只给所选规则写auto时区，不隐式联网', async () => {
+  const config = createSingleRuleConfig('other.example', { automatic: false });
+  config.masterEnabled = false;
+  config.exitLocationProfiles = [verifiedProfile({ countryCode: 'JP' })];
+  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['Synthetic Font'] };
+  const selected = configModel.normalizeRule({ domain: 'selected.example', enabled: false, overrides: {
+    language: { mode: 'override', value: { enabled: true, mode: 'custom', language: 'zh-CN', languages: ['zh-CN', 'zh'] } },
+    timezone: { mode: 'disable', value: null }, geolocation: { mode: 'disable', value: null }
+  } });
+  config.rules.push(selected);
+  const before = clone(config);
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage);
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (() => { requests += 1; throw new Error('推荐应用不允许主动定位'); }) as typeof fetch;
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+    const selection = { expectedVerifiedAt: VERIFIED_AT, language: 'keep' as const, timezone: 'exit' as const, fontExposure: 'keep' as const };
+    const [, saved] = await Promise.all([
+      services.saveSiteConfig({ ...config, debugMode: true }),
+      services.completeOnboarding('selected.example\nnew.example', 'exit-home', 'keep', selection)
+    ]);
+    assert.equal(saved.config.debugMode, true);
+    assert.equal(saved.config.masterEnabled, true);
+    assert.deepEqual(saved.config.globalProfile, before.globalProfile);
+    assert.deepEqual(saved.config.rules[0], before.rules[0]);
+    assert.deepEqual(saved.config.rules[1].overrides.language, before.rules[1].overrides.language);
+    assert.deepEqual(saved.config.rules[1].overrides.geolocation, before.rules[1].overrides.geolocation);
+    assert.equal(saved.config.rules[1].id, before.rules[1].id);
+    assert.equal(saved.config.rules[1].exitLocationProfileId, 'exit-home');
+    assert.deepEqual(saved.config.rules[1].overrides.timezone, { mode: 'override', value: { enabled: true, mode: 'auto', timezone: '' } });
+    assert.equal(saved.config.rules[2].overrides.language.mode, 'inherit');
+    assert.equal((await services.getPayloadForUrl('https://selected.example/')).payload?.languageConfig?.language, 'zh-CN');
+    assert.equal((await services.getPayloadForUrl('https://selected.example/')).payload?.timezone, 'Asia/Tokyo');
+    assert.deepEqual(saved.config.fontExposure, before.fontExposure);
+    assert.deepEqual(saved.config.webRtc, before.webRtc);
+    assert.deepEqual(saved.config.exitLocationProfiles, before.exitLocationProfiles);
+    assert.equal(requests, 0);
+    assert.deepEqual(mock.reloadCalls, []);
+    const repeated = await services.completeOnboarding('selected.example\nnew.example', 'exit-home', 'keep', selection);
+    assert.deepEqual(repeated.config, saved.config);
+  } finally { mock.restore(); globalThis.fetch = originalFetch; }
+});
+
+test('明确确认才应用地区语言/全局字体和WebRTC；未验证、过期或未知地区推荐在写入前拒绝', async () => {
+  const config = createSingleRuleConfig('other.example', { automatic: false });
+  config.exitLocationProfiles = [verifiedProfile({ countryCode: 'JP' })];
+  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage);
+  let writes = 0;
+  const originalSet = chrome.storage.local.set;
+  chrome.storage.local.set = (async (...args: Parameters<typeof chrome.storage.local.set>) => { writes += 1; return (originalSet as any)(...args); }) as typeof chrome.storage.local.set;
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+    const router = createBackgroundMessageRouter(services);
+    const sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('options/options.html') };
+    const recommendation = { expectedVerifiedAt: VERIFIED_AT, language: 'exit' as const, timezone: 'exit' as const, fontExposure: 'vendor-software' as const };
+    const request = { action: 'completeOnboarding', domains: 'example.com', profileId: 'exit-home', webRtcMode: 'compatible', recommendation, confirmed: true };
+    await assert.rejects(router.respond(request, { id: chrome.runtime.id, url: 'https://example.com/' }), /只允许扩展管理页面/);
+    await assert.rejects(router.respond({ ...request, confirmed: false }, sender), /明确确认/);
+    await assert.rejects(router.respond({ ...request, recommendation: { ...recommendation, expectedVerifiedAt: 1 } }, sender), /已发生变化/);
+    await assert.rejects(router.respond({ ...request, recommendation: { ...recommendation, language: 'guess' } }, sender), /有效的出口环境推荐选项/);
+    storage[SITE_CONFIG_KEY].exitLocationProfiles[0].countryCode = null;
+    await assert.rejects(router.respond(request, sender), /没有可用的地区语言推荐/);
+    storage[SITE_CONFIG_KEY].exitLocationProfiles[0].verification = 'unverified';
+    await assert.rejects(router.respond(request, sender), /主动检测并确认/);
+    assert.equal(writes, 0);
+    storage[SITE_CONFIG_KEY].exitLocationProfiles = [verifiedProfile({ countryCode: 'JP' })];
+    const saved = await router.respond(request, sender);
+    assert.equal(writes, 1);
+    assert.equal(saved.saved, true);
+    assert.equal(saved.config.webRtc.globalMode, 'compatible');
+    assert.equal(saved.config.fontExposure.enabled, true);
+    assert.equal(saved.config.fontExposure.mode, 'vendor-software');
+    assert.deepEqual(saved.config.rules[0], config.rules[0]);
+    assert.deepEqual(saved.config.globalProfile, config.globalProfile);
+    const applied = await services.getPayloadForUrl('https://example.com/');
+    assert.equal(applied.payload?.languageConfig?.language, 'ja-JP');
+    assert.equal(applied.payload?.timezone, 'Asia/Tokyo');
+    assert.equal(applied.payload?.geolocation, null);
+  } finally { mock.restore(); }
 });
 
 

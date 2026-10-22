@@ -15,6 +15,7 @@ import {
 import { formatCoordinate } from '../shared/last-location-display';
 import { createCustomProfile } from '../shared/profile';
 import { ruleListToText, rulesFromText } from '../shared/rule-list';
+import { recommendExitEnvironment } from '../shared/exit-recommendation';
 import { renderSetupStatus } from '../shared/ui-state';
 import type {
   ExitLocationDetectionPreview,
@@ -32,6 +33,11 @@ const setupStatusEl = document.getElementById('setupStatus') as HTMLElement;
 const onboardingProfileEl = document.getElementById('onboardingProfile') as HTMLSelectElement;
 const onboardingDomainsEl = document.getElementById('onboardingDomains') as HTMLTextAreaElement;
 const onboardingWebRtcEl = document.getElementById('onboardingWebRtc') as HTMLSelectElement;
+const onboardingLanguageEl = document.getElementById('onboardingLanguage') as HTMLSelectElement;
+const onboardingTimezoneEl = document.getElementById('onboardingTimezone') as HTMLSelectElement;
+const onboardingFontExposureEl = document.getElementById('onboardingFontExposure') as HTMLSelectElement;
+const onboardingRecommendationEl = document.getElementById('onboardingRecommendation') as HTMLElement;
+const onboardingExitLanguageEl = document.getElementById('onboardingExitLanguage') as HTMLOptionElement;
 const onboardingConfirmEl = document.getElementById('onboardingConfirm') as HTMLInputElement;
 const onboardingStatusEl = document.getElementById('onboardingStatus') as HTMLElement;
 const onboardingDetailsEl = document.getElementById('onboardingDetails') as HTMLDetailsElement;
@@ -176,8 +182,14 @@ function populateForm(config: SiteSpoofConfig): void {
 }
 
 function renderOnboarding(): void {
+  // 检测确认/重新读取配置也可能改变推荐，旧勾选不能授权新事实。
+  onboardingConfirmEl.checked = false;
   if (!onboardingLoaded) {
     onboardingDetailsEl.open = !currentConfig.masterEnabled && !currentConfig.rules.length;
+    onboardingLanguageEl.value = 'keep';
+    onboardingTimezoneEl.value = 'exit';
+    onboardingFontExposureEl.value = 'keep';
+    onboardingWebRtcEl.value = 'keep';
     onboardingLoaded = true;
   }
   const selected = onboardingProfileEl.value;
@@ -186,12 +198,46 @@ function renderOnboarding(): void {
   currentConfig.exitLocationProfiles.filter((profile) => profile.verification === 'verified')
     .forEach((profile) => onboardingProfileEl.append(new Option(profile.name, profile.id)));
   onboardingProfileEl.value = currentConfig.exitLocationProfiles.some((profile) => profile.id === selected && profile.verification === 'verified') ? selected : '';
+  renderExitRecommendation();
+}
+
+function renderExitRecommendation(): void {
+  const profile = currentConfig.exitLocationProfiles.find((item) => item.id === onboardingProfileEl.value && item.verification === 'verified');
+  onboardingExitLanguageEl.disabled = true;
+  if (!profile) {
+    onboardingRecommendationEl.textContent = '选择已确认档案后生成推荐；推荐不会保存配置或发起外部请求。';
+    onboardingLanguageEl.value = 'keep';
+    return;
+  }
+  const recommendation = recommendExitEnvironment(profile);
+  onboardingExitLanguageEl.disabled = !recommendation.language.value;
+  if (!recommendation.language.value) onboardingLanguageEl.value = 'keep';
+  const language = recommendation.language.value?.language || '无候选';
+  onboardingRecommendationEl.textContent = [
+    `国家代码：${recommendation.countryCode || '未知（不猜测）'}；时区：${recommendation.timezone.value || '未知'}；置信度：${recommendation.timezone.confidence === 'provider-reported' ? '已确认服务响应，未交叉验证' : '未知'}。`,
+    recommendation.timezone.reason,
+    `出口地区语言：${language}。${recommendation.language.reason}`,
+    `字体建议：${recommendation.fontExposure.reason}`,
+    `WebRTC：${recommendation.webRtc.reason}`,
+    '应用范围：仅所选站点的语言/时区覆盖；保留我的语言会保留该站点已有覆盖或全局语言设置，并非修改浏览器偏好。全局语言、时区和地理位置设置不改。开启总开关也会启用其他已保存的有效规则。'
+  ].join('\n');
+}
+
+function changeOnboardingChoice(): void {
+  // 确认只适用于当前展示的选择，选择变化后必须重新确认。
+  onboardingConfirmEl.checked = false;
+  renderExitRecommendation();
 }
 
 async function submitOnboarding(skip = false): Promise<void> {
   if (onboardingPending || confirmSaveProfileBtn.disabled) return;
   if (!skip && (!onboardingConfirmEl.checked || !onboardingProfileEl.value || !onboardingDomainsEl.value.trim())) {
     onboardingStatusEl.textContent = '请先检测并确认出口，选择站点，并勾选明确启用。';
+    return;
+  }
+  const profile = currentConfig.exitLocationProfiles.find((item) => item.id === onboardingProfileEl.value && item.verification === 'verified');
+  if (!skip && (!profile || (onboardingLanguageEl.value === 'exit' && !recommendExitEnvironment(profile).language.value))) {
+    onboardingStatusEl.textContent = '当前档案没有可用的推荐，请重新选择已确认出口或保留我的语言。';
     return;
   }
   onboardingPending = true;
@@ -202,12 +248,18 @@ async function submitOnboarding(skip = false): Promise<void> {
     const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({
       action: skip ? 'skipOnboarding' : 'completeOnboarding',
       domains: onboardingDomainsEl.value, profileId: onboardingProfileEl.value,
-      webRtcMode: onboardingWebRtcEl.value, confirmed: onboardingConfirmEl.checked
+      webRtcMode: onboardingWebRtcEl.value, confirmed: onboardingConfirmEl.checked,
+      ...(!skip && profile ? { recommendation: {
+        expectedVerifiedAt: profile.verifiedAt,
+        language: onboardingLanguageEl.value,
+        timezone: onboardingTimezoneEl.value,
+        fontExposure: onboardingFontExposureEl.value
+      } } : {})
     });
     currentConfig = normalizeConfig(response.config);
     populateForm(currentConfig);
     onboardingConfirmEl.checked = false;
-    onboardingStatusEl.textContent = `${skip ? '已跳过，保护关闭；已保存的档案和规则保留。' : '引导配置已保存。'} ${runtimeSyncMessage(response.syncReport)}`;
+    onboardingStatusEl.textContent = `${skip ? '已跳过，保护关闭；已保存的档案和规则保留。' : '所选推荐配置已保存；定位、语言/时区与固定字体分别报告同步状态，自定义字体过滤仍暂停。'} ${runtimeSyncMessage(response.syncReport)}`;
     // 跳过只收起当前页面；不创建另一份持久化引导状态。
     if (skip && response.syncReport.status === 'ok') onboardingDetailsEl.open = false;
     await loadWebRtcPolicyState();
@@ -644,6 +696,9 @@ async function resetAllData(): Promise<void> {
   onboardingDetailsEl.open = true;
   onboardingDomainsEl.value = '';
   onboardingWebRtcEl.value = 'default';
+  onboardingLanguageEl.value = 'keep';
+  onboardingTimezoneEl.value = 'exit';
+  onboardingFontExposureEl.value = 'keep';
   onboardingStatusEl.textContent = '已重置为安全关闭默认值。请重新检测并配置；下载文件和外部站点数据不受影响。';
   onboardingConfirmEl.checked = false;
   await loadWebRtcPolicyState();
@@ -688,3 +743,6 @@ retryRuntimeSyncBtn.addEventListener('click', () => { runUiTask(retryRuntimeSync
 document.getElementById('onboardingDetect')!.addEventListener('click', () => { runUiTask(detectNewExitLocation()); });
 document.getElementById('onboardingEnable')!.addEventListener('click', () => { runUiTask(submitOnboarding()); });
 document.getElementById('onboardingSkip')!.addEventListener('click', () => { runUiTask(submitOnboarding(true)); });
+[onboardingProfileEl, onboardingLanguageEl, onboardingTimezoneEl, onboardingFontExposureEl, onboardingWebRtcEl]
+  .forEach((element) => element.addEventListener('change', changeOnboardingChoice));
+onboardingDomainsEl.addEventListener('input', changeOnboardingChoice);

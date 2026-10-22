@@ -16,6 +16,7 @@ import {
   createRule,
   isValidIpAddress,
   normalizeConfig,
+  normalizeCountryCode,
   normalizeDomain,
   normalizeRule,
   normalizeString,
@@ -36,6 +37,7 @@ import type {
   EffectiveProfileResult,
   ExitLocationDetectionPreview,
   ExitLocationProfile,
+  ExitRecommendationSelection,
   SiteSpoofConfig,
   ConfigSaveResult,
   RuntimeSyncComponent,
@@ -47,6 +49,7 @@ import type {
 import { RUNTIME_SYNC_COMPONENT_LABELS, RuntimeSyncOperationError, syncError, syncSignature } from '../shared/runtime-sync';
 import type { WebRtcPolicyState } from './webrtc';
 import { rulesFromText } from '../shared/rule-list';
+import { recommendExitEnvironment } from '../shared/exit-recommendation';
 import { reconcilePageScripts, reconcileGeolocationScripts, hasGeolocationScriptsChanged } from './page-scripts';
 import { hasFontScriptScopeChanged, reconcileFontScripts, syncFontScriptRegistration } from './font-scripts';
 import { createDiagnosticRuns } from './diagnostic-runs';
@@ -156,7 +159,7 @@ function normalizeDetectedLocation(value: unknown): DetectedExitLocation | null 
   ) {
     return null;
   }
-  return { publicIp, latitude, longitude, country, timezone, provider, detectedAt };
+  return { publicIp, latitude, longitude, country, countryCode: normalizeCountryCode(input.countryCode), timezone, provider, detectedAt };
 }
 
 export function parseGeoApiResponse(data: unknown, provider = 'unknown', detectedAt = Date.now()): DetectedExitLocation | null {
@@ -169,6 +172,8 @@ export function parseGeoApiResponse(data: unknown, provider = 'unknown', detecte
       latitude: input.latitude,
       longitude: input.longitude,
       country: input.country || input.country_name || input.country_code,
+      // ipwho/ipapi 的明确代码字段；ipapi 也正式支持 country 代码字段。
+      countryCode: input.country_code ?? ((provider === 'ipapi' || provider === 'https://ipapi.co/json/') ? input.country : null),
       timezone: input.timezone?.id || input.timezone,
       provider,
       detectedAt
@@ -182,6 +187,8 @@ export function parseGeoApiResponse(data: unknown, provider = 'unknown', detecte
       latitude,
       longitude,
       country: input.country || input.region || input.city,
+      // ipinfo 的 loc 响应中 country 是 alpha-2，region/city 不能充当代码。
+      countryCode: (provider === 'ipinfo' || provider === 'https://ipinfo.io/json') ? input.country : null,
       timezone: input.timezone,
       provider,
       detectedAt
@@ -220,7 +227,7 @@ export interface BackgroundServices {
   reconcileRuntime(): Promise<ConfigSaveResult>;
   saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult>;
   resetSiteConfig(): Promise<ConfigSaveResult>;
-  completeOnboarding(domains: string, profileId: string, webRtcMode: string): Promise<ConfigSaveResult>;
+  completeOnboarding(domains: string, profileId: string, webRtcMode: string, recommendation?: ExitRecommendationSelection): Promise<ConfigSaveResult>;
   skipOnboarding(): Promise<ConfigSaveResult>;
   handleInstalled(reason: string): Promise<void>;
   importSiteConfig(config: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult>;
@@ -466,12 +473,25 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     });
   }
 
-  function completeOnboarding(domains: string, profileId: string, webRtcMode: string): Promise<ConfigSaveResult> {
+  function completeOnboarding(domains: string, profileId: string, webRtcMode: string, recommendation?: ExitRecommendationSelection): Promise<ConfigSaveResult> {
     if (typeof domains !== 'string' || !domains.trim()) return Promise.reject(new Error('请先选择至少一个站点'));
-    if (!['default', 'compatible', 'strict'].includes(webRtcMode)) return Promise.reject(new Error('请选择有效的 WebRTC 策略'));
+    if (!['default', 'compatible', 'strict', ...(recommendation ? ['keep'] : [])].includes(webRtcMode)) return Promise.reject(new Error('请选择有效的 WebRTC 策略'));
+    if (recommendation !== undefined && (!recommendation || typeof recommendation !== 'object'
+      || !Number.isFinite(recommendation.expectedVerifiedAt) || recommendation.expectedVerifiedAt <= 0
+      || !['keep', 'exit'].includes(recommendation.language) || !['keep', 'exit'].includes(recommendation.timezone)
+      || !['keep', 'vendor-software'].includes(recommendation.fontExposure))) {
+      return Promise.reject(new Error('请选择有效的出口环境推荐选项'));
+    }
     return mutateConfig((config) => {
-      if (!config.exitLocationProfiles.some((profile) => profile.id === profileId && profile.verification === 'verified')) {
+      const profile = config.exitLocationProfiles.find((profile) => profile.id === profileId && profile.verification === 'verified');
+      if (!profile) {
         throw new Error('请先主动检测并确认出口位置档案');
+      }
+      const suggested = recommendExitEnvironment(profile);
+      if (recommendation) {
+        if (profile.verifiedAt !== recommendation.expectedVerifiedAt) throw new Error('出口位置档案已发生变化，请重新检查推荐');
+        if (recommendation.language === 'exit' && !suggested.language.value) throw new Error('当前出口没有可用的地区语言推荐，请保留我的语言');
+        if (recommendation.timezone === 'exit' && !suggested.timezone.value) throw new Error('当前出口没有可信时区，请重新检测');
       }
       const selected = rulesFromText(domains, config.rules.map((rule) => ({ ...rule, enabled: false })))
         .filter((rule) => rule.enabled);
@@ -479,11 +499,26 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       const rules = config.rules.slice();
       selected.forEach((rule) => {
         const index = rules.findIndex((current) => current.domain === rule.domain);
+        if (recommendation) {
+          const previous = index >= 0 ? rules[index] : rule;
+          const next = normalizeRule({ ...previous, enabled: true, exitLocationProfileId: profileId,
+            overrides: { ...previous.overrides,
+              ...(recommendation.language === 'exit' ? { language: { mode: 'override' as const, value: suggested.language.value } } : {}),
+              ...(recommendation.timezone === 'exit' ? { timezone: { mode: 'override' as const, value: { enabled: true, mode: 'auto' as const, timezone: '' } } } : {})
+            } });
+          if (index >= 0) rules[index] = next;
+          else rules.push(next);
+          return;
+        }
         // 用户选中的站点继承全局信号，其他站点与自定义方案保持原状。
         const next = normalizeRule({ id: rule.id, domain: rule.domain, exitLocationProfileId: profileId });
         if (index >= 0) rules[index] = next;
         else rules.push(next);
       });
+      if (recommendation) return { ...config, masterEnabled: true, rules,
+        webRtc: webRtcMode === 'keep' ? config.webRtc : normalizeWebRtc({ globalMode: webRtcMode as WebRtcMode }),
+        fontExposure: recommendation.fontExposure === 'vendor-software' ? suggested.fontExposure.value : config.fontExposure
+      };
       return { ...config, masterEnabled: true, rules, webRtc: normalizeWebRtc({ globalMode: webRtcMode as WebRtcMode }),
         globalProfile: { ...config.globalProfile,
           // 管理页用输入是否为空区分 manual；切 auto 时不能回填旧手工值。
@@ -629,7 +664,8 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       if (confirmed?.verification === 'verified' && confirmed.verifiedAt === pending.candidate.detectedAt && confirmed.publicIp === pending.candidate.publicIp
         && confirmed.provider === pending.candidate.provider && confirmed.latitude === pending.candidate.latitude
         && confirmed.longitude === pending.candidate.longitude && confirmed.timezone === pending.candidate.timezone
-        && confirmed.country === pending.candidate.country) return config;
+        && confirmed.country === pending.candidate.country
+        && (confirmed.countryCode ?? null) === (pending.candidate.countryCode ?? null)) return config;
       if (!pending.targetProfileId && confirmed) {
         throw new Error('检测对应的出口位置档案已发生变化，请重新检测');
       }
@@ -645,6 +681,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
         latitude: pending.candidate.latitude,
         longitude: pending.candidate.longitude,
         country: pending.candidate.country,
+        countryCode: pending.candidate.countryCode ?? null,
         timezone: pending.candidate.timezone,
         provider: pending.candidate.provider,
         verifiedAt: pending.candidate.detectedAt

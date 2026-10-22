@@ -21,12 +21,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
-  createContextMenus();
+  runBackgroundTask('右键菜单初始化', createContextMenus());
   runBackgroundTask('安装初始化', services.handleInstalled(details.reason));
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  createContextMenus();
+  runBackgroundTask('右键菜单初始化', createContextMenus());
   runBackgroundTask('启动初始化', services.initializeExtension());
 });
 

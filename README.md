@@ -14,7 +14,8 @@
 - WebRTC 使用 Chrome privacy API 的全局策略，提供 strict、compatible 和 default；该设置影响浏览器普通会话，范围大于站点 allowlist。实际控制权和 ICE 结果需要分别观察。
 - 配置保存、worker 初始化和扩展 update 时由后台串行对账：先撤销失效/范围变化的注册，再更新保留规则，最后新增并读回验证。Popup/Options 分别显示 API/权限/用户开关不可用、注册失败、注册成功需重载或新文档可用；不自动刷新页面。
 - 出口位置只在用户点击检测或重新检测时请求外部 provider。候选确认后保存为 verified 档案，auto 位置/时区必须在每条规则上显式绑定该档案。**没有后台定时刷新**；更换代理或网络后需要主动重新检测。
-- 支持自定义环境方案、配置导入/导出；固定内置字体名单仅在总开关、字体开关和 HTTP(S) allowlist 均启用时注册；自定义名单及同源 HTTP(S) Worker/SharedWorker 的语言/时区包装继续暂停。不新增 GPU、Audio、screen 等设备伪装。
+- Options 可按已确认出口生成地区语言/时区推荐：默认保留现有语言，查看推荐不保存、不检测；明确确认后仅覆盖所选站点，字体与 WebRTC 的全局变更另行选择。时区只标注单 provider 声明，未知国家代码不猜语言。
+- 支持自定义环境方案、配置导入/导出；固定内置字体名单仅在总开关、字体开关和 HTTP(S) allowlist 均启用时注册；自定义名单及同源 HTTP(S) Worker/SharedWorker 的语言/时区包装继续暂停。地区推荐是有限候选，不代表个人偏好；不新增 GPU、Audio、screen 等设备伪装。
 - 可保存全局时区与 Locale `strict`/`compatible` 模式。其保留语义分别为强制一致性、保留页面显式参数并只补默认值；仅随已验收的语言/时区注册用于匹配新文档，不恢复其他页面能力；精确语义见 [配置指南](CONFIG_GUIDE.md#时区与-locale-模式)。
 - 扩展侧一次性诊断报告比较实际值与留在扩展内部的预期值；外部诊断页只做 observation，不给出配置验收 PASS/FAIL。
 
@@ -85,7 +86,7 @@ VG-024 权限退出升级验证可运行 `node scripts/chrome-native-headers-upg
 
 采用 MIT License；参见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。NOTICE 保留原作品来源归属。
 
-VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>`，使用实际worker/router/包内固定字体资产和临时profile；不读取用户配置、不修改Allow User Scripts开关。默认不带--production仍是隔离固定脚本资格验证，不替代生产接线或人工验收。
+VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>`，使用实际worker/router/包内固定字体资产和临时profile；不读取用户配置、不修改Allow User Scripts开关。默认不带--production仍是隔离固定脚本资格验证，不替代生产接线或人工验收。VG-027位置资格见 [可信早期环境交付](docs/stabilization/early-environment-delivery.md)。
 
 
 VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。

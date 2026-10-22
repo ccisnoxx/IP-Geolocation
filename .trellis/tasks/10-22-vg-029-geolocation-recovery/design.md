@@ -1,9 +1,0 @@
-# 设计
-
-复用config-model/config-resolver/storage与services配置串行队列；位置最小payload与独立geolocation入口/注册命名空间，语言时区输出不扩展坐标。提取现有userScripts注册对账为共享内部原语，避免第二份匹配规则与串行队列。
-
-位置仅传latitude/longitude/accuracy/randomize/randomRadiusMeters/spoofPermission。无IP/provider/规则/档案标识。合成API不调用原生定位获取位置，非本realm合法receiver原生透传，非法receiver保持TypeError。权限查询仅 geolocation 有效配置时接管；原生异常不得转granted。返回合成对象不能伪造浏览器内部slot，保留可观测反射，不做反检测层。
-
-位置scope变化或payload变化保守为所有HTTP(S)标签记geo重载债，覆盖iframe；预写pendingGeoScopeChange记录同步窗口，重启恢复；无自动reload或热更新。注册撤销不能撤回旧网页已读取坐标。
-
-真实浏览器使用独立临时profile、实际构建及合成loopback位置，无真实provider/定位调用；正常UI开启Allow User Scripts。Linux现有隔离后端和本机Chrome按实际可用性使用，缺证据不记通过。

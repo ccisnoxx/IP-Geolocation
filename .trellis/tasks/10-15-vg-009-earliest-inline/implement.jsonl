@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "诊断/注入/隐私和真实Chrome合同"}
-{"file": ".trellis/tasks/10-15-vg-009-earliest-inline/design.md", "reason": "时序设计与回滚"}
-{"file": "docs/stabilization/task-manifest.yaml", "reason": "当前范围与依赖状态"}

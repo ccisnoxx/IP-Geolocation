@@ -100,6 +100,8 @@ export interface ExitLocationProfile {
   latitude: number;
   longitude: number;
   country: string;
+  // 旧 schema v3 档案可能没有代码；不得根据国家名称或时区回填。
+  countryCode?: string | null;
   timezone: string | null;
   provider: string | null;
   verifiedAt: number | null;
@@ -110,6 +112,7 @@ export interface DetectedExitLocation {
   latitude: number;
   longitude: number;
   country: string;
+  countryCode?: string | null;
   timezone: string;
   provider: string;
   detectedAt: number;
@@ -121,6 +124,24 @@ export interface ExitLocationDetectionPreview {
   candidate: DetectedExitLocation;
   previous: ExitLocationProfile | null;
   expiresAt: number;
+}
+
+export interface ExitEnvironmentRecommendation {
+  profileId: string;
+  verifiedAt: number | null;
+  countryCode: string | null;
+  timezone: { value: string | null; confidence: 'provider-reported' | 'unknown'; reason: string };
+  language: { value: LanguageConfig | null; reason: string };
+  fontExposure: { value: FontExposureConfig; reason: string };
+  webRtc: { value: WebRtcMode; reason: string };
+}
+
+// 仅传选择，实际推荐值由后台在当前配置事务内重新派生。
+export interface ExitRecommendationSelection {
+  expectedVerifiedAt: number;
+  language: 'keep' | 'exit';
+  timezone: 'keep' | 'exit';
+  fontExposure: 'keep' | 'vendor-software';
 }
 
 export interface SiteSpoofConfig {

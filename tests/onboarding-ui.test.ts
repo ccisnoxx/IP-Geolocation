@@ -7,6 +7,7 @@ import ts from 'typescript';
 import * as configModel from '../src/shared/config-model';
 import * as uiState from '../src/shared/ui-state';
 import * as runtimeSync from '../src/shared/runtime-sync';
+import { recommendExitEnvironment } from '../src/shared/exit-recommendation';
 import { ruleListToText, rulesFromText } from '../src/shared/rule-list';
 import type { RuntimeSyncReport } from '../src/shared/types';
 
@@ -30,7 +31,7 @@ function harness() {
   let accept = false;
   let failure = false;
   let pending: Promise<void> | null = null;
-  const context = vm.createContext({ ...configModel, ...uiState, ...runtimeSync, ruleListToText, rulesFromText,
+  const context = vm.createContext({ ...configModel, ...uiState, ...runtimeSync, ruleListToText, rulesFromText, recommendExitEnvironment,
     formatCoordinate: String, Option,
     document: { getElementById: element, createElement: () => new Element(), querySelectorAll: (selector: string) => selector === 'button, input, select, textarea' ? [...elements.values()] : [] },
     confirm: () => accept, prompt: () => '合成出口', alert() {},
@@ -42,7 +43,7 @@ function harness() {
       if (pending) await pending;
       if (failure) return callback({ status: 'error', message: '合成写入失败' });
       if (request.action === 'confirmExitLocationDetection') config.exitLocationProfiles = [{ id: 'confirmed', name: '合成出口', verification: 'verified',
-        publicIp: '203.0.113.10', country: 'Synthetic', timezone: 'UTC', latitude: 0, longitude: 0, provider: 'synthetic', verifiedAt: 1 }];
+        publicIp: '203.0.113.10', country: 'Synthetic', countryCode: 'JP', timezone: 'UTC', latitude: 0, longitude: 0, provider: 'synthetic', verifiedAt: 1 }];
       if (request.action === 'completeOnboarding') config = { ...config, masterEnabled: true, rules: [configModel.normalizeRule({ domain: 'example.com', exitLocationProfileId: 'confirmed' })] };
       if (request.action === 'skipOnboarding') config = { ...config, masterEnabled: false, webRtc: { globalMode: 'default' } };
       if (request.action === 'resetSiteConfig') config = configModel.createInitialConfig();
@@ -65,6 +66,9 @@ test('Options打开不检测，取消不确认，未勾选不启用；按用户�
   assert.deepEqual(ui.requests.map((request) => request.action), ['getSiteConfig', 'getWebRtcConfig']);
   assert.equal(ui.element('setupStatus').dataset.setup, 'unconfigured');
   assert.equal(ui.element('onboardingDetails').open, true);
+  assert.equal(ui.element('onboardingLanguage').value, 'keep');
+  assert.equal(ui.element('onboardingFontExposure').value, 'keep');
+  assert.equal(ui.element('onboardingWebRtc').value, 'keep');
   await ui.call('submitOnboarding()');
   assert.match(ui.element('onboardingStatus').textContent, /勾选明确启用/);
   assert.equal(ui.requests.length, 2);
@@ -93,6 +97,7 @@ test('Options打开不检测，取消不确认，未勾选不启用；按用户�
   assert.equal(submits[0].profileId, 'confirmed');
   assert.equal(submits[0].domains, 'example.com');
   assert.equal(submits[0].webRtcMode, 'default');
+  assert.deepEqual(submits[0].recommendation, { expectedVerifiedAt: 1, language: 'keep', timezone: 'exit', fontExposure: 'keep' });
   assert.equal(ui.element('setupStatus').dataset.setup, 'enabled');
   assert.equal(ui.element('setupStatus').dataset.sync, 'partial');
   assert.match(ui.element('onboardingStatus').textContent, /已保存但未完全生效/);
@@ -109,4 +114,44 @@ test('Options打开不检测，取消不确认，未勾选不启用；按用户�
   ui.setFailure(true);
   await ui.call('submitOnboarding(true)');
   assert.match(ui.element('onboardingStatus').textContent, /操作未完成.*合成写入失败/);
+});
+
+test('查看/修改推荐不写入或检测，变更撤销确认；地区语言及全局选择经明确提交才发送', async () => {
+  const ui = harness();
+  await new Promise<void>((done) => setImmediate(done));
+  ui.setAccept(true);
+  await ui.call('detectNewExitLocation()');
+  ui.element('onboardingProfile').value = 'confirmed';
+  const before = ui.call('JSON.stringify(currentConfig)');
+  const count = ui.requests.length;
+  ui.element('onboardingConfirm').checked = true;
+  ui.call('changeOnboardingChoice()');
+  assert.equal(ui.element('onboardingConfirm').checked, false);
+  assert.match(ui.element('onboardingRecommendation').textContent, /JP.*UTC.*未交叉验证/);
+  assert.match(ui.element('onboardingRecommendation').textContent, /ja-JP/);
+  assert.match(ui.element('onboardingRecommendation').textContent, /固定内置名单仅在已启用HTTP\(S\)规则上注册/);
+  assert.equal(ui.requests.length, count);
+  assert.equal(ui.call('JSON.stringify(currentConfig)'), before);
+  ui.element('onboardingConfirm').checked = true;
+  ui.call('renderOnboarding()');
+  assert.equal(ui.element('onboardingConfirm').checked, false);
+  ui.element('onboardingDomains').value = 'example.com';
+  ui.element('onboardingLanguage').value = 'exit';
+  ui.element('onboardingFontExposure').value = 'vendor-software';
+  ui.element('onboardingWebRtc').value = 'compatible';
+  await ui.call('submitOnboarding()');
+  assert.equal(ui.requests.length, count);
+  ui.element('onboardingConfirm').checked = true;
+  await ui.call('submitOnboarding()');
+  const submits = ui.requests.filter((request) => request.action === 'completeOnboarding');
+  assert.equal(submits.length, 1);
+  assert.deepEqual(submits[0].recommendation, { expectedVerifiedAt: 1, language: 'exit', timezone: 'exit', fontExposure: 'vendor-software' });
+  assert.equal(submits[0].webRtcMode, 'compatible');
+  assert.equal(ui.requests.filter((request) => request.action === 'detectExitLocation').length, 1);
+  ui.call('currentConfig.exitLocationProfiles[0].countryCode = null');
+  ui.element('onboardingLanguage').value = 'exit';
+  ui.call('changeOnboardingChoice()');
+  assert.equal(ui.element('onboardingExitLanguage').disabled, true);
+  assert.equal(ui.element('onboardingLanguage').value, 'keep');
+  assert.match(ui.element('onboardingRecommendation').textContent, /国家代码：未知（不猜测）/);
 });
