@@ -14,7 +14,7 @@ export function isRuntimeInjectionPaused(report?: RuntimeSyncReport): boolean {
   return !report?.pageRuntime && Boolean(report?.components.contentScripts.errors.some((error) => error.code === RUNTIME_INJECTION_PAUSED.code));
 }
 
-export const PAGE_RUNTIME_PAUSED_SURFACES = '本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖。字体过滤与地理位置分别报告注册状态。';
+export const PAGE_RUNTIME_PAUSED_SURFACES = '本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖。字体过滤与地理位置分别报告注册状态。';
 export const PAGE_RUNTIME_DOCUMENT_SCOPE = 'about:blank、srcdoc、data:、blob: 和特殊 sandbox 文档不支持（unsupported / UNKNOWN）。';
 const DOCUMENT_SNAPSHOT_MESSAGE = '已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。';
 

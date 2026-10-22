@@ -2,9 +2,9 @@
 
 > **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
-当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，同步站点的 Accept-Language，保持其他 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。定位与字体过滤各按独立状态报告，本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
+当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，同步站点的 Accept-Language，保持其他 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。定位与字体过滤各按独立状态报告，本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
 
 ## 当前能力与边界
 
@@ -103,8 +103,10 @@ VG-032语言请求头验证：构建后执行 `node scripts/chrome-header-sync-s
 
 ## Blob Worker 语言与时区（VG-033）
 
-仅在语言或时区已启用、匹配规则的新 HTTP(S) 文档中，对该 realm 在脚本安装后通过 URL.createObjectURL(Blob) 创建的 Dedicated Worker 应用同一快照，覆盖 classic 和 module。不改系统或 Chrome 原生设置；HTTP(S) Worker、SharedWorker、嵌套 Worker、其他 realm 创建的 Blob 及旧 Worker 仍未覆盖。不是全浏览器语言清理。
+仅在语言或时区已启用、匹配规则的新 HTTP(S) 文档中，对该 realm 在脚本安装后通过 URL.createObjectURL(Blob) 创建的 Dedicated Worker 应用同一快照，覆盖 classic 和 module。不改系统或 Chrome 原生设置；HTTP(S) Worker、SharedWorker、其他 realm 创建的 Blob、未接管父级及旧 Worker 仍未覆盖。不是全浏览器语言清理。
 
 需要页面 CSP 同时允许 Blob Worker 入口及 Blob 脚本依赖，Trusted Types 和 MIME 检查仍由 Chrome 执行；阻止依赖时 Worker 会报错，不能报告同步成功。包装会改变 Worker location.href、模块 import.meta.url 和错误堆栈中的 Blob 地址。业务源采用独立脚本/模块，保留严格模式及模块依赖先后顺序；页面可在构造后立即撤销原 URL。关闭/改配置后完整刷新页面再创建 Worker。
 
 启动前用同步 XMLHttpRequest 仅核验本页已跟踪的 blob: URL 是否仍在原生存储中，避免同源其他 realm 撤销后复活源码。该步骤不访问 HTTP(S) 或外部网络，但读取成本随 Blob 大小增加；CSP connect-src 禁止读取时会明确警告“本次语言/时区未同步”并保留原生加载，不能当作通过。普通 URL 对象支持；TrustedScriptURL、安装前或其他 realm 创建的 URL 未覆盖。页面 CSP 仍需允许 Blob Worker 及 Blob 脚本依赖。
+
+VG-034（2026-10-23人工验收通过，未发布）进一步覆盖已同步Blob Dedicated Worker链中、各realm安装后自身创建的Blob子Worker，classic/module均继承父级最小快照。未接管父级不会自动覆盖其后代；HTTP(S)与SharedWorker不变。各层沿用VG-033的CSP核验、撤销及生命周期规则，核验在创建者线程同步执行。

@@ -1,0 +1,15 @@
+{
+  "id": "VG-034",
+  "name": "限定嵌套Blob Dedicated Worker语言时区同步",
+  "status": "done",
+  "dependencies": [
+    "VG-033"
+  ],
+  "acceptance": {
+    "date": "2026-10-23",
+    "by": "user",
+    "result": "passed",
+    "local_commit_authorized": true,
+    "push_authorized": false
+  }
+}

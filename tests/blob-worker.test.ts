@@ -17,8 +17,10 @@ function realm() {
     static revokeObjectURL(url: string) { revoked.push(url); blobs.delete(url); }
   }
   class WorkerMock extends EventTarget {
+    readonly script: Blob | undefined;
     constructor(readonly url: string, readonly options?: WorkerOptions) {
       super();
+      this.script = blobs.get(url);
       if (options?.type && !['classic', 'module'].includes(options.type)) throw new TypeError('type');
     }
     terminate() { /* native mock */ }
@@ -79,7 +81,7 @@ test('URL立即撤销不丢源；options getter依WebIDL顺序一次，terminate
   assert.equal(worker instanceof r.WorkerMock, true);
 });
 
-test('module依赖分离补丁与业务，不替换Shared或nested；异步error清理所有私有URL', async () => {
+test('module依赖分离补丁与业务，不替换Shared；异步error清理所有私有URL', async () => {
   const r = realm();
   installBlobWorker(r.root, createRuntimeState(r.root), payload, () => {});
   const original = r.root.URL.createObjectURL(new Blob(['export const x = 1'], { type: 'text/javascript' }));
@@ -156,10 +158,41 @@ test('生产Blob bootstrap脱离页面闭包，语言/Intl/Date跟随美西快�
   assert.equal(vm.runInContext('new Date(Date.UTC(2026,0,15)).getTimezoneOffset()', r.context), 480);
   assert.equal(vm.runInContext('new Date(Date.UTC(2026,6,15)).getTimezoneOffset()', r.context), 420);
   assert.equal(vm.runInContext('Intl.DateTimeFormat("de-DE",{timeZone:"UTC"}).resolvedOptions().timeZone', r.context), 'UTC');
-  assert.equal(r.root.Worker, r.WorkerMock);
+  assert.notEqual(r.root.Worker, r.WorkerMock);
   // 完整生产模板也必须保持二次序列化函数自包含。
   const page = assertSelfContainedFunction((await generatePageRuntime()).code, 'applyLanguageTimezoneRuntime');
   const other = realm();
   vm.runInContext(`(${page})(${JSON.stringify(payload)})`, other.context);
   assert.notEqual(other.root.Worker, other.WorkerMock);
+});
+
+test('生产自包含Blob入口逐层执行：子与孙继承快照，HTTP和外来Blob保持原生', async () => {
+  const bootstrap = assertSelfContainedFunction((await generateBlobWorkerRuntime()).code, 'applyBlobWorkerRuntime');
+  const parent = realm();
+  const child = realm();
+  const grandchild = realm();
+  const foreign = parent.root.URL.createObjectURL(new Blob(['0']));
+  vm.runInContext(`(${bootstrap})(${JSON.stringify(payload)})`, parent.context);
+  // 创建前的外来URL不因递归支持被接管；父级API后来变化也不改变捕获快照。
+  assert.equal((new parent.root.Worker(foreign) as unknown as InstanceType<typeof parent.WorkerMock>).url, foreign);
+  vm.runInContext('Object.defineProperty(navigator,"language",{value:"fr-FR"})', parent.context);
+  const childSource = `globalThis.first = [navigator.language, Array.from(navigator.languages), Intl.DateTimeFormat().resolvedOptions().timeZone];
+    globalThis.next = new Worker(URL.createObjectURL(new Blob(['globalThis.first = navigator.language + ":" + Intl.DateTimeFormat().resolvedOptions().timeZone'])));
+    globalThis.http = new Worker('https://example.test/native.js');`;
+  const childURL = parent.root.URL.createObjectURL(new Blob([childSource]));
+  const worker = new parent.root.Worker(childURL) as unknown as InstanceType<typeof parent.WorkerMock>;
+  parent.root.URL.revokeObjectURL(childURL);
+  const sources = new Map(await Promise.all([...parent.blobs].map(async ([url, blob]) => [url, await blob.text()] as const)));
+  child.context.importScripts = (url: string) => { assert.ok(sources.has(url)); vm.runInContext(sources.get(url)!, child.context); };
+  vm.runInContext(await worker.script!.text(), child.context);
+  assert.deepEqual(Array.from(child.context.first, (v: unknown) => Array.isArray(v) ? Array.from(v) : v), ['en-US', ['en-US', 'en'], 'America/Los_Angeles']);
+  assert.equal(child.context.http.url, 'https://example.test/native.js');
+  const grandSources = new Map(await Promise.all([...child.blobs].map(async ([url, blob]) => [url, await blob.text()] as const)));
+  grandchild.context.importScripts = (url: string) => { assert.ok(grandSources.has(url)); vm.runInContext(grandSources.get(url)!, grandchild.context); };
+  vm.runInContext(await child.context.next.script.text(), grandchild.context);
+  assert.equal(grandchild.context.first, 'en-US:America/Los_Angeles');
+  assert.notEqual(grandchild.root.Worker, grandchild.WorkerMock);
+  // 同一个自包含函数逐层复用，避免递归时缺少闭包或把上一层入口不断嵌入。
+  assert.ok((await child.context.next.script.text()).length < (await worker.script!.text()).length + 100);
+  worker.terminate(); child.context.next.terminate();
 });

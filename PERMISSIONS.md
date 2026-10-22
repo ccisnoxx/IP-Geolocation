@@ -2,7 +2,7 @@
 
 > **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 以当前 [manifest.json](manifest.json) 为准：Chromium Manifest V3，最低 Chrome 138，没有静态 `content_scripts`，`web_accessible_resources` 为空。数据生命周期和外部请求见 [PRIVACY](PRIVACY.md)。
 
@@ -28,7 +28,7 @@ VG-024曾移除两项DNR权限，磁盘中可能仍保留更早的动态规则�
 
 页面注册确认后才安装并核验新dynamic投影，再解除隔离。用户已明确授权持久化以消除session清空造成的稳定冷启动首请求窗口；dynamic使用独立40000..49999，旧session30000..39999迁移撤销，dynamic30000和session40000仍不接管。local仅记录命名空间所有权版本，首次接管前必须确认新范围为空；未知占用保留并隔离。所有会改写配置的迁移、修复和变更均进入同一队列，影响投影或无法确认旧配置时先持久隔离再写；稳定冷启动不无条件重新隔离。静态enabled状态跨浏览器会话保留，扩展更新按manifest默认重置；不能用manifest默认推断每次worker唤醒时已经隔离。
 
-导航请求按目标站点语言，子资源按发起域语言（含跨源资源）。只改Accept-Language，其他头保持原生，不经过转发服务器。两个API没有原子提交：同步窗口和旧文档/BFCache可能不一致，提示完整重载；本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖。新投影安装依赖页面语言注册就绪，稳定冷启动沿用上次确认的投影；若用户在Chrome中关闭Allow User Scripts，后台核验前仍可能发送旧语言头，不能承诺这一开关过渡窗口的首请求一致。核验后撤销受管头、保持隔离并报告失败；DNR失败时同样隔离并报告partial，其他页面能力独立运行。
+导航请求按目标站点语言，子资源按发起域语言（含跨源资源）。只改Accept-Language，其他头保持原生，不经过转发服务器。两个API没有原子提交：同步窗口和旧文档/BFCache可能不一致，提示完整重载；本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖。新投影安装依赖页面语言注册就绪，稳定冷启动沿用上次确认的投影；若用户在Chrome中关闭Allow User Scripts，后台核验前仍可能发送旧语言头，不能承诺这一开关过渡窗口的首请求一致。核验后撤销受管头、保持隔离并报告失败；DNR失败时同样隔离并报告partial，其他页面能力独立运行。
 
 ## Host 权限与文档边界
 
@@ -53,3 +53,5 @@ VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；�
 VG-029复用已有userScripts权限与host scope，未增加geolocation或其他扩展权限。定位仅返回用户配置的合成坐标，不读取传感器，不更改Chrome站点授权。需要正常开启Allow User Scripts；权限/用户开关/注册读回故障均报告未确认，不能回退到页面消息或documentId注入。位置和语言/时区的注册及失败状态分别报告。
 
 VG-033（2026-10-23用户明确授权）：仅恢复匹配文档中本realm创建的Dedicated Blob Worker语言/时区，不增加权限或host范围，不恢复旧完整runtime。入口来自同一已核验userScripts注册；CSP必须允许Blob入口及脚本依赖，Trusted Types/MIME照常执行。HTTP(S)、SharedWorker、嵌套和外来Blob Worker仍未覆盖。
+
+VG-034沿用VG-033权限与站点入口，仅将同一最小快照递归传给已同步Blob链中自身创建的Dedicated Blob子Worker；不恢复HTTP(S)/SharedWorker，不新增配置桥或权限。

@@ -703,3 +703,24 @@ tasks:
       - 生成函数自包含，首段业务代码语言列表及Intl/Date与页面一致，不硬编码美西配置
       - 不扩大权限、host或配置披露，不绕过CSP及Trusted Types；保持站点范围和关闭语义
       - 定向测试、完整本地门禁、独立只读复核和当前Chrome实测；本地完成后仅review
+
+  - id: VG-034
+    title: 限定嵌套Blob Dedicated Worker语言时区同步
+    phase: R7
+    dependencies: [VG-033]
+    status: done
+    trellis_task: .trellis/tasks/10-23-vg-034-nested-blob-worker
+    authorization:
+      date: '2026-10-23'
+      scope: 用户授权限定嵌套Blob继承父级快照并用当前Chrome实测美西，等待验收且不自动提交
+    acceptance_authorization:
+      date: '2026-10-23'
+      scope: 用户明确验收通过，授权本地提交，先不推送
+    scope:
+      - 仅已同步的Blob Dedicated Worker链内各realm自身新建的Blob子Worker
+      - 同一最小快照及加载实现递归传递，classic和module保持启动顺序与清理
+      - HTTP(S)、SharedWorker、外来Blob和未接管父级继续未覆盖
+    acceptance:
+      - 父子classic/module组合及孙级首段语言IntlDate一致，模块依赖与立即撤销消息正常
+      - 不扩大权限或绕过CSP，失败可见，撤销及清理不回归
+      - 完整本地门禁、独立复核与当前Chrome实测后仅review，不自动提交

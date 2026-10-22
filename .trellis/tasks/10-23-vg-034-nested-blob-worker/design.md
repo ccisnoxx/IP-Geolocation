@@ -1,0 +1,5 @@
+# 设计
+
+复用installBlobWorker作为每个realm唯一的Blob加载与生命周期实现。构建的自包含applyBlobWorkerRuntime函数把自身显式传入模块入口；入口完成语言/时区安装后用它安装子Worker拦截。下一层序列化的是完整自包含函数，不是引用构建闭包的内部入口，函数大小不随嵌套深度增长。
+
+每层拥有自己的URL Map和待清理Worker WeakMap。传递的是继承的最小payload，不重新读取配置或父级可变navigator；不通过业务消息传配置。仍仅已跟踪Blob，HTTP(S)、SharedWorker、外来Blob和TrustedScriptURL透传。同步XHR核验成本移至创建子Worker的父线程，受该Worker的CSP约束；失败明确警告未同步。底层约束及已知Blob地址变化沿用VG-033。

@@ -21,7 +21,7 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；地理位置仅在普通安全上下文且允许定位的匹配网页应用合成坐标。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
+      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖；地理位置仅在普通安全上下文且允许定位的匹配网页应用合成坐标。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
       <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。Accept-Language 与页面语言、WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>

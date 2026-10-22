@@ -2,7 +2,7 @@
 
 > **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 本说明描述当前维护源的数据流与存储；权限清单见 [PERMISSIONS](PERMISSIONS.md)。VanishGeo 不提供 VPN/代理，不改变正常请求的网络出口，也不承诺匿名或让网页无法观测浏览器。没有后台定时出口刷新，也没有配置同步到开发者服务器的流程。
 
@@ -43,7 +43,7 @@ manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则�
 
 诊断在原有实际值采样中额外执行固定 en-US/UTC 的 Intl.DateTimeFormat、NumberFormat 与 Date locale 调用；top/iframe/Worker 分别返回实际默认和显式结果，预期与模式只在扩展内部比较。固定调用不包含用户配置、无新增外部请求，不增加设备表面；旧 fixture 缺显式观测时为 UNKNOWN。定向 Chrome 模式 smoke 只使用本地 fixture、临时 profile 与合成配置，保存的 JSON 只含浏览器版本、模式及布尔/场景结论，不含个人路径、IP、坐标、凭据或文档身份。VG-023 的独立生产 smoke 使用实际 dist、仅 loopback namespace 与正常用户开关，证据单独保存，不联系第三方站点/provider/STUN。
 
-注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。定位按独立 userScripts 状态报告，本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；固定内置字体过滤按独立注册状态报告；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
+注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。定位按独立 userScripts 状态报告，本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖；固定内置字体过滤按独立注册状态报告；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
 
 仅在站点语言规则生效时由DNR改写Accept-Language，导航按目标域、子资源按发起域取同一语言列表；其他请求头原生。迁移删除已知旧规则，范围外规则保留，未知语言头冲突报告失败；新规则是浏览器保存的dynamic投影（域名及语言头），不保存请求正文、Cookie或网络日志。请求仍直接发到原目标服务器，不经扩展转发；目标服务器可见正常公网出口及配置的语言头。页面注册与头更新不是原子操作，旧文档和更新窗口需完整重载。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账调用Chrome脚本/DNR/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
 
@@ -95,6 +95,8 @@ VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；�
 
 注册撤销只影响未来文档；旧文档/BFCache仍持有旧快照，必须重载或关闭，网页已读取的数据无法撤回。诊断仍需用户明确发起，结果仅扩展内短期比较。VG-029浏览器资格测试使用临时profile、合成坐标与loopback目标，证据只保存布尔/分类/版本及构建摘要，不保存真实位置、个人路径或真实出口IP；具体实际覆盖及未验证项见任务证据。
 
-VG-033：本页 Blob Dedicated Worker 仅复制同一页面已交付的语言、语言列表、时区及 Intl 模式；无新权限、provider请求、配置消息或页面桥。临时入口与业务源仍是内存 Blob，通过原生 importScripts/模块导入执行，不请求外部代理或服务。页面原 URL 撤销、启动、error 与 terminate 有对应清理路径；不安装嵌套Worker hook。CSP、Trusted Types 与MIME失败不被绕过，其他Worker仍未覆盖。
+VG-033：本页 Blob Dedicated Worker 仅复制同一页面已交付的语言、语言列表、时区及 Intl 模式；无新权限、provider请求、配置消息或页面桥。临时入口与业务源仍是内存 Blob，通过原生 importScripts/模块导入执行，不请求外部代理或服务。页面原 URL 撤销、启动、error 与 terminate 有对应清理路径；初期不安装嵌套Worker hook，VG-034仅扩展下述限定Blob链。CSP、Trusted Types 与MIME失败不被绕过，其他Worker仍未覆盖。
 
 Blob Worker构造前另有一次同步XHR，仅GET该realm已跟踪的blob: URL以核验浏览器原生存储，不请求HTTP(S)。核验受connect-src限制，失败会警告未同步并由原生加载；未读取或上传响应内容，原Blob只用于私有内存副本。同步读取有主线程成本。
+
+VG-034嵌套Blob仅在已同步Worker链内继承同一最小语言/时区payload；各层私有URL表互不共享，不读取storage或发送配置消息，无新增外部请求。同步Blob存活核验在对应父Worker线程执行，受该Worker的CSP限制。

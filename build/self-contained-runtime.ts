@@ -106,7 +106,7 @@ async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly =
         warn(warning);
       }, output: { format: isWorker ? 'es' : 'iife', name: 'runtimeExports', entryFileNames: fileName,
         banner: `export function ${name}(${fontOnly ? '' : isWorker ? 'patchConfig' : 'payload'}) {`,
-        footer: isWorker ? '}' : `return runtimeExports.${blobWorkerOnly ? 'applyBlobWorkerRuntime' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${fontOnly ? '' : 'payload'});\n}`,
+        footer: isWorker ? '}' : `return runtimeExports.${blobWorkerOnly ? 'applyBlobWorkerRuntime' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${fontOnly ? '' : blobWorkerOnly ? 'payload, applyBlobWorkerRuntime' : 'payload'});\n}`,
         sourcemapPathTransform(source) { return isAbsolute(source) ? relative(root, source).replace(/\\/g, '/') : source; }
       } }
     }
