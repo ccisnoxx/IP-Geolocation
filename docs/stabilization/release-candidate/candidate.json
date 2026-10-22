@@ -1,0 +1,26 @@
+{
+  "status": "accepted",
+  "date": "2026-10-22",
+  "baseCommit": "51d12839fcb479030686f3695174a4fab2bfa6b8",
+  "candidateIdentity": "baseCommit + uncommitted release notes and documentation changes; no final release commit assigned",
+  "version": "2.1.1",
+  "previousTag": "v2.1.0",
+  "notesCommand": "bash scripts/release-changelog.sh",
+  "browserDistSha256": "c659b709bcdaae0c716bbd5e6f318d85dc7a3afe46d74479be2f10f0038fd0ba",
+  "filesSha256": {
+    "scripts/release-changelog.sh": "85106db666aa525a802e92088552519e77d6209ffef6fbda0889ab0b569821fe",
+    "tests/release-gates.test.ts": "79793291c816b13607fb33f125e99f8cdabd3811e0ce18cfb2d05f169de3a45b",
+    "docs/stabilization/release-candidate/notes-preview.md": "5a17415be9aabb908badd7f8e7fdc7854a6b160f2e4cfee55c7519778533ae11",
+    "docs/stabilization/release-candidate/artifact-evidence.json": "da5aef016ad3418aac511c7a9dbe10f17342b270fec4cddd454334f708103e1f",
+    "docs/stabilization/chrome138/observations.json": "14eb366f0cacb5562ac4442637d7e2abe9e18e2aca94d445198c01748da50c73",
+    "docs/stabilization/chrome138/https.json": "69ec4cfb6a138a9e771186a07552727262981adb4fc3c852e6e4f63bdd7b667f",
+    "docs/stabilization/chrome138/verification.json": "dd72adb75db4b8d45a28fdc1c109151944ca3abdd7d3c866cf46ef297163d509"
+  },
+  "checks": {
+    "npmRunCheck": "PASS: typecheck, typecheck:tests, 285/285 tests, build",
+    "artifactAudit": "PASS: 50 files, 5 chunks, ZIP byte identical",
+    "chrome138EvidenceRecheck": "PASS: 14 assertions; no new browser run",
+    "versionConsistency": "PASS: v2.1.1 argument only, no tag created"
+  },
+  "approval": "human accepted 2026-10-22; local commits and post-commit evidence refresh authorized; no push, tag or publication"
+}

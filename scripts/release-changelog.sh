@@ -36,11 +36,24 @@ fi
 
 cat <<'EOF'
 
+以上条目为提交历史，包含已被后续变更替代的中间状态。当前版本通过 userScripts 提供语言／时区和合成定位，使用 declarativeNetRequestWithHostAccess 同步 Accept-Language，并提供固定名单字体过滤；具体启用条件和限制见下文。
+
 ## 安装方法
 
-1. 下载此 Release 的 `vanishgeo-v<版本>.zip` 并解压。
+1. 使用 Chrome 138 或更高版本，下载此 Release 的 `vanishgeo-v<版本>.zip` 并解压。
 2. 打开 `chrome://extensions/` 并启用开发者模式。
 3. 点击“加载已解压的扩展程序”，选择解压后直接包含 `manifest.json` 的目录。
+4. 在 VanishGeo 的“详情”页正常开启 **Allow User Scripts（允许用户脚本）**，打开 Popup 或 Options，点击“重试同步”。
+5. 全新安装默认关闭保护且没有预配置站点。在 Options 中配置所需站点和信号；推荐流程需主动检测并确认出口档案，再明确应用，查看推荐本身不会开启保护。
+6. 等待保存／同步成功，分别确认语言／时区、定位和字体的注册状态；完整重载或关闭重开已有目标页面，使配置在新文档生效。
 
-功能、权限、隐私与人工浏览器验收边界见仓库 README、PERMISSIONS、PRIVACY 和 RELEASE 文档。
+## 可靠关闭与已知限制
+
+- 先关闭**插件总开关**并保存，等待同步成功，再完整重载或关闭重开已有目标页面，让页面语言与 Accept-Language 一起恢复原生；之后才按需关闭 Allow User Scripts。
+- Chrome 的 Allow User Scripts 开关与请求头规则独立。直接关闭该开关仍可能让首请求携带旧语言头；不承诺跨 API 原子同步。
+- 配置按每文档快照生效，旧文档与 BFCache 可能保留旧值；没有热更新或自动刷新。Worker / SharedWorker、自定义字体与非普通 HTTP(S) 文档不在当前支持范围内。
+- 合成定位仍受安全上下文、origin 和 Permissions Policy 等条件限制，不等同原生传感器或所有权限语义；WebRTC 策略状态也不是所有网络路径的防泄漏证明。
+- Chrome 138 的真实验收覆盖 138.0.7204.183 / macOS arm64 的已记录场景；不代表其他平台、全部补丁版本、HTTPS 最早脚本／自动恢复、全部升级和故障组合均已验证。首轮恢复异常与历史附件缺口仍保留。
+
+功能、权限、隐私与人工浏览器验收边界见仓库 README、INSTALL、PERMISSIONS、PRIVACY、RELEASE 及 docs/stabilization/evidence-index.md；Chrome 138 的详细覆盖与异常记录见 docs/stabilization/chrome138/README.md。
 EOF

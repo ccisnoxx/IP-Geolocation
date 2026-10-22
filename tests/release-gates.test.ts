@@ -134,6 +134,15 @@ test('changelog 首发列出历史，跨 tag 只含新提交，排除无关分�
     git('commit', '--quiet', '--allow-empty', '-m', '门禁修复');
     git('tag', 'v1.1.0');
     const notes = changelog();
+    // 实际生成文本必须包含安装前提、明确应用和可靠关闭顺序。
+    assert.match(notes, /Chrome 138/);
+    assert.match(notes, /Allow User Scripts（允许用户脚本）/);
+    assert.match(notes, /重试同步/);
+    assert.match(notes, /明确应用.*查看推荐本身不会开启保护/);
+    assert.match(notes, /先关闭\*\*插件总开关\*\*并保存.*等待同步成功.*完整重载.*Accept-Language.*恢复原生.*之后才按需关闭 Allow User Scripts/);
+    assert.match(notes, /直接关闭该开关仍可能让首请求携带旧语言头/);
+    assert.match(notes, /BFCache/);
+    assert.match(notes, /不代表其他平台/);
     assert.match(notes, /自 v1\.0\.0/);
     assert.match(notes, /门禁修复/);
     assert.doesNotMatch(notes, /初始化合成仓库|首次发布前的改动|无关分支|v9\.0\.0/);

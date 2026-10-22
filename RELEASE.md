@@ -58,7 +58,7 @@ release 在安装依赖前运行 `node scripts/check-release-version.mjs "$GITHU
 
 release checkout 设置 fetch-depth: 0，取得完整分支历史及 tags。`bash scripts/release-changelog.sh` 拒绝 shallow 仓库；从 HEAD 全部祖先可达的版本 tag 中选最近者，并排除指向 HEAD 的全部版本 tag，输出该 tag 到 HEAD 的 commit subject/hash；不误用当前 tag 或未合并分支 tag。首次没有旧版本 tag 时输出全部历史，不替换成笼统描述；Git 错误保持失败并阻止打包。轻量/附注 tag 均由 git describe --tags 处理；同提交的其他 tag 不作为上一版。
 
-changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文本不插入 workflow shell 或多行 GitHub output。提交信息会成为公开 Release notes，维护者仍需遵守合成/脱敏约定并审阅内容。本次不打印真实仓库历史日志，不访问远端管理接口。
+changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文本不插入 workflow shell 或多行 GitHub output。提交信息会成为公开 Release notes，维护者仍需遵守合成/脱敏约定并审阅内容。当前实际生成预览及审阅范围见 [候选资料收尾](docs/stabilization/release-candidate/README.md)；不访问远端管理接口。
 
 `tests/release-gates.test.ts` 核对 workflow 顺序/权限/失败旁路，在临时 npm 项目注入失败证明后续构建未到达，并用临时 Git 仓库验证首发、跨 tag、无关分支、第二父提交的已发布 tag、同提交轻量/附注 tag 及浅克隆。合成 tags 只创建在临时 fixture 仓库，finally 删除；不操作当前仓库 tags。这些是本地/静态证据，未实际运行 GitHub Actions、Release API 或真实 Chrome。
 
