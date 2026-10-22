@@ -218,3 +218,9 @@ VG-027研究正文已区分2026-10-20历史NO_GO、VG-029后续独立授权与�
 VG-029的11个原记录/证据文件从838c301按字节恢复（后续删除提交da068f2），恢复来源和摘要见[VG-027执行记录](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md)。其两份30项Chrome证据、人工签收和限制保留；VG-029仍done。此前“位置全面暂停”、watch interval及旧验收暂停描述只代表历史阶段，不覆盖VG-029已授权范围，也不推翻旧负向实验。
 
 本轮仅恢复文档与证据，没有运行新Chrome/测试、修改生产代码或扩大Worker能力。用户已按限定范围验收，VG-027为done，见[人工验收记录](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md#2026-10-22-人工验收确认)；已授权本地提交，暂不push。完整对抗矩阵、document.open、受控撤销窗口、Chrome138、其他OS、TLS和定位冷启动等缺口不自动变为通过。其他任务状态仍以task-manifest为准。
+
+### 2026-10-22 VG-022 研究路线处置（已验收）
+
+四个原任务文件从5f871fc恢复，原记录只证明设计及前期准备，未找到正式Chrome结果与独立复核，P1实测结论未建立。当前userScripts方案不依赖MAIN/ISOLATED私有交接，用户已按“当前无生产依赖，暂不继续实验”的研究处置范围验收，VG-022为done；不把原实验矩阵记为通过或失败，不扩大现行生产合同。
+
+本轮仅文档与记录恢复，无生产代码修改或新实验；[人工验收记录](../../.trellis/tasks/10-15-vg-022-private-handoff-probe/implement.md#2026-10-22-人工验收确认)已补充，授权本地提交、暂不push；源摘要、历史进度和未来重新评估条件见[VG-022处置记录](../../.trellis/tasks/10-15-vg-022-private-handoff-probe/implement.md#2026-10-22-研究处置与待验收范围)，方案关系见[RFC补充](alternative-injection-rfc.md#13-方案b-p1研究处置2026-10-22vg-022-done)。此前VG-022状态不变等描述为历史阶段，当前状态以任务清单为准。

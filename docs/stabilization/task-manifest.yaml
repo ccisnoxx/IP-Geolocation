@@ -451,15 +451,27 @@ tasks:
     phase: R5
     dependencies: [VG-020]
     branch: stabilize/VG-014
-    status: in_progress
+    status: done
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      scope: 记录恢复、证据缺口及暂不继续实验的研究处置；P1实测结论未建立
+      evidence: .trellis/tasks/10-15-vg-022-private-handoff-probe/implement.md#2026-10-22-人工验收确认
     trellis_task: .trellis/tasks/10-15-vg-022-private-handoff-probe
+    research_disposition:
+      date: '2026-10-22'
+      decision: 当前无生产依赖，暂不继续实验
+      p1_empirical_conclusion: not_established
+      human_acceptance: accepted
+      evidence: .trellis/tasks/10-15-vg-022-private-handoff-probe/implement.md#2026-10-22-研究处置与待验收范围
     scope:
-      - 动态MAIN与同文档ISOLATED broker的通道身份、页面抢占、伪造与转接
-      - 真实Chrome最小机制/攻击对照、GO或NO_GO与恢复门槛
-      - 仅P1隔离研究，保持生产暂停，不改生产代码、权限或版本
+      - 原研究范围为动态MAIN与同文档ISOLATED broker的通道身份、页面抢占、伪造与转接
+      - 原计划的真实Chrome机制/攻击对照及候选结论未找到正式结果，保留P1实测结论未建立
+      - 本次仅恢复原记录与评估剩余价值，不继续实验、不改变现行userScripts生产合同
     acceptance:
-      - 区分连通性和身份可信，早期交接与受控晚交接分别判定
-      - 普通页面能力反例及正常对照可复现，证据含版本、命令和未验证范围
+      - 保留原实验对连通性与身份、早期与受控晚交接的区分，不把设计或缺证据写成实验通过/失败
+      - 本次验收限定于来源可追溯的记录恢复、证据缺口及暂不继续实验的处置，原实验矩阵仍未验
       - 不以研究完成授权P2或生产恢复，本地review、人工验收后才可done
 
 

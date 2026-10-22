@@ -1,0 +1,49 @@
+{
+  "id": "vg-022-private-handoff-probe",
+  "name": "vg-022-private-handoff-probe",
+  "title": "VG-022：方案 B P1 私有交接隔离验证",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": "VG-022",
+  "package": null,
+  "priority": "P1",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-15",
+  "completedAt": "2026-10-22",
+  "branch": "stabilize/VG-014",
+  "base_branch": "stabilize/VG-014",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "stabilization_id": "VG-022",
+    "phase": "R5",
+    "dependencies": {
+      "VG-020": "done"
+    },
+    "human_acceptance": {
+      "status": "accepted",
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-22",
+      "scope": "记录恢复、证据缺口核对及暂不继续实验的研究处置；P1实测结论未建立",
+      "evidence": "implement.md#2026-10-22-人工验收确认"
+    },
+    "production_dispatch_restored": false,
+    "release_approved": false,
+    "disposition": {
+      "date": "2026-10-22",
+      "decision": "当前无生产依赖，暂不继续实验",
+      "p1_empirical_conclusion": "not_established",
+      "source_commit": "5f871fc",
+      "deleted_in_commit": "da068f2",
+      "evidence": "implement.md#2026-10-22-研究处置与待验收范围"
+    }
+  }
+}
