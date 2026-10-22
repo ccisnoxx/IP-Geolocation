@@ -97,3 +97,41 @@ test('固定候选原生对账先撤范围变化再注册，幂等且不碰其�
     assert.deepEqual(events,[]);assert.equal(actual.length,3);
   } finally {globalThis.chrome=previous;}
 });
+
+test('字体实际注册变化先预写，预写失败零变更，幂等对账不预写', async () => {
+  const previous = globalThis.chrome;
+  const value = config(); value.rules.pop();
+  const foreign = { id: 'other-component', js: ['other.js'] };
+  let actual = [...compileFontScripts(value), foreign];
+  const events: string[] = [];
+  Object.assign(globalThis, { chrome: { scripting: {
+    getRegisteredContentScripts: async () => structuredClone(actual),
+    unregisterContentScripts: async ({ ids }: { ids: string[] }) => {
+      events.push('unregister'); actual = actual.filter(script => !ids.includes(script.id));
+    },
+    registerContentScripts: async (scripts: chrome.scripting.RegisteredContentScript[]) => {
+      events.push('register'); actual.push(...structuredClone(scripts));
+    }
+  } } });
+  try {
+    const before = structuredClone(actual);
+    value.rules.push(createRule('sub.example.test'));
+    const failPrewrite = async () => { events.push('prewrite-failed'); throw new Error('合成预写失败'); };
+    assert.equal((await syncFontScriptRegistration(compileFontScripts(value), failPrewrite)).status, 'failed');
+    assert.deepEqual(events, ['prewrite-failed']);
+    assert.deepEqual(actual, before);
+    events.length = 0;
+    const prewrite = async () => { events.push('prewrite'); };
+    assert.equal((await syncFontScriptRegistration(compileFontScripts(value), prewrite)).status, 'ok');
+    assert.deepEqual(events, ['prewrite', 'unregister', 'register']);
+    events.length = 0;
+    assert.equal((await syncFontScriptRegistration(compileFontScripts(value), prewrite)).status, 'ok');
+    assert.deepEqual(events, []);
+    assert.equal((await syncFontScriptRegistration([], failPrewrite)).status, 'failed');
+    assert.deepEqual(events, ['prewrite-failed']);
+    events.length = 0;
+    assert.equal((await syncFontScriptRegistration([], prewrite)).status, 'ok');
+    assert.deepEqual(events, ['prewrite', 'unregister']);
+    assert.deepEqual(actual, [foreign]);
+  } finally { globalThis.chrome = previous; }
+});

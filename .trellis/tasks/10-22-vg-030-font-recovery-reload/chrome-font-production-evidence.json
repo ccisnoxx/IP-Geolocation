@@ -1,0 +1,66 @@
+{
+  "task": "VG-025",
+  "scope": "production-dist-font-registration",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.86",
+  "checks": {
+    "nativePositiveControl": true,
+    "actualDistWorkerRegistersFixedFileAndReportsIndependentStatus": true,
+    "topMeasurementAllowlistAtFirstInline": true,
+    "actualDistEarliestInlineAndNativeBaseline": true,
+    "actualDistAll43FontsBlockedAgainstSiteWidthProbe": true,
+    "actualDistTopOnlyMeasurementAllowlistAndUnchangedCheck": true,
+    "actualDistIframeUnsupportedDocumentsAndCsp": true,
+    "actualDistAll43FontsNativeOutsideAllowlist": true,
+    "actualDistUnmatchedOriginStaysNative": true,
+    "actualDistFontSwitchAndSiteRuleGateKeepNative": true,
+    "actualDistCustomNotDispatchedAndOldHookRetained": true,
+    "actualMv3WorkerStoppedAndWokenRegistrationRestored": true,
+    "actualExtensionUpdateRestoresWithoutReregistrationFromDriver": true,
+    "actualDistAll43FontsNativeWhenDisabled": true,
+    "actualDistDisableAndSameUrlReloadRestoreNative": true
+  },
+  "productionRecovery": "AUTHORIZED",
+  "cleanup": "PASS",
+  "failure": null,
+  "limitations": [
+    "实际dist的manifest、worker与font资产不改写，仅增加空白扩展管理驱动页",
+    "使用独立临时profile及合成loopback规则，不读取用户配置或请求provider",
+    "语言userScripts开关未开启，本轮仅验证字体与语言阻断独立",
+    "不覆盖实际浏览器冷启动、Chrome138/其他OS、真实action Popup或完整人工验收"
+  ],
+  "fontFilterSha256": "2f80b888e27ea20d3badb28437ecda78df1d6e1a25d55d802b27e77fa1fe28cb",
+  "initialRegistration": {
+    "status": "partial",
+    "page": {
+      "state": "switch-required",
+      "registeredRuleCount": null,
+      "reloadRequired": false
+    },
+    "font": {
+      "state": "ready",
+      "registeredRuleCount": 1,
+      "reloadRequired": true
+    }
+  },
+  "fixedFontScan": {
+    "total": 43,
+    "addedChineseFamilies": 27,
+    "genericFamilies": 3,
+    "nativePositiveControl": true,
+    "filteredExistenceAndWidths": true,
+    "fontRestored": true
+  },
+  "measurementAllowlist": {
+    "families": [
+      "monospace",
+      "sans-serif",
+      "serif"
+    ],
+    "unknownFontNativePositiveControl": true,
+    "topUnknownFontSuppressed": true,
+    "iframeUnknownFontRemainsNative": true,
+    "unlistedFontCheckUnchanged": true,
+    "nativeTextMetricsAndFontRestore": true
+  }
+}

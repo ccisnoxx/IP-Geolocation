@@ -194,3 +194,11 @@ VG-013 本地结果：170/170、源码/测试类型、build、diff与dry-run通�
 固定名单和顶层测量允许名单已获用户限定人工验收，当前状态为done；上述2026-10-21的review、现场UNKNOWN及停止说明保留历史含义。具体范围和未验证项见[人工验收记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#2026-10-22-人工验收与收尾)。
 
 本地拆分提交的独立构建已补跑237项Node测试及真实Chrome30项，原248项工作树证据保持；各阶段命令、产物摘要与既有字体故障窗口限制见[提交拆分验证](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md#2026-10-22-本地提交拆分验证)。
+
+## 2026-10-22 VG-030 字体故障恢复重载提示（已验收）
+
+修复VG-029复核中记录的既有字体P2：配置不变但启动清理后重新注册，也先持久化pendingFontScopeChange，恢复补录普通HTTP(S)标签页的font债，覆盖只命中iframe；预写失败不变更注册，查询/注册/checkpoint失败跨worker保留义务。旧文档不热更新、不自动reload。
+
+新增定向9项修复前失败、修复后通过；完整npm run check为257/257、源码/测试类型及构建PASS。Chrome155/macOS arm64临时profile：字体故障恢复12项、固定字体正常接线15项（含43字体正对照）、未改写实际dist定位/语言/时区/字体联合30项PASS，cleanup均PASS。合成存储拒绝与真实磁盘故障区分；原runner前置不符的首轮BLOCKED保留。独立只读复核无确认阻断。详见[VG-030执行与证据](../../.trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md)。
+
+2026-10-22用户明确确认验收通过，manifest为done、Trellis completed、human_acceptance accepted；确认原文见[人工验收记录](../../.trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md#2026-10-22-人工验收确认)。原VG-025/VG-029的done、历史原始证据和未验证边界保持。已完成本次任务收尾，保留原记录路径和其他未提交改动，不新增提交、push或发布。

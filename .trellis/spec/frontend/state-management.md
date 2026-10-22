@@ -180,6 +180,8 @@ RuntimeSyncReport可选fontRuntime独立于pageRuntime；历史缺字段为UNKNO
 
 独立复核发现并修复两项重载债遗漏：保存/注销窗口内新开的文档，以及只有iframe命中的顶层页面。字体注册范围变化现在直接比较同一compiler结果，对所有普通HTTP(S)标签页保守记font债（顶层URL无法排除iframe）；UI明确保守提示。预写pendingFontScopeChange保存窗口补录义务，reconcile完成注册后再次query合并窗口新页，字体失败或查询失败保留marker跨中断恢复；成功才清除。previous同时保留旧签名marker，任意后续保存不能丢失尚未完成的补录义务。pendingForSignature深拷贝防止合并污染旧记录。无新增权限或页面文档观察桥。
 
+VG-030补充：配置不变时的实际字体注册漂移也必须预写窗口。syncFontScriptRegistration在任何所属注册撤销/新增前等待services提供的beforeChange；预写失败返回sync-failed且不变更注册，实际注册一致时不预写。普通恢复和旧初始化脚本清理失败分支均接入；启动读取失败的fail-closed清理仍不依赖storage可用，恢复新增注册时再持久化补录义务。最终checkpoint失败保留此前成功写入的pendingFontScopeChange，worker重启后补录普通HTTP(S)标签页并合并已有page/geolocation债；不热更新或自动刷新旧文档。
+
 
 VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom和Worker继续暂停；位置恢复见下述VG-029合同。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。
 

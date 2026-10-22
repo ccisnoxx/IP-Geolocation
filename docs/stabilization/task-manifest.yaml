@@ -558,3 +558,24 @@ tasks:
     acceptance:
       - 首调用、取消、权限、更新撤销、BFCache和后台恢复有实际证据
       - 本地门禁和独立只读复核，人工验收前仅review，不push不发布
+
+  - id: VG-030
+    title: 字体故障恢复重载提示修复与回归验证
+    phase: R7
+    dependencies: [VG-025, VG-029]
+    status: done
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      evidence: .trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md#2026-10-22-人工验收确认
+    trellis_task: .trellis/tasks/10-22-vg-030-font-recovery-reload
+    scope:
+      - 字体实际注册变化前预写恢复标记，恢复补录普通HTTP(S)标签页的重载债
+      - 覆盖启动读取故障、写入失败、iframe及worker重启，保留定位语言时区字体行为
+      - 仅本地实施与验证，保留其他未提交改动，不push或发布
+    acceptance:
+      - 故障期间创建的匹配顶层及iframe页面恢复注册后提示重载
+      - 预写失败不改变字体注册，最终checkpoint失败和重启后可继续补录
+      - 针对性测试、完整本地门禁和真实Chrome正负对照通过，独立只读复核
+      - 本地验证后仅review，人工验收后才可done

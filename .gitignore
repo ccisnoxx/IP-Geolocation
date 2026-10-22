@@ -271,3 +271,16 @@ Thumbs.db
 !.trellis/tasks/10-22-vg-029-geolocation-recovery/current-chrome-evidence.json
 !.trellis/tasks/10-22-vg-029-geolocation-recovery/current-chrome-regression.jpg
 !.trellis/tasks/10-22-vg-029-geolocation-recovery/commit-scope-chrome-evidence.json
+
+# VG-030 字体故障恢复的正式记录与脱敏验证
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/
+.trellis/tasks/10-22-vg-030-font-recovery-reload/*
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/task.json
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/prd.md
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-font-recovery-evidence.json
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-font-recovery-attempt1.json
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-font-production-evidence.json
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-geolocation-evidence.json
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/commit-scope-font-evidence.json
+!.trellis/tasks/10-22-vg-030-font-recovery-reload/commit-scope-geolocation-evidence.json

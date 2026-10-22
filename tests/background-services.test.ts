@@ -1632,3 +1632,105 @@ test('定位注册恢复预写窗口跨最终checkpoint失败和worker重启保�
     assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingGeolocationScopeChange, undefined);
   } finally { mock.restore(); }
 });
+
+
+test('字体故障恢复：配置不变也补录读取失败窗口的顶层和iframe重载债', async (t) => {
+  for (const areaName of ['local', 'session'] as const) await t.test(areaName, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    config.fontExposure.enabled = true;
+    config.globalProfile.geolocation.enabled = false;
+    const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+    const tabs: chrome.tabs.Tab[] = [];
+    const mock = installChromeMock(storage, { tabs });
+    const area = chrome.storage[areaName], get = area.get;
+    try {
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+      await services.initializeExtension();
+      const before = clone(storage);
+      const pageScripts = await chrome.userScripts.getScripts();
+      const error = new Error('合成启动读取故障');
+      area.get = (async () => { throw error; }) as typeof get;
+      await assert.rejects(services.initializeExtension(), failure => failure === error);
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+      tabs.push({ id: 31, url: 'https://example.test/during-failure' } as chrome.tabs.Tab,
+        { id: 32, url: 'https://unmatched.test/with-matched-iframe' } as chrome.tabs.Tab,
+        { id: 33, url: 'chrome://extensions/' } as chrome.tabs.Tab);
+      area.get = get;
+      const recovered = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}').initializeExtension();
+      assert.deepEqual(recovered.fontRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
+      assert.equal(recovered.pageRuntime?.state, 'ready');
+      assert.equal(recovered.pageRuntime?.reloadRequired, false);
+      assert.equal(recovered.geolocationRuntime?.reloadRequired, false);
+      assert.deepEqual(await chrome.userScripts.getScripts(), pageScripts);
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]),
+        [[31, ['font']], [32, ['font']]]);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingFontScopeChange, undefined);
+      assert.deepEqual(storage, before);
+      assert.deepEqual(mock.reloadCalls, []);
+      assert.deepEqual(mock.executeCalls, []);
+    } finally { area.get = get; mock.restore(); }
+  });
+});
+
+test('字体故障恢复：注册预写失败不改变实际字体注册', async () => {
+  const config = createSingleRuleConfig('example.test', { automatic: false });
+  config.fontExposure.enabled = true;
+  config.globalProfile.geolocation.enabled = false;
+  const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });
+  const set = chrome.storage.session.set;
+  try {
+    chrome.storage.session.set = async () => { throw new Error('合成字体预写失败'); };
+    const report = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}').initializeExtension();
+    assert.equal(report.fontRuntime?.state, 'sync-failed');
+    assert.equal(report.fontRuntime?.registeredRuleCount, null);
+    assert.equal(report.fontRuntime?.reloadRequired, false);
+    assert.equal(report.status, 'partial');
+    assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+    assert.deepEqual(mock.registeredScripts, []);
+  } finally { chrome.storage.session.set = set; mock.restore(); }
+});
+
+test('字体故障恢复：注册、查询和最终checkpoint失败后跨worker补录窗口且保持幂等', async (t) => {
+  for (const fault of ['register', 'query', 'checkpoint']) await t.test(fault, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    config.fontExposure.enabled = true;
+    config.globalProfile.geolocation.enabled = false;
+    const tabs: chrome.tabs.Tab[] = [];
+    const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
+    const set = chrome.storage.session.set, query = chrome.tabs.query, register = chrome.scripting.registerContentScripts;
+    try {
+      if (fault === 'register') chrome.scripting.registerContentScripts = async () => { throw new Error('合成注册失败'); };
+      if (fault === 'query') chrome.tabs.query = async () => { throw new Error('合成查询失败'); };
+      if (fault === 'checkpoint') chrome.storage.session.set = (async (items: Record<string, any>) => {
+        if (items.runtimeSyncMetadata?.report.fontRuntime?.state === 'ready' && !items.runtimeSyncMetadata.pendingFontScopeChange) {
+          throw new Error('合成字体最终checkpoint失败');
+        }
+        return set(items);
+      }) as typeof set;
+      const failed = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}').initializeExtension();
+      assert.equal(failed.status, 'partial');
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingFontScopeChange, true);
+      if (fault === 'register') assert.equal(failed.fontRuntime?.state, 'sync-failed');
+      if (fault === 'query') assert.equal(failed.components.tabReload.status, 'failed');
+      if (fault === 'checkpoint') assert.equal(failed.metadataError?.code, 'metadata-write-failed');
+      tabs.push({ id: 41, url: 'https://example.test/during-recovery' } as chrome.tabs.Tab,
+        { id: 42, url: 'https://unmatched.test/with-matched-iframe' } as chrome.tabs.Tab);
+      chrome.storage.session.set = set; chrome.tabs.query = query; chrome.scripting.registerContentScripts = register;
+      const restarted = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+      const recovered = await restarted.initializeExtension();
+      assert.deepEqual(recovered.fontRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
+      assert.equal(recovered.pageRuntime?.reloadRequired, false);
+      assert.equal(recovered.geolocationRuntime?.reloadRequired, false);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingFontScopeChange, undefined);
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]),
+        [[41, ['font']], [42, ['font']]]);
+      let writes = 0;
+      chrome.storage.session.set = (async (...args: any[]) => { writes += 1; return Reflect.apply(set, chrome.storage.session, args); }) as typeof set;
+      const mutations = clone(mock.mutations);
+      await restarted.initializeExtension();
+      assert.equal(writes, 0);
+      assert.deepEqual(mock.mutations, mutations);
+      assert.deepEqual(mock.reloadCalls, []); assert.deepEqual(mock.executeCalls, []);
+    } finally { mock.restore(); }
+  });
+});

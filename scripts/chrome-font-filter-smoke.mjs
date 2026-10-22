@@ -78,7 +78,7 @@ async function fingerprintTree(directory) {
 function startupReadFaultFixture() {
   const trace = { boot: crypto.randomUUID(), mode: null, started: 0, completed: 0, failures: [], successes: [],
     localReads: 0, sessionReads: 0, readFailures: 0, firstRegistryIds: null,
-    revocations: [], nativeRevocations: 0, additions: 0 };
+    revocations: [], nativeRevocations: 0, additions: 0, metadataFailures: 0 };
   globalThis.__vg025StartupReadTrace = trace;
   const readError = new Error('VG025_SYNTHETIC_STARTUP_READ');
   const localGet = chrome.storage.local.get.bind(chrome.storage.local);
@@ -98,6 +98,16 @@ function startupReadFaultFixture() {
     trace.sessionReads += 1;
     return mode === 'session' ? failRead() : sessionGet(...args);
   });
+  const sessionSet = chrome.storage.session.set.bind(chrome.storage.session);
+  chrome.storage.session.set = async items => {
+    const mode = await modeReady, metadata = items.runtimeSyncMetadata;
+    if (metadata && (mode === 'font-prewrite' && metadata.pendingFontScopeChange
+      || mode === 'font-checkpoint' && metadata.report.fontRuntime?.state === 'ready' && !metadata.pendingFontScopeChange)) {
+      trace.metadataFailures += 1;
+      throw new Error('VG030_SYNTHETIC_METADATA_WRITE');
+    }
+    return sessionSet(items);
+  };
   const read = chrome.scripting.getRegisteredContentScripts.bind(chrome.scripting);
   chrome.scripting.getRegisteredContentScripts = (...args) => read(...args).then(scripts => {
     if (!args[0]?.ids && trace.firstRegistryIds === null) trace.firstRegistryIds = scripts.map(script => script.id);
@@ -122,7 +132,7 @@ function startupReadFaultFixture() {
       trace.started += 1;
       return initialize(...args).then(report => {
         trace.completed += 1;
-        trace.successes.push({ font: report.fontRuntime });
+        trace.successes.push({ font: report.fontRuntime, status: report.status, metadataError: report.metadataError });
         return report;
       }, error => {
         trace.completed += 1;
@@ -158,7 +168,8 @@ if(production) {
     '不覆盖实际浏览器冷启动、Chrome138/其他OS、真实action Popup或完整人工验收'];
 }
 if(startupReadFailure) {
-  evidence.scope='real-chrome-worker-startup-read-failure';
+  evidence.scope='real-chrome-worker-startup-read-failure-and-font-recovery';
+  evidence.followupTask='VG-030';
   evidence.productionRecovery='AUTHORIZED_TEST_FIXTURE';
   evidence.userProfileAccessed=false;
   evidence.siteRootCause='UNCONFIRMED';
@@ -273,8 +284,11 @@ const server = createServer((request, response) => {
     `<iframe src="http://127.0.0.1:${server.address().port}/child?role=oopif"></iframe></body>`);
   if(request.url === '/tamper') body=body.replace('globalThis.fontObservation',
     'globalThis.fontExposureConfig={enabled:false,blockedFamilies:[]};globalThis.fontObservation');
-  if(request.url === '/embedding') body=html.replace(/<iframe.*<\/body>/s,
-    `<iframe src="http://localhost:${server.address().port}/child?role=late-font-iframe"></iframe></body>`);
+  if(request.url.split('?')[0] === '/embedding') {
+    const fault=new URL(request.url,'http://localhost').searchParams.get('fault');
+    body=html.replace(/<iframe.*<\/body>/s,
+      `<iframe src="http://localhost:${server.address().port}/child?role=late-font-iframe${fault?'&fault='+encodeURIComponent(fault):''}"></iframe></body>`);
+  }
   if(browserDisable) {
     const nonce=randomUUID();deliveries.set(request.url,nonce);
     body=body.replace('globalThis.fontObservation',`globalThis.browserDisableDelivery=${JSON.stringify(nonce)};globalThis.fontObservation`);
@@ -306,6 +320,7 @@ try {
     evidence.loadedCurrentDistDirectly=true;
   }
   if(startupReadFailure) {
+    evidence.distFingerprint=await fingerprintTree(join(root,'dist'));
     const workerPath=join(staged,'background/service-worker.js');
     const worker=await readFile(workerPath,'utf8');
     const anchor='const services = createBackgroundServices(pageRuntimeSource, geolocationRuntimeSource);';
@@ -871,11 +886,23 @@ try {
     let workerSession=await attach(worker.targetId);
     const readTrace=()=>evaluate(workerSession,'globalThis.__vg025StartupReadTrace');
     await until(readTrace,trace=>trace?.started>0&&trace.completed===trace.started&&trace.mode==='none');
+    // VG-029恢复后启动清理也会核验定位namespace；本测试正常启用用户开关，不绕过权限。
+    const details=await page('chrome://extensions/?id='+id);
+    const toggle='(() => {const find=root=>{for(const n of root.querySelectorAll("*")){if(n.id==="allow-user-scripts")return n;if(n.shadowRoot){const v=find(n.shadowRoot);if(v)return v}}};const t=find(document)?.shadowRoot?.querySelector("cr-toggle");if(!t)return null;t.scrollIntoView({block:"center"});const r=t.getBoundingClientRect();return {checked:t.checked,disabled:t.disabled,x:r.x+r.width/2,y:r.y+r.height/2}})()';
+    const beforeSwitch=await until(()=>evaluate(details.sessionId,toggle));
+    assert.equal(beforeSwitch.checked,false);assert.equal(beforeSwitch.disabled,false);
+    await send('Target.activateTarget',{targetId:details.targetId});
+    for(const type of ['mousePressed','mouseReleased']) await send('Input.dispatchMouseEvent',{
+      type,x:beforeSwitch.x,y:beforeSwitch.y,button:'left',clickCount:1
+    },details.sessionId);
+    await until(()=>evaluate(details.sessionId,toggle),value=>value?.checked===true);
+    await send('Target.closeTarget',{targetId:details.targetId});
+    evidence.checks.normalAllowUserScriptsUiEnabled=true;
     const registered=()=>evaluate(control.sessionId,'chrome.scripting.getRegisteredContentScripts()');
     const other={...scripts[0],id:'vg025-other-owned-control',matches:['http://127.0.0.1/*'],excludeMatches:[]};
     const disabled=structuredClone(config);disabled.masterEnabled=false;
-    const setFixture=async mode=>evaluate(control.sessionId,`Promise.all([
-      chrome.storage.local.set({siteSpoofConfig:${JSON.stringify(disabled)},vanishgeoRulesInitialized:true}),
+    const setFixture=async (mode, value=disabled)=>evaluate(control.sessionId,`Promise.all([
+      chrome.storage.local.set({siteSpoofConfig:${JSON.stringify(value)},vanishgeoRulesInitialized:true}),
       chrome.storage.session.set({vg025StartupFaultMode:${JSON.stringify(mode)}})
     ]).then(()=>true)`);
     const restartWorker=async()=>{
@@ -972,6 +999,96 @@ try {
     assert.equal(recovered.first,true);assert.equal(recovered.blocked,true);
     assert.equal((await sample(lastOldDocument.sessionId)).blocked,false);
     evidence.checks.actualWorkerRecoveryClearsResidualOwnedRegistration=true;
+
+    // VG-030：配置保持开启，实际读取失败清理后新开的文档必须补录重载债。
+    await evaluate(control.sessionId,`chrome.scripting.unregisterContentScripts({ids:[${JSON.stringify(other.id)}]})`);
+    const active=structuredClone(config);
+    active.globalProfile.geolocation.enabled=false;
+    active.globalProfile.language.enabled=false;
+    active.globalProfile.timezone.enabled=false;
+    const readMetadata=()=>evaluate(control.sessionId,'chrome.storage.session.get("runtimeSyncMetadata").then(value=>value.runtimeSyncMetadata)');
+    const hasFontDebt=urls=>evaluate(control.sessionId,`(async()=>{
+      const metadata=(await chrome.storage.session.get('runtimeSyncMetadata')).runtimeSyncMetadata;
+      const tabs=await chrome.tabs.query({});
+      return ${JSON.stringify(urls)}.every(url=>{
+        const tab=tabs.find(tab=>tab.url===url);
+        return tab&&metadata.pendingReloads.some(item=>item.tabId===tab.id&&item.surfaces?.includes('font'));
+      });
+    })()`);
+    const latestFont=trace=>trace.successes.at(-1)?.font;
+    evidence.fontRecoveryCases=[];
+    for(const mode of ['local-first','local-config','session']) {
+      phase='font-recovery-active-'+mode;
+      await setFixture('none',active);await restartWorker();
+      await until(readTrace,value=>value?.mode==='none'&&latestFont(value)?.state==='ready'&&value.completed===value.started);
+      await setFixture(mode,active);await restartWorker();
+      await until(readTrace,value=>value?.mode===mode&&value.failures.length>0&&value.completed===value.started);
+      assert.equal((await registered()).filter(script=>script.id.startsWith('vanishgeo-font-exposure-')).length,0);
+      const topUrl=origin+'/font-recovery-'+mode;
+      const embedUrl=origin.replace('localhost','127.0.0.1')+'/embedding?fault='+mode;
+      const top=await page(topUrl), embedding=await page(embedUrl);
+      const childUrl=origin+'/child?role=late-font-iframe&fault='+mode;
+      const embeddingSample=async()=>{
+        const target=await until(async()=> (await send('Target.getTargets')).targetInfos
+          .find(target=>target.type==='iframe'&&target.url===childUrl));
+        return until(()=>sampleChild(target));
+      };
+      const sampleChild=async target=>sample(await attach(target.targetId));
+      assert.equal((await sample(top.sessionId)).blocked,true);
+      assert.equal((await embeddingSample()).blocked,true);
+      assert.equal(await hasFontDebt([topUrl,embedUrl]),false,'恢复前不能已有这两个新建标签页的债');
+      phase='font-recovery-register-'+mode;
+      await setFixture('none',active);await restartWorker();
+      const restored=await until(readTrace,value=>value?.mode==='none'&&value.successes.length>0&&value.completed===value.started);
+      assert.deepEqual(latestFont(restored),{state:'ready',registeredRuleCount:1,reloadRequired:true});
+      assert.equal(await hasFontDebt([topUrl,embedUrl]),true,'匹配顶层和只命中iframe的标签页都应补录font债');
+      assert.equal((await readMetadata()).pendingFontScopeChange,undefined);
+      assert.deepEqual(await evaluate(control.sessionId,'chrome.storage.local.get("siteSpoofConfig").then(value=>value.siteSpoofConfig)'),active);
+      assert.equal((await sample(top.sessionId)).blocked,true,'恢复注册不能热更新旧文档');
+      assert.equal((await embeddingSample()).blocked,true);
+      const reload=async target=>{
+        await send('Page.enable',{},target.sessionId);await send('Page.reload',{ignoreCache:true},target.sessionId);
+        await until(()=>sample(target.sessionId),value=>value?.first&&value.blocked===false);
+      };
+      await reload(top);
+      await send('Page.enable',{},embedding.sessionId);
+      const oldLoader=(await send('Page.getFrameTree',{},embedding.sessionId)).frameTree.frame.loaderId;
+      await send('Page.reload',{ignoreCache:true},embedding.sessionId);
+      await until(async()=> (await send('Page.getFrameTree',{},embedding.sessionId)).frameTree.frame.loaderId!==oldLoader);
+      await until(()=>evaluate(embedding.sessionId,'document.readyState==="complete"'));
+      assert.equal((await embeddingSample()).blocked,false);
+      assert.equal((await sample(embedding.sessionId)).blocked,true,'未匹配顶层保持原生');
+      const filtered=await sample(top.sessionId);
+      assert.deepEqual(filtered.measurementTarget,filtered.measurementFallback);
+      assert.deepEqual(filtered.allowed,baseline.allowed);
+      assert.equal(filtered.ordinaryCheck,baseline.ordinaryCheck);
+      evidence.fontRecoveryCases.push({mode,actualWorkerRestart:true,ownedCleanupVerified:true,configUnchanged:true,
+        freshDocumentNativeDuringFailure:true,unmatchedTopWithMatchedIframe:true,
+        readyWithReloadRequired:true,bothTabsHaveFontDebt:true,oldSnapshotsRetainedUntilReload:true,
+        topAndIframeFilteredAfterReload:true,genericMetricsAndOrdinaryCheckPreserved:true});
+      evidence.checks['fontRecoveryReloadDebt_'+mode]=true;
+    }
+    for(const mode of ['font-prewrite','font-checkpoint']) {
+      phase='font-recovery-write-'+mode;
+      await evaluate(control.sessionId,`chrome.scripting.unregisterContentScripts({ids:[${JSON.stringify(scripts[0].id)}]})`);
+      await setFixture(mode,active);await restartWorker();
+      const trace=await until(readTrace,value=>value?.mode===mode&&value.successes.length>0&&value.completed===value.started);
+      assert.ok(trace.metadataFailures>0);
+      const prewrite=mode==='font-prewrite';
+      assert.equal(latestFont(trace).state,prewrite?'sync-failed':'ready');
+      assert.equal(trace.successes.at(-1).status,'partial');
+      assert.equal((await registered()).some(script=>script.id===scripts[0].id),!prewrite);
+      if(prewrite) assert.equal(trace.additions,0);
+      else assert.equal((await readMetadata()).pendingFontScopeChange,true,'最终checkpoint失败后预写标记必须仍在Chrome session');
+      const url=origin+'/font-recovery-write-'+mode;
+      await page(url);
+      await setFixture('none',active);await restartWorker();
+      const recovered=await until(readTrace,value=>value?.mode==='none'&&value.successes.length>0&&value.completed===value.started);
+      assert.equal(latestFont(recovered).reloadRequired,true);
+      assert.equal(await hasFontDebt([url]),true);
+      assert.equal((await readMetadata()).pendingFontScopeChange,undefined);
+      evidence.checks[prewrite?'fontPrewriteFailureBlocksActualRegistration':'fontCheckpointFailureRetainsWindowAcrossWorkerRestart']=true;
+    }
   } else if(production) {
     phase='production-worker-registration';
     const message=async request=>{

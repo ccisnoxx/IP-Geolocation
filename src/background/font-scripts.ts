@@ -39,7 +39,10 @@ function fontSyncFailure(): RuntimeSyncComponentReport {
 }
 
 // 只处理compiler已派生的注册；不拥有配置、队列或生产恢复授权。供同源资格控制面复用。
-export async function syncFontScriptRegistration(desired: chrome.scripting.RegisteredContentScript[]): Promise<RuntimeSyncComponentReport> {
+export async function syncFontScriptRegistration(
+  desired: chrome.scripting.RegisteredContentScript[],
+  beforeChange?: () => Promise<void>
+): Promise<RuntimeSyncComponentReport> {
   try {
     const read = async () => (await chrome.scripting.getRegisteredContentScripts())
       .filter(script => script.id.startsWith(FONT_SCRIPT_PREFIX));
@@ -47,6 +50,10 @@ export async function syncFontScriptRegistration(desired: chrome.scripting.Regis
     const wanted = new Map(desired.map(script => [script.id, script]));
     const remove = actual.filter(script => !wanted.has(script.id)
       || signature(script) !== signature(wanted.get(script.id)!)).map(script => script.id);
+    // 配置未变也可能因启动清理或注册漂移重新派发；实际写入前交给队列所有者持久化重载窗口。
+    if (beforeChange && (remove.length || desired.some(script => !actual.some(current => current.id === script.id)))) {
+      await beforeChange();
+    }
     if (remove.length) {
       await chrome.scripting.unregisterContentScripts({ ids: remove });
       actual = await read();
@@ -62,11 +69,14 @@ export async function syncFontScriptRegistration(desired: chrome.scripting.Regis
 }
 
 // 由 services 现有配置队列串行调用；人工门禁关闭时只撤销本功能旧注册。
-export async function reconcileFontScripts(config: SiteSpoofConfig): Promise<RuntimeSyncComponentReport & { fontRuntime: FontRuntimeStatus }> {
+export async function reconcileFontScripts(
+  config: SiteSpoofConfig,
+  beforeChange?: () => Promise<void>
+): Promise<RuntimeSyncComponentReport & { fontRuntime: FontRuntimeStatus }> {
   let desired: chrome.scripting.RegisteredContentScript[];
   try { desired = FONT_FILTER_PRODUCTION_APPROVED ? compileFontScripts(config) : []; }
   catch { return { ...fontSyncFailure(), fontRuntime: { state: 'sync-failed', registeredRuleCount: null, reloadRequired: false } }; }
-  const component = await syncFontScriptRegistration(desired);
+  const component = await syncFontScriptRegistration(desired, beforeChange);
   const state: FontRuntimeStatus['state'] = component.status !== 'ok' ? 'sync-failed'
     : !config.masterEnabled || !config.fontExposure.enabled ? 'disabled'
       : config.fontExposure.mode === 'custom' ? 'custom-paused'

@@ -315,12 +315,16 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       ...(pendingGeolocationWindow(stored, signature) ? { pendingGeolocationScopeChange: true } : {}),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
+    const beforeFontChange = async () => {
+      state.pendingFontScopeChange = true;
+      await setRuntimeSyncMetadata(state);
+    };
     const [pageSync, webrtc] = await Promise.all([
       (async () => {
         const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
         if (legacy.status !== 'ok') {
           // 旧路径撤销未确认时不新增字体注册，仍尝试清理字体命名空间。
-          const font = await reconcileFontScripts({ ...config, masterEnabled: false });
+          const font = await reconcileFontScripts({ ...config, masterEnabled: false }, beforeFontChange);
           const geo = await reconcileGeolocationScripts({ ...config, masterEnabled: false }, geolocationRuntimeSource);
           return { component: { status: legacy.status, errors: [...legacy.errors, ...font.errors, ...geo.component.errors] },
             geolocationRuntime: { state: 'sync-failed' as const, registeredRuleCount: geo.geolocationRuntime.registeredRuleCount, reloadRequired: false },
@@ -333,7 +337,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
           state.pendingGeolocationScopeChange = true;
           await setRuntimeSyncMetadata(state);
         });
-        const font = await reconcileFontScripts(config);
+        const font = await reconcileFontScripts(config, beforeFontChange);
         return { ...page, geolocationRuntime: geo.geolocationRuntime, fontRuntime: font.fontRuntime, component: {
           status: page.component.status !== 'ok' ? page.component.status : geo.component.status !== 'ok' ? geo.component.status : font.status,
           errors: [...page.component.errors, ...geo.component.errors, ...font.errors]
