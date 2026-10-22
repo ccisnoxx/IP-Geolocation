@@ -1,0 +1,295 @@
+{
+  "task": "VG-017",
+  "collection": "COMPLETE",
+  "browser": "Chrome/155.0.8059.40",
+  "platform": "darwin",
+  "arch": "arm64",
+  "node": "v24.16.0",
+  "productionChanged": false,
+  "productionRestored": false,
+  "fullTimingGuarantee": "NOT_ESTABLISHED",
+  "cases": [
+    {
+      "mode": "native",
+      "registrationBeforeNavigation": true,
+      "workerStoppedBeforeNavigation": false,
+      "deterministicGate": false,
+      "observations": [
+        {
+          "kind": "top",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "iframe",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "srcdoc",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "blank",
+          "earliestSpoofed": false
+        }
+      ],
+      "stages": [
+        {
+          "top": true,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": false
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": false
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": false
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": false
+        }
+      ],
+      "worker": {
+        "completed": 0,
+        "errors": 0
+      },
+      "scope": "最小机制实验，非生产扩展"
+    },
+    {
+      "mode": "async-warm",
+      "registrationBeforeNavigation": true,
+      "workerStoppedBeforeNavigation": false,
+      "deterministicGate": false,
+      "observations": [
+        {
+          "kind": "top",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "iframe",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "srcdoc",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "blank",
+          "earliestSpoofed": false
+        }
+      ],
+      "stages": [
+        {
+          "top": true,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        }
+      ],
+      "worker": {
+        "completed": 4,
+        "errors": 0
+      },
+      "scope": "最小机制实验，非生产扩展"
+    },
+    {
+      "mode": "async-cold",
+      "registrationBeforeNavigation": true,
+      "workerStoppedBeforeNavigation": true,
+      "deterministicGate": false,
+      "observations": [
+        {
+          "kind": "top",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "iframe",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "srcdoc",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "blank",
+          "earliestSpoofed": false
+        }
+      ],
+      "stages": [
+        {
+          "top": true,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        }
+      ],
+      "worker": {
+        "completed": 4,
+        "errors": 0
+      },
+      "scope": "最小机制实验，非生产扩展"
+    },
+    {
+      "mode": "async-gated",
+      "registrationBeforeNavigation": true,
+      "workerStoppedBeforeNavigation": false,
+      "deterministicGate": true,
+      "observations": [
+        {
+          "kind": "top",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "iframe",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "srcdoc",
+          "earliestSpoofed": false
+        },
+        {
+          "kind": "blank",
+          "earliestSpoofed": false
+        }
+      ],
+      "stages": [
+        {
+          "top": true,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": false,
+          "loadSpoofed": false,
+          "postLoadSpoofed": true
+        }
+      ],
+      "worker": {
+        "completed": 4,
+        "errors": 0
+      },
+      "scope": "最小机制实验，非生产扩展"
+    },
+    {
+      "mode": "direct-main",
+      "registrationBeforeNavigation": true,
+      "workerStoppedBeforeNavigation": false,
+      "deterministicGate": false,
+      "observations": [
+        {
+          "kind": "top",
+          "earliestSpoofed": true
+        },
+        {
+          "kind": "iframe",
+          "earliestSpoofed": true
+        },
+        {
+          "kind": "srcdoc",
+          "earliestSpoofed": true
+        },
+        {
+          "kind": "blank",
+          "earliestSpoofed": true
+        }
+      ],
+      "stages": [
+        {
+          "top": true,
+          "firstSpoofed": true,
+          "loadSpoofed": true,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": true,
+          "loadSpoofed": true,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": true,
+          "loadSpoofed": true,
+          "postLoadSpoofed": true
+        },
+        {
+          "top": false,
+          "firstSpoofed": true,
+          "loadSpoofed": true,
+          "postLoadSpoofed": true
+        }
+      ],
+      "worker": {
+        "completed": 0,
+        "errors": 0
+      },
+      "scope": "固定合成值的独立MAIN脚本，不具备生产动态payload"
+    }
+  ],
+  "limitations": [
+    "只有合成language getter，不是生产runtime或配置解析验收",
+    "direct MAIN改变调度架构且使用固定值，不能证明生产动态配置首脚本可用",
+    "冷后台由真实stopAllWorkers及target消失确认；未测试整个浏览器冷启动",
+    "固定本机fixture和有限文档种类，不证明所有CSP/跨origin/浏览器时序",
+    "原生实际语言仅在本轮临时内存中比较，不写正式证据；不调用位置/provider/STUN"
+  ]
+}

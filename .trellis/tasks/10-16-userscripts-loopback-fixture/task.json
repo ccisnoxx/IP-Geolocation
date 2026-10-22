@@ -1,0 +1,42 @@
+{
+  "id": "userscripts-loopback-fixture",
+  "name": "userscripts-loopback-fixture",
+  "title": "userScripts document_start：修复隔离 Chrome 启动并运行真实 fixture",
+  "description": "独立Linux仅loopback网络命名空间解决Chrome启动；真实fixture GO，2026-10-16已通过用户人工验收。",
+  "status": "completed",
+  "dev_type": "research",
+  "scope": "experiment-only",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-16",
+  "completedAt": "2026-10-16",
+  "branch": null,
+  "base_branch": "experiment/userscripts-document-start",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "experiments/userscripts-document-start/README.md",
+    "experiments/userscripts-document-start/linux-fixture-review.md",
+    "experiments/userscripts-document-start/linux-evidence.json",
+    "experiments/userscripts-document-start/linux-netns.mjs",
+    "experiments/userscripts-document-start/lima-backend.mjs",
+    "experiments/userscripts-document-start/browser-experiment.mjs",
+    "experiments/userscripts-document-start/acceptance.mjs"
+  ],
+  "notes": "2026-10-16 用户明确确认 userScripts document_start 实验通过人工验收；机器GO证据与人工记录关联，任务完成。生产恢复由独立VG-023任务实施。",
+  "meta": {
+    "human_acceptance": {
+      "status": "accepted",
+      "accepted_at": "2026-10-16",
+      "accepted_by": "用户",
+      "evidence": ".trellis/tasks/10-16-userscripts-loopback-fixture/implement.md#2026-10-16-人工验收确认"
+    },
+    "audit_id": "20261016T124509Z-userscripts-linux-isolation-review-dc8328ab"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "id": "vg-004-documentation-privacy",
+  "name": "vg-004-documentation-privacy",
+  "title": "VG-004：清理文档、隐私说明和旧项目信息",
+  "description": "当前公开文档、隐私边界与旧项目信息清理；实现、本地验证及文档人工验收已完成，不改变运行时",
+  "status": "completed",
+  "dev_type": "docs",
+  "scope": "VG-004",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-14",
+  "completedAt": "2026-10-14",
+  "branch": "stabilize/VG-004",
+  "base_branch": "stabilize/VG-004",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".gitignore",
+    ".trellis/tasks/10-14-vg-004-documentation-privacy/check.jsonl",
+    ".trellis/tasks/10-14-vg-004-documentation-privacy/design.md",
+    ".trellis/tasks/10-14-vg-004-documentation-privacy/implement.jsonl",
+    ".trellis/tasks/10-14-vg-004-documentation-privacy/implement.md",
+    ".trellis/tasks/10-14-vg-004-documentation-privacy/prd.md",
+    ".trellis/tasks/10-14-vg-004-documentation-privacy/task.json",
+    ".trellis/tasks/archive/2026-07/07-01-custom-site-configuration-refactor/research/2026-07-01-real-chrome-smoke.md",
+    "CONFIG_GUIDE.md",
+    "CONTRIBUTING.md",
+    "INSTALL.md",
+    "NOTICE",
+    "PERMISSIONS.md",
+    "PRIVACY.md",
+    "README.md",
+    "RELEASE.md",
+    "docs/stabilization/README.md",
+    "docs/stabilization/acceptance-matrix.md",
+    "docs/stabilization/task-manifest.yaml",
+    "docs/vanishgeo-codex-task-prompts.md",
+    "public/icons/README.md",
+    "test-geolocation.html"
+  ],
+  "notes": "仅文档与VG-004治理增量；保留旧任务改动。2026-10-14 用户确认文档人工验收通过，manifest为done，Trellis为completed。未启动后续任务，未归档、提交、发布或重写历史。",
+  "meta": {
+    "stabilization": {
+      "id": "VG-004",
+      "phase": "R1",
+      "dependencies": [
+        "VG-003"
+      ],
+      "manifest": "docs/stabilization/task-manifest.yaml"
+    },
+    "validation": {
+      "human_acceptance": "passed",
+      "local": "passed",
+      "baseline": "50/50 Node/mock/VM/静态",
+      "typecheck": "passed",
+      "tests": "96/96 passed",
+      "build": "Vite 5.4.21 / 29 modules / 13 copied items",
+      "browser": "not_run: 文档任务，运行时未变化",
+      "history_cleanup": "manual_approval_required"
+    },
+    "human_acceptance": {
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-14",
+      "evidence": ".trellis/tasks/10-14-vg-004-documentation-privacy/implement.md#人工验收",
+      "scope": "文档人工验收"
+    }
+  }
+}

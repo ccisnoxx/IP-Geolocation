@@ -1,0 +1,133 @@
+{
+  "task": "VG-011",
+  "kind": "independent_runs",
+  "extension": {
+    "task": "VG-011",
+    "browser": "Chrome/155.0.8059.40",
+    "extensionGate": "PASS",
+    "browserDefectFixed": false,
+    "productionWorkerAndContentByteIdentical": true,
+    "manifestPermissionsUnchanged": true,
+    "scenarios": {
+      "bfcache": {
+        "rejectedBeforeDispatch": true,
+        "productionRuntimeDispatches": 0,
+        "pageAndIframeApisNative": true,
+        "documentChanged": true,
+        "restoredWithPersistedTrue": true
+      },
+      "crossOrigin": {
+        "rejectedBeforeDispatch": true,
+        "productionRuntimeDispatches": 0,
+        "pageAndIframeApisNative": true,
+        "documentChanged": true
+      },
+      "sameUrlReload": {
+        "rejectedBeforeDispatch": true,
+        "productionRuntimeDispatches": 0,
+        "pageAndIframeApisNative": true,
+        "documentChanged": true
+      }
+    },
+    "productionRuntimeDispatches": 0,
+    "initializerRemoved": true,
+    "configSaveAndSameSignatureRetryBlocked": true,
+    "realServiceWorkerRestartBlocked": true,
+    "dnrReport": "ok",
+    "webRtcReport": "ok",
+    "optionsAndPopupPauseVisible": true,
+    "masterSwitchScopeVisible": true,
+    "limitations": [
+      "真实 Chrome headless 单版本定向验证，非人工验收",
+      "未撤销已执行 hook；旧 BFCache 文档须关闭并重建",
+      "原生 Chrome 错投另由保留的 native-only 对照报告",
+      "未调用原生位置或 ICE/STUN，无外部 provider 请求"
+    ]
+  },
+  "nativeControl": {
+    "task": "VG-011",
+    "bfcacheDisabledByFlag": false,
+    "nativeOnly": true,
+    "investigation": "COMPLETE",
+    "documentTargetSafety": "FAIL",
+    "productionAffected": null,
+    "native": {
+      "browser": "Chrome/155.0.8059.40",
+      "cdpDisconnectedDuringProbe": true,
+      "browserNavigation": "chrome.tabs.update",
+      "cdpSuppliesNoDocumentIds": true,
+      "bundler": "none",
+      "liveFrameTargeted": true,
+      "navigationChangedDocument": true,
+      "documentIdFormat": {
+        "length": 32,
+        "hex32": true
+      },
+      "nonexistent": {
+        "rejected": true,
+        "noDocument": true
+      },
+      "staleMain": {
+        "rejected": false,
+        "count": 1,
+        "returnedOld": false,
+        "returnedReplacement": true,
+        "readReplacement": true
+      },
+      "staleIsolated": {
+        "rejected": false,
+        "count": 1,
+        "returnedOld": false,
+        "returnedReplacement": true,
+        "readReplacement": true
+      },
+      "current": {
+        "rejected": false,
+        "count": 1,
+        "returnedOld": false,
+        "returnedReplacement": true,
+        "readReplacement": true
+      },
+      "capture": [
+        {
+          "label": "nonexistent",
+          "hasDocumentIds": true,
+          "exactOld": false
+        },
+        {
+          "label": "staleMain",
+          "hasDocumentIds": true,
+          "exactOld": true
+        },
+        {
+          "label": "staleIsolated",
+          "hasDocumentIds": true,
+          "exactOld": true
+        },
+        {
+          "label": "current",
+          "hasDocumentIds": true,
+          "exactOld": false
+        },
+        {
+          "label": "staleAfterOneSecond",
+          "hasDocumentIds": true,
+          "exactOld": true
+        }
+      ],
+      "staleAfterOneSecond": {
+        "rejected": false,
+        "count": 1,
+        "returnedOld": false,
+        "returnedReplacement": true,
+        "readReplacement": true
+      }
+    },
+    "production": null,
+    "limitations": [
+      "单个临时 profile，非用户人工验收",
+      "生产 wrapper 只延迟已解析 payload 后的真实 API 调用，未修改源码/权限/配置解析",
+      "无 Chrome119 或全部导航生命周期矩阵"
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "id": "vg-025-font-filter",
+  "name": "vg-025-font-filter",
+  "title": "VG-025 固定名单字体暴露过滤的生产恢复",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "VG-025",
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-20",
+  "completedAt": "2026-10-22",
+  "branch": null,
+  "base_branch": "codex/vg-024-remove-dnr-permissions",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "2026-10-20获授权恢复固定内置名单，仅启用HTTP(S) allowlist，custom/位置/Worker暂停。启动读取失败清理修复已通过224/224测试、类型/build、独立只读复核及临时Chrome受控API拒绝6项，与现场根因调查分开。此前.85、.80 headless及有界面对照通过。最新于10-20完成、10-21补记独立有界面CfT155.0.8059.80正常原生目录选择加载及同profile两次真实冷启动：17项PASS，扩展均保留，内部关闭配置及卡片停用状态保留；先采集首HTTP与完整刷新，再开管理页/Options，均原生且无字体来源；重新启用后master仍true、规则保留且过滤恢复。无Extensions.loadUnpacked/unsafe extension debugging、偏好改写、插桩、权限或系统安全放宽，48文件摘要不变。首轮原生操作时序资格不足不计正式验收；准备期加载来源未确认，正式轮明确重选dist并确认后才放行。详见chrome-normal-ui-persistent-cold-155.0.8059.80.json和browser-card-disable-verification.md。临时资源回收，未操作用户Chrome。隔离正常加载及真实冷启动已覆盖，现场实际构建/注册/派发、普通Chrome/profile及历史状态、更早HTTP标签恢复、Chrome138/其他OS和完整人验仍缺证。review/人验pending及现场UNCONFIRMED不变，不推进VG026/027人验，不请求截图或重启，未提交发布。 2026-10-21追加未插桩当前dist、有界面CfT155.0.8059.80正常UI会话恢复23项PASS：独立profile连续三次正常冷重启，开启正对照、内部关闭、卡片停用均自动恢复唯一活动HTTP标签，首inline自报告先于CDP连接，采样/刷新/新建先于管理页与Options；关闭两路保持原生，状态及规则保留，重新启用后过滤恢复。开启首inline捕获字体来源，但晚附加Debugger不回放顶层字体脚本；完整首文档源码未捕获，不能用缺事件判无注入。正式证据chrome-http-session-restore-155.0.8059.80.json。生产/权限/dist未改，临时资源回收，未操作用户Chrome；现场UNCONFIRMED、review/pending与不提交发布不变。 2026-10-21补记当前G05单独授权查询在工具能力核验阶段受阻：Browser仅viewport及窗口/标签/书签management，无原生扩展管理上下文或单扩展状态接口；getExtensionInfo未调用、无状态响应、未发CDP或执行G07。G05/G07仍UNKNOWN，现场UNCONFIRMED。用户已要求停止自动现场取证、不再重复隔离测试；恢复须新明确授权、正式受支持接口和目标绑定、最小脱敏范围，G07另行授权。详见implement.md最新停止点；本次只更新任务记录，不操作Chrome、读配置、暂存、提交或发布，review/pending保持。 2026-10-21本聊天重新授权按推荐顺序执行后，本轮cua_repl正式文档及capabilities.list仍仅viewport/management，无单扩展原生接口；仅读工具连接清单和能力，未绑定原现场、未操作标签/桌面/配置/权限、未执行G05/G07或CDP。按能力不足即停止，不重复隔离测试、不修改生产门禁或持久化策略。G05/G07 UNKNOWN、现场UNCONFIRMED、review/pending及VG026/027人验暂停保持。最新证据见implement.md本轮执行停止点；不暂存提交发布。 2026-10-22本聊天用户明确授权将目标检测站的27项简繁中文字体加入现有生产固定名单，仍仅白名单生效；本轮只实施该增量与相关验证，不恢复历史现场取证。 本轮完成43项固定名单及UI/合同同步，typecheck:tests、typecheck/build和228/228测试通过；实际dist CfT149.0.7827.55生产验证12项PASS，含43项合成字体存在性及站点宽度算法正负对照、未匹配域和关闭原生，脱敏证据chrome-cjk-font-expansion.json。独立critical_reviewer只读复核无可触发缺陷。本地review、人验pending；未访问用户Chrome现场、不提交发布。 2026-10-22本聊天新增授权最小Canvas测量允许名单：仅白名单HTTP(S)顶层，measureText仅monospace/sans-serif/serif；现有check、iframe、门禁及配置不变，不扩展旁路实验。 顶层Canvas允许名单增量完成：三个通用字体、无允许项回退sans-serif，check与iframe旧策略及开关/规则/权限/配置不变。typecheck、typecheck:tests、229/229测试与build通过；实际dist CfT149.0.7827.55定向15项PASS，未知已加载别名有原生正对照，iframe已知回退/其他字体透传、三种门禁、TextMetrics及绘图/导出通过。独立critical_reviewer未发现可触发缺陷并确认构建资产hash一致；不扩展旁路实验，review/人验pending，不提交发布。 2026-10-22本聊天用户明确确认“本次字体允许名单改动验收通过”，按当前最小范围完成收尾；主清单VG-025=done、Trellis=completed、人验accepted。范围仅已启用HTTP(S)白名单顶层measureText的三通用字体允许名单，check/iframe及门禁不变。复用229项测试、类型/build、真实Chrome15项和真实站点两项字体证据，不再增加旁路或其他指纹实验。原现场UNCONFIRMED、G05/G07 UNKNOWN及其他任务未被扩展验收；记录保留原路径，不归档迁移，不暂存/提交/发布。",
+  "meta": {
+    "stabilization_id": "VG-025",
+    "human_acceptance": {
+      "status": "accepted",
+      "accepted_by": "用户",
+      "accepted_at": "2026-10-22",
+      "scope": "本次最小字体允许名单改动：仅已启用HTTP(S)白名单顶层measureText使用monospace/sans-serif/serif，无允许项回退sans-serif；FontFaceSet.check及iframe沿用现有行为，保留原开关门禁。",
+      "evidence": ".trellis/tasks/10-20-vg-025-font-filter/implement.md#2026-10-22-人工验收与收尾",
+      "excluded": [
+        "全部iframe首读绝对隔离及旁路实验",
+        "其他设备或区域指纹实验",
+        "用户原Chrome现场G05/G07取证及历史根因确认",
+        "Chrome138及其他OS完整验收",
+        "提交、推送、发布和其他稳定化任务验收"
+      ]
+    },
+    "release_approved": false,
+    "production_restoration_authorization": {
+      "status": "granted",
+      "date": "2026-10-20",
+      "source": "本聊天用户明确授权",
+      "scope": "固定内置名单，仅已启用HTTP(S) allowlist；2026-10-22授权27项简繁中文字体及仅顶层measureText的三通用字体允许名单",
+      "excluded": [
+        "custom名单",
+        "Geolocation/Permissions geolocation",
+        "Worker/SharedWorker"
+      ],
+      "commit_authorized": false,
+      "release_authorized": false
+    },
+    "field_investigation": {
+      "record_date": "2026-10-21",
+      "root_cause": "UNCONFIRMED",
+      "G05": "UNKNOWN",
+      "G07": "UNKNOWN",
+      "latest_g05_attempt": {
+        "result": "BLOCKED_AT_TOOL_CAPABILITY_CHECK",
+        "source": "本轮cua_repl正式浏览器文档与capabilities.list()实际响应；尚未绑定原现场目标",
+        "capability_check_exact_time": "UNKNOWN",
+        "advertised_browser_capabilities": [
+          "viewport",
+          "management"
+        ],
+        "management_scope": "窗口、标签、分组和书签组织；不含扩展管理",
+        "tool_supported_native_management_context_exposed": false,
+        "native_extension_state_query_performed": false,
+        "native_state_response_received": false,
+        "cdp_commands_sent": 0,
+        "G07_collection_performed": false,
+        "gap": "缺少工具正式支持的原生扩展管理上下文或等价单扩展状态读取接口",
+        "recorded_at": "2026-10-21T11:19:28+08:00",
+        "authorization_source": "本聊天用户：接下来按照推荐的执行顺序实现；仅恢复本轮能力核验及具备接口时的一次最小G05",
+        "field_target_binding_confirmed": false,
+        "browser_tab_claim_or_navigation_performed": false,
+        "native_app_window_access_performed": false,
+        "page_script_execution_performed": false
+      },
+      "automatic_field_collection": "stopped_after_authorized_capability_check",
+      "repeat_isolated_tests": false,
+      "resume_conditions": [
+        "用户重新明确授权指定采集阶段；不自动重连、轮询或重试",
+        "工具正式支持原生单扩展只读查询，并能绑定已确认测试浏览器与目标扩展",
+        "目标扩展最小白名单脱敏；不读取或复制配置文件，不扩大为全profile枚举，不回填历史状态",
+        "G07另行独立授权并先核验数据范围、落盘、文档关联及有界停止清理条件"
+      ],
+      "record_reference": "implement.md",
+      "record_heading": "本轮执行停止点：重新授权后的能力核验仍受阻（2026-10-21）"
+    }
+  }
+}

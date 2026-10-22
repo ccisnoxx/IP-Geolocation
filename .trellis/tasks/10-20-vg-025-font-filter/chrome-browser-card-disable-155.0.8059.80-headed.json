@@ -1,0 +1,248 @@
+{
+  "task": "VG-025",
+  "scope": "unmodified-dist-browser-card-disable",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.80",
+  "checks": {
+    "nativePositiveControl": true,
+    "enabledFilterAndMatchingAssetConfirmed": true,
+    "internalMasterOffNewDocumentNative": true,
+    "internalMasterOffFullReloadNative": true,
+    "browserCardDisabledStateConfirmed": true,
+    "browserCardOffNewDocumentNative": true,
+    "browserCardOffFullReloadNative": true,
+    "browserReenablePreservesMasterAndRestoresFilter": true,
+    "exactUninstrumentedDistVerified": true
+  },
+  "productionRecovery": "AUTHORIZED",
+  "cleanup": "PASS",
+  "failure": null,
+  "limitations": [
+    "全新临时Chrome/profile直接加载当前dist原路径，无插桩、无新增驱动页、无权限变更；控制面使用原有Options页",
+    "内部总开关通过受保护管理消息切换；浏览器停用通过chrome://extensions对应卡片的可信鼠标点击并重新读取UI状态，不使用unload或管理API替代",
+    "本轮未重启任何浏览器；不覆盖真正冷启动、Chrome138/其他OS或用户Chrome现场状态",
+    "仅合成loopback探针，不请求provider；浏览器自身后台网络未全量监控；不保存用户路径、实际扩展ID、文档nonce或字体/设备原值",
+    "有界面窗口由本次子进程Browser协议核对，未采集其他应用窗口；与已有同版本headless比较而未重跑headless，不等于用户普通Chrome/现场profile、历史状态或实际派发路径。"
+  ],
+  "browserMode": "headed",
+  "headless": false,
+  "userProfileAccessed": false,
+  "siteRootCause": "UNCONFIRMED",
+  "fontFilterSha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860",
+  "distFingerprint": {
+    "fileCount": 48,
+    "sha256": "b226df8ea498c4c6bdf60bbfb4bf57a3caaac99da2eb3b916384fac92db3b746"
+  },
+  "distBackupMatchesSource": true,
+  "loadedCurrentDistDirectly": true,
+  "expectedChromeVersion": "155.0.8059.80",
+  "expectedChromeVersionMatched": true,
+  "sourceCollectionProtocolVerified": true,
+  "headedWindowProtocolVerified": true,
+  "headedWindow": {
+    "targetWindowFound": true,
+    "windowState": "normal",
+    "positiveDimensions": true
+  },
+  "observations": {
+    "native": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "internalEnabled": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": false,
+      "targetMetricsEqualMonospace": true,
+      "ordinaryIframeCheck": false,
+      "stackContainsFontAsset": true,
+      "fontAssetParsedInTopDocument": true,
+      "parsedFontAssetMatchesDist": true
+    },
+    "internalOffNew": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "internalOffReload": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "beforeBrowserCardOff": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": false,
+      "targetMetricsEqualMonospace": true,
+      "ordinaryIframeCheck": false,
+      "stackContainsFontAsset": true,
+      "fontAssetParsedInTopDocument": true,
+      "parsedFontAssetMatchesDist": true
+    },
+    "browserDisabledNew": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "browserDisabledReload": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": true,
+      "targetMetricsEqualMonospace": false,
+      "ordinaryIframeCheck": true,
+      "stackContainsFontAsset": false,
+      "fontAssetParsedInTopDocument": false,
+      "parsedFontAssetMatchesDist": null
+    },
+    "browserReenabled": {
+      "freshHttpResponseConfirmed": true,
+      "firstInlineObserved": true,
+      "targetFontCheck": false,
+      "targetMetricsEqualMonospace": true,
+      "ordinaryIframeCheck": false,
+      "stackContainsFontAsset": true,
+      "fontAssetParsedInTopDocument": true,
+      "parsedFontAssetMatchesDist": true
+    }
+  },
+  "cardStates": {
+    "initial": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "ENABLED",
+      "checked": true,
+      "disabled": false
+    },
+    "internalMasterOff": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "ENABLED",
+      "checked": true,
+      "disabled": false
+    },
+    "browserDisabled": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "DISABLED",
+      "checked": false,
+      "disabled": false
+    },
+    "reenabled": {
+      "identityMatched": true,
+      "name": "VanishGeo",
+      "state": "ENABLED",
+      "checked": true,
+      "disabled": false
+    }
+  },
+  "internalOffReport": {
+    "masterEnabled": false,
+    "font": {
+      "state": "disabled",
+      "registeredRuleCount": 0,
+      "reloadRequired": true
+    },
+    "browserCardStillEnabled": true
+  },
+  "masterEnabledImmediatelyBeforeBrowserDisable": true,
+  "browserDisableMethod": "extension-card-trusted-pointer-and-fresh-manager-state",
+  "workerTargetPresentAfterCardDisable": false,
+  "oldDocumentRetainsHookBeforeReload": true,
+  "browserDisableOutcome": "NO_INJECTION_OBSERVED",
+  "masterEnabledAfterBrowserReenable": true,
+  "backupDistCopyUnchangedAfterRun": true,
+  "sourceDistUnchangedAfterRun": true,
+  "recordedAt": "2026-10-20T15:25:36.753Z",
+  "distribution": "Chrome for Testing",
+  "taskStatus": "review",
+  "humanAcceptance": "pending",
+  "commitOrReleasePerformed": false,
+  "sameVersionAsRecordedUserRestart": true,
+  "sameBinaryOrProfileAsUserBrowserEstablished": false,
+  "packageVerification": {
+    "sourceUrl": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.80/mac-arm64/chrome-mac-arm64.zip",
+    "archiveSha256": "37e08609b6d087fdb84848d90499d0a54b5a8446eddf76de6b95e0d7ef504ff5",
+    "sameSha256AsInitialAcquisition": true,
+    "httpsResponseLengthAndMd5Matched": true,
+    "zipCrcValid": true,
+    "extractedEntriesVerifiedAgainstZip": 673,
+    "extractedBytesAndSymlinkTargetsMatched": true,
+    "bundleVersion": "155.0.8059.80",
+    "sameArchiveAsHeadless": true,
+    "launcherSha256": "6630c648ed049854325b9b9a628bc85551423a207aba83f0d10ca6091f44cf17"
+  },
+  "signingReassessmentReference": {
+    "evidence": "chrome-browser-card-disable-155.0.8059.80.json",
+    "appliesToByteIdenticalArchive": true,
+    "signatureAssessmentNotRepeatedThisTurn": true,
+    "publisherSignatureOrNotarizationClaimed": false
+  },
+  "launchConfiguration": {
+    "headlessFlagUsed": false,
+    "onlyBrowserArgumentDifferenceFromHeadless": "省略--headless=new",
+    "explicitBinaryAndExactVersionRequired": true,
+    "ownedFreshTemporaryProfile": true,
+    "loopbackCdpOfOwnedProcessOnly": true,
+    "browserSandboxDisablingFlagsAdded": false
+  },
+  "securityBoundary": {
+    "userChromeControlledOrRestarted": false,
+    "userChromeProfileAccessed": false,
+    "installedApplicationReplaced": false,
+    "systemSecuritySettingsChanged": false,
+    "quarantineAttributeAbsent": true,
+    "quarantineRemoved": false,
+    "appResignedOrReconstructed": false,
+    "gatekeeperEnabledLaunchBehaviorTested": false
+  },
+  "headlessComparison": {
+    "evidence": "chrome-browser-card-disable-155.0.8059.80.json",
+    "headlessReexecutedThisTurn": false,
+    "sameBrowserVersion": true,
+    "sameArchiveSha256": true,
+    "sameDistFingerprint": true,
+    "comparedFields": [
+      "checks",
+      "observations",
+      "cardStates",
+      "internalOffReport",
+      "masterEnabledImmediatelyBeforeBrowserDisable",
+      "workerTargetPresentAfterCardDisable",
+      "oldDocumentRetainsHookBeforeReload",
+      "browserDisableOutcome",
+      "masterEnabledAfterBrowserReenable",
+      "distFingerprint",
+      "fontFilterSha256"
+    ],
+    "differingFields": [],
+    "result": "NO_MODE_DEPENDENT_DIFFERENCE_OBSERVED",
+    "siteRootCause": "UNCONFIRMED",
+    "conclusion": "本隔离条件内，headed与此前headless均未复现关闭后新文档注入；仍未取得现场实际派发路径。"
+  },
+  "additionalPackageCleanup": {
+    "result": "PASS",
+    "ownedBrowserProcessesRemaining": false,
+    "archiveExtractedAppAndLogsRemoved": true
+  }
+}

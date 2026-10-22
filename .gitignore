@@ -329,3 +329,16 @@ Thumbs.db
 !.trellis/tasks/10-22-vg-032-header-sync/chrome-normal-ui-cold-start-evidence.json
 !.trellis/tasks/10-22-vg-032-header-sync/chrome-http-session-restore-evidence.json
 !.trellis/tasks/10-22-vg-032-header-sync/chrome-master-off-restore-evidence.json
+
+# 恢复 Git 中已有的 US-EXP / VG-023 正式任务记录
+!.trellis/tasks/10-16-userscripts-loopback-fixture/
+.trellis/tasks/10-16-userscripts-loopback-fixture/*
+!.trellis/tasks/10-16-userscripts-loopback-fixture/task.json
+!.trellis/tasks/10-16-userscripts-loopback-fixture/prd.md
+!.trellis/tasks/10-16-userscripts-loopback-fixture/implement.md
+!.trellis/tasks/10-16-vg-023-userscripts-language-timezone/
+.trellis/tasks/10-16-vg-023-userscripts-language-timezone/*
+!.trellis/tasks/10-16-vg-023-userscripts-language-timezone/task.json
+!.trellis/tasks/10-16-vg-023-userscripts-language-timezone/prd.md
+!.trellis/tasks/10-16-vg-023-userscripts-language-timezone/design.md
+!.trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md

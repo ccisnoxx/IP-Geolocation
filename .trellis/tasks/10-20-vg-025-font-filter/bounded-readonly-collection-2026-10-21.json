@@ -1,0 +1,180 @@
+{
+  "format": "VG025_BOUNDED_READONLY_INCREMENT_V1",
+  "record_date": "2026-10-21",
+  "recorded_at_utc": "2026-10-20T17:53:50.169419+00:00",
+  "result": "PARTIAL_STOPPED_AT_TOOL_PRECONDITION",
+  "task_status": "review",
+  "human_acceptance": "pending",
+  "site_root_cause": "UNCONFIRMED",
+  "base_package": {
+    "evidence_sha256": "b7a0414267efca06f8ea52bdb52b49551ad267b4766e9ee51d26f987a4538ea0",
+    "readme_sha256": "2b4927a8d5f27e292af5bbbda03f76560b63c48e04511c142fd8f5999066c57e",
+    "original_package_modified": false
+  },
+  "case_alias": "FIELD_POST_RESTART",
+  "document_alias": "DOC_A",
+  "extension_alias": "EXTENSION_A",
+  "authorization_scope": "按G04→G01/当前G05→已有G07→脱敏增量有界采集；不新建/导航/刷新、不启用扩展、不改配置、不读取或复制Chrome配置文件。",
+  "collection_order": [
+    {
+      "step": 1,
+      "action": "绑定留存URL对应的现存探针，读取可见文档/服务器交付标识并与F01内存比对",
+      "outcome": "文档级匹配；进程/profile内部链未取得"
+    },
+    {
+      "step": 2,
+      "action": "读取受支持tab CDP能力文档，评估G01可用性",
+      "outcome": "要求先导航新标签，与保留现场范围冲突；未发送CDP命令，未尝试其他通道"
+    },
+    {
+      "step": 3,
+      "action": "仅核对已留存F01/F02/F03/F04及基础诊断包中的G07记录",
+      "outcome": "未提供可关联该文档的原生派发事件；未扫描Chrome日志或配置"
+    },
+    {
+      "step": 4,
+      "action": "结束取证操作并输出脱敏部分结果",
+      "outcome": "不设置handoff/deliverable；用户原标签保持打开，工具按会话规则释放控制"
+    }
+  ],
+  "fields": {
+    "G04": {
+      "status": "PARTIAL",
+      "label": "部分取得",
+      "source": "现有Chrome工具连接返回的目标探针AX/DOM快照；F01留存现场JSON及F02交付标识",
+      "comparison_completed_at_utc": "2026-10-20T17:50:47Z",
+      "exact_dom_capture_time_utc": "UNKNOWN",
+      "observation_time_note": "DOM读取先于上述比对完成时刻；未把后续写记录时间冒充精确采样时间。",
+      "existing_target_handle_obtained": true,
+      "retained_probe_url_matches": true,
+      "visible_document_marker_matches_retained_case": true,
+      "visible_delivery_marker_matches_retained_case": true,
+      "old_case_document_bound": true,
+      "underlying_browser_process_identity": "UNKNOWN",
+      "runtime_profile_identity": "UNKNOWN",
+      "frame_loader_execution_context_chain": "UNKNOWN",
+      "limit": "仅取得工具连接与现存旧文档的对应关系；不能把provider/tab标识或记录别名当作进程/profile身份。"
+    },
+    "G01": {
+      "status": "UNKNOWN",
+      "label": "UNKNOWN",
+      "source": "已读取Tab Capability: cdp的能力约束，未读取运行时脚本源码",
+      "collected_at_utc": "UNKNOWN",
+      "source_text": "UNKNOWN",
+      "runtime_source_sha256": "UNKNOWN",
+      "debugger_enable_sent": false,
+      "explicit_cdp_commands_sent": 0,
+      "late_debugger_attach": "NOT_PERFORMED",
+      "reason": "原始CDP首次命令前要求导航新标签；本次不能新建/导航，也不改用外部CDP或原生UI绕过该限制。"
+    },
+    "G05": {
+      "status": "UNKNOWN",
+      "label": "UNKNOWN",
+      "source": "未进入浏览器管理控制面，未取得当前运行时状态",
+      "collected_at_utc": "UNKNOWN",
+      "state_at_current_read": "UNKNOWN",
+      "disable_reason_at_current_read": "UNKNOWN",
+      "state_at_historical_dispatch": "UNKNOWN",
+      "retained_user_confirmation": {
+        "source_ids": [
+          "F01",
+          "F04",
+          "F06"
+        ],
+        "browser_card_state": "DISABLED",
+        "new_runtime_state_observation": false
+      },
+      "reason": "当前探针DOM不提供浏览器层停用态；未获可用的合规内部读取路径，不重新尝试此前被限制的管理页，不用旧确认替代当前/派发时状态。"
+    },
+    "G07": {
+      "status": "UNKNOWN",
+      "label": "UNKNOWN",
+      "source": "基础诊断包与F01/F02/F03/F04留存JSON的有界核对",
+      "retained_record_review_completed_at_utc": "2026-10-20T17:52:32Z",
+      "native_event_capture_time_utc": "UNKNOWN",
+      "native_dispatch_owner": "UNKNOWN",
+      "native_registration_identity": "UNKNOWN",
+      "dispatch_channel": "UNKNOWN",
+      "dispatch_event_sequence": "UNKNOWN",
+      "correlated_native_record_supplied_in_reviewed_sources": false,
+      "live_browser_native_log_read": false,
+      "new_trace_or_logging_enabled": false,
+      "reason": "核对范围内只有页面观测/来源栈和用户确认，没有同文档原生派发事件。缺留存记录不等于该派发或其他通道不存在。"
+    }
+  },
+  "tool_precondition": {
+    "source": "现有工具Tab Capability: cdp文档",
+    "requirement": "Navigate a fresh tab to its intended HTTP or HTTPS page before the first CDP command.",
+    "conflict": "本次授权范围不允许新建/导航/刷新，必须保留现存故障文档。",
+    "resolution": "不发送命令，不绕过，停止运行时深挖并交付部分结果。"
+  },
+  "evidence_interpretation": [
+    "新取得的只是旧文档关联。页面现有结果表属于留存历史观测，本次没有重新调用字体API或点击诊断按钮。",
+    "页面表中的完整版本也属于该次既有诊断输出，不作为本轮新查询浏览器进程版本。",
+    "G04文档级关联没有补齐其进程/profile部分；G01、当前/历史G05与G07仍UNKNOWN。",
+    "没有新增证据足以在H1关联原生派发、H2另一执行通道、H3实际构建/环境差异之间作归因。"
+  ],
+  "actions_and_limits": {
+    "browser_started_or_restarted": false,
+    "tabs_created": 0,
+    "page_navigations_or_reloads": 0,
+    "probe_button_clicked": false,
+    "font_api_called_for_new_measurement": false,
+    "options_opened": false,
+    "extension_management_page_opened": false,
+    "extension_enabled_or_reloaded": false,
+    "worker_attached_woken_or_restarted": false,
+    "chrome_configuration_read_or_copied": false,
+    "raw_external_cdp_used": false,
+    "system_process_or_port_scan": false,
+    "isolated_tests_rerun": false,
+    "new_native_trace_enabled": false,
+    "production_source_permissions_or_dist_changed": false,
+    "commit_publish_or_external_transmission": false,
+    "observer_effect_note": "本次命名工具会话、绑定既有标签并读取可见状态；不把工具观察宣称为绝对零运行时影响。未发送显式CDP命令。"
+  },
+  "session_end": {
+    "collection_operations_ended": true,
+    "local_tool_handles_dropped": true,
+    "explicit_cdp_session_created": false,
+    "user_tab_closed": false,
+    "handoff_or_deliverable_mark_set": false,
+    "tool_release_policy": "回合结束时释放已绑定用户标签，不关闭用户标签；未声称手动执行了未提供的detach接口。"
+  },
+  "privacy": {
+    "raw_identifiers_urls_ports_metrics_stack_and_ua_omitted": true,
+    "only_marker_equality_persisted": true,
+    "raw_sources_modified": false,
+    "base_package_preserved": true
+  },
+  "retained_source_fingerprints": [
+    {
+      "id": "F01",
+      "name": "cold-restart-result.json",
+      "kind": "留存现场原始观测",
+      "sha256": "f4cd93daf38ee8e9a80762cd3cba2a9e667aab6b7b6e464be739c534b34d0cd7",
+      "included_as": "仅白名单摘要，不附原文件"
+    },
+    {
+      "id": "F02",
+      "name": "latest-http-delivery.json",
+      "kind": "留存服务端交付标识",
+      "sha256": "0d292a1fd65b1199a55c1316895be2b3160833f973861655bd95b4de85c4d111",
+      "included_as": "仅白名单摘要，不附原文件"
+    },
+    {
+      "id": "F03",
+      "name": "disable-scope-diagnostic.json",
+      "kind": "留存现场范围对照",
+      "sha256": "3aa8330e5c6b60939ff15d01ed7956c087f84281affd8532ee51b02f29e1fd9d",
+      "included_as": "仅白名单摘要，不附原文件"
+    },
+    {
+      "id": "F04",
+      "name": "extension-off-source.json",
+      "kind": "留存用户停用确认与来源观测",
+      "sha256": "5ab630da125205e5a4137186284ee95c6443049091944109068230b1b2b5d023",
+      "included_as": "仅白名单摘要，不附原文件"
+    }
+  ]
+}

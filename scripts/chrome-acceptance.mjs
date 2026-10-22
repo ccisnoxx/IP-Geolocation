@@ -76,16 +76,16 @@ function printChecklist(origin, chromePath, launchStatus) {
   urls.forEach((entry) => {
     console.log(`- ${entry.label}: ${entry.url}`);
   });
-  console.log('\nVG-023 当前语言/时区第一阶段验收（dry-run 不执行浏览器断言）：');
+  console.log('\n当前候选人工验收清单（dry-run 不执行浏览器断言）：');
   console.log('- Chrome 138+；在 chrome://extensions 详情页正常开启 Allow User Scripts。API/权限/用户开关不可用或注册失败时 fail closed，无 documentId 回退。');
   console.log('- Popup/Options 确认注册成功，再完整 reload 或关闭重开已有页面；旧文档与 BFCache 保持旧快照，无热更新或自动刷新。');
   console.log('- 普通 HTTP(S) 顶层和 iframe 的首 inline 应读取配置语言/时区；未匹配 origin 保持原生，子域规则优先。');
   console.log('- 固定内置名单字体过滤按已启用HTTP(S)规则独立注册；地理位置按独立userScripts状态报告；自定义名单、Worker / SharedWorker 仍暂停；about:blank/srcdoc/data/blob/特殊 sandbox 为 unsupported / UNKNOWN。');
-  console.log('- 真实隔离 smoke：node scripts/chrome-language-timezone-smoke.mjs --output experiments/userscripts-document-start/production-evidence.json；必须先准备并启动独立 Linux fixture VM，自身 sandbox 和仅 loopback 均须 PASS。');
-  console.log('- 最小实验 linux-evidence.json 已人工验收；生产 smoke 单独保存 earliest、A→B/reload、disable/reload、恢复与暂停边界证据，不把 dry-run 当真实 Chrome 通过。');
-  console.log('- Accept-Language 仅原生观测，不与网页语言比较 PASS/FAIL；当前版本不再申请 DNR 权限。WebRTC policy 独立报告，其同步不等于 ICE 网络防护通过。本阶段 smoke 不访问第三方测试站点、provider 或 STUN。');
+  console.log('- 当前验收证据索引：docs/stabilization/evidence-index.md；推荐流程、定位、字体与语言头按各自生产 runner 和覆盖范围解释。');
+  console.log('- 历史 Linux 最小实验和 VG-023 smoke 只证明当时范围；当前候选需记录 earliest、配置切换/reload、关闭恢复、完整退出重启及未支持边界，不把 dry-run 当真实 Chrome 通过。');
+  console.log('- Accept-Language 从有效语言 payload 同步，需核对请求头与新文档语言；可靠关闭入口为插件总开关，等待保存/同步后完整重载，再按需关闭 Allow User Scripts。直接关闭 Chrome 开关不保证首请求原生。WebRTC policy 独立报告，其同步不等于 ICE 网络防护通过。dry-run 不执行网络或浏览器验收。');
   console.log('- 扩展 diagnostic/report.html 可比较实际值；observation mode leak-test 只展示观测 / UNKNOWN，不接收配置。Capture pass-through baseline / Run all checks 是旧完整清单入口，暂停/不支持项不能算配置 PASS。');
-  console.log('- pass-through real-device surfaces 保持原生；历史 --injection（chrome-injection-smoke.mjs）、worker/geolocation 全能力 runner 不能作本阶段全通过门禁。');
+  console.log('- pass-through real-device surfaces 保持原生；历史 --injection（chrome-injection-smoke.mjs）、worker/geolocation 全能力 runner 不能作当前候选全通过门禁。');
   console.log('\nPress Ctrl+C here when manual validation is complete.');
 }
 

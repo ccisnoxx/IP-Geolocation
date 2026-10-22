@@ -1,0 +1,86 @@
+{
+  "task": "VG-011",
+  "bfcacheDisabledByFlag": false,
+  "nativeOnly": true,
+  "investigation": "COMPLETE",
+  "documentTargetSafety": "FAIL",
+  "productionAffected": null,
+  "native": {
+    "browser": "Chrome/155.0.8059.40",
+    "cdpDisconnectedDuringProbe": true,
+    "browserNavigation": "chrome.tabs.update",
+    "cdpSuppliesNoDocumentIds": true,
+    "bundler": "none",
+    "liveFrameTargeted": true,
+    "navigationChangedDocument": true,
+    "documentIdFormat": {
+      "length": 32,
+      "hex32": true
+    },
+    "nonexistent": {
+      "rejected": true,
+      "noDocument": true
+    },
+    "staleMain": {
+      "rejected": false,
+      "count": 1,
+      "returnedOld": false,
+      "returnedReplacement": true,
+      "readReplacement": true
+    },
+    "staleIsolated": {
+      "rejected": false,
+      "count": 1,
+      "returnedOld": false,
+      "returnedReplacement": true,
+      "readReplacement": true
+    },
+    "current": {
+      "rejected": false,
+      "count": 1,
+      "returnedOld": false,
+      "returnedReplacement": true,
+      "readReplacement": true
+    },
+    "capture": [
+      {
+        "label": "nonexistent",
+        "hasDocumentIds": true,
+        "exactOld": false
+      },
+      {
+        "label": "staleMain",
+        "hasDocumentIds": true,
+        "exactOld": true
+      },
+      {
+        "label": "staleIsolated",
+        "hasDocumentIds": true,
+        "exactOld": true
+      },
+      {
+        "label": "current",
+        "hasDocumentIds": true,
+        "exactOld": false
+      },
+      {
+        "label": "staleAfterOneSecond",
+        "hasDocumentIds": true,
+        "exactOld": true
+      }
+    ],
+    "staleAfterOneSecond": {
+      "rejected": false,
+      "count": 1,
+      "returnedOld": false,
+      "returnedReplacement": true,
+      "readReplacement": true
+    }
+  },
+  "production": null,
+  "limitations": [
+    "单个临时 profile，非用户人工验收",
+    "生产 wrapper 只延迟已解析 payload 后的真实 API 调用，未修改源码/权限/配置解析",
+    "无 Chrome119 或全部导航生命周期矩阵"
+  ]
+}

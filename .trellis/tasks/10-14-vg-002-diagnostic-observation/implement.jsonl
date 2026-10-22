@@ -1,0 +1,6 @@
+{"file": "docs/stabilization/task-manifest.yaml", "reason": "唯一任务范围、阶段、依赖与状态"}
+{"file": ".trellis/tasks/10-14-vg-002-diagnostic-observation/prd.md", "reason": "当前任务目标与验收"}
+{"file": ".trellis/tasks/10-14-vg-002-diagnostic-observation/design.md", "reason": "预期配置删除和观察边界"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "维护源和 MV3 分层"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "隐私与验证层级合同"}
+{"file": "PRIVACY.md", "reason": "实际数据流及外部请求边界"}

@@ -1,0 +1,25 @@
+{
+  "task": "VG-012",
+  "browser": "Chrome/155.0.8059.40",
+  "result": "PASS",
+  "productionDispatchRestored": false,
+  "baselineRuntimeSha256": "804c2b774ccc77b39c051c1b067e28a513a4416e4690ac40a648fe617a95955d",
+  "checks": {
+    "fullPageEquivalence": true,
+    "registryReflection": true,
+    "navigatorIntlDateDst": true,
+    "geolocationWatchPermissions": true,
+    "canvasFallbackAndRestore": true,
+    "nativeDevicePassThrough": true,
+    "classicModuleSharedNestedWorkers": true,
+    "sharedIdentityAndModuleOrder": true,
+    "repeatedFutureWorkerOnly": true,
+    "isolatedUnchanged": true,
+    "strictCspAndIframe": true
+  },
+  "limitations": [
+    "仅当前文档直接注入的隔离等价验证；生产安全暂停另测",
+    "不修复 stale documentId 或 earliest-inline 竞态",
+    "无 Chrome119/浏览器矩阵或人工验收"
+  ]
+}

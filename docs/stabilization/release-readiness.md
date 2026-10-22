@@ -1,5 +1,7 @@
 # VG-014 发布候选验收
 
+> 历史报告（2026-10-15）：以下版本、暂停范围、阻断和测试数量均描述当时候选，不代表当前产品状态。当前范围及发布缺口见 [发布校准记录](release-calibration.md)，验收链见 [证据索引](evidence-index.md)。
+
 日期：2026-10-15。阶段 R4；任务状态只读取 [task-manifest](./task-manifest.yaml)。**当前不具备完整功能 release-ready 条件，禁止据本报告自动发布。** VG-011 的生产页面伪装安全暂停保持，旧 documentId 错投和 earliest-inline 负向证据未修复。本报告验收当前安全暂停候选，并将隔离 runtime 功能结果单独列出；PASS 不表示恢复生产派发。
 
 ## 候选与环境

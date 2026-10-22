@@ -30,7 +30,25 @@ assert.equal(manifest.version, pkg.version); assert.equal(lock.version, pkg.vers
 assert.equal(manifest.manifest_version, 3); assert.equal(manifest.content_scripts, undefined);
 assert.deepEqual(manifest.web_accessible_resources, []);
 assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
-assert.deepEqual(manifest.permissions, ['storage', 'scripting', 'tabs', 'contextMenus', 'privacy', 'declarativeNetRequest', 'declarativeNetRequestWithHostAccess']);
+assert.deepEqual(manifest.permissions, ['storage', 'scripting', 'tabs', 'contextMenus', 'privacy', 'userScripts', 'declarativeNetRequestWithHostAccess']);
+
+assert.equal(manifest.minimum_chrome_version, '138');
+assert.deepEqual(manifest.background, { service_worker: 'background/service-worker.js', type: 'module' });
+assert.deepEqual(manifest.declarative_net_request, { rule_resources: [
+  { id: 'header_migration_guard', enabled: true, path: 'rules/header-migration-guard.json' }
+] });
+const guardPath = 'rules/header-migration-guard.json';
+assert.ok(files.has(guardPath), '缺少默认隔离规则');
+assert.deepEqual(JSON.parse(files.get(guardPath)), [{
+  id: 1, priority: 2147483647, action: { type: 'allow' },
+  condition: { regexFilter: '^https?://', resourceTypes: [
+    'main_frame', 'sub_frame', 'stylesheet', 'script', 'image', 'font', 'object',
+    'xmlhttprequest', 'ping', 'csp_report', 'media', 'websocket', 'webtransport', 'webbundle', 'other'
+  ] }
+}], '默认隔离规则必须覆盖当前 HTTP(S) 资源类型');
+assert.equal(files.get(guardPath).equals(await readFile(join(root, guardPath))), true, '隔离规则与维护源字节不一致');
+const fontEntry = 'font-exposure/filter.js';
+assert.ok(files.has(fontEntry), '缺少固定字体过滤入口');
 
 const entries = ['background/service-worker.js', 'content/content.js', 'popup/popup.js', 'options/options.js', 'leak-test/leak-test.js', 'diagnostic/report.js'];
 for (const name of [...entries, 'manifest.json', 'LICENSE', 'NOTICE', manifest.action.default_popup, manifest.options_page, ...Object.values(manifest.icons)]) assert.ok(files.has(name), `缺少入口：${name}`);
@@ -76,7 +94,8 @@ for (const [name, bytes] of files) {
 assert.deepEqual([...new Set(sensitiveFindings)], [], '构建存在待人工核实的敏感数据命中');
 const reached = new Set();
 function walk(name) { if (reached.has(name)) return; reached.add(name); for (const next of graph.get(name) || []) walk(next); }
-entries.forEach(walk);
+[...entries, fontEntry].forEach(walk);
+assert.deepEqual(graph.get(fontEntry), [], '字体过滤必须保持单文件自包含');
 const chunks = [...files.keys()].filter(name => name.startsWith('assets/') && name.endsWith('.js')).sort();
 for (const name of chunks) assert.ok(reached.has(name), `非入口可达共享chunk：${name}`);
 assert.equal(files.has('injected/runtime.js'), false);
@@ -92,13 +111,14 @@ assert.deepEqual(zippedFiles, [...files.keys()].sort(), 'ZIP 必须完整且仅�
 for (const name of zippedFiles) assert.equal(hash(execFileSync('unzip', ['-p', archive, name], { maxBuffer: 8 * 1024 * 1024 })), hash(files.get(name)), `ZIP 字节不一致：${name}`);
 const inventory = [...files].map(([name, bytes]) => [name, hash(bytes)]).sort(([a], [b]) => a.localeCompare(b));
 const result = {
-  task: 'VG-014', result: 'PASS', version: pkg.version,
+  scope: 'current-release-artifact', result: 'PASS', version: pkg.version,
+  inventoryHashAlgorithm: 'SHA-256(JSON.stringify(path-localeCompare-sorted [path, file-SHA-256] pairs))',
   candidateDistSha256: hash(JSON.stringify(inventory)), zipSha256: hash(await readFile(archive)),
   files: inventory.map(([path, sha256]) => ({ path, sha256, bytes: files.get(path).length })),
-  checks: { manifestMatchesSource: true, packageLockManifestVersion: true, mv3: true, permissionsUnchanged: true, noStaticContentScripts: true, noWebAccessibleResources: true,
+  checks: { manifestMatchesSource: true, packageLockManifestVersion: true, mv3: true, currentPermissionContract: true, minimumChrome138: true, defaultHeaderIsolation: true, standaloneFontEntry: true, noStaticContentScripts: true, noWebAccessibleResources: true,
     entries: entries.length, sharedChunks: chunks, localModuleReferences: [...graph.values()].reduce((sum, list) => sum + list.length, 0), htmlResourceReferences: resourceReferences.length,
     noOrphanChunks: true, noRemoteExecutableImports: true, noRuntimeCompilation: true, noSourceMaps: true, sensitivePatternHits: 0, productionRuntimeNotBundled: true, zipRootManifest: true, zipByteIdentical: true },
   limitations: ['静态模式及依赖图审查，不证明所有可计算URL或任意秘密均不存在；还需维护源审查', '合法外部调用为provider、hosted诊断和既有STUN，不是远程代码；NOTICE保留许可来源URL', '本地ZIP未发布；版本不改，tag一致性仍需未来人工核对']
 };
 await writeFile(args[3], JSON.stringify(result, null, 2) + '\n');
-console.log(`VG-014 artifact PASS: ${files.size} files, ${chunks.length} shared chunks; version=${pkg.version}; dist=${result.candidateDistSha256}; zip=${result.zipSha256}`);
+console.log(`Release artifact PASS: ${files.size} files, ${chunks.length} shared chunks; version=${pkg.version}; dist=${result.candidateDistSha256}; zip=${result.zipSha256}`);

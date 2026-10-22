@@ -1,0 +1,30 @@
+{
+  "task": "VG-025",
+  "scope": "isolated-fixed-font-candidate",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.80",
+  "checks": {
+    "nativePositiveControl": true,
+    "earliestInlineTargetFilter": true,
+    "loadedTargetFontPositiveControl": true,
+    "nativeCanvasOrdinaryFontsAndDeviceBaseline": true,
+    "httpIframeAndUnsupportedDocuments": true,
+    "strictCsp": true,
+    "unmatchedOrigin": true,
+    "documentOpenRetainsExistingHook": true,
+    "descriptorContinuityAndRealmIsolation": true,
+    "disableRetainsOldHooksReloadRestoresNative": true,
+    "actualBfcacheRetainsOldSnapshot": true,
+    "extensionUpdateAndExplicitReregistration": true,
+    "documentOpenAfterDisableNative": true
+  },
+  "productionRecovery": "NOT_AUTHORIZED",
+  "cleanup": "PASS",
+  "failure": null,
+  "limitations": [
+    "单一当前Chrome，不等于Chrome138/其他OS或生产人工验收",
+    "未验证DOM/local()/Worker/OffscreenCanvas字体路径，未申请新权限",
+    "页面提交前篡改/冷启动/跨origin与OOPIF完整矩阵尚未完成；生产门禁保持关闭"
+  ],
+  "fontFilterSha256": "6950ed858c447b0486f46bf0703499cba3a12f348c84df609ae8f1ced6a1e55f"
+}

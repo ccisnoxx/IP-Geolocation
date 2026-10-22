@@ -1,0 +1,37 @@
+{
+  "task": "VG-025",
+  "scope": "isolated-fixed-font-candidate",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.80",
+  "checks": {
+    "nativePositiveControl": true,
+    "earliestInlineTargetFilter": true,
+    "loadedTargetFontPositiveControl": true,
+    "nativeCssShorthandParsing": true,
+    "nativeCanvasOrdinaryFontsAndDeviceBaseline": true,
+    "httpIframeAndUnsupportedDocuments": true,
+    "strictCsp": true,
+    "unmatchedOrigin": true,
+    "actualCrossSiteOopifEarliestFilter": true,
+    "sharedReconcilerScopeUpdateAndRevoke": true,
+    "disableWindowUsesOldSnapshotUntilSync": true,
+    "pageConfigAndParserTamperingDoNotReconfigureFilter": true,
+    "documentOpenRetainsExistingHook": true,
+    "descriptorContinuityAndRealmIsolation": true,
+    "disableRetainsOldHooksReloadRestoresNative": true,
+    "actualBfcacheRetainsOldSnapshot": true,
+    "extensionUpdateAndExplicitReregistration": true,
+    "documentOpenAfterDisableNative": true
+  },
+  "productionRecovery": "NOT_AUTHORIZED",
+  "cleanup": "PASS",
+  "failure": null,
+  "limitations": [
+    "单一当前Chrome，不等于Chrome138/其他OS或生产人工验收",
+    "未验证DOM/local()/Worker/OffscreenCanvas字体路径，未申请新权限",
+    "首次同源父页预污染和HTTPS矩阵未验证；未加载生产worker或恢复生产门禁",
+    "浏览器冷启动需--browser-restart单独验证；当前CDP临时扩展重启后从清单消失，未取得资格"
+  ],
+  "fontFilterSha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860",
+  "shorthandBypassCount": 0
+}

@@ -1,12 +1,16 @@
 # VanishGeo 构建与发布说明
 
-> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
+当前交付合同以本文、[安装说明](INSTALL.md)、[权限说明](PERMISSIONS.md)和 [稳定化清单](docs/stabilization/task-manifest.yaml) 为准。31 项稳定化任务均已人工验收为 done；完整索引见 [验收证据](docs/stabilization/evidence-index.md)。[VG-014 报告](docs/stabilization/release-readiness.md)保留历史候选事实，不能作为当前构建的发布批准。
 
-[CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 检查 v*.*.* tag push 并发布。稳定化任务完成不授予提交、push、tag、Release、托管部署或远端设置权限；这些操作需对应明确授权。VG-005 建立本地门禁；VG-014 的候选结论、逐项证据、阻断和回滚见 [release-readiness](docs/stabilization/release-readiness.md)。VG-023 仅恢复普通 HTTP(S) 文档语言/时区快照，已于2026-10-16通过用户人工验收；其他页面能力仍暂停，本任务不授权发布。
+[CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 在 v*.*.* tag push 后检查并直接发布。任务完成不授予提交、push、tag、Release、托管部署或远端设置权限，需对应明确授权。
 
 ## 本地候选
 
-当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面语言/时区需 Chrome138+、userScripts 权限及正常开启 Allow User Scripts，提前注册后新文档使用快照；定位恢复候选见 VG-029；自定义字体和 Worker 仍暂停；HTTP 请求头保持原生，WebRTC 按实际策略状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
+当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（本地候选）**，本轮不改版本。Chrome 138+、userScripts 权限及正常开启 Allow User Scripts 是语言／时区与合成定位的前提。VG-032 已恢复同一语言 payload 的 Accept-Language 同步，必要权限为 declarativeNetRequestWithHostAccess；固定名单字体过滤和 WebRTC 独立报告。自定义字体、Worker / SharedWorker 继续暂停。
+
+可靠关闭使用插件总开关，等待保存／同步后完整重载文档，再按需关闭 Allow User Scripts。直接关闭 Chrome 开关仍可能让首请求带旧语言头；不承诺跨 API 原子同步。旧文档和 BFCache 保留旧快照。当前证据边界及发布前待办见 [发布校准记录](docs/stabilization/release-calibration.md)。
+
+仓库根目录使用 Node.js 20+、npm 和锁文件：
 
 ```bash
 npm ci
@@ -15,25 +19,15 @@ npm run test:e2e:chrome -- --dry-run
 git diff --check
 ```
 
-本次 VG-005 确定聚合入口 `npm run check`，顺序为 `npm run typecheck && npm run typecheck:tests && npm test && npm run build`。任何子命令非零立即停止，不能产生后续构建。`typecheck` 检查 src；`typecheck:tests` 使用继承 strict 的 tsconfig.test.json，涵盖 tests/**/*.ts 及引用源码；tsx 执行测试不替代测试类型检查。`build` 仍自带源码 typecheck，再执行 Vite；不直接修改 dist。npm ci 和 Chrome dry-run 保持单独入口。
+VG-005 建立的聚合入口为 `npm run check`，顺序为 `npm run typecheck && npm run typecheck:tests && npm test && npm run build`。任何子命令非零立即停止，不能产生后续构建。`typecheck` 检查 src；`typecheck:tests` 使用继承 strict 的 tsconfig.test.json，涵盖 tests/**/*.ts 及引用源码；tsx 执行测试不替代测试类型检查。`build` 仍自带源码 typecheck，再执行 Vite；不直接修改 dist。npm ci 和 Chrome dry-run 保持单独入口。
 
 真实 Chrome 安装与人工场景需单独记录候选/版本/结果；dry-run 只检查构建入口并打印清单。CI 不执行或宣称完成人工验收。`npm run dev` 是 watch，`npm run preview` 是静态预览。
 
-分发包含完整 dist：manifest、background/content/popup/options/leak-test/diagnostic 六个 JS 入口、页面 HTML/CSS、assets/ 共享 chunks、icons、fixtures、LICENSE 与 NOTICE。后台只导入固定语言/时区模板字符串；完整 runtime 保留隔离测试，构建期均运行自包含守卫。没有独立 injected/runtime.js。ZIP 根部直接含 manifest.json。
+分发包含完整 dist：manifest、background/content/popup/options/leak-test/diagnostic 六个 JS 入口、页面 HTML/CSS、assets/ 共享 chunks、icons、fixtures、LICENSE 与 NOTICE。还必须包含默认启用的 rules/header-migration-guard.json 和独立 font-exposure/filter.js。后台使用固定语言／时区与独立定位模板；完整 runtime 保留隔离测试，构建期运行自包含守卫。没有独立 injected/runtime.js。ZIP 根部直接含 manifest.json。
 
-VG-014 历史暂停候选的自动真实 Chrome 集成入口（不能作为当前VG-023通过门禁）（Node 22+，需支持 Extensions CDP domain 的 Chrome）：
+真实 Chrome 证据按各任务记录解释：VG-026 推荐流程、明确应用及关闭恢复，VG-029 定位恢复，VG-030 字体故障恢复，VG-031 语言列表和 VG-032 请求头同步／完整退出重启，见 [证据索引](docs/stabilization/evidence-index.md)。VG-014 的旧暂停 runner、旧完整 runtime 隔离实验及 Chrome dry-run 均不能代替当前候选的真实 Chrome 验收。任何新候选的改动须评估已有证据是否仍适用。
 
-```bash
-node scripts/chrome-integration-smoke.mjs --output <脱敏JSON路径>
-node scripts/runtime-modularization/chrome-safety-gate.mjs --output <脱敏JSON路径>
-node --import tsx scripts/chrome-intl-smoke.mjs --output <脱敏JSON路径>
-```
-
-第一项使用正式 dist、临时 profile、合成 provider 拦截、loopback fixture 和仅本进程的 `.test` host 映射。普通页面仍原生，报告语言/时区与伪装预期不符必须保留 FAIL；runner PASS 表示暂停候选的测试合同通过，不表示完整功能 release-ready。原生位置权限被拒绝；完整诊断仍包含既有 Google STUN，可能看到测试网络出口，证据只保留分类结果。第二项用生产字节一致副本加测试计数 wrapper；第三项的 runtime 模式测试使用独立最小扩展，均不能当作生产派发恢复。
-
-VG-023 生产定向 smoke 与机器证据见 [任务记录](.trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md)；原实验与语言/时区生产阶段均已通过用户人工验收，其他页面能力继续暂停；本次没有发布授权，也不启动后续任务。
-
-本地打包与只读核验（归档名须使用本次获准的候选名，不覆盖已有交付）：
+本地打包与只读核验（归档名须使用本次获准的候选名；执行前确认目标 ZIP 不存在，避免 zip 更新已有归档而留下旧条目）：
 
 ```bash
 mkdir -p release
@@ -41,7 +35,7 @@ mkdir -p release
 node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.1-candidate.zip --output <脱敏JSON路径>
 ```
 
-审查器核对版本、权限、入口/资源图、共享 chunk 可达性、远程执行/运行期编译/map/敏感模式和 ZIP 文件/字节一致性。它不能识别所有任意秘密或动态计算 URL，需要与维护源审查共同解释。归档供本地人工检查，未发布；正式发布不得重复利用旧 ZIP 的残留条目。
+审查器核对版本、Chrome 138 下限、现行精确权限集合、默认启用的静态隔离规则及其维护源字节、独立字体入口、入口/资源图、共享 chunk 可达性、远程执行/运行期编译/map/敏感模式和 ZIP 文件/字节一致性。它不能识别所有任意秘密或动态计算 URL，需要与维护源审查共同解释。报告摘要采用相对路径 localeCompare 排序的 [path, SHA-256] JSON 再 SHA-256，不能与使用路径加文件字节的 Chrome runner 摘要直接比较。归档供本地人工检查，未发布；审查器目前是手动步骤，未接入 CI / release workflow。
 
 ## GitHub Actions 门禁
 
@@ -58,7 +52,7 @@ node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.1-candidate.zip --ou
 | Release | 保留 softprops/action-gh-release；通过所有门禁和 changelog 后才执行，draft:false、prerelease:false；缺 ZIP 失败 |
 | 发布 artifact | vanishgeo-v<版本>，整个 dist/，30 天；同样位于门禁之后 |
 
-release 在安装依赖前运行 `node scripts/check-release-version.mjs "$GITHUB_REF_NAME"`，要求 tag 严格等于 `v` 加 package.json 版本，并核对 package-lock.json 的顶层版本、`packages[""].version` 与 manifest.json。任一项缺失或不一致即非零退出，后续构建、打包与发布均不会执行；检查不改写版本或 tag。版本通过后仍从 tag 去掉开头 v，用于文件名和 Release。例如未来明确批准发布 2.1.1 时，tag 应为 v2.1.1，ZIP 为 vanishgeo-v2.1.1.zip；本文不表示它已经发布。workflow 不等待人工浏览器审批，维护者须在获准触发前核对候选和人工验收。本次仅整理版本、文档和检查，不创建或修改 tag、GitHub Release，也不发布。
+release 在安装依赖前运行 `node scripts/check-release-version.mjs "$GITHUB_REF_NAME"`，要求 tag 严格等于 `v` 加 package.json 版本，并核对 package-lock.json 的顶层版本、`packages[""].version` 与 manifest.json。任一项缺失或不一致即非零退出，后续构建、打包与发布均不会执行；检查不改写版本或 tag。版本通过后仍从 tag 去掉开头 v，用于文件名和 Release。例如未来明确批准发布 2.1.1 时，tag 应为 v2.1.1，ZIP 为 vanishgeo-v2.1.1.zip；本文不表示它已经发布。workflow 不等待人工浏览器审批，维护者须在获准触发前核对候选和人工验收。本轮仅核对版本、校准文档和检查，不创建或修改 tag、GitHub Release，也不发布。
 
 ## 更新日志与本地回归证据
 
@@ -68,13 +62,11 @@ changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文�
 
 `tests/release-gates.test.ts` 核对 workflow 顺序/权限/失败旁路，在临时 npm 项目注入失败证明后续构建未到达，并用临时 Git 仓库验证首发、跨 tag、无关分支、第二父提交的已发布 tag、同提交轻量/附注 tag 及浅克隆。合成 tags 只创建在临时 fixture 仓库，finally 删除；不操作当前仓库 tags。这些是本地/静态证据，未实际运行 GitHub Actions、Release API 或真实 Chrome。
 
-## VG-024 候选与权限退出
+## 历史权限迁移与现行边界
 
-VG-028 已于2026-10-20人工验收通过，历史清理及真实Chrome证据保留。本任务按第二阶段删除两项DNR权限与过渡组件，已完成人工验收，仅保留本地候选；不改版本、不创建ZIP、不提交、不发布。
+VG-028 完成旧请求头清理，VG-024 随后移除 DNR 权限，均是历史阶段。VG-032 已获重新授权，采用默认静态 allow 隔离、已知旧规则迁移、dynamic 40000..49999 持久投影及写前隔离；未知范围冲突保留并报告。当前仅声明 declarativeNetRequestWithHostAccess，不恢复普通 declarativeNetRequest。细节见 [权限说明](PERMISSIONS.md)与 VG-032 记录。
 
-升级验收覆盖已清理VG-028直接升级，以及旧v2跳过清理直接升级。两者都核验同profile同路径、权限确实减少、header原生、配置保存与worker唤醒不依赖DNR。跳级后的旧规则磁盘残留无法在无权限下证明已清除，不得重新授权来制造“清理通过”；本版本不会重新申请DNR，未来重新引入必须先设计独立清理迁移。正式证据只保留布尔/数量/摘要。
-
-VG-025才考虑字体生产恢复，VG-026为推荐引擎，均不实施。回滚只恢复本任务可识别的增量，保留VG-028和用户已有工作；回到VG-028会重新声明过渡DNR权限，需人工决定权限与兼容风险。回旧v2可能重新生成请求头规则，不能承诺无损或同等隐私；先安全备份v3配置，不使用reset/stash覆盖工作。
+降级可能重新生成旧请求头规则或遇到配置不兼容，不能承诺无损或同等隐私。先安全备份配置，按明确候选验证迁移；不使用 reset/stash 覆盖用户工作。
 
 ## 人工发布和恢复
 
@@ -88,11 +80,8 @@ VG-025才考虑字体生产恢复，VG-026为推荐引擎，均不实施。回�
 
 ## GitHub repository 元信息建议（仅人工设置）
 
-Description：`Chromium MV3 扩展：按站点协调网页语言、时区与位置，保持请求头原生，选择性过滤字体暴露并控制 WebRTC 策略，并提供扩展侧诊断。`
+Description：`Chromium MV3 扩展：按站点协调网页语言、时区与位置，同步语言请求头，选择性过滤字体暴露并控制 WebRTC 策略，并提供扩展侧诊断。`
 
 Topics：`vanishgeo`、`chromium-extension`、`manifest-v3`、`privacy`、`geolocation`、`timezone`、`webrtc`、`typescript`。
 
 只建议在当前仓库 Settings/About 中由维护者设置，不调用远端管理 API，不沿用原作品地址创建或关联仓库。原作品归属仅保留于 [NOTICE](NOTICE)。历史敏感值清理是另一项需人工批准的操作，见 [CONTRIBUTING](CONTRIBUTING.md)。
-
-
-VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。

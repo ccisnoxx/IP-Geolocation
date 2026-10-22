@@ -1,0 +1,376 @@
+{
+  "tasks": [
+    "VG-015",
+    "VG-017"
+  ],
+  "collectedOn": "2026-10-15T06:25:40.547Z",
+  "sources": [
+    {
+      "ref": "refs/tags/155.0.8059.40",
+      "commit": "cfaadc5a132d78e1828635aa8405a499f3e14864",
+      "path": "extensions/browser/scripting_utils.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/cfaadc5a132d78e1828635aa8405a499f3e14864/extensions/browser/scripting_utils.cc?format=TEXT",
+      "sha256": "388dc50984e5fff0d5e9cc5387079b669fedbaed2063164fddd8ec12610e6182",
+      "lineCount": 556,
+      "symbols": [
+        {
+          "symbol": "CollectFramesForInjection",
+          "lines": [
+            75,
+            379
+          ]
+        },
+        {
+          "symbol": "GetRenderFrameHostByDocumentId",
+          "lines": [
+            92
+          ]
+        },
+        {
+          "symbol": "GetRenderFrameHostById",
+          "lines": [
+            118
+          ]
+        },
+        {
+          "symbol": "frame_ids.insert",
+          "lines": [
+            106,
+            111,
+            113
+          ]
+        },
+        {
+          "symbol": "ExecuteScript",
+          "lines": [
+            470,
+            489
+          ]
+        },
+        {
+          "symbol": "document_ids",
+          "lines": [
+            80,
+            81,
+            363,
+            368
+          ]
+        },
+        {
+          "symbol": "IsInPrimaryMainFrame",
+          "lines": [
+            510
+          ]
+        },
+        {
+          "symbol": "CanAccessTarget",
+          "lines": [
+            336
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/tags/155.0.8059.40",
+      "commit": "cfaadc5a132d78e1828635aa8405a499f3e14864",
+      "path": "extensions/browser/script_executor.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/cfaadc5a132d78e1828635aa8405a499f3e14864/extensions/browser/script_executor.cc?format=TEXT",
+      "sha256": "bd0433d04b9975c32346aa0ff46d9902d31d8a00944b332a79f39453ab3a7115",
+      "lineCount": 487,
+      "symbols": [
+        {
+          "symbol": "GetRenderFrameHostById",
+          "lines": [
+            71
+          ]
+        },
+        {
+          "symbol": "ExecuteScript",
+          "lines": [
+            432
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/tags/155.0.8059.40",
+      "commit": "cfaadc5a132d78e1828635aa8405a499f3e14864",
+      "path": "extensions/browser/extension_api_frame_id_map.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/cfaadc5a132d78e1828635aa8405a499f3e14864/extensions/browser/extension_api_frame_id_map.cc?format=TEXT",
+      "sha256": "ea10d52b429786bdda83a03ecd8b55a4d185ff794fc526993a9f86fa46625e57",
+      "lineCount": 384,
+      "symbols": [
+        {
+          "symbol": "GetRenderFrameHostByDocumentId",
+          "lines": [
+            152
+          ]
+        },
+        {
+          "symbol": "GetRenderFrameHostById",
+          "lines": [
+            111
+          ]
+        },
+        {
+          "symbol": "GetLifecycleState",
+          "lines": [
+            311,
+            312
+          ]
+        },
+        {
+          "symbol": "IsInPrimaryMainFrame",
+          "lines": [
+            82,
+            91,
+            341
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/tags/155.0.8059.40",
+      "commit": "cfaadc5a132d78e1828635aa8405a499f3e14864",
+      "path": "extensions/browser/api/scripting/scripting_api.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/cfaadc5a132d78e1828635aa8405a499f3e14864/extensions/browser/api/scripting/scripting_api.cc?format=TEXT",
+      "sha256": "0f00dff2b0d669cb5bf8df1b4a85bcb6341b79cd08dbdc44f8f235f2aae01fe6",
+      "lineCount": 1043,
+      "symbols": [
+        {
+          "symbol": "ExecuteScript",
+          "lines": [
+            265,
+            266,
+            268,
+            269,
+            270,
+            303,
+            344,
+            361,
+            382,
+            386,
+            391,
+            425,
+            510,
+            594
+          ]
+        },
+        {
+          "symbol": "document_ids",
+          "lines": [
+            94,
+            95
+          ]
+        },
+        {
+          "symbol": "CanAccessTarget",
+          "lines": [
+            369,
+            502,
+            556
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/heads/main",
+      "commit": "a8bee654ee5bcb9d747e9307384921b5bc403e93",
+      "path": "extensions/browser/scripting_utils.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/a8bee654ee5bcb9d747e9307384921b5bc403e93/extensions/browser/scripting_utils.cc?format=TEXT",
+      "sha256": "388dc50984e5fff0d5e9cc5387079b669fedbaed2063164fddd8ec12610e6182",
+      "lineCount": 556,
+      "symbols": [
+        {
+          "symbol": "CollectFramesForInjection",
+          "lines": [
+            75,
+            379
+          ]
+        },
+        {
+          "symbol": "GetRenderFrameHostByDocumentId",
+          "lines": [
+            92
+          ]
+        },
+        {
+          "symbol": "GetRenderFrameHostById",
+          "lines": [
+            118
+          ]
+        },
+        {
+          "symbol": "frame_ids.insert",
+          "lines": [
+            106,
+            111,
+            113
+          ]
+        },
+        {
+          "symbol": "ExecuteScript",
+          "lines": [
+            470,
+            489
+          ]
+        },
+        {
+          "symbol": "document_ids",
+          "lines": [
+            80,
+            81,
+            363,
+            368
+          ]
+        },
+        {
+          "symbol": "IsInPrimaryMainFrame",
+          "lines": [
+            510
+          ]
+        },
+        {
+          "symbol": "CanAccessTarget",
+          "lines": [
+            336
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/heads/main",
+      "commit": "a8bee654ee5bcb9d747e9307384921b5bc403e93",
+      "path": "extensions/browser/script_executor.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/a8bee654ee5bcb9d747e9307384921b5bc403e93/extensions/browser/script_executor.cc?format=TEXT",
+      "sha256": "8cc9e9b3bb47056c43c4efeeaeed3ca606c6b7a2b4e1ad35835c3db0683405dc",
+      "lineCount": 516,
+      "symbols": [
+        {
+          "symbol": "GetRenderFrameHostById",
+          "lines": [
+            74
+          ]
+        },
+        {
+          "symbol": "ExecuteScript",
+          "lines": [
+            461
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/heads/main",
+      "commit": "a8bee654ee5bcb9d747e9307384921b5bc403e93",
+      "path": "extensions/browser/extension_api_frame_id_map.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/a8bee654ee5bcb9d747e9307384921b5bc403e93/extensions/browser/extension_api_frame_id_map.cc?format=TEXT",
+      "sha256": "ea10d52b429786bdda83a03ecd8b55a4d185ff794fc526993a9f86fa46625e57",
+      "lineCount": 384,
+      "symbols": [
+        {
+          "symbol": "GetRenderFrameHostByDocumentId",
+          "lines": [
+            152
+          ]
+        },
+        {
+          "symbol": "GetRenderFrameHostById",
+          "lines": [
+            111
+          ]
+        },
+        {
+          "symbol": "GetLifecycleState",
+          "lines": [
+            311,
+            312
+          ]
+        },
+        {
+          "symbol": "IsInPrimaryMainFrame",
+          "lines": [
+            82,
+            91,
+            341
+          ]
+        }
+      ]
+    },
+    {
+      "ref": "refs/heads/main",
+      "commit": "a8bee654ee5bcb9d747e9307384921b5bc403e93",
+      "path": "extensions/browser/api/scripting/scripting_api.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/a8bee654ee5bcb9d747e9307384921b5bc403e93/extensions/browser/api/scripting/scripting_api.cc?format=TEXT",
+      "sha256": "0f00dff2b0d669cb5bf8df1b4a85bcb6341b79cd08dbdc44f8f235f2aae01fe6",
+      "lineCount": 1043,
+      "symbols": [
+        {
+          "symbol": "ExecuteScript",
+          "lines": [
+            265,
+            266,
+            268,
+            269,
+            270,
+            303,
+            344,
+            361,
+            382,
+            386,
+            391,
+            425,
+            510,
+            594
+          ]
+        },
+        {
+          "symbol": "document_ids",
+          "lines": [
+            94,
+            95
+          ]
+        },
+        {
+          "symbol": "CanAccessTarget",
+          "lines": [
+            369,
+            502,
+            556
+          ]
+        }
+      ]
+    }
+  ],
+  "installedTypes": {
+    "path": "node_modules/@types/chrome/index.d.ts",
+    "version": "0.0.268",
+    "sha256": "db3a8593c2ccdd12de17752811a26ad28a4aa28334caf58011284c81b07bdda2",
+    "interfaces": {
+      "InjectionTarget": [
+        "allFrames",
+        "documentIds",
+        "frameIds",
+        "tabId"
+      ],
+      "RegisteredContentScript": [
+        "id",
+        "allFrames",
+        "matchOriginAsFallback",
+        "css",
+        "excludeMatches",
+        "js",
+        "matches",
+        "persistAcrossSessions",
+        "runAt",
+        "world"
+      ]
+    }
+  },
+  "limitations": [
+    "main固定到本次解析的commit，不代表已发布Chrome或本机binary",
+    "符号和摘要用于定位；安全结论必须阅读控制流并结合行为证据",
+    "未扫描全部Chromium历史或验证所有已发布版本；不宣称上游不存在修复",
+    "仅访问官方Gitiles公开源码，不发送配置、浏览历史或用户数据"
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "date": "2026-10-20",
+  "kind": "real-user-chrome-manual-acceptance-investigation",
+  "result": "BLOCKED",
+  "task_status": "review",
+  "human_acceptance": "pending",
+  "separate_source_fix_record": "startup-read-cleanup-fix.md；修复启动读取失败清理遗漏，不代表本现场根因已确认。",
+  "independent_current_dist_control": {
+    "record": "browser-card-disable-verification.md",
+    "evidence": "chrome-browser-card-disable.json",
+    "result": "PASS_WITHOUT_REPRODUCTION",
+    "browser_version": "155.0.8059.85",
+    "same_version_as_recorded_user_restart": false,
+    "user_browser_interacted": false,
+    "site_root_cause": "UNCONFIRMED"
+  },
+  "restart": {
+    "operator_reported_full_exit_and_restart": true,
+    "browser_version_before": "153.0.8010.55",
+    "browser_version_after": "155.0.8059.80",
+    "same_version_restart_control": false
+  },
+  "operator_reported_state": {
+    "same_test_profile_and_controlled_document_confirmed": true,
+    "extension_id_matched_repository_dist": true,
+    "extension_remained_disabled": true,
+    "extension_card_screenshot_received": false
+  },
+  "probe_delivery": {
+    "original_service_unavailable_at_health_check": true,
+    "local_service_restarted": true,
+    "fresh_response_nonce_matches_visible_page": true,
+    "initial_page_not_used_as_fresh_delivery_evidence": true
+  },
+  "observed_after_restart": {
+    "navigation_type": "reload",
+    "first_inline_target_font_check": false,
+    "target_font_alias_loaded": true,
+    "page_target_font_check": false,
+    "native_control_target_font_check": true,
+    "page_target_width_equals_monospace": true,
+    "page_target_width_equals_native_control": false,
+    "ordinary_alias_page_and_native_checks": true,
+    "ordinary_alias_page_and_native_widths_equal": true,
+    "page_service_worker_controller_present": false,
+    "dom_script_sources": [
+      "inline",
+      "inline"
+    ],
+    "cross_origin_isolated": false
+  },
+  "attribution": {
+    "page_call_stack_source": "font-exposure/filter.js",
+    "source_extension_id_matches_repository_dist": true,
+    "extension_management_ui_independently_verified": false,
+    "extension_storage_or_registered_scripts_read": false
+  },
+  "conclusions": [
+    "冷启动并更新到 Chrome 155 后，首 inline 前仍观察到目标字体 API 过滤。",
+    "仅重启前旧页面或旧会话内存残留不足以解释当前现象。",
+    "本轮同时发生版本更新，不是同版本冷启动对照。",
+    "浏览器层面停用由用户确认，实际注册及停用路径未被独立读取；不能据此宣布已确认 Chrome 缺陷或已定位生产代码根因。"
+  ],
+  "operator_constraints": [
+    "用户明确不提供截图，不再重复请求截图或重启。",
+    "后续改从源码和已有证据排查，不访问扩展内部控制面。"
+  ],
+  "remaining_blocker": "当前工具的扩展内部页面访问限制未确认解除，无法取得浏览器实际注册及停用／卸载路径的运行时证据；不得改用桌面点击、CDP 或其他通道绕过已拒绝的访问。",
+  "next_required_evidence": "现场归因仍缺合规可用的实际后台构建、注册及停用/派发路径因果证据。独立.85、.80 headless/有界面、正常UI持久化冷启动及本次自动恢复活动HTTP标签的更早首读均未复现。开启恢复首inline捕获字体调用栈而晚附加Debugger未回放顶层脚本，已确认来源采集盲点；不能以晚附加缺事件证明未注入。启动读取失败修复继续与现场因果调查分开。不请求截图或重启，不操作用户Chrome或绕过现场访问边界；人工验收继续暂停。",
+  "privacy": "本记录不保存用户路径、文档标识、原始 URL、原始调用栈、用户配置或字体度量原值。探针只访问 loopback 并使用本地字体；浏览器自身后台网络未全量监控。",
+  "production_code_changed": false,
+  "commit_or_release_performed": false,
+  "same_version_isolated_control": {
+    "evidence": "chrome-browser-card-disable-155.0.8059.80.json",
+    "requested_browser_version": "155.0.8059.80",
+    "observed_browser_version": "Chrome/155.0.8059.80",
+    "distribution": "Chrome for Testing",
+    "headless": true,
+    "result": "PASS_WITHOUT_REPRODUCTION",
+    "browser_started": true,
+    "runtime_checks_passed": 9,
+    "internal_off_new_and_reload": "NATIVE_NO_FONT_SCRIPT_EVIDENCE",
+    "card_off_new_and_reload": "NATIVE_NO_FONT_SCRIPT_EVIDENCE",
+    "initial_acquisition_historical_record": "chrome-155.0.8059.80-acquisition.json",
+    "initial_signature_only_block_corrected": true,
+    "user_browser_interacted": false,
+    "same_user_binary_or_profile_established": false,
+    "site_root_cause": "UNCONFIRMED"
+  },
+  "same_version_headed_control": {
+    "evidence": "chrome-browser-card-disable-155.0.8059.80-headed.json",
+    "requested_browser_version": "155.0.8059.80",
+    "observed_browser_version": "Chrome/155.0.8059.80",
+    "distribution": "Chrome for Testing",
+    "headless": false,
+    "headed_window_state": "normal",
+    "result": "PASS_WITHOUT_REPRODUCTION",
+    "runtime_checks_passed": 9,
+    "internal_off_new_and_reload": "NATIVE_NO_FONT_SCRIPT_EVIDENCE",
+    "card_off_new_and_reload": "NATIVE_NO_FONT_SCRIPT_EVIDENCE",
+    "user_browser_interacted": false,
+    "same_user_binary_or_profile_established": false,
+    "site_root_cause": "UNCONFIRMED"
+  },
+  "headless_headed_comparison": {
+    "evidence": "chrome-browser-card-disable-155.0.8059.80-headed.json",
+    "result": "NO_MODE_DEPENDENT_DIFFERENCE_OBSERVED",
+    "same_archive_and_dist": true,
+    "compared_groups": 11,
+    "differing_groups": [],
+    "site_root_cause": "UNCONFIRMED"
+  },
+  "normal_ui_persistent_cold_control": {
+    "evidence": "chrome-normal-ui-persistent-cold-155.0.8059.80.json",
+    "verification_date": "2026-10-20",
+    "record_updated_on": "2026-10-21",
+    "observed_browser_version": "Chrome/155.0.8059.80",
+    "distribution": "Chrome for Testing",
+    "headless": false,
+    "normal_native_ui_load": true,
+    "cdp_load_unpacked_used": false,
+    "actual_clean_process_restarts": 2,
+    "same_profile_reused": true,
+    "extension_retained_after_both_restarts": true,
+    "probes_before_management_pages_and_options": true,
+    "result": "PASS_WITHOUT_REPRODUCTION",
+    "checks_passed": 17,
+    "internal_off_cold_new_and_reload": "NATIVE_NO_FONT_SCRIPT_EVIDENCE",
+    "card_disabled_cold_new_and_reload": "NATIVE_NO_FONT_SCRIPT_EVIDENCE",
+    "internal_master_and_rules_preserved": true,
+    "card_disabled_state_preserved": true,
+    "user_browser_interacted": false,
+    "site_root_cause": "UNCONFIRMED",
+    "setup_qualification_note": "准备期早于明确目录选择的加载来源未确认；正式结果仅采用原生选择及动作确认后的轮次。"
+  },
+  "automatic_http_session_restore_control": {
+    "evidence": "chrome-http-session-restore-155.0.8059.80.json",
+    "verification_date": "2026-10-21",
+    "observed_browser_version": "Chrome/155.0.8059.80",
+    "distribution": "Chrome for Testing",
+    "headless": false,
+    "normal_native_ui_load": true,
+    "startup_setting": "continue-where-left-off-native-ui",
+    "actual_clean_process_restarts": 3,
+    "roles": [
+      "enabled-control",
+      "internal-off",
+      "card-disabled"
+    ],
+    "automatic_http_restoration_confirmed": true,
+    "first_inline_reports_received_before_cdp_connection": true,
+    "no_debugger_pause_or_driver_navigation_before_first_read": true,
+    "probes_before_management_pages_and_options": true,
+    "result": "PASS_WITHOUT_REPRODUCTION",
+    "checks_passed": 23,
+    "internal_off_restored_reload_new": "NATIVE_NO_FONT_SOURCE_OBSERVED",
+    "card_disabled_restored_reload_new": "NATIVE_NO_FONT_SOURCE_OBSERVED",
+    "extension_and_switch_states_preserved": true,
+    "enabled_early_source_positive_control": true,
+    "late_debugger_source_replay_blind_spot_confirmed": true,
+    "restored_first_document_full_script_bytes_captured": false,
+    "dist_fingerprint_unchanged": true,
+    "user_browser_interacted": false,
+    "site_root_cause": "UNCONFIRMED"
+  },
+  "record_updated_on": "2026-10-21"
+}

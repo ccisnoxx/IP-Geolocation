@@ -1,0 +1,920 @@
+{
+  "purpose": "恢复历史证据；不代表当前候选复验或重新验收",
+  "files": [
+    {
+      "path": ".trellis/tasks/10-14-vg-000-stabilization-baseline/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "b60ac7c718394ab48c99f8e9432db177b624b9a210e35444cf8e3c13e8e8b49c"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-000-stabilization-baseline/design.md",
+      "source": "5e8fae1",
+      "sha256": "d4fc3804df7e69d47c6a83177521955ea7b1bc27d85c2c55d85dcbfb17f42ecf"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-000-stabilization-baseline/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "b60ac7c718394ab48c99f8e9432db177b624b9a210e35444cf8e3c13e8e8b49c"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-000-stabilization-baseline/implement.md",
+      "source": "5e8fae1",
+      "sha256": "ecea0c8e71e590ef6b5a57266c558a38b6ec1287895166d0ca9c60337a2bb708"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-000-stabilization-baseline/prd.md",
+      "source": "5e8fae1",
+      "sha256": "4cf170ddc9e7681298d443c33285ad8cabd3f5cee2f353b50f5d00610554ce7f"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-000-stabilization-baseline/task.json",
+      "source": "5e8fae1",
+      "sha256": "d4f2d5dd45ee00c9f943c026c12f0624fab9622ee833a32f1cc496428d348648"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-001-rule-list/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "10e86ab0c048d49c3c9ebf00fccddbe3169aa56033b7c0650ae5c4170dd476b5"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-001-rule-list/design.md",
+      "source": "5e8fae1",
+      "sha256": "cbbac1ac7600a1450cd5ab8e806bcf59aa803438bd0cf5fa8847dd765400f70b"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-001-rule-list/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "10e86ab0c048d49c3c9ebf00fccddbe3169aa56033b7c0650ae5c4170dd476b5"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-001-rule-list/implement.md",
+      "source": "5e8fae1",
+      "sha256": "64512658ed3e40877f42ab6af8902bb7d27262dc1091ecd54dcd606826603bbd"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-001-rule-list/prd.md",
+      "source": "5e8fae1",
+      "sha256": "bc34ef5f6d718d80558abc54e66b707e2684ce8e02b6faa83b31ae6f75775cd7"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-001-rule-list/task.json",
+      "source": "5e8fae1",
+      "sha256": "ff6100dd622b0291ddeae576844b8bd381b404cba3ee84e0af09efdf91324a04"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-002-diagnostic-observation/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "3da36cac8e1803a08eadc97d162c5a64852d61cedbe151555a3b16be6cf91bdb"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-002-diagnostic-observation/design.md",
+      "source": "5e8fae1",
+      "sha256": "9d2b35f039b1f1c17c1eef91ceecc3f009c31abb622c9402d28c6a929cb85b67"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-002-diagnostic-observation/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "3da36cac8e1803a08eadc97d162c5a64852d61cedbe151555a3b16be6cf91bdb"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-002-diagnostic-observation/implement.md",
+      "source": "5e8fae1",
+      "sha256": "6b6e3706b78b948bc9e98fbdc05788ca91639b30ba4be9472247884e52de26e1"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-002-diagnostic-observation/prd.md",
+      "source": "5e8fae1",
+      "sha256": "412e7c7518e01b0ff760a25d461d0621e0ab9dd529c8e89ae04b336e58b08099"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-002-diagnostic-observation/task.json",
+      "source": "5e8fae1",
+      "sha256": "b80b4dcc0f2001771cb624a368c0d2fc6c1dcbeb6ccff9bfdcba70df7d1f8516"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-003-diagnostic-report/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "7c07bc0eed4a482c22e406504a76f1826ce81b80699f9f70c5a5538f186caa0b"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-003-diagnostic-report/design.md",
+      "source": "5e8fae1",
+      "sha256": "4a90424d4a5e36dd55618e4ab979b40722888e639c4c18b9726a116441b6cf01"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-003-diagnostic-report/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "7c07bc0eed4a482c22e406504a76f1826ce81b80699f9f70c5a5538f186caa0b"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-003-diagnostic-report/implement.md",
+      "source": "5e8fae1",
+      "sha256": "1c40c4a9c801b4ad2cbfa4f636f81d18a6e17382998c4081977993f0d069123d"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-003-diagnostic-report/prd.md",
+      "source": "5e8fae1",
+      "sha256": "082e510406853e791feefb2d69b7daa099aba374c01774358989e81605b8c2a6"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-003-diagnostic-report/task.json",
+      "source": "5e8fae1",
+      "sha256": "cff0f571bb5389bfab2880daf1bababb531b406d774d51ce25a89d20b3738c5c"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-004-documentation-privacy/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "0bc84de52f8dad47bba81a4f3d98f959b853ad58902b97f9dc875af358a9fc84"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-004-documentation-privacy/design.md",
+      "source": "5e8fae1",
+      "sha256": "2f7af6775c9c9b7f24469753d0c23952aef15e1d23b29a79694d53a06d789ea9"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-004-documentation-privacy/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "a6d1a819a3da3f1c9fa9f9e085c4e3336f6f2c3b7d23f8ebc2b3a00aa64f8ec4"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-004-documentation-privacy/implement.md",
+      "source": "5e8fae1",
+      "sha256": "dd7eabafb9f6aea645f0fb5f93638b61cf6dc8c1a0d2def2db47f3a5fa281631"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-004-documentation-privacy/prd.md",
+      "source": "5e8fae1",
+      "sha256": "9044c4a70057f937530d85a27c5ba1e32d930ca3e7796c5a0dbf925a0ee4d256"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-004-documentation-privacy/task.json",
+      "source": "5e8fae1",
+      "sha256": "676a79fcefd00d9fd79195ef6eabad620f41d7e8e5a6d9ecb8f3e070b9561585"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-005-ci-release-gates/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "b8c2a355c192f0bfab3541f03f03b5846ed9fbe091a249b5fc268ff137efaee0"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-005-ci-release-gates/design.md",
+      "source": "5e8fae1",
+      "sha256": "9b47410ce4a9e69b73d3232214c59050b92ad06b23a1f865717632c2820e32c5"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-005-ci-release-gates/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "b8c2a355c192f0bfab3541f03f03b5846ed9fbe091a249b5fc268ff137efaee0"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-005-ci-release-gates/implement.md",
+      "source": "5e8fae1",
+      "sha256": "c85d8d166e563357a33e8b47fbb559f22f02693a2dc0cd22e90190b7c4f83b87"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-005-ci-release-gates/prd.md",
+      "source": "5e8fae1",
+      "sha256": "683cf27e638a491bafb352e3294fb9935345b101b571e39f7a5adb2bb862051f"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-005-ci-release-gates/task.json",
+      "source": "5e8fae1",
+      "sha256": "6925619ce6c4eed170ec623ab0b86cc1fa486f96cce1c47a6eb553c8ad4bdc61"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-006-runtime-reconciliation/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "ea6618d2dcca0add346e58fab6c992be2620b940a976363135f6c7bee86d2067"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-006-runtime-reconciliation/design.md",
+      "source": "5e8fae1",
+      "sha256": "9a44ca77d3394a53a5971e87e51de62878fd322fe5ee653a712cb06a32b1c264"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-006-runtime-reconciliation/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "ea6618d2dcca0add346e58fab6c992be2620b940a976363135f6c7bee86d2067"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-006-runtime-reconciliation/implement.md",
+      "source": "5e8fae1",
+      "sha256": "1228bbf135ecc43c03c75a936189b97263a840e884f04dee961202509667e6e7"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-006-runtime-reconciliation/prd.md",
+      "source": "5e8fae1",
+      "sha256": "a28d8a3be71b582fbd8f1ed7abcdef624802ac4876d12716fa091fa6db454cd7"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-006-runtime-reconciliation/task.json",
+      "source": "5e8fae1",
+      "sha256": "da4195128c021ef9f4231a836cc9fa3be84f30b97ac8b5daa1a98b1237564a93"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-007-worker-identity/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "651401ad3f75ab285468c0badc7393a04b6dbba2f2d8b6ac2350635f8f500c27"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-007-worker-identity/design.md",
+      "source": "5e8fae1",
+      "sha256": "6fb3e8013d0907f54f91adcd015b5620f35c2018665be21ff906d8c450f7bb28"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-007-worker-identity/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "651401ad3f75ab285468c0badc7393a04b6dbba2f2d8b6ac2350635f8f500c27"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-007-worker-identity/implement.md",
+      "source": "5e8fae1",
+      "sha256": "a7fb65718e12a2beb5abaa0134ee4117c417f3186c8e1b16138e10044eacdb8d"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-007-worker-identity/prd.md",
+      "source": "5e8fae1",
+      "sha256": "017f57c4ddcc66b6f5c5c7e000cdb4456830cfecd674dc8a981a0b8615114871"
+    },
+    {
+      "path": ".trellis/tasks/10-14-vg-007-worker-identity/task.json",
+      "source": "5e8fae1",
+      "sha256": "35e812f966f4018f183bcd062cb8d9b86b5d954cebcf4b562a9a20c112786910"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-008-config-profile-ui/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "4139137c79901a199b54dd567e4ea7f5e964db128c1e8eeddee93a65d9396236"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-008-config-profile-ui/design.md",
+      "source": "5e8fae1",
+      "sha256": "0419f55f1320c76f2085f997ad3dd69606d39e38ecd9b6686fff4e281558001c"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-008-config-profile-ui/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "4139137c79901a199b54dd567e4ea7f5e964db128c1e8eeddee93a65d9396236"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-008-config-profile-ui/implement.md",
+      "source": "5e8fae1",
+      "sha256": "8b344bc3c35bb339ad5ffbc8eae9dc1f64f39aca944a0bde328eceebff850c03"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-008-config-profile-ui/prd.md",
+      "source": "5e8fae1",
+      "sha256": "789299a81a4d3a14f1ce97d3796ca34de7c930d65185676c54d79424f783392d"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-008-config-profile-ui/task.json",
+      "source": "5e8fae1",
+      "sha256": "bdd5163f606b2e7cd2024e359fdb2199cb57332703984ef2579cc3a6826456a8"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "46cf93b65173b46fa6de8f2b7e8384a86f5271508d6f3823945d77482f890635"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "c50706c07ffc053a851d3b500e3dd0908706eb31dd8f6c7505b2f01378d7e6e5"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/design.md",
+      "source": "5e8fae1",
+      "sha256": "6a8506b33258ee06a4a36abd90e80985644fc2c5f9748739f5bb9268db324f80"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "46cf93b65173b46fa6de8f2b7e8384a86f5271508d6f3823945d77482f890635"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/implement.md",
+      "source": "5e8fae1",
+      "sha256": "8739e9bedb94ada49c07b99360560b83fc9a93fcdca2c67362de1f750e2adad5"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/prd.md",
+      "source": "5e8fae1",
+      "sha256": "430edca9b909d2a6b78dc0a904be4211c753417553a26b7bc451cc7b834810e2"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-009-earliest-inline/task.json",
+      "source": "5e8fae1",
+      "sha256": "65db73d90ed25729344f037ccaab71639d368a6274ee5544c31ca5388b00a938"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "d014cd4d593de09ff7790ab974236f2256d36b5d16e452777c303094b93dd277"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "97ab3c0eaeda36fda4a2e3af7ee608719ee3d0d685c8269d7d29bf9f818502d7"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/design.md",
+      "source": "5e8fae1",
+      "sha256": "8d6957197af0b85bc5014e5ad3007a574c53c9a4aa109f52e9e91e29759852e1"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "d014cd4d593de09ff7790ab974236f2256d36b5d16e452777c303094b93dd277"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/implement.md",
+      "source": "5e8fae1",
+      "sha256": "ff32b78fa92c32ea7f316ae649fc4a48e61a787b86873228a118abc09e584b88"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/prd.md",
+      "source": "5e8fae1",
+      "sha256": "b619e7124ec5d7fd0a0daac1aebf63d20325e6bff8cb900214210915508166c1"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-010-safe-onboarding/task.json",
+      "source": "5e8fae1",
+      "sha256": "f4783cd67689e421af4a77be42ae3702f0383f350d7ea233aa29b39f6341958f"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "c4b0d99205bd162811b919a98576d149fc158d92afc8477758852da277acc82a"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/design.md",
+      "source": "5e8fae1",
+      "sha256": "809f041435894a8694d4c0ceb9ef3835c024c568899e634e2e51dccd09580347"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/document-targeting-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "e14adc5a58506d54a09fad898d1668412ca7d8114b4beb1826b57c150f3a481f"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/implement.md",
+      "source": "5e8fae1",
+      "sha256": "8729424ec39fd0eab3e3e47a9d995d77d2ae33edbb24f31c1a4699de790f17e8"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/prd.md",
+      "source": "5e8fae1",
+      "sha256": "c7c03d510e3f945ba6d0506eb198c9fdd60007400c9a4d6cbfd6031eb27b5069"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/safety-gate-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "941e7a1f851580f649b3c9b6136c13d896d46e74653c067d704f568c37c3a23c"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-011-runtime-modularization/task.json",
+      "source": "5e8fae1",
+      "sha256": "29e4c3ed01c5364fb6a5f0eb044fd7d490cef7594f661117d40c672c9945ed28"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/baseline-runtime.ts.gz",
+      "source": "5e8fae1",
+      "sha256": "3ab0e9194435e231bf5a40822cc7d896ba4829bf1d1f3a46466d1ab4da327ac2"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "afbfbcfeac3ff06b1cb088a6403698d6fe72d74aa376b26352bee08136afae6e"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "03a32539142f19c9d53d70e60e34aa1ccc327a2d83dea0e0b2d3588b51c151e1"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/design.md",
+      "source": "5e8fae1",
+      "sha256": "c82c8d0b2d79b002f655ebb648e043ce7def42340fcbf30d5627dde1feb8e81f"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "afbfbcfeac3ff06b1cb088a6403698d6fe72d74aa376b26352bee08136afae6e"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/implement.md",
+      "source": "5e8fae1",
+      "sha256": "80db937668cf1c079affcbf41a087c88cb82663a0a2148567f8d92d3a10e974a"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/injection-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "06fce0062919b9285b08275803f80008366c24a293ef3c08b1930f2e718f2e85"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/prd.md",
+      "source": "5e8fae1",
+      "sha256": "7aa093aed5e3da80fac166414ddee79a9cb73a755d6a595a40c596d50038aa69"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/safety-gate-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "92fb2d05e4ba43c9c4acfd592551b6a32c24629be067da5672dddad27d78c0ec"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-012-runtime-modules/task.json",
+      "source": "5e8fae1",
+      "sha256": "9bcd608b99d7f79a984b4e8a531ef5224f792f9a0425a0ee94c50e21dee9837e"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "c82c8962f249814fa6872f4c732343e0966626849d995b7de74594662504ea24"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "04bfda0c4bbda12dbe144f54db43bc867655d79c1754b12ef8a1f7d9a5635998"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/design.md",
+      "source": "5e8fae1",
+      "sha256": "107e96a75e31693c7d674eed62ca586280f84ded6bb4d18584071ed465a08adf"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "c82c8962f249814fa6872f4c732343e0966626849d995b7de74594662504ea24"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/implement.md",
+      "source": "5e8fae1",
+      "sha256": "f29a5ba471540fc61998b953a4d169cdb39168e5691b17584913feaebb67c82f"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/prd.md",
+      "source": "5e8fae1",
+      "sha256": "cd0c6ff2ca742b507d9b0a66b5b721ffde3bcd955fa9c39eb452c476ac439145"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/safety-gate-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "92fb2d05e4ba43c9c4acfd592551b6a32c24629be067da5672dddad27d78c0ec"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-013-intl-compatible/task.json",
+      "source": "5e8fae1",
+      "sha256": "a2237340d05a3c8ff48a5309c92fbe7f85254be8dd114df1eef1b6087f7dc7a7"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/artifact-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "6cd0cb6c39af90fd98ebe7ac57f9e45edf53ff0171bc32e326944517c09d67b8"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "62aac4a51ed3edb30eb0ca2ac852d89e11608075c5522b601e7e10c671d80abc"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "8261be3e1bb7dba253e501e3453cfc3489f9fed7981a538d5297ac3c5992a6e3"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/design.md",
+      "source": "5e8fae1",
+      "sha256": "20dc8117b92d1082cc4cfbea56a643c94accddc814f2376cc01a1972cb784e21"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "62aac4a51ed3edb30eb0ca2ac852d89e11608075c5522b601e7e10c671d80abc"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/implement.md",
+      "source": "5e8fae1",
+      "sha256": "d5daa6f4b0b8d2fbd387eca3bee0ae307c4b9b8369e277d1150e3fa0cb6f9629"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/intl-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "04bfda0c4bbda12dbe144f54db43bc867655d79c1754b12ef8a1f7d9a5635998"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/prd.md",
+      "source": "5e8fae1",
+      "sha256": "fce26f41c3ddd12e60d6f07472c267def7c2ff2648dc6e7e959641717882a800"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/runtime-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "03a32539142f19c9d53d70e60e34aa1ccc327a2d83dea0e0b2d3588b51c151e1"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/safety-gate-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "92fb2d05e4ba43c9c4acfd592551b6a32c24629be067da5672dddad27d78c0ec"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-014-release-acceptance/task.json",
+      "source": "5e8fae1",
+      "sha256": "e06d9b2bd929113662dfa5cb3c761db79752a72a55891d04fd3ef3617e7d36a2"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "6f2af3ecf2af6eac06acf1a2ce8c0d90a67bd453c48df1da7a0d8ff717f5c487"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "2640aa0dadff4a6cb7bf75a882f13166065983bda24c4e77b9e1192fed9837b9"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/control-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "040b5e94c801f917cf521cf8449ca0206ff5723ff77a1795035898212e85b56c"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/design.md",
+      "source": "5e8fae1",
+      "sha256": "091a2795656f06f808939bd19a1998ce4150b15f1427ff2e48b0312d9108dd7b"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "6f2af3ecf2af6eac06acf1a2ce8c0d90a67bd453c48df1da7a0d8ff717f5c487"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/implement.md",
+      "source": "5e8fae1",
+      "sha256": "65de0ed1b3b0ebf17ce5e3afb892508f46c47e9ff73be12d93d9b88e0b60a258"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/prd.md",
+      "source": "5e8fae1",
+      "sha256": "e6779374d961f5f292bce2236c5f11747da92f77da87d86007e6a62bd957aadd"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/safety-gate-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "92fb2d05e4ba43c9c4acfd592551b6a32c24629be067da5672dddad27d78c0ec"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/task.json",
+      "source": "5e8fae1",
+      "sha256": "6144104f4bf32af3a8e6588d4d18a60a20ece55ed03f1c1222009e9dae2c4719"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-015-document-binding-research/upstream-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "4bd8ddb1fa153e28567b215df7768493c8abbe720c069cf60c93f885ac0d872c"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "6f2af3ecf2af6eac06acf1a2ce8c0d90a67bd453c48df1da7a0d8ff717f5c487"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "1675d2a97f3fcd8f0dfc24391cd944c5787d8fb095137fbb59147bea4ba0df23"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/design.md",
+      "source": "5e8fae1",
+      "sha256": "98c78a90e216abcacd5ef3e9e536c89fe916eab5d358cf6f284bbe02ab079e26"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "6f2af3ecf2af6eac06acf1a2ce8c0d90a67bd453c48df1da7a0d8ff717f5c487"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/implement.md",
+      "source": "5e8fae1",
+      "sha256": "0caa28f653edf573867c5b2c6063ba5b3874d61993062061e04516003a296d00"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/prd.md",
+      "source": "5e8fae1",
+      "sha256": "39f52c59ae3b45dabe026fef8ad4913d42965b584d06b8f1846fb8f9f1c8a219"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-017-earliest-inline-research/task.json",
+      "source": "5e8fae1",
+      "sha256": "85c5aadb2afdfcb58e56023430f1547f3521129ad559c7ab40abac8142c9c6e7"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/check.jsonl",
+      "source": "5e8fae1",
+      "sha256": "27e22753ad090a8341ac38cf97ca150cb6a2de255cb60142efcca685ce9d6d06"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/design.md",
+      "source": "5e8fae1",
+      "sha256": "1b42ea0c185339c02fc5ba049f88ffad18d07e4e5f7b4b0c18ead6d2ffc1dace"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/implement.jsonl",
+      "source": "5e8fae1",
+      "sha256": "27e22753ad090a8341ac38cf97ca150cb6a2de255cb60142efcca685ce9d6d06"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/implement.md",
+      "source": "5e8fae1",
+      "sha256": "ef0c36778092097be328a9287cac180322d6bb4041455df81117bdc0d579dcf3"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/prd.md",
+      "source": "5e8fae1",
+      "sha256": "d420dd5bdda3e69b80c862f8ce1d094ee6ad0af9d296186c429b474f1bafd5d2"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-020-alternative-injection-rfc/task.json",
+      "source": "5e8fae1",
+      "sha256": "ad3f04c6ea270bea412f4ab98dea7ec0379e9d91faa957bedd5e0d79f44b5fa7"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-021-registration-sequence-probe/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "97f55b92148034da7bc7063d9dcdccf152a6164be3e8f8c4c41cc6d8b1a200cf"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-021-registration-sequence-probe/design.md",
+      "source": "5e8fae1",
+      "sha256": "558d58aa8898c465d6b13caacd2033997b5a73cebf61767de92a62f95ebae223"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-021-registration-sequence-probe/implement.md",
+      "source": "5e8fae1",
+      "sha256": "9a0ed829b8b33d0e3039f7dca1560e289cbbff5abdbd4aa00944d233c401a77c"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-021-registration-sequence-probe/prd.md",
+      "source": "5e8fae1",
+      "sha256": "0bc2430ac3b1aaaa639870cf767e72ef92d117f446837175449f3527b9ec5179"
+    },
+    {
+      "path": ".trellis/tasks/10-15-vg-021-registration-sequence-probe/task.json",
+      "source": "5e8fae1",
+      "sha256": "54a55aacf97d99c2317b4f8af18b9f8607f1cc90f10c999aa699d79030c7776d"
+    },
+    {
+      "path": ".trellis/tasks/10-16-userscripts-loopback-fixture/implement.md",
+      "source": "5e8fae1",
+      "sha256": "2a76c7fffe4d2856901afeab8577b2901f5bedd1addfa16cb146c108bd8c854e"
+    },
+    {
+      "path": ".trellis/tasks/10-16-userscripts-loopback-fixture/prd.md",
+      "source": "5e8fae1",
+      "sha256": "52141f597e820a4a52d68b4e5b0fc00ab53f6c911da450887037861f4b27e0d4"
+    },
+    {
+      "path": ".trellis/tasks/10-16-userscripts-loopback-fixture/task.json",
+      "source": "5e8fae1",
+      "sha256": "8d31d1a67299b6e16c7b59182206e6bfb275dcf7efaef52f0e884a9d026db465"
+    },
+    {
+      "path": ".trellis/tasks/10-16-vg-023-userscripts-language-timezone/design.md",
+      "source": "5e8fae1",
+      "sha256": "94e3d52b65a6e2d14d79c2203bc934903b144a2c18db1148d2263c4bd0492327"
+    },
+    {
+      "path": ".trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md",
+      "source": "5e8fae1",
+      "sha256": "6b56aab3af28bb0475424727f38f4894e4dd8f7d4cf104f46312379ff8281b84"
+    },
+    {
+      "path": ".trellis/tasks/10-16-vg-023-userscripts-language-timezone/prd.md",
+      "source": "5e8fae1",
+      "sha256": "950b20a6328035d2f7800ddaf7a94b3eca34a2463917544e9c8dbdc21fda495f"
+    },
+    {
+      "path": ".trellis/tasks/10-16-vg-023-userscripts-language-timezone/task.json",
+      "source": "5e8fae1",
+      "sha256": "3401f084bbb5bd31b8d011cb947082a3c98cd13553ebcb66bf1fbebe2e94f695"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-028-header-font-contract/chrome-upgrade-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "864c33e790998fc0794b780bb4fabfb3f1ac51796cc33c3bca93f6db4d9b9f40"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-028-header-font-contract/design.md",
+      "source": "5e8fae1",
+      "sha256": "bb97aec2702c32c95689fd46d1172518ce3172e495c20dff9ce41e87851d7036"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-028-header-font-contract/implement.md",
+      "source": "5e8fae1",
+      "sha256": "a04aa1827de844f35daa7452355f48a871717130896e196ffde463950d593b45"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-028-header-font-contract/prd.md",
+      "source": "5e8fae1",
+      "sha256": "7ffc7c91c7d4a4ce2a469af7fa17d394be27772d4f926e9a9b27bccca2fb1cba"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-028-header-font-contract/task.json",
+      "source": "5e8fae1",
+      "sha256": "5eac48fe3f661873903513bdb5ae64e69108dae316ec76d64fc9699b8f038682"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/chrome-from-v2.json",
+      "source": "5e8fae1",
+      "sha256": "60af519cb82f7964066463e05154d7a0f9ea72af99c67f2bbfe805a84d0292b1"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/chrome-from-vg028.json",
+      "source": "5e8fae1",
+      "sha256": "18b8baa8881dc8e6a5fce4fb2f616408192b210e54e0508efbfb2c098991b15d"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/design.md",
+      "source": "5e8fae1",
+      "sha256": "02d3d8ec2405d85b2468fa8a37c23bfa5a73542c6fc790a5a35f00bb5a04c2f2"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md",
+      "source": "5e8fae1",
+      "sha256": "7b3b4b39e18e7c76469c2489e9499edfaf4d8f73458fe4e42a6fe3acd053363c"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/prd.md",
+      "source": "5e8fae1",
+      "sha256": "b2fa5d42ad8ddbf2dfe7bfc3a28f6eda0c355cb3af839c96bfdf2a87a188892d"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/source-changes.patch",
+      "source": "5e8fae1",
+      "sha256": "2c5ee5db713f3935a569e248b9a3ebb4fb1d7a82375da165d25cd6f5165ca07f"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-024-remove-dnr-permissions/task.json",
+      "source": "5e8fae1",
+      "sha256": "b0b93e5ab3fb3a72753df18d0f29e6fe2545810805c0b4dbfb255c48ce8785c1"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/bounded-readonly-collection-2026-10-21.json",
+      "source": "5e8fae1",
+      "sha256": "2a73d113efd41f59ab6bece060c4547fd9882d4319308277bfa7642fa14d36c5"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/browser-card-disable-verification.md",
+      "source": "5e8fae1",
+      "sha256": "2d89147f3b8216fb70c56ad035b8e200684aa0d82abdb382144745731f98da56"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-155.0.8059.80-acquisition.json",
+      "source": "5e8fae1",
+      "sha256": "2b2b70553e523b62200ce655c07272eea707acf432f79a80a8893b82c8649ebc"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-browser-card-disable-155.0.8059.80-headed.json",
+      "source": "5e8fae1",
+      "sha256": "967897a3ba68c8e41ac241e77475de2cfa1f523c4cf613a66afd0abb00a0e1d5"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-browser-card-disable-155.0.8059.80.json",
+      "source": "5e8fae1",
+      "sha256": "94d16f6a61fa2e814c518ed3efa575644ef1bfb268a652e8374cfde86de80ffb"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-browser-card-disable.json",
+      "source": "5e8fae1",
+      "sha256": "fa755185fceada898d81b8089bad6ec39494395b0e0e9e76a2f98ef732fcce26"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-cold-start-blocked.json",
+      "source": "5e8fae1",
+      "sha256": "5efcbb8e64a31abfdb570d81d1c0d077f72e7dd6025a2493753a8fc9c43659ac"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "ce3089ee35171cf6f1e98ceac08e490dbd6864f6125ed79ddd16614b6075dbd0"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-http-session-restore-155.0.8059.80.json",
+      "source": "5e8fae1",
+      "sha256": "a4363dde6262f96857b10c8e5555b323056a82a69fab99d27ddf9c9d7b50c04c"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-normal-ui-persistent-cold-155.0.8059.80.json",
+      "source": "5e8fae1",
+      "sha256": "61bc5e0e8dd84ab73f40e0b0bf046741b01e3f93033704f5d50ee15bdfec042b"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-qualification-followup.json",
+      "source": "5e8fae1",
+      "sha256": "c549a589e98e29f393ccee16da658cfe1d82d95a837dfe98ccba87d28fbdec95"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/chrome-startup-read-failure.json",
+      "source": "5e8fae1",
+      "sha256": "c5f477b77a3aec9c77ed92c548812f8f7b883f111e9af32a20281c3a4f6f7db1"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/design.md",
+      "source": "5e8fae1",
+      "sha256": "8a391e876068d51b09fe2ebaeed378332b70f908a18acb0b70d73ca0f1b2aa6d"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/diagnostic-package/README.md",
+      "source": "5e8fae1",
+      "sha256": "2b4927a8d5f27e292af5bbbda03f76560b63c48e04511c142fd8f5999066c57e"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/diagnostic-package/evidence.json",
+      "source": "5e8fae1",
+      "sha256": "b7a0414267efca06f8ea52bdb52b49551ad267b4766e9ee51d26f987a4538ea0"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/implement.md",
+      "source": "5e8fae1",
+      "sha256": "ba4f96bb4d020234504875b1e8a2c6419c3f2c1966ecf5281414e14b720af3be"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/manual-cold-restart-investigation.json",
+      "source": "5e8fae1",
+      "sha256": "e3ee2d6f3023a2f20472ce4def050a2c6d9b29444d4a4624d319d10f2d3ecd4c"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/newcase-runtime-font-source-2026-10-21.js",
+      "source": "5e8fae1",
+      "sha256": "762c2b2fd33232878e748608b455f54100498c950d6383322f6dbad1ad176860"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/newcase-source-collection-2026-10-21.json",
+      "source": "5e8fae1",
+      "sha256": "57380a13ab6e68cd185a734da994c5c3bacb205660c6b3138d48c00190e255da"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/prd.md",
+      "source": "5e8fae1",
+      "sha256": "615f2825c8f43f210622ee4c06fb462d48b66744ac10cbab3a90ea5f5a91c6c9"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/source-lifecycle-investigation.json",
+      "source": "5e8fae1",
+      "sha256": "58951d1f69419f593552be7f35ba079c0a8d9bab20d5ff565da6a847df1f5875"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/startup-read-cleanup-fix.md",
+      "source": "5e8fae1",
+      "sha256": "bb9cd01a4c6471d38886193d2db2b6afa4af854ce46c6f8d3a88f3b1957d4d0e"
+    },
+    {
+      "path": ".trellis/tasks/10-20-vg-025-font-filter/task.json",
+      "source": "5e8fae1",
+      "sha256": "aceb1efa5e1a295e6ae3213938fc8483cd39d432c935d548fa20cee47af241e9"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-font-production-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "5a1c75e522ace57f6865d33f0d5b8686a3d005e83987c94d693d5f276058bc25"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-font-recovery-attempt1.json",
+      "source": "5e8fae1",
+      "sha256": "cfd93b991091f66a5cf420f48ec7067332a55e1bac9cafce375f0512ac01130c"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-font-recovery-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "670701c5d4001a20fd0c8f3e62ca8c8e6330e1aae36b13fd121e3bb1556b4ede"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-geolocation-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "777c07701e88b3d1a2abd619f4108a9fafe7ca9bd811e5ae053dc62a9793051d"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/commit-scope-font-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "1cea990c75b92a2fe7866e523867a1b3b2f4905b84c9736b6dddf794ba2477a9"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/commit-scope-geolocation-evidence.json",
+      "source": "5e8fae1",
+      "sha256": "ef36d5a41c024dbbaade05053859a4cd30b92e708e8ee640fc694d9418e6128b"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md",
+      "source": "5e8fae1",
+      "sha256": "c9586269b5093b913696b237aaacb05df1cebc6cbecdc259eca92a29fd695d08"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/prd.md",
+      "source": "5e8fae1",
+      "sha256": "68c642840fae6fc195c04dec516c4dc8ce47e7b9cfcf69ddedba58a35d41daef"
+    },
+    {
+      "path": ".trellis/tasks/10-22-vg-030-font-recovery-reload/task.json",
+      "source": "5e8fae1",
+      "sha256": "1c47fd82c46cc32cb799e68afd6737b04ab4aa1fbb38e8ef379818081aa6a4ab"
+    }
+  ]
+}

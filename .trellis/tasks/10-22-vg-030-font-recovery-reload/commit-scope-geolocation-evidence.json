@@ -1,0 +1,556 @@
+{
+  "schemaVersion": 1,
+  "task": "VG-029",
+  "scope": "actual-dist-geolocation-loopback",
+  "conclusion": "PASS",
+  "exitCode": 0,
+  "environment": {
+    "realChrome": true,
+    "platform": "darwin",
+    "architecture": "arm64",
+    "browserMode": "headless",
+    "userProfileAccessed": false,
+    "chromeVersion": "Chrome/155.0.8059.86",
+    "protocolVersion": "1.3",
+    "fixturePermissionControl": {
+      "initialGeolocation": "denied",
+      "notifications": "denied",
+      "nativePositionSentinel": {
+        "latitude": 80,
+        "longitude": 170,
+        "accuracy": 900
+      },
+      "userProfileChanged": false
+    }
+  },
+  "checks": {
+    "actual-dist": "PASS",
+    "fresh-disabled": "PASS",
+    "normal-user-switch": "PASS",
+    "register-ready": "PASS",
+    "first-inline": "PASS",
+    "get-watch-clear": "PASS",
+    "watch-reentrant-options": "PASS",
+    "cancel-before-first": "PASS",
+    "success-exception": "PASS",
+    "receiver-options": "PASS",
+    "timeout-cache-accuracy": "PASS",
+    "permissions": "PASS",
+    "permission-events": "PASS",
+    "policy-denied": "PASS",
+    "same-origin-iframe": "PASS",
+    "cross-origin-negative": "PASS",
+    "cross-origin-allowed": "PASS",
+    "special-documents": "PASS",
+    "language-timezone-font": "PASS",
+    "https-origin-fixture": "PASS",
+    "snapshot-A-to-B": "PASS",
+    "reload-B": "PASS",
+    "permission-false-denied": "PASS",
+    "permission-false-prompt": "PASS",
+    "permission-false-granted": "PASS",
+    "bfcache": "PASS",
+    "worker-stop-wake": "PASS",
+    "extension-update": "PASS",
+    "disable-native": "PASS",
+    "delete-native": "PASS"
+  },
+  "observations": {
+    "actual-dist": {
+      "fingerprint": {
+        "fileCount": 48,
+        "sha256": "a73c029743e36d34d2a5063993fa8ebfeb133fcca6b7bfefcb5d7ffa248d8ca3"
+      },
+      "manifestVersion": "2.1.1",
+      "originalBytesCopied": true,
+      "addedDriverPage": false,
+      "productionFilesModified": false
+    },
+    "fresh-disabled": {
+      "masterEnabled": false,
+      "ruleCount": 0,
+      "nativePermission": "denied",
+      "fixtureInvokedNativePosition": false,
+      "geolocationRuntime": "switch-required"
+    },
+    "normal-user-switch": {
+      "before": false,
+      "after": true,
+      "mechanism": "normal-details-UI-trusted-pointer",
+      "preferencesFileWritten": false
+    },
+    "register-ready": {
+      "geolocationRuntime": {
+        "state": "ready",
+        "registeredRuleCount": 1,
+        "reloadRequired": false
+      },
+      "pageRuntime": {
+        "state": "ready",
+        "registeredRuleCount": 1,
+        "reloadRequired": false
+      },
+      "fontRuntime": {
+        "state": "ready",
+        "registeredRuleCount": 1,
+        "reloadRequired": false
+      },
+      "geoRegistrationCount": 1,
+      "documentStart": true,
+      "mainWorld": true,
+      "allFrames": true
+    },
+    "first-inline": {
+      "readyState": "loading",
+      "scriptIndex": 1,
+      "inline": true,
+      "asynchronous": true,
+      "capturedMethodReferenceUsed": true,
+      "syntheticPosition": {
+        "latitude": 0,
+        "longitude": 0,
+        "accuracy": 50,
+        "timestamp": 1792658261016,
+        "frozen": true,
+        "nullExtras": true,
+        "json": true
+      },
+      "parsedGeolocationScripts": 2
+    },
+    "get-watch-clear": {
+      "id": 1,
+      "value": {
+        "latitude": 0,
+        "longitude": 0,
+        "accuracy": 50,
+        "timestamp": 1792658261097,
+        "frozen": true,
+        "nullExtras": true,
+        "json": true
+      },
+      "countAfterClear": 1,
+      "asyncWatch": true,
+      "get": {
+        "kind": "success",
+        "value": {
+          "latitude": 0,
+          "longitude": 0,
+          "accuracy": 50,
+          "timestamp": 1792658261178,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      }
+    },
+    "watch-reentrant-options": {
+      "innerId": 3,
+      "outerId": 4,
+      "innerCallbacks": 0,
+      "outerCallbacks": 1,
+      "errors": 0,
+      "timeoutReads": 1
+    },
+    "cancel-before-first": {
+      "callbacksAfterImmediateClear": 0
+    },
+    "success-exception": {
+      "successes": 1,
+      "errors": 0,
+      "uncaught": 1
+    },
+    "receiver-options": {
+      "receiver": "TypeError",
+      "success": "TypeError",
+      "error": "TypeError",
+      "options": "TypeError",
+      "clearMissing": "TypeError",
+      "symbol": "TypeError",
+      "getter": "RangeError",
+      "dictionary": {
+        "kind": "success",
+        "value": {
+          "latitude": 0,
+          "longitude": 0,
+          "accuracy": 50,
+          "timestamp": 1792658261268,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      },
+      "reads": [
+        "enableHighAccuracy",
+        "maximumAge",
+        "timeout"
+      ]
+    },
+    "timeout-cache-accuracy": {
+      "base": {
+        "kind": "success",
+        "value": {
+          "latitude": 0,
+          "longitude": 0,
+          "accuracy": 50,
+          "timestamp": 1792658261358,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      },
+      "zero": {
+        "kind": "error",
+        "code": 3
+      },
+      "reused": {
+        "kind": "success",
+        "value": {
+          "latitude": 0,
+          "longitude": 0,
+          "accuracy": 50,
+          "timestamp": 1792658261358,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      },
+      "highAccuracyMiss": {
+        "kind": "error",
+        "code": 3
+      },
+      "high": {
+        "kind": "success",
+        "value": {
+          "latitude": 0,
+          "longitude": 0,
+          "accuracy": 50,
+          "timestamp": 1792658261395,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      },
+      "highReused": {
+        "kind": "success",
+        "value": {
+          "latitude": 0,
+          "longitude": 0,
+          "accuracy": 50,
+          "timestamp": 1792658261395,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      }
+    },
+    "permissions": {
+      "geolocation": "granted",
+      "notification": "denied",
+      "eventTarget": true,
+      "invalidDescriptor": "TypeError",
+      "invalidReceiver": "TypeError"
+    },
+    "permission-events": {
+      "eventTarget": true,
+      "permissionPrototype": true,
+      "phases": [
+        [
+          {
+            "label": "first",
+            "self": true,
+            "target": true,
+            "currentTarget": true,
+            "state": "granted",
+            "name": "geolocation"
+          },
+          {
+            "label": "replacement",
+            "self": true,
+            "target": true,
+            "currentTarget": true,
+            "state": "granted",
+            "name": "geolocation"
+          },
+          {
+            "label": "second",
+            "self": true,
+            "target": true,
+            "currentTarget": true,
+            "state": "granted",
+            "name": "geolocation"
+          }
+        ],
+        [
+          {
+            "label": "first",
+            "self": true,
+            "target": true,
+            "currentTarget": true,
+            "state": "granted",
+            "name": "geolocation"
+          },
+          {
+            "label": "second",
+            "self": true,
+            "target": true,
+            "currentTarget": true,
+            "state": "granted",
+            "name": "geolocation"
+          },
+          {
+            "label": "readded",
+            "self": true,
+            "target": true,
+            "currentTarget": true,
+            "state": "granted",
+            "name": "geolocation"
+          }
+        ]
+      ],
+      "nativeQueryRejection": "TypeError",
+      "descriptorGetterRejection": "RangeError",
+      "forwardedNativePermissionChanges": 0,
+      "fixtureDispatchedChanges": 2
+    },
+    "policy-denied": {
+      "responsePolicy": "geolocation=()",
+      "errorCode": 1,
+      "permission": "denied",
+      "fixtureInvokedNativePosition": false
+    },
+    "same-origin-iframe": {
+      "loading": true,
+      "scriptIndex": 1,
+      "asynchronous": true,
+      "permission": "granted",
+      "syntheticPosition": {
+        "latitude": 0,
+        "longitude": 0,
+        "accuracy": 50,
+        "timestamp": 1792658261026,
+        "frozen": true,
+        "nullExtras": true,
+        "json": true
+      }
+    },
+    "cross-origin-negative": {
+      "separateOrigin": true,
+      "allowlistRulePresent": false,
+      "permission": "denied",
+      "languageNative": true,
+      "fixtureInvokedNativePosition": false
+    },
+    "language-timezone-font": {
+      "language": "fr-FR",
+      "timezone": "UTC",
+      "fontCheckTargetFalse": true,
+      "namedMeasureEqualsSansSerif": true
+    },
+    "special-documents": {
+      "srcdoc": {
+        "fixtureInvokedNativePosition": false,
+        "languageNative": true,
+        "permission": "denied"
+      },
+      "opaque": {
+        "fixtureInvokedNativePosition": false,
+        "languageNative": true,
+        "permission": "denied"
+      },
+      "data": {
+        "fixtureInvokedNativePosition": false,
+        "languageNative": true,
+        "permission": "denied"
+      },
+      "blank": {
+        "fixtureInvokedNativePosition": false,
+        "languageNative": true,
+        "permission": "denied"
+      },
+      "blob": {
+        "fixtureInvokedNativePosition": false,
+        "languageNative": true,
+        "permission": "denied"
+      }
+    },
+    "cross-origin-allowed": {
+      "separateOrigin": true,
+      "ownAllowlistRule": true,
+      "loading": true,
+      "scriptIndex": 1,
+      "asynchronous": true,
+      "syntheticPosition": {
+        "latitude": 0,
+        "longitude": 0,
+        "accuracy": 50,
+        "timestamp": 1792658261918,
+        "frozen": true,
+        "nullExtras": true,
+        "json": true
+      }
+    },
+    "https-origin-fixture": {
+      "mechanism": "HTTPS origin fixture via CDP Fetch.fulfillRequest",
+      "tlsTransportVerified": false,
+      "networkRequestsToFixtureHost": 0,
+      "fulfilledDocumentRequests": 1,
+      "unexpectedRequestsBlocked": 0,
+      "secureContext": true,
+      "actualUserScriptObserved": true,
+      "syntheticPosition": {
+        "latitude": 0,
+        "longitude": 0,
+        "accuracy": 50,
+        "timestamp": 1792658262058,
+        "frozen": true,
+        "nullExtras": true,
+        "json": true
+      },
+      "language": "fr-FR",
+      "timezone": "UTC",
+      "fontFilter": true,
+      "certificateBypass": false
+    },
+    "snapshot-A-to-B": {
+      "heldDocumentA": {
+        "latitude": 0,
+        "longitude": 0
+      },
+      "newConfigurationB": {
+        "latitude": 1,
+        "longitude": 2
+      },
+      "reloadRequired": true
+    },
+    "reload-B": {
+      "newDocument": true,
+      "syntheticPosition": {
+        "latitude": 1,
+        "longitude": 2,
+        "accuracy": 50,
+        "timestamp": 1792658262285,
+        "frozen": true,
+        "nullExtras": true,
+        "json": true
+      }
+    },
+    "bfcache": {
+      "actualPersisted": true,
+      "restoredSameDocument": true,
+      "snapshotA": {
+        "latitude": 0,
+        "longitude": 0
+      },
+      "configurationBNotApplied": true,
+      "watchCallbacks": 2,
+      "oneCallbackAfterResume": true,
+      "watchErrors": []
+    },
+    "permission-false-denied": {
+      "nativePermission": "denied",
+      "actualPermissionQuery": "denied",
+      "result": {
+        "kind": "error",
+        "code": 1
+      },
+      "fixtureOnly": true,
+      "emulatedNativeSentinelNotReturned": true
+    },
+    "permission-false-prompt": {
+      "nativePermission": "prompt",
+      "actualPermissionQuery": "prompt",
+      "result": {
+        "kind": "error",
+        "code": 1
+      },
+      "fixtureOnly": true,
+      "emulatedNativeSentinelNotReturned": true
+    },
+    "permission-false-granted": {
+      "nativePermission": "granted",
+      "actualPermissionQuery": "granted",
+      "result": {
+        "kind": "success",
+        "value": {
+          "latitude": 1,
+          "longitude": 2,
+          "accuracy": 50,
+          "timestamp": 1792658262867,
+          "frozen": true,
+          "nullExtras": true,
+          "json": true
+        }
+      },
+      "fixtureOnly": true,
+      "emulatedNativeSentinelNotReturned": true
+    },
+    "worker-stop-wake": {
+      "trigger": "CDP ServiceWorker.startWorker",
+      "managementPagesClosed": true,
+      "managementMessages": 0,
+      "registrationsBeforeTrigger": 0,
+      "exactRegistrationReadback": true,
+      "geolocationRegistrationCount": 3,
+      "workerReadiness": {
+        "apiReady": true,
+        "version": "2.1.1",
+        "attachments": 2,
+        "unavailableContexts": 0,
+        "wrongVersions": 0,
+        "invalidations": 0,
+        "targetChanges": 1
+      },
+      "newDocumentSyntheticB": true
+    },
+    "extension-update": {
+      "trigger": "Extensions.loadUnpacked version update",
+      "previousVersion": "2.1.1",
+      "updatedVersion": "2.1.2",
+      "explicitWorkerStart": false,
+      "managementPagesClosed": true,
+      "managementMessages": 0,
+      "registrationsBeforeTrigger": 0,
+      "exactRegistrationReadback": true,
+      "geolocationRegistrationCount": 3,
+      "workerReadiness": {
+        "apiReady": true,
+        "version": "2.1.2",
+        "attachments": 3,
+        "unavailableContexts": 1,
+        "wrongVersions": 0,
+        "invalidations": 0,
+        "targetChanges": 2
+      },
+      "newDocumentSyntheticB": true
+    },
+    "disable-native": {
+      "reason": "master-disabled",
+      "geoRegistrationCount": 0,
+      "parsedGeolocationScripts": 0,
+      "permission": "denied",
+      "nativeDescriptorShape": true,
+      "fixtureInvokedNativePosition": false
+    },
+    "delete-native": {
+      "reason": "allowlist-deleted",
+      "geoRegistrationCount": 0,
+      "parsedGeolocationScripts": 0,
+      "permission": "denied",
+      "nativeDescriptorShape": true,
+      "fixtureInvokedNativePosition": false
+    }
+  },
+  "failures": [],
+  "cleanup": {
+    "status": "PASS",
+    "failures": []
+  },
+  "limitations": [
+    "仅当前完整版本 Chrome；不代表 Chrome 138、其他 OS、TLS 传输或普通用户 profile 的人工验收",
+    "通过正常扩展详情 UI 开启 Allow User Scripts；CDP 权限与合成哨兵位置只控制临时测试 profile",
+    "fixtureInvokedNativePosition 仅说明 fixture 未主动调用原生定位，不是原生调用计数；本 JSON 未测量原生定位调用次数，哨兵仅验证未返回该合成原生值",
+    "只访问 loopback 测试站点，不调用真实定位、出口 provider 或扩展检测服务；Chrome 自身后台网络未全量监控",
+    "扩展更新仅修改临时 dist 副本版本并重新加载；原始构建与权限未改写",
+    "特殊文档仅读权限与语言等可观察状态，不调用其原生定位方法；未覆盖 Worker 中不存在的 Geolocation API"
+  ]
+}
