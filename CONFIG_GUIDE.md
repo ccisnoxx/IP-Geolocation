@@ -2,7 +2,7 @@
 
 > **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 当前源码版本为 **2.1.1（未发布）**。页面语言/时区需 Chrome 138+、userScripts 权限及正常开启 Allow User Scripts；配置注册成功后按文档快照执行。WebRTC 独立报告；其他页面能力继续暂停。扩展不改变代理或网络出口。安装步骤见 [INSTALL](INSTALL.md)，数据处理见 [PRIVACY](PRIVACY.md)。
 
@@ -100,12 +100,12 @@ Options 的引导也可用于已有配置：主动检测并确认出口，选择
 
 查看/更改推荐不保存、不发请求；选择变化或重新读取配置会撤销旧勾选。确认时后台在同一配置队列重新检查档案verified和检测版本，过期拒绝；只写选中规则的语言/时区覆盖，保留其他规则和全局语言/时区/位置。开启总开关会同时启用其他原已保存有效规则，界面已提示。WebRTC与字体是全局配置，默认保留，选择更改会在确认前提示影响范围。
 
-选择字体建议会启用固定内置名单，并仅在已启用HTTP(S)站点上提前注册；custom仍暂停。已有文档与BFCache保留旧快照，须完整重载或关闭重开；提示保守包含可能嵌入受影响iframe的页面。定位与权限语义按下述VG-029合同；Worker仍暂停。保存成功与页面实际应用分开显示；userScripts正常用户开关未启用时可保存但报告部分生效。重试只对账已保存配置，不应用未提交的表单。
+选择字体建议会启用固定内置名单，并仅在已启用HTTP(S)站点上提前注册；custom仍暂停。已有文档与BFCache保留旧快照，须完整重载或关闭重开；提示保守包含可能嵌入受影响iframe的页面。定位与权限语义按下述VG-029合同；HTTP(S)、SharedWorker及嵌套Worker仍未覆盖。保存成功与页面实际应用分开显示；userScripts正常用户开关未启用时可保存但报告部分生效。重试只对账已保存配置，不应用未提交的表单。
 
 
 ## VG-025 固定内置名单字体过滤（2026-10-20 已获恢复授权）
 
-仅在总开关、字体开关和HTTP(S) allowlist规则均启用且模式为vendor-software时，注册包内单文件font-exposure/filter.js（MAIN/document_start/allFrames，无origin fallback）。字体不依赖Allow User Scripts；语言/时区仍独立需要该开关。只覆盖CanvasRenderingContext2D.measureText与FontFaceSet.check；顶层measureText使用三种通用字体允许名单；check及iframe保持43项固定过滤，非目标透传。绘图/像素/导出保持原生，不覆盖DOM尺寸、local()、OffscreenCanvas或Worker。custom名单和Worker继续暂停；定位使用独立入口。
+仅在总开关、字体开关和HTTP(S) allowlist规则均启用且模式为vendor-software时，注册包内单文件font-exposure/filter.js（MAIN/document_start/allFrames，无origin fallback）。字体不依赖Allow User Scripts；语言/时区仍独立需要该开关。只覆盖CanvasRenderingContext2D.measureText与FontFaceSet.check；顶层measureText使用三种通用字体允许名单；check及iframe保持43项固定过滤，非目标透传。绘图/像素/导出保持原生，不覆盖DOM尺寸、local()、OffscreenCanvas或Worker。custom名单和Worker字体继续暂停；定位使用独立入口。
 
 固定字体文件不含用户配置、IP、位置、规则或档案payload，不读storage、不接受页面桥、不新增外部请求或权限。保存与Chrome注册撤销不是原子操作；同步报告确认的是新文档注册。旧hook/BFCache文档需完整重载或关闭重建，不热更新、不自动reload；字体重载提示保守包含可能嵌入受影响iframe的HTTP(S)标签页。恢复授权不等于人工验收通过，当前不提交或发布。
 
@@ -120,4 +120,8 @@ Options 的引导也可用于已有配置：主动检测并确认出口，选择
 
 保存/改坐标/删除规则/关闭后，确认同步完成再重新加载或关闭重开原网页。旧文档与BFCache可能继续返回旧坐标，已交给网页的数据无法撤回。iframe按自身URL匹配，位置注册变化对所有普通HTTP(S)标签页保守提示重载，以覆盖顶层未匹配但子帧匹配的情况；后台重启/扩展更新恢复注册。面板只显示简短定位状态，完整错误与边界在配置页。
 
-语言站点规则沿用域名及子域的统一匹配语义（含localhost及其子域）；更具体启用规则可覆盖或关闭语言。导航按目标域取语言，子资源按发起域取语言，因此跨源资源也沿用发起页面的偏好。Worker/SharedWorker的JavaScript语言仍原生，特殊文档不承诺同步。
+语言站点规则沿用域名及子域的统一匹配语义（含localhost及其子域）；更具体启用规则可覆盖或关闭语言。导航按目标域取语言，子资源按发起域取语言，因此跨源资源也沿用发起页面的偏好。本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖，特殊文档不承诺同步。
+
+### Blob Worker 同步范围
+
+VG-033 复用站点语言/时区，无独立全局配置，也不把美西写死。总开关或对应信号关闭后，新文档及其中新建Worker使用对应原生值。仅本页创建的 Dedicated Blob classic/module Worker 获同步，CSP须允许Blob脚本依赖；其他Worker仍未覆盖。更改配置或加载新构建后完整重载目标页。

@@ -126,7 +126,7 @@ for (const page of ['popup', 'options'] as const) {
       assert.match(text, /已有受影响页面需完整重载（reload）或关闭后重新打开/);
       assert.match(text, /BFCache 恢复文档保留原快照，不会热更新或自动刷新/);
       assert.match(text, /当前页面实际值尚未验证/);
-      assert.match(text, /Worker \/ SharedWorker 仍暂停/);
+      assert.match(text, /Blob Dedicated Worker 可同步语言\/时区.*SharedWorker.*未覆盖/);
       assert.match(text, /about:blank、srcdoc、data:、blob:.*sandbox.*unsupported \/ UNKNOWN/);
       assert.doesNotMatch(text, /全部保护.*生效|当前页面已.*生效/);
     } else {
@@ -241,7 +241,7 @@ test('面板保留简短操作提示，完整能力边界和引导留在配置�
   const html = readFileSync(new URL('../src/options/options.html', import.meta.url), 'utf8');
   assert.match(html, /onboardingDetails/);
   assert.match(html, /Chrome 138\+、userScripts 权限及 Allow User Scripts 开关/);
-  assert.match(html, /Worker \/ SharedWorker 仍暂停/);
+  assert.match(html, /Blob Dedicated Worker 可同步语言\/时区.*SharedWorker.*未覆盖/);
   assert.match(html, /固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP\(S\)站点规则均启用时独立注册，自定义名单仅保存/);
   assert.match(html, /about:blank、srcdoc、data:、blob:.*unsupported \/ UNKNOWN/);
   assert.match(html, /BFCache 恢复文档保留原快照/);

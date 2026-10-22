@@ -2,9 +2,9 @@
 
 > **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
-当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，同步站点的 Accept-Language，保持其他 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。定位与字体过滤各按独立状态报告，Worker语言仍原生。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
+当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，同步站点的 Accept-Language，保持其他 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。定位与字体过滤各按独立状态报告，本页创建的 Blob Dedicated Worker 可同步语言/时区；HTTP(S)、SharedWorker、嵌套与外来 Blob Worker 未覆盖。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
 
 ## 当前能力与边界
 
@@ -15,7 +15,7 @@
 - 配置保存、worker 初始化和扩展 update 时由后台串行对账：先撤销失效/范围变化的注册，再更新保留规则，最后新增并读回验证。Popup/Options 分别显示 API/权限/用户开关不可用、注册失败、注册成功需重载或新文档可用；不自动刷新页面。
 - 出口位置只在用户点击检测或重新检测时请求外部 provider。候选确认后保存为 verified 档案，auto 位置/时区必须在每条规则上显式绑定该档案。**没有后台定时刷新**；更换代理或网络后需要主动重新检测。
 - Options 可按已确认出口生成地区语言/时区推荐：默认保留现有语言，查看推荐不保存、不检测；明确确认后仅覆盖所选站点，字体与 WebRTC 的全局变更另行选择。时区只标注单 provider 声明，未知国家代码不猜语言。
-- 支持自定义环境方案、配置导入/导出；固定内置字体名单仅在总开关、字体开关和 HTTP(S) allowlist 均启用时注册；自定义名单及同源 HTTP(S) Worker/SharedWorker 的语言/时区包装继续暂停。地区推荐是有限候选，不代表个人偏好；不新增 GPU、Audio、screen 等设备伪装。
+- 支持自定义环境方案、配置导入/导出；固定内置字体名单仅在总开关、字体开关和 HTTP(S) allowlist 均启用时注册；自定义名单及同源 HTTP(S) Worker/SharedWorker 的语言/时区包装继续暂停；本页创建的 Dedicated Blob Worker 语言时区按 VG-033 限定范围同步。地区推荐是有限候选，不代表个人偏好；不新增 GPU、Audio、screen 等设备伪装。
 - 可保存全局时区与 Locale `strict`/`compatible` 模式。其保留语义分别为强制一致性、保留页面显式参数并只补默认值；仅随已验收的语言/时区注册用于匹配新文档，不恢复其他页面能力；精确语义见 [配置指南](CONFIG_GUIDE.md#时区与-locale-模式)。
 - 扩展侧一次性诊断报告比较实际值与留在扩展内部的预期值；外部诊断页只做 observation，不给出配置验收 PASS/FAIL。
 
@@ -89,7 +89,7 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>`，使用实际worker/router/包内固定字体资产和临时profile；不读取用户配置、不修改Allow User Scripts开关。默认不带--production仍是隔离固定脚本资格验证，不替代生产接线或人工验收。VG-027位置资格见 [可信早期环境交付](docs/stabilization/early-environment-delivery.md)。
 
 
-VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
+VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom字体与Worker字体继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
 
 VG-032语言请求头验证：构建后执行 `node scripts/chrome-header-sync-smoke.mjs --output <脱敏JSON>`。使用临时profile和映射到loopback的测试域，先经过无DNR中间版本，再暂停候选后台验证静态隔离，随后验证迁移、普通Allow User Scripts开关、导航/iframe/跨源资源、子域关闭、快照重载、后台唤醒及扩展更新恢复。该脚本的 `--cold-restart` 是历史CDP临时加载探查，其阻塞证据保留，不能代替正常安装的冷启动验收。
 
@@ -100,3 +100,11 @@ VG-032语言请求头验证：构建后执行 `node scripts/chrome-header-sync-s
 可靠关闭流程的独立验证使用同一命令追加 `--master-off-restore`：正常 Popup 总开关关闭、界面确认保存并同步后写入 `master-disabled`，随后正常关闭 Chrome 用户脚本开关并写入 `user-scripts-disabled`。先验证新顶层/iframe及同源、跨源请求均原生，再完整退出并自动恢复一个HTTP标签，在CDP连接前采集首导航头与首inline。Chrome149本轮9项通过，见[总开关关闭及重启证据](.trellis/tasks/10-22-vg-032-header-sync/chrome-master-off-restore-evidence.json)。正常安装和恢复设置的信号与上文相同。
 
 `--user-scripts-off-restore` 则保留直接关闭Chrome开关的负例，不执行插件总开关关闭；此模式及默认冷启动模式现在把首请求失配纳入整体FAIL，后台后续收敛不再代替首请求验收。旧JSON保留其当时判据，不覆盖历史失败观测。本轮用户选择插件总开关作为关闭入口，未宣称消除直接关闭Chrome开关的窗口。
+
+## Blob Worker 语言与时区（VG-033）
+
+仅在语言或时区已启用、匹配规则的新 HTTP(S) 文档中，对该 realm 在脚本安装后通过 URL.createObjectURL(Blob) 创建的 Dedicated Worker 应用同一快照，覆盖 classic 和 module。不改系统或 Chrome 原生设置；HTTP(S) Worker、SharedWorker、嵌套 Worker、其他 realm 创建的 Blob 及旧 Worker 仍未覆盖。不是全浏览器语言清理。
+
+需要页面 CSP 同时允许 Blob Worker 入口及 Blob 脚本依赖，Trusted Types 和 MIME 检查仍由 Chrome 执行；阻止依赖时 Worker 会报错，不能报告同步成功。包装会改变 Worker location.href、模块 import.meta.url 和错误堆栈中的 Blob 地址。业务源采用独立脚本/模块，保留严格模式及模块依赖先后顺序；页面可在构造后立即撤销原 URL。关闭/改配置后完整刷新页面再创建 Worker。
+
+启动前用同步 XMLHttpRequest 仅核验本页已跟踪的 blob: URL 是否仍在原生存储中，避免同源其他 realm 撤销后复活源码。该步骤不访问 HTTP(S) 或外部网络，但读取成本随 Blob 大小增加；CSP connect-src 禁止读取时会明确警告“本次语言/时区未同步”并保留原生加载，不能当作通过。普通 URL 对象支持；TrustedScriptURL、安装前或其他 realm 创建的 URL 未覆盖。页面 CSP 仍需允许 Blob Worker 及 Blob 脚本依赖。

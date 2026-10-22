@@ -13,3 +13,6 @@ declare module 'virtual:vanishgeo-page-runtime-source' {
 declare module 'virtual:vanishgeo-geolocation-runtime-source' {
   export const geolocationRuntimeSource: string;
 }
+declare module 'virtual:vanishgeo-blob-worker' {
+  export function applyBlobWorkerRuntime(payload: import('./shared/types').LanguageTimezonePayload): void;
+}

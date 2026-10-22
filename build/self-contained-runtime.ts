@@ -72,11 +72,11 @@ export function assertSelfContainedFunction(code: string, name: string): string 
   return `function ${name}(${fn.parameters.map(p => p.getText(tree)).join(', ')}) ${fn.body.getText(tree)}`;
 }
 
-async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false, fontOnly = false, geolocationOnly = false): Promise<GeneratedRuntime> {
-  const isWorker = !worker && !pageOnly && !fontOnly && !geolocationOnly;
-  const name = geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFixedFontFilter' : pageOnly ? 'applyLanguageTimezoneRuntime' : isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
-  const fileName = geolocationOnly ? 'vanishgeo-geolocation-runtime.js' : fontOnly ? 'vanishgeo-font-filter.js' : pageOnly ? 'vanishgeo-page-runtime.js' : isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
-  const entry = resolve(root, `src/injected/runtime-modules/${geolocationOnly ? 'geolocation-entry.ts' : fontOnly ? 'font-exposure-entry.ts' : pageOnly ? 'language-timezone-entry.ts' : `${isWorker ? 'worker/' : ''}entry.ts`}`);
+async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false, fontOnly = false, geolocationOnly = false, blobWorkerOnly = false): Promise<GeneratedRuntime> {
+  const isWorker = !worker && !pageOnly && !fontOnly && !geolocationOnly && !blobWorkerOnly;
+  const name = blobWorkerOnly ? 'applyBlobWorkerRuntime' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFixedFontFilter' : pageOnly ? 'applyLanguageTimezoneRuntime' : isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
+  const fileName = blobWorkerOnly ? 'vanishgeo-blob-worker.js' : geolocationOnly ? 'vanishgeo-geolocation-runtime.js' : fontOnly ? 'vanishgeo-font-filter.js' : pageOnly ? 'vanishgeo-page-runtime.js' : isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
+  const entry = resolve(root, `src/injected/runtime-modules/${blobWorkerOnly ? 'blob-worker-entry.ts' : geolocationOnly ? 'geolocation-entry.ts' : fontOnly ? 'font-exposure-entry.ts' : pageOnly ? 'language-timezone-entry.ts' : `${isWorker ? 'worker/' : ''}entry.ts`}`);
   const virtualEntry = '\0vanishgeo-generation-entry';
   const workerId = resolve(root, 'dist/vanishgeo-worker.js');
   const dependencies = new Set<string>(worker?.dependencies || []);
@@ -84,13 +84,13 @@ async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly =
     name: 'vanishgeo-static-generation',
     resolveId(source) {
       if (source === virtualEntry) return source;
-      if (source === workerModuleId) return workerId;
+      if (source === workerModuleId || source === 'virtual:vanishgeo-blob-worker') return workerId;
       if (!source.startsWith('.') && !isAbsolute(source)) throw new Error(`运行时不允许外部模块：${source}`);
     },
     load(id) {
       if (id === virtualEntry) return isWorker
         ? `import { applyWorkerRuntime } from ${JSON.stringify(entry)}; applyWorkerRuntime(patchConfig, workerBootstrap);`
-        : `export { ${geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'} } from ${JSON.stringify(entry)};`;
+        : `export { ${blobWorkerOnly ? 'applyBlobWorkerRuntime' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'} } from ${JSON.stringify(entry)};`;
       if (id === workerId && worker) return { code: worker.code, map: worker.map };
     },
     moduleParsed(info) {
@@ -106,7 +106,7 @@ async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly =
         warn(warning);
       }, output: { format: isWorker ? 'es' : 'iife', name: 'runtimeExports', entryFileNames: fileName,
         banner: `export function ${name}(${fontOnly ? '' : isWorker ? 'patchConfig' : 'payload'}) {`,
-        footer: isWorker ? '}' : `return runtimeExports.${geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${fontOnly ? '' : 'payload'});\n}`,
+        footer: isWorker ? '}' : `return runtimeExports.${blobWorkerOnly ? 'applyBlobWorkerRuntime' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${fontOnly ? '' : 'payload'});\n}`,
         sourcemapPathTransform(source) { return isAbsolute(source) ? relative(root, source).replace(/\\/g, '/') : source; }
       } }
     }
@@ -126,8 +126,13 @@ export async function generateRuntime(root = projectRoot): Promise<GeneratedRunt
   return generateGraph(root, worker);
 }
 
-export function generatePageRuntime(root = projectRoot): Promise<GeneratedRuntime> {
-  return generateGraph(root, undefined, true);
+export async function generatePageRuntime(root = projectRoot): Promise<GeneratedRuntime> {
+  const worker = await generateBlobWorkerRuntime(root);
+  return generateGraph(root, worker, true);
+}
+
+export function generateBlobWorkerRuntime(root = projectRoot): Promise<GeneratedRuntime> {
+  return generateGraph(root, undefined, false, false, false, true);
 }
 
 export function generateFontFilter(root = projectRoot): Promise<GeneratedRuntime> {

@@ -74,10 +74,11 @@ test('禁用或空首次安装不写全局状态，私有句柄更新不热更�
   }
 });
 
-test('生产 userScripts 仍是独立语言/时区 graph，不包含字体/位置/Worker 安装', async () => {
+test('生产 userScripts 独立语言时区与Blob Worker graph不含历史Worker或其他surface', async () => {
   const generated = await generatePageRuntime();
   const fn = assertSelfContainedFunction(generated.code, 'applyLanguageTimezoneRuntime');
   assert.ok(generated.dependencies.some(path => path.endsWith('/language-timezone-entry.ts')));
+  assert.ok(generated.dependencies.some(path => path.endsWith('/blob-worker-entry.ts')));
   assert.ok(generated.dependencies.every(path => !/\/(?:font-exposure|geolocation-permissions|workers)\.ts$|\/worker\//.test(path)));
   assert.doesNotMatch(fn, /installFontExposureFilter|installGeolocationSpoof|installWorkerHooks|workerBootstrap/);
   const context = page();
@@ -87,7 +88,7 @@ test('生产 userScripts 仍是独立语言/时区 graph，不包含字体/位�
     this.document={fonts:{check(){return true}}};
     this.nativeMeasure=CanvasRenderingContext2D.prototype.measureText;
     this.nativeCheck=document.fonts.check;
-    this.nativeWorker=Worker;`, Object.assign(context, { Worker: function Worker() {} }));
+    this.nativeWorker=Worker;`, Object.assign(context, { Worker: undefined }));
   vm.runInContext(`(${fn})(${JSON.stringify({
     language: { language: 'fr-FR', languages: ['fr-FR'] }, timezone: 'Europe/Paris', intlMode: 'strict',
     fontExposureConfig: { enabled: true, mode: 'custom', blockedFamilies: ['MiSans'] }

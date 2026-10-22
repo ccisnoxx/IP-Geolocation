@@ -342,3 +342,12 @@ Thumbs.db
 !.trellis/tasks/10-16-vg-023-userscripts-language-timezone/prd.md
 !.trellis/tasks/10-16-vg-023-userscripts-language-timezone/design.md
 !.trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md
+
+# VG-033 Blob Worker 正式记录
+!.trellis/tasks/10-23-vg-033-blob-worker/
+.trellis/tasks/10-23-vg-033-blob-worker/*
+!.trellis/tasks/10-23-vg-033-blob-worker/task.json
+!.trellis/tasks/10-23-vg-033-blob-worker/prd.md
+!.trellis/tasks/10-23-vg-033-blob-worker/design.md
+!.trellis/tasks/10-23-vg-033-blob-worker/implement.md
+!.trellis/tasks/10-23-vg-033-blob-worker/chrome-evidence.json

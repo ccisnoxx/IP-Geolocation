@@ -685,3 +685,21 @@ tasks:
       - 正常设置自动恢复单个旧HTTP活动标签，完整退出后不传启动网址，CDP连接前采首导航头与首inline语言；稳定设置日语及切换德语两轮有独立证据
       - 正常Popup总开关关闭并同步后，页面与头均原生；再关闭Allow User Scripts并完整退出重启，CDP前采自动恢复标签首请求及首inline原生
       - 完整本地门禁、独立只读复核和真实Chrome验证；本地完成后review，人工验收后done，提交和发布另依授权
+
+  - id: VG-033
+    title: 页面创建的Blob Worker语言时区同步
+    phase: R7
+    dependencies: [VG-023, VG-032]
+    status: done
+    trellis_task: .trellis/tasks/10-23-vg-033-blob-worker
+    authorization:
+      date: '2026-10-23'
+      scope: 用户明确选择先修复页面创建的Blob Worker，并用当前Chrome实测美西配置
+    scope:
+      - 复用页面最小语言时区快照和同一surface实现，限定本realm创建的Dedicated Blob Worker
+      - classic与module启动顺序、立即撤销原URL、错误和terminate清理
+      - HTTP(S)、SharedWorker、嵌套及其他realm创建的Blob保持原生并明确未覆盖
+    acceptance:
+      - 生成函数自包含，首段业务代码语言列表及Intl/Date与页面一致，不硬编码美西配置
+      - 不扩大权限、host或配置披露，不绕过CSP及Trusted Types；保持站点范围和关闭语义
+      - 定向测试、完整本地门禁、独立只读复核和当前Chrome实测；本地完成后仅review

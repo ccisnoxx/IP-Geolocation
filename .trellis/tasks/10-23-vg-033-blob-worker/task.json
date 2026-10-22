@@ -1,0 +1,17 @@
+{
+  "id": "VG-033",
+  "name": "页面创建的Blob Worker语言时区同步",
+  "status": "done",
+  "dependencies": [
+    "VG-023",
+    "VG-032"
+  ],
+  "acceptance": {
+    "date": "2026-10-23",
+    "by": "user",
+    "result": "passed",
+    "scope": "页面创建的Dedicated Blob Worker语言时区同步",
+    "local_commit_authorized": true,
+    "push_authorized": false
+  }
+}

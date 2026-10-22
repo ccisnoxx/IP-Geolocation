@@ -1,0 +1,159 @@
+{
+  "task": "VG-033",
+  "date": "2026-10-23",
+  "status": "review",
+  "browser": {
+    "kind": "current-user-Chrome",
+    "observedReducedUserAgentVersion": "Chrome/155.0.0.0"
+  },
+  "method": {
+    "production": "正常扩展详情页重新加载实际dist，完整刷新现有检测页；通过原生DevTools Console和Network验证",
+    "csp": "同一Chrome、仅loopback服务、实际生成模板和合成美西payload；不代表扩展在该loopback站点注册"
+  },
+  "artifactSha256": {
+    "dist/background/service-worker.js": "b6a021020f83f537d9676f4daa3dd1162678cc6bcac23e43a95f5859edc33218",
+    "src/injected/runtime-modules/surfaces/blob-worker.ts": "3aefefd5622e0fbe44965c0bfddc0a20d48cbe1f4d105984c6874d7510396821",
+    "src/injected/runtime-modules/blob-worker-entry.ts": "8a33f52e57f00383691051fa58e91724eae2c338cf3a417aa2c4508d098620bb"
+  },
+  "page": {
+    "language": "en-US",
+    "languages": [
+      "en-US",
+      "en"
+    ],
+    "locale": "en-US",
+    "timeZone": "America/Los_Angeles",
+    "winterOffset": 480,
+    "summerOffset": 420
+  },
+  "productionBlobWorkers": [
+    {
+      "type": "classic",
+      "urlObject": false,
+      "emptyMime": false,
+      "firstMatchesPage": true,
+      "currentMatchesPage": true,
+      "messagePreserved": true,
+      "immediateOriginalRevoke": true
+    },
+    {
+      "type": "module",
+      "urlObject": false,
+      "emptyMime": false,
+      "firstMatchesPage": true,
+      "currentMatchesPage": true,
+      "messagePreserved": true,
+      "immediateOriginalRevoke": true
+    },
+    {
+      "type": "classic",
+      "urlObject": true,
+      "emptyMime": false,
+      "firstMatchesPage": true,
+      "currentMatchesPage": true,
+      "messagePreserved": true,
+      "immediateOriginalRevoke": true
+    },
+    {
+      "type": "classic",
+      "urlObject": false,
+      "emptyMime": true,
+      "firstMatchesPage": true,
+      "currentMatchesPage": true,
+      "messagePreserved": true,
+      "immediateOriginalRevoke": true
+    }
+  ],
+  "additionalChecks": {
+    "classicStrictModeAndLexicalURL": true,
+    "moduleStaticDependencySeesPatchedValues": true,
+    "foreignRealmRevocationRejects": true,
+    "whitespaceRevocationRejects": true,
+    "uppercaseSchemeRevocationRejects": true
+  },
+  "requestHeader": {
+    "method": "Chrome DevTools Network实际已发出的同源诊断fetch请求",
+    "name": "Accept-Language",
+    "value": "en-US,en;q=0.9",
+    "scope": "该请求；未逐一采集全部导航和子资源"
+  },
+  "cspCases": [
+    {
+      "mode": "native",
+      "policy": "normal",
+      "passed": true,
+      "businessRan": true,
+      "synced": false,
+      "warning": false,
+      "liveURLsBeforeTerminate": 0,
+      "error": null
+    },
+    {
+      "mode": "native",
+      "policy": "connect-blocked",
+      "passed": true,
+      "businessRan": true,
+      "synced": false,
+      "warning": false,
+      "liveURLsBeforeTerminate": 0,
+      "error": null
+    },
+    {
+      "mode": "native",
+      "policy": "script-blocked",
+      "passed": true,
+      "businessRan": true,
+      "synced": false,
+      "warning": false,
+      "liveURLsBeforeTerminate": 0,
+      "error": null
+    },
+    {
+      "mode": "patched",
+      "policy": "normal",
+      "passed": true,
+      "businessRan": true,
+      "synced": true,
+      "warning": false,
+      "liveURLsBeforeTerminate": 0,
+      "error": null
+    },
+    {
+      "mode": "patched",
+      "policy": "connect-blocked",
+      "passed": true,
+      "businessRan": true,
+      "synced": false,
+      "warning": true,
+      "liveURLsBeforeTerminate": 0,
+      "error": null
+    },
+    {
+      "mode": "patched",
+      "policy": "script-blocked",
+      "passed": true,
+      "businessRan": false,
+      "synced": false,
+      "warning": false,
+      "liveURLsBeforeTerminate": 0,
+      "error": "worker-error"
+    }
+  ],
+  "verification": {
+    "npmRunCheck": "passed",
+    "tests": 293,
+    "pass": 293,
+    "fail": 0,
+    "probeScriptTypecheck": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "unsupported": [
+    "HTTP(S) Worker",
+    "SharedWorker",
+    "nested Worker",
+    "foreign or pre-install Blob URL",
+    "TrustedScriptURL",
+    "CSP-blocked Blob verification/dependencies"
+  ],
+  "privacy": "只记录语言、时区、浏览器版本、构建哈希和布尔结论；不保存IP、位置、Cookie或其他请求头"
+}
