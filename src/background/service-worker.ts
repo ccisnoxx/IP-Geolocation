@@ -2,9 +2,9 @@ import { createContextMenus, handleContextMenuClick } from './context-menu';
 import { createBackgroundMessageRouter } from './message-router';
 import { createBackgroundServices } from './services';
 import { DiagnosticRunError } from './diagnostic-runs';
-import { pageRuntimeSource } from '../injected/runtime';
+import { pageRuntimeSource, geolocationRuntimeSource } from '../injected/runtime';
 
-const services = createBackgroundServices(pageRuntimeSource);
+const services = createBackgroundServices(pageRuntimeSource, geolocationRuntimeSource);
 const router = createBackgroundMessageRouter(services);
 
 function runBackgroundTask(label: string, task: Promise<unknown>): void {

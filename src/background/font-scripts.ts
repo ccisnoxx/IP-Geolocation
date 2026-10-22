@@ -2,7 +2,7 @@ import { buildContentScriptMatchesForDomain, domainMatches, getEnabledRuleDomain
 import type { FontRuntimeStatus, RuntimeSyncComponentReport, SiteSpoofConfig } from '../shared/types';
 
 export const FONT_SCRIPT_PREFIX = 'vanishgeo-font-exposure-';
-// VG-025：2026-10-20 用户明确授权固定内置名单；custom、位置及 Worker 继续暂停。
+// VG-025：2026-10-20 用户明确授权固定内置名单；custom及Worker继续暂停；定位恢复由VG-029独立入口负责。
 export const FONT_FILTER_PRODUCTION_APPROVED = true;
 
 export function hasFontScriptScopeChanged(previous: SiteSpoofConfig, next: SiteSpoofConfig): boolean {

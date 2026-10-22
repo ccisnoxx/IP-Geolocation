@@ -6,7 +6,7 @@
 
 ## 本地候选
 
-当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面语言/时区需 Chrome138+、userScripts 权限及正常开启 Allow User Scripts，提前注册后新文档使用快照；Geolocation/Canvas/Worker 仍暂停；HTTP 请求头保持原生，WebRTC 按实际策略状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
+当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（未发布候选）**。页面语言/时区需 Chrome138+、userScripts 权限及正常开启 Allow User Scripts，提前注册后新文档使用快照；定位恢复候选见 VG-029；自定义字体和 Worker 仍暂停；HTTP 请求头保持原生，WebRTC 按实际策略状态运行。真正发布时重新检查候选版本。在仓库根目录使用 Node.js 20+、npm 和锁文件：
 
 ```bash
 npm ci
@@ -95,4 +95,4 @@ Topics：`vanishgeo`、`chromium-extension`、`manifest-v3`、`privacy`、`geolo
 只建议在当前仓库 Settings/About 中由维护者设置，不调用远端管理 API，不沿用原作品地址创建或关联仓库。原作品归属仅保留于 [NOTICE](NOTICE)。历史敏感值清理是另一项需人工批准的操作，见 [CONTRIBUTING](CONTRIBUTING.md)。
 
 
-VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom、位置和Worker继续暂停。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
+VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。

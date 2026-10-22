@@ -78,8 +78,8 @@ test('deriveCurrentSiteStatus differentiates unsupported, disabled, unmatched, e
     errors: []
   }).kind, 'not-allowlisted');
   assert.equal(deriveCurrentSiteStatus(base).kind, 'enabled');
-  assert.equal(deriveCurrentSiteStatus(base).label, '新文档语言/时区可用');
-  assert.match(deriveCurrentSiteStatus(base).detail, /当前页面实际值尚未验证/);
+  assert.equal(deriveCurrentSiteStatus(base).label, '规则已同步');
+  assert.match(deriveCurrentSiteStatus(base).detail, /网页实际效果尚未验证/);
   assert.equal(deriveCurrentSiteStatus(base).disableDomain, 'example.com');
 });
 
@@ -125,10 +125,10 @@ test('暂停报告不会把已匹配站点显示为页面伪装生效，规则�
   const state = deriveCurrentSiteStatus({ domain: 'example.com', scriptable: true, config,
     ...getPageRuntimeProfile(config, 'example.com'), syncReport });
   assert.equal(state.kind, 'paused');
-  assert.equal(state.label, '页面伪装已暂停');
+  assert.equal(state.label, '语言/时区已暂停');
   assert.equal(state.canEnable, false);
   assert.equal(state.canDisable, true);
-  assert.match(state.detail, /WebRTC 请查看同步详情/);
+  assert.match(state.detail, /完整配置查看暂停详情/);
 });
 
 test('暂停的 auto 地理位置不阻断语言/手工时区配置，旧报告也不能覆盖新注册状态', () => {
@@ -143,7 +143,7 @@ test('暂停的 auto 地理位置不阻断语言/手工时区配置，旧报告�
     ...getPageRuntimeProfile(config, 'example.com'), syncReport });
   assert.equal(state.kind, 'enabled');
   assert.doesNotMatch(state.detail, /页面伪装已暂停/);
-  assert.match(state.detail, /Geolocation \/ Permissions geolocation、Worker \/ SharedWorker 仍暂停/);
+  assert.doesNotMatch(state.detail, /Geolocation|BFCache|Worker/);
 });
 
 test('当前站点分别显示 API、权限、Allow User Scripts、同步失败与完整重载状态', () => {
@@ -161,27 +161,28 @@ test('当前站点分别显示 API、权限、Allow User Scripts、同步失败�
     const status = deriveCurrentSiteStatus({ ...base, syncReport });
     assert.equal(status.kind, 'runtime-unavailable');
     assert.equal(status.label, label);
-    assert.match(status.detail, /当前页面实际值为 UNKNOWN/);
+    assert.match(status.detail, /匹配规则：example.com/);
     assert.equal(status.canDisable, true);
     const disabled = deriveCurrentSiteStatus({ ...base, config: { ...config, masterEnabled: false }, syncReport });
-    assert.match(disabled.detail, /当前页面实际值为 UNKNOWN/);
+    assert.match(disabled.detail, /总开关已保存为关闭/);
     assert.doesNotMatch(disabled.detail, /完整重载（reload）或关闭后重新打开/);
-    if (state === 'switch-required') assert.match(status.detail, /chrome:\/\/extensions.*详情页.*重试同步/);
+    if (state === 'switch-required') assert.match(status.detail, /扩展详情.*允许用户脚本/);
   }
   const syncReport = readyReport();
   syncReport.pageRuntime!.reloadRequired = true;
   const reload = deriveCurrentSiteStatus({ ...base, syncReport });
   assert.equal(reload.kind, 'reload-required');
-  assert.match(reload.detail, /完整重载（reload）或关闭后重新打开/);
-  assert.match(reload.detail, /BFCache 恢复文档保留原快照/);
+  assert.match(reload.detail, /重新加载后应用最新设置/);
+  assert.doesNotMatch(reload.detail, /BFCache|快照/);
   const unsupported = deriveCurrentSiteStatus({ ...base, scriptable: false, syncReport });
   assert.equal(unsupported.kind, 'unsupported');
-  assert.match(unsupported.detail, /about:blank、srcdoc、data:、blob:.*sandbox.*unsupported \/ UNKNOWN/);
+  assert.equal(unsupported.detail, '仅支持普通 HTTP(S) 网页。');
 });
 
-test('仅保存暂停表面或关闭语言/时区时，不把匹配规则显示为新文档语言/时区可用', () => {
+test('关闭全部页面信号时不把匹配规则显示为可用', () => {
   const config = createConfig();
   config.globalProfile.timezone.enabled = false;
+  config.globalProfile.geolocation.enabled = false;
   const status = deriveCurrentSiteStatus({ domain: 'example.com', scriptable: true, config,
     ...getPageRuntimeProfile(config, 'example.com'), syncReport: readyReport() });
   assert.equal(status.kind, 'disabled');

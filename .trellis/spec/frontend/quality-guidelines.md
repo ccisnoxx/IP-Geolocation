@@ -1,6 +1,6 @@
 # 质量规范
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。VG-029定位恢复已于2026-10-22获用户授权，独立userScripts最小坐标入口；Worker/SharedWorker仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 当前技术与权威边界
 
@@ -12,7 +12,7 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 
 - 使用 TypeScript ES module imports，Node 测试通过 tsx 导入维护源；不添加 global/CommonJS 双导出，也不以仓库根可直接加载扩展为要求。
 - manifest 和 HTML 引用 dist 路径；userScripts code 来自固定构建模板字符串。入口改名/移动必须同步 Vite input、引用和 `tests/extension-wiring.test.ts`，并检查实际构建。
-- `src/injected/runtime.ts` 是 virtual module facade，构建器静态生成自包含函数；生产后台只消费语言/时区固定 source；完整函数保留隔离测试，不是独立 runtime 入口或 web-accessible 文件。注入函数不能依赖模块闭包和外部 chunk 在页面中的可访问性。
+- `src/injected/runtime.ts` 是 virtual module facade，构建器静态生成自包含函数；生产后台消费语言/时区与定位各自的固定 source；完整函数保留隔离测试，不是独立 runtime 入口或 web-accessible 文件。注入函数不能依赖模块闭包和外部 chunk 在页面中的可访问性。
 - dist 包含共享 assets chunks，完整分发不能只拷贝六个 JS 入口。使用当前构建输出作为证据，不用 Vite 注释推断不存在共享 chunks。
 - 不直接修改 dist，不在业务源码中引用某次构建的哈希 chunk 名。
 
@@ -29,7 +29,7 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 
 ## 页面 hook 与设备透传
 
-生产语言/时区入口仅安装Navigator语言与Intl/Date，includeTemporal:false；固定内置字体通过独立包内脚本派发。Geolocation/Permissions、custom字体和Worker/SharedWorker继续暂停，完整runtime不生产派发。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
+生产语言/时区入口仅安装Navigator语言与Intl/Date，includeTemporal:false；固定内置字体通过独立包内脚本派发。定位通过独立专用入口安装；custom字体和Worker/SharedWorker继续暂停，完整runtime不生产派发。registry.ts 只拥有本次安装的闭包状态和原生快照；不得把 state、controller 或 marker 放在 window/self 或其他页面可访问的对象属性上（包括不可枚举或 Symbol 属性）。Object/Reflect 反射函数和 Function.prototype.toString 保持原生引用与 descriptor，不维护 descriptor/source 虚拟化缓存。
 
 Navigator / WorkerNavigator getter 保留原生 prototype 位置、descriptor flags、name/length 和非法 receiver 异常；仅当前 navigator 返回配置值，其他 receiver 调用原生 getter。属性后来被网页替换、删除或冻结时，反射 API 必须报告实际值。函数 source 由未修改的引擎 API 决定，不保证包装函数与原函数源码文本相同。
 
@@ -154,4 +154,9 @@ VG-028历史阶段生产字体过滤暂停；VG-025已获用户授权恢复固�
 node --import tsx scripts/chrome-font-filter-smoke.mjs --services-integration --output <脱敏JSON> 在独立临时扩展上下文运行实际services、resolver、storage与字体UI renderer；复用已获授权的生产源码，另打包门禁false的人工暂停变体作撤销负对照。合成localhost/127规则，不读取用户配置、不请求provider，不修改生产源或dist。此模式与额外--browser-restart分开，验证字体注册、独立状态/刷新债、新service实例恢复、custom与scope撤销、总开关及原false门禁；不能称为生产worker事件、浏览器冷启动或人工恢复验收。
 
 
-VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom、位置和Worker继续暂停。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。
+VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom和Worker继续暂停；位置恢复见下述VG-029合同。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。
+
+
+## VG-029 定位验证
+
+本任务实际dist专用runner为scripts/chrome-geolocation-smoke.mjs；生产定位与语言时区、字体分别对照。至少记录首inline调用、三方法及取消、receiver/选项/异常、权限与策略、普通iframe和特殊文档负对照、A→B/reload、撤销新文档、真实BFCache hit、后台及扩展update恢复。Node/VM证明纯语义，不替代Chrome。临时profile通过正常详情UI开启Allow User Scripts，不写prefs或借旧documentId回退。使用合成坐标，本机原生定位可由不同值的合成哨兵隔离；不得访问真实传感器或将真实坐标/IP/个人路径写证据。没有实测的HTTPS、Chrome138、其他OS/故障矩阵必须单列，不能以单版本通过扩大声明。用户人工验收前manifest仅review。

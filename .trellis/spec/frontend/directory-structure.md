@@ -1,6 +1,6 @@
 # 目录结构
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区或定位 JSON（独立入口） 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。VG-029定位恢复已于2026-10-22获用户授权，独立userScripts最小坐标入口；Worker/SharedWorker仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 当前架构
 
@@ -94,4 +94,4 @@ registry.ts 创建页面每次安装的私有 RuntimeState；surfaces 显式消�
 `build/runtime-plugin.ts` 返回组合 source map，登记 page/worker 的实际依赖，build watch 重建 virtual 内容。用于加载的内部模块 ID 有文件位置，但不写维护树生成文件；生产 sourcemap 配置保持不变，无网页 map URL/WAR。后台只消费语言/时区固定 source 字符串；完整 graph 保留隔离测试。两次打包脱离闭包与 source map/watch 仍由构建测试覆盖。
 
 
-VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom、位置和Worker继续暂停。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。
+VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom和Worker继续暂停；位置恢复见下述VG-029合同。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。

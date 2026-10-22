@@ -535,3 +535,26 @@ tasks:
       - 无动态敏感 payload、页面桥、documentId 或完整 runtime 恢复
       - 有限探测覆盖、撤销与旧文档快照边界明确，独立安全复核
       - 2026-10-22用户确认本次最小字体允许名单改动验收通过，按上述限定范围done；未授权提交发布
+
+  - id: VG-029
+    title: 地理位置生产恢复与真实 Chrome 验证
+    phase: R7
+    dependencies: [VG-023, VG-024, VG-028]
+    status: done
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      evidence: .trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md#2026-10-22-人工验收确认
+    trellis_task: .trellis/tasks/10-22-vg-029-geolocation-recovery
+    production_restoration_authorization:
+      status: granted
+      date: '2026-10-22'
+      scope: 最小位置userScripts与Geolocation/Permissions geolocation，保留语言时区字体
+      excluded: [Worker/SharedWorker, 特殊文档, 新增设备指纹面, push, 发布]
+    scope:
+      - 修复定位方法、选项、权限与watch生命周期，最小payload及独立同步状态
+      - 同一队列注册恢复及iframe重载债，真实Chrome正负对照与现有功能回归
+    acceptance:
+      - 首调用、取消、权限、更新撤销、BFCache和后台恢复有实际证据
+      - 本地门禁和独立只读复核，人工验收前仅review，不push不发布

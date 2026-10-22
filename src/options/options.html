@@ -12,7 +12,7 @@
       <div class="hero-copy">
         <span class="eyebrow">VanishGeo Console</span>
         <h1>环境一致性控制台</h1>
-        <p>管理新文档语言/时区快照、WebRTC 策略与字体暴露配置。</p>
+        <p>管理位置、语言/时区、WebRTC 策略与字体过滤。</p>
       </div>
       <div class="hero-actions">
         <button id="save" class="btn-primary">保存当前配置</button>
@@ -21,7 +21,7 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Geolocation / Permissions geolocation、Worker / SharedWorker 仍暂停。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
+      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Worker / SharedWorker 仍暂停；地理位置仅在普通安全上下文且允许定位的匹配网页应用合成坐标。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
       <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。请求头保持浏览器原生值；WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
@@ -133,7 +133,7 @@
         <div class="tab-content active" data-tab="geolocation">
           <label class="checkbox-label">
             <input type="checkbox" id="geolocationEnabled">
-            <span>保存地理位置伪装开关（已暂停）</span>
+            <span>启用地理位置伪装</span>
           </label>
           <div class="input-row">
             <div class="input-group">
@@ -159,7 +159,7 @@
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="spoofPermission">
-            <span>保存地理位置权限伪装配置（已暂停）</span>
+            <span>合成位置权限伪装（不申请真实定位）</span>
           </label>
         </div>
 
@@ -264,7 +264,7 @@
             <h2>站点特定规则</h2>
           </div>
         </div>
-        <p class="section-description">每条规则可显式绑定出口位置档案；auto 时区需要已确认档案。语言/时区在注册同步后的新文档使用；地理位置配置仅保存，仍暂停。</p>
+        <p class="section-description">每条规则可显式绑定出口位置档案；auto 时区需要已确认档案。语言/时区在注册同步后的新文档使用；地理位置在有效规则和安全上下文下返回配置坐标。</p>
         <div id="siteRules" class="site-rules"></div>
       </section>
 

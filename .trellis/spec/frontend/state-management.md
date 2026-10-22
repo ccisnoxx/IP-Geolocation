@@ -1,6 +1,6 @@
 # 状态管理
 
-> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。Geolocation/Permissions geolocation、Worker/SharedWorker 仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
+> VG-023：Chrome 138+ / userScripts / 正常 Allow User Scripts。生产通过固定构建模板加 resolver 最小语言/时区 JSON 提前注册 MAIN / document_start，普通 HTTP(S) 顶层及 iframe 每文档快照。无 content 初始化或 documentId executeScript 回退，无热更新/自动 reload。VG-029定位恢复已于2026-10-22获用户授权，独立userScripts最小坐标入口；Worker/SharedWorker仍暂停；VG-025固定内置名单字体过滤已于2026-10-20获用户恢复授权，仅启用HTTP(S) allowlist按独立状态派发；特殊文档 unsupported / UNKNOWN。任务及证据见 [VG-023](../../tasks/10-16-vg-023-userscripts-language-timezone/prd.md)。
 
 ## 场景：出口位置档案与页面运行时一致性
 
@@ -44,7 +44,7 @@ deleteExitLocationProfile(profileId: string): Promise<ConfigSaveResult>;
 - `detectExitLocation` 只产生 `chrome.storage.session` 中的短期候选；确认前不得写入 local 配置。
 - 重检确认保留档案 ID，并以 `baseVerifiedAt` 检测并发修改；引用该 ID 的规则继续跟随更新后的档案。
 - 完整配置导入必须把出口档案降级为 unverified，并清空规则绑定。
-- 配置写入前后按 URL 比较最小语言/时区 payload 的语义签名，只对变化的已打开标签页记录人工重载待办；时间戳、错误文案、位置、仅保存的custom字体配置或管理元数据不新增待办；固定字体注册范围变化按下述VG-025合同记独立font债。
+- 配置写入前后按 URL 比较最小语言/时区 payload 的语义签名，只对变化的已打开标签页记录人工重载待办；时间戳、错误文案、仅保存的custom字体配置或管理元数据不新增待办；定位注册变化按VG-029合同记独立geolocation债；固定字体注册范围变化按下述VG-025合同记独立font债。
 - 生产页面不发送初始化消息；管理页消息仍经过 requireExtensionPage。后台在注册前从持久化配置解析 payload，网页不能提交 payload。
 
 ### 4. Validation & Error Matrix
@@ -122,7 +122,7 @@ storage 拥有 session runtimeSyncMetadata 读写，只记录摘要、组件状�
 
 对账先观测实际脚本和 privacy 状态，只对差异进行写操作并确认结果；不把期望 policy 当成功。default/禁用不能只由 effective 控制权推断 own override 不存在；必须取得 clear 确认后才允许同一签名跳过。DNR 权限和组件均已删除，无规则读取、写入或容量预检。页面注册读回成功后才设置 pageRuntime.reloadRequired，其他组件继续独立报告。没有 tabs.reload 或页面热更新；关闭/导航清理对应待办，同 URL 已完整重载也可能保守保留提示，不能借提示认定当前页面已更新。已有/BFCache 文档保持旧快照。
 
-worker 顶层、onInstalled/onStartup、管理页读取和显式 reconcileRuntime 使用同一对账路径。Popup/Options 常驻状态，部分失败显示“已保存但未完全生效”；重试只读取保存配置，不能保存未提交表单。相同配置收敛后不重复 Chrome 注册修改；不自动刷新。
+worker 顶层、onInstalled/onStartup、管理页读取和显式 reconcileRuntime 使用同一对账路径。Popup 常驻简短的语言/时区、字体过滤与 WebRTC 同步结果；失败、权限缺失和重载需求必须可见，当前网站只显示匹配规则与必要操作提示。配置引导、详细错误和文档生命周期/能力边界放在 Options；Options 部分失败显示“已保存但未完全生效”。面板使用“重新加载网页”等操作用语，不在标题附加“新文档快照”“独立运行状态”等实现术语；规则同步不代表网页实际效果已验证。重试只读取保存配置，不能保存未提交表单。相同配置收敛后不重复 Chrome 注册修改；不自动刷新。
 
 验证入口：background-services、webrtc、runtime-sync-ui 和 wiring 测试，以及按本任务实际边界选择的 Chrome 定向证据。确认提交后的候选清理失败也保持 saved/partial，固定 warning 与待清理 detection ID 可恢复；同一检测 ID 重试不重复创建档案。候选发布/确认/取消/清理共享队列，网络检测在队列外。完整 MV3/iframe/worker/ICE、迁移和多窗口编辑仍需独立验收。
 
@@ -148,7 +148,7 @@ runtime-modules/intl-policy.ts 为页面/worker 共用参数策略。strict 保�
 
 ## 场景：提前注册的语言/时区快照（VG-023）
 
-getLanguageTimezonePayload 只返回 intlMode、启用的 language/languages 和 timezone，不含 Accept-Language、位置、IP/provider、档案/规则列表。getPageRuntimeProfile 不解析暂停的 geolocation，避免未绑定的 auto 位置阻断有效手工语言/时区；auto 时区依然要求显式 verified 档案。覆盖值 enabled:false 不产生信号。
+getLanguageTimezonePayload 只返回 intlMode、启用的 language/languages 和 timezone，不含 Accept-Language、位置、IP/provider、档案/规则列表。getPageRuntimeProfile 不解析独立派发的 geolocation，避免未绑定的 auto 位置阻断有效手工语言/时区；auto 时区依然要求显式 verified 档案。覆盖值 enabled:false 不产生信号。
 
 compilePageScripts 先 validateConfig，复用域名 matches/domainMatches；每条有效规则生成独立 ID，excludeMatches 包含所有更具体的启用规则，即使子规则无有效页面信号。所有配置值安全 JSON 序列化，无用户 JavaScript/远程代码/页面桥。services 共享队列串行执行：撤销失效或 scope 变化的旧注册并确认 → 更新保留项 → 新增 → 读回确认；失败进入 RuntimeSyncReport，不返回纯成功或提示 reload。WebRTC 保留原有失败语义。
 
@@ -167,7 +167,7 @@ storage key不变，v2首次读取迁移写回v3；已规范化v3不重写。规
 
 VG-028清理阶段已人工验收。VG-024已移除DNR权限与过渡组件，现行同步仅contentScripts/webrtc/tabReload；旧marker可惰性保留但不得写入/依赖。v2跳级残留可能留在磁盘，但权限缺失时不启用；未来重新引入须独立授权和清理迁移，不能直接恢复权限。
 
-唯一内置字体常量在无副作用font-families模块，config-model保持import/reexport；固定字体entry直接导入常量模块，避免默认规则/配置初始化被打入包内脚本。同模块的CANVAS_MEASUREMENT_ALLOWED_FAMILIES仅为包内固定测量策略，不进入FontExposureConfig或storage：2026-10-22授权仅在生产entry的顶层文档传入，check和iframe的blockedFamilies配置/归一化不变。VG-025候选有人工恢复门禁，用户已于2026-10-20授权固定内置名单恢复，后台按唯一compiler派生注册；custom继续暂停，不得把注册就绪当当前文档已验证应用。仍不得导入完整runtime恢复。
+唯一内置字体常量在无副作用font-families模块，config-model保持import/reexport；固定字体entry直接导入常量模块，避免默认规则/配置初始化被打入包内脚本。同模块的CANVAS_MEASUREMENT_ALLOWED_FAMILIES仅为包内固定测量策略，不进入FontExposureConfig或storage：2026-10-22授权仅在生产entry的顶层文档传入，check和iframe的blockedFamilies配置/归一化不变。VG-025候选有人工恢复门禁，用户已于2026-10-20授权固定内置名单恢复，后台按唯一compiler派生注册；custom继续暂停，不得把注册就绪当当前文档已验证应用。位置恢复见VG-029专用入口，仍不得导入完整runtime恢复。
 
 ## VG-025 字体运行状态与刷新债
 
@@ -181,4 +181,13 @@ RuntimeSyncReport可选fontRuntime独立于pageRuntime；历史缺字段为UNKNO
 独立复核发现并修复两项重载债遗漏：保存/注销窗口内新开的文档，以及只有iframe命中的顶层页面。字体注册范围变化现在直接比较同一compiler结果，对所有普通HTTP(S)标签页保守记font债（顶层URL无法排除iframe）；UI明确保守提示。预写pendingFontScopeChange保存窗口补录义务，reconcile完成注册后再次query合并窗口新页，字体失败或查询失败保留marker跨中断恢复；成功才清除。previous同时保留旧签名marker，任意后续保存不能丢失尚未完成的补录义务。pendingForSignature深拷贝防止合并污染旧记录。无新增权限或页面文档观察桥。
 
 
-VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom、位置和Worker继续暂停。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。
+VG-025恢复授权已于2026-10-20由用户明确给出，仅固定内置名单、启用HTTP(S) allowlist；custom和Worker继续暂停；位置恢复见下述VG-029合同。正式dist验证入口为node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>，使用实际worker/router/注册资产与临时profile，不修改用户浏览器或开关；人工恢复授权与人工验收通过分开记录。
+
+
+## VG-029 定位注册与快照
+
+用户于2026-10-22授权实施恢复，人工验收状态以manifest为准。getGeolocationPayload复用共享匹配与信号解析，仅派生latitude/longitude/accuracy/randomize/randomRadiusMeters/spoofPermission；manual保留合法零坐标，auto只消费规则显式绑定的verified档案。位置缺配置不影响语言/时区payload，语言/时区缺出口不阻断有效manual位置。编译器先validateConfig；共用userScripts内部对账但独立vanishgeo-geolocation-命名空间、构建模板与geolocationRuntime报告，不接受页面或用户JS，不向语言时区入口添加坐标。
+
+geolocationRuntime使用与页面相同的ready/disabled/api-unsupported/permission-required/switch-required/sync-failed状态，ready只表示注册回读成功。services同一配置队列串行管理，pendingReloads surfaces增加geolocation；pendingGeolocationScopeChange和previous保存预写/同步窗口补录义务。位置注册或payload变化对全部普通HTTP(S)标签页保守记债，覆盖iframe；只有位置注册回读及tab查询确认后才给重载提示。原有page/font债不被覆盖。配置/metadata读取失败时清理所属定位namespace并回读，保留其他userScripts和原始启动错误；清理未确认必须明确报错。
+
+同文档固定坐标及随机偏移，无热更新/自动reload。合成定位不调用真实传感器；spoofPermission=true只代表配置的合成位置授权，不改Chrome站点设置；false保留原生query，仅原生granted交付合成位置，prompt/denied返回拒绝。非法参数/receiver、权限查询故障、timeout/cache、取消和文档生命周期由定向测试与真实Chrome分别证明。仅普通非opaque安全HTTP(S)上下文且原生API存在、Permissions-Policy允许时工作；不创建缺失API，不恢复特殊文档或Worker。旧/BFCache文档保持旧快照，已交付数据不可撤回。

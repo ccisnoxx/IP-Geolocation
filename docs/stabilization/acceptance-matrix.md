@@ -215,6 +215,15 @@ VG-025真实用户Chrome的关闭基线尚未通过，现场根因`UNCONFIRMED`�
 独立有界面 CfT155.0.8059.80、正常 UI 加载未插桩当前 dist，三次正常冷启动自动恢复唯一活动 HTTP 标签：开启正对照、内部关闭、卡片停用共23项PASS。首inline API/来源栈报告在CDP连接前收到，后续完整刷新/新建先于管理页/Options，关闭路径保持原生且状态保留。开启恢复首inline有字体栈，而晚附加Debugger不回放顶层脚本，恢复首文档完整源码未捕获；不以缺事件断言无注入。见[正式证据与覆盖限制](../../.trellis/tasks/10-20-vg-025-font-filter/browser-card-disable-verification.md)。不覆盖用户现场因果、后台惰性/崩溃恢复及所有历史状态；现场UNCONFIRMED，VG025 review/人验pending，不提交发布。
 
 
+## 2026-10-22 VG-029 定位恢复已验收
+
+用户已明确授权定位恢复并真实Chrome验证，现完成最小定位userScripts、三方法/权限/生命周期修复及独立状态；语言/时区和固定字体保持。此前位置NO_GO及暂停只代表历史阶段，不覆盖本次授权；原始历史研究/JSON及其他任务状态保持。2026-10-22用户已明确确认验收通过，task-manifest.yaml为done，Trellis completed，人工验收accepted。
+
+实际dist在Chrome155.0.8059.86/macOS arm64/headless下30项PASS，含首inline、三方法/取消/重入、权限/策略、iframe/特殊文档、A→B/reload、真实BFCache、后台/扩展update恢复、撤销与语言时区字体回归；Node248项通过。用户当前Chrome匹配网站也已实测固定坐标(0,0)→保存不热更新→完整导航后(1,2)，get/watch和语言/时区/字体回归均通过，原自动定位及随机偏移已恢复。HTTPS origin隔离fixture不代表TLS传输，Chrome138、其他OS及全部冷启动/故障组合仍未验。详见[人工验收确认](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md#2026-10-22-人工验收确认)、[真实Chrome原始证据](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/chrome-evidence.json)与[当前Chrome现场记录](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/current-chrome-evidence.json)。未提交、push或发布。
+
+
 ## 2026-10-22 VG-025 已接受范围
 
 固定名单和顶层测量允许名单已获用户限定人工验收，当前状态为done；上述2026-10-21的review、现场UNKNOWN及停止说明保留历史含义。具体范围和未验证项见[人工验收记录](../../.trellis/tasks/10-20-vg-025-font-filter/implement.md#2026-10-22-人工验收与收尾)。
+
+本地拆分提交的独立构建已补跑237项Node测试及真实Chrome30项，原248项工作树证据保持；各阶段命令、产物摘要与既有字体故障窗口限制见[提交拆分验证](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md#2026-10-22-本地提交拆分验证)。

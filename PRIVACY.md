@@ -2,7 +2,7 @@
 
 > **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 本说明描述当前维护源的数据流与存储；权限清单见 [PERMISSIONS](PERMISSIONS.md)。VanishGeo 不提供 VPN/代理，不改变正常请求的网络出口，也不承诺匿名或让网页无法观测浏览器。没有后台定时出口刷新，也没有配置同步到开发者服务器的流程。
 
@@ -41,7 +41,7 @@ manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则�
 
 诊断在原有实际值采样中额外执行固定 en-US/UTC 的 Intl.DateTimeFormat、NumberFormat 与 Date locale 调用；top/iframe/Worker 分别返回实际默认和显式结果，预期与模式只在扩展内部比较。固定调用不包含用户配置、无新增外部请求，不增加设备表面；旧 fixture 缺显式观测时为 UNKNOWN。定向 Chrome 模式 smoke 只使用本地 fixture、临时 profile 与合成配置，保存的 JSON 只含浏览器版本、模式及布尔/场景结论，不含个人路径、IP、坐标、凭据或文档身份。VG-023 的独立生产 smoke 使用实际 dist、仅 loopback namespace 与正常用户开关，证据单独保存，不联系第三方站点/provider/STUN。
 
-注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。Geolocation/Permissions geolocation、Worker/SharedWorker 继续暂停；固定内置字体过滤按独立注册状态报告；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
+注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。定位按独立 userScripts 状态报告，Worker/SharedWorker 继续暂停；固定内置字体过滤按独立注册状态报告；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
 
 HTTP Accept-Language 与其他请求头保持原生；当前版本不再申请 DNR 权限，不调用或回读该 API，不写清理标记。旧 v2 跳级升级可能保留磁盘旧规则，但权限缺失时不启用；未来重新引入 DNR 必须独立设计清理迁移。请求仍直接到目标站点，不经过扩展提供的转发服务器。目标、网络出口服务和服务器日志仍可看到正常 IP/请求头。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账只调用现有 Chrome 脚本/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
 
@@ -77,7 +77,14 @@ HTTP Accept-Language 与其他请求头保持原生；当前版本不再申请 D
 
 ## 固定字体候选
 
-VG-025 隔离字体脚本只含固定内置名单（16项厂商/软件及2026-10-22授权新增的27项简繁中文字体），无公网IP、位置、规则或档案payload、storage或页面配置桥；2026-10-20用户已授权固定内置名单生产注册；custom、位置及Worker继续暂停。真实Chrome资格runner仅访问loopback，合成目标字体别名通过本机字体加载，无字体下载；完整像素/图像和原生设备值只在进程内对照，正式JSON仅保存布尔、版本与固定源码SHA256。Chrome自身后台网络未做全量监控。
+VG-025 隔离字体脚本只含固定内置名单（16项厂商/软件及2026-10-22授权新增的27项简繁中文字体），无公网IP、位置、规则或档案payload、storage或页面配置桥；2026-10-20用户已授权固定内置名单生产注册；custom及Worker继续暂停；位置恢复见VG-029。真实Chrome资格runner仅访问loopback，合成目标字体别名通过本机字体加载，无字体下载；完整像素/图像和原生设备值只在进程内对照，正式JSON仅保存布尔、版本与固定源码SHA256。Chrome自身后台网络未做全量监控。
 
 
-VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom、位置和Worker继续暂停。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
+VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
+
+
+## VG-029 坐标数据流
+
+位置的独立注册payload仅包含latitude、longitude、accuracy、randomize、randomRadiusMeters、spoofPermission，不含公网IP、provider、国家、规则/档案ID或完整配置。值由后台共享resolver从手工设置或显式绑定的verified档案派生，以固定自包含模板和安全JSON提前注册；不使用页面桥、DOM/storage读取或远程脚本。匹配且允许定位的网页可经定位API读取所配置的合成坐标；这属于用户启用站点后的数据交付，坐标不能像语言/时区一样视为非敏感字段。权限伪装不授予真实传感器权限，不执行浏览器真实定位；关闭伪装时保留原生权限查询，未授权不提供成功结果。
+
+注册撤销只影响未来文档；旧文档/BFCache仍持有旧快照，必须重载或关闭，网页已读取的数据无法撤回。诊断仍需用户明确发起，结果仅扩展内短期比较。VG-029浏览器资格测试使用临时profile、合成坐标与loopback目标，证据只保存布尔/分类/版本及构建摘要，不保存真实位置、个人路径或真实出口IP；具体实际覆盖及未验证项见任务证据。

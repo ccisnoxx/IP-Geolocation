@@ -233,7 +233,7 @@ test('并发 prepare 只保留最新请求，报告关闭时准备阶段也失�
 test('诊断 actions 只接受扩展报告文档，run 跨报告文档不可读取或取消', async () => {
   const mock = installRunMock();
   try {
-    const router = createBackgroundMessageRouter(createBackgroundServices('function applyLanguageTimezoneRuntime() {}'));
+    const router = createBackgroundMessageRouter(createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}'));
     for (const sender of [
       { id: 'test', url: 'https://example.test/', tab: { id: 9 }, documentId: 'report-document' },
       { id: 'other', url: 'chrome-extension://test/diagnostic/report.html', tab: { id: 9 }, documentId: 'report-document' },

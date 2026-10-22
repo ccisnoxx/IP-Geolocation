@@ -14,7 +14,7 @@ export function isRuntimeInjectionPaused(report?: RuntimeSyncReport): boolean {
   return !report?.pageRuntime && Boolean(report?.components.contentScripts.errors.some((error) => error.code === RUNTIME_INJECTION_PAUSED.code));
 }
 
-export const PAGE_RUNTIME_PAUSED_SURFACES = 'Geolocation / Permissions geolocation、Worker / SharedWorker 仍暂停，相关配置已配置但当前未应用。字体暴露过滤独立报告。';
+export const PAGE_RUNTIME_PAUSED_SURFACES = 'Worker / SharedWorker 仍暂停。字体过滤与地理位置分别报告注册状态。';
 export const PAGE_RUNTIME_DOCUMENT_SCOPE = 'about:blank、srcdoc、data:、blob: 和特殊 sandbox 文档不支持（unsupported / UNKNOWN）。';
 const DOCUMENT_SNAPSHOT_MESSAGE = '已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。';
 
@@ -31,8 +31,17 @@ export function fontRuntimeMessage(report?: RuntimeSyncReport): string {
   }
 }
 
-export function renderFontRuntimeStatus(element: HTMLElement, report?: RuntimeSyncReport): void {
-  element.textContent = fontRuntimeMessage(report);
+export function fontRuntimeSummary(report?: RuntimeSyncReport): string {
+  const state = report?.fontRuntime?.state;
+  const status = state ? {
+    ready: '已同步', disabled: '未启用', paused: '暂不可用',
+    'custom-paused': '自定义名单暂不可用', 'sync-failed': '同步失败'
+  }[state] : '待确认';
+  return `字体过滤：${status}`;
+}
+
+export function renderFontRuntimeStatus(element: HTMLElement, report?: RuntimeSyncReport, format: 'detailed' | 'compact' = 'detailed'): void {
+  element.textContent = format === 'compact' ? fontRuntimeSummary(report) : fontRuntimeMessage(report);
   element.dataset.fontRuntime = report?.fontRuntime?.state || 'unknown';
 }
 
@@ -57,6 +66,30 @@ export function pageRuntimeMessage(report?: RuntimeSyncReport): string {
   }
 }
 
+export function pageRuntimeSummary(report?: RuntimeSyncReport): string {
+  const state = report?.pageRuntime?.state;
+  const status = state ? {
+    ready: '已同步', disabled: '未启用',
+    'api-unsupported': '需要 Chrome 138+ 的 userScripts 支持',
+    'permission-required': '缺少 userScripts 权限',
+    'switch-required': '请在扩展详情开启“允许用户脚本”（Allow User Scripts）',
+    'sync-failed': '同步失败'
+  }[state] : isRuntimeInjectionPaused(report) ? '已暂停，请查看完整配置' : '待确认，请重试同步';
+  return `语言/时区：${status}`;
+}
+
+export function geolocationRuntimeSummary(report?: RuntimeSyncReport): string {
+  const state = report?.geolocationRuntime?.state;
+  const status = state ? { ready: '已同步', disabled: '未启用', 'api-unsupported': '需要 Chrome 138+',
+    'permission-required': '缺少 userScripts 权限', 'switch-required': '请开启允许用户脚本', 'sync-failed': '同步失败' }[state] : '待确认';
+  return `定位：${status}`;
+}
+
+export function geolocationRuntimeMessage(report?: RuntimeSyncReport): string {
+  const geo = report?.geolocationRuntime;
+  return `${geolocationRuntimeSummary(report)}${geo?.state === 'ready' ? `（${geo.registeredRuleCount} 条规则）` : ''}。仅普通安全上下文且允许使用定位的匹配网页可用；权限伪装仅代表合成位置授权，不申请真实定位。${geo?.reloadRequired ? '已有受影响页面需重新加载或关闭重开（保守包含 iframe）。' : ''}${DOCUMENT_SNAPSHOT_MESSAGE}`;
+}
+
 export class RuntimeSyncOperationError extends Error {
   constructor(public readonly code: string, message: string) { super(message); }
 }
@@ -73,7 +106,7 @@ export async function syncSignature(value: string): Promise<string> {
 }
 
 export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
-  if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${fontRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
+  if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${geolocationRuntimeMessage()} ${fontRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
   const details = (Object.keys(RUNTIME_SYNC_COMPONENT_LABELS) as RuntimeSyncComponent[])
     .filter((key) => key === 'webrtc' || report.components[key].status !== 'ok')
     .map((key) => {
@@ -83,12 +116,26 @@ export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
     });
   if (report.metadataError) details.push(report.metadataError.message);
   if (report.warnings) details.push(...report.warnings.map((warning) => warning.message));
-  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${fontRuntimeMessage(report)} ${details.join('；')}。请求头保持浏览器原生值。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
+  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${geolocationRuntimeMessage(report)} ${fontRuntimeMessage(report)} ${details.join('；')}。请求头保持浏览器原生值。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
 }
 
-export function renderRuntimeSyncReport(element: HTMLElement, report?: RuntimeSyncReport): void {
-  element.textContent = runtimeSyncMessage(report);
+export function runtimeSyncSummary(report?: RuntimeSyncReport): string {
+  if (!report) return '同步状态待确认，请重试同步。';
+  const webrtc = report.components.webrtc.status;
+  const parts = [geolocationRuntimeSummary(report), pageRuntimeSummary(report), fontRuntimeSummary(report),
+    `WebRTC：${webrtc === 'ok' ? '已同步' : webrtc === 'failed' ? '同步失败' : '部分同步'}`];
+  for (const key of ['contentScripts', 'tabReload'] as const) {
+    if (report.components[key].status !== 'ok') parts.push(`${RUNTIME_SYNC_COMPONENT_LABELS[key]}：未完成`);
+  }
+  if (report.metadataError || report.warnings?.length) parts.push('有同步提醒，详见完整配置');
+  if (report.pageRuntime?.reloadRequired || report.fontRuntime?.reloadRequired || report.geolocationRuntime?.reloadRequired) parts.push('请重新加载已打开的网页');
+  return `${parts.join('；')}。`;
+}
+
+export function renderRuntimeSyncReport(element: HTMLElement, report?: RuntimeSyncReport, format: 'detailed' | 'compact' = 'detailed'): void {
+  element.textContent = format === 'compact' ? runtimeSyncSummary(report) : runtimeSyncMessage(report);
   element.dataset.status = report?.status || 'partial';
   element.dataset.pageRuntime = report?.pageRuntime?.state || 'unknown';
+  element.dataset.geolocationRuntime = report?.geolocationRuntime?.state || 'unknown';
   element.dataset.fontRuntime = report?.fontRuntime?.state || 'unknown';
 }

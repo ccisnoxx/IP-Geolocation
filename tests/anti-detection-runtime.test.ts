@@ -394,94 +394,15 @@ test('Intl and Date timezone formatting stay consistent even with explicit calle
   assert.match(inspection.stringValue, /GMT\+0100/);
 });
 
-test('geolocation methods and permission query form one stable granted contract', async () => {
+test('完整隔离 runtime 不创建原生缺失的 Geolocation API', () => {
   const { context } = createBrowserLikeContext();
-  vm.runInContext(`
-    this.navigator.geolocation = {};
-    class PermissionStatusMock extends EventTarget {
-      constructor(state) {
-        super();
-        this._state = state;
-      }
-      get state() { return this._state; }
-      get name() { return 'geolocation'; }
-    }
-    this.PermissionStatus = PermissionStatusMock;
-    this.navigator.permissions = {
-      query(desc) {
-        if (desc && desc.name === 'geolocation') return Promise.resolve(new PermissionStatusMock('denied'));
-        return Promise.resolve(new PermissionStatusMock('prompt'));
-      }
-    };
-  `, context);
   vm.runInContext(compileRuntime(), context, { filename: 'runtime.js' });
-
   applyPayload(context, {
     extensionEnabled: true,
-    geolocation: {
-      enabled: true,
-      latitude: 35.68,
-      longitude: 139.76,
-      accuracy: 25,
-      randomize: true,
-      randomRadiusMeters: 500,
-      spoofPermission: true
-    }
+    geolocation: { enabled: true, latitude: 12, longitude: 23, accuracy: 25, spoofPermission: true }
   });
-
-  const inspection = await vm.runInContext(`(async () => {
-    const first = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        }),
-        reject
-      );
-    });
-    const second = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        }),
-        reject
-      );
-    });
-    const watch = await new Promise((resolve, reject) => {
-      const id = navigator.geolocation.watchPosition(
-        (position) => {
-          navigator.geolocation.clearWatch(id);
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy
-          });
-        },
-        reject
-      );
-    });
-    const permission = await navigator.permissions.query({ name: 'geolocation' });
-    return {
-      first,
-      second,
-      watch,
-      permissionState: permission.state,
-      permissionName: permission.name,
-      permissionPrototype: Object.getPrototypeOf(permission).constructor.name,
-      nonGeoPermissionState: (await navigator.permissions.query({ name: 'notifications' })).state
-    };
-  })()`, context);
-
-  assert.deepEqual(inspection.first, inspection.second);
-  assert.deepEqual(inspection.first, inspection.watch);
-  assert.equal(inspection.first.accuracy, 25);
-  assert.equal(inspection.permissionState, 'granted');
-  assert.equal(inspection.permissionName, 'geolocation');
-  assert.equal(inspection.permissionPrototype, 'PermissionStatusMock');
-  assert.equal(inspection.nonGeoPermissionState, 'prompt');
+  assert.equal(vm.runInContext('navigator.geolocation', context), undefined);
+  assert.equal(vm.runInContext('Object.hasOwn(navigator, "geolocation")', context), false);
 });
 
 test('registry reflection layer leaves unmodified real-device surfaces as pass-through', () => {
@@ -611,16 +532,10 @@ test('debugMode 只记录固定提示，不向页面控制台暴露预期 payloa
     assert.ok(logs.every((entry) => entry.every((value) => typeof value === 'string')));
     assert.equal(logs.length, debugMode ? 1 : 0);
     assert.doesNotMatch(JSON.stringify(logs), /12\.345678|23\.456789|fr-FR|Europe\/Paris|latitude|longitude|acceptLanguage/);
-    const actual = await vm.runInContext(`new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(position => resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }), reject);
+    const actual = vm.runInContext(`({
+      language: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     })`, context);
-    assert.equal(actual.latitude, 12.345678);
-    assert.equal(actual.longitude, 23.456789);
     assert.equal(actual.language, 'fr-FR');
     assert.equal(actual.timezone, 'Europe/Paris');
   }

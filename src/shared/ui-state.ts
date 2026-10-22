@@ -1,6 +1,6 @@
 // Popup 的当前站点状态投影；有效 payload 由共享解析器唯一生成。
-import { isRuntimeInjectionPaused, fontRuntimeMessage, pageRuntimeMessage, PAGE_RUNTIME_DOCUMENT_SCOPE, PAGE_RUNTIME_PAUSED_SURFACES } from './runtime-sync';
-import { domainMatches, getPageRuntimeProfile } from './config-resolver';
+import { isRuntimeInjectionPaused, pageRuntimeSummary, geolocationRuntimeSummary } from './runtime-sync';
+import { domainMatches, getPageRuntimeProfile, getGeolocationPayload } from './config-resolver';
 import type { EffectivePayload, RuntimeSyncReport, SiteRule, SiteSpoofConfig } from './types';
 
 export function deriveSetupStatus(config: SiteSpoofConfig): { kind: string; message: string } {
@@ -65,7 +65,7 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
     return {
       kind: 'unsupported',
       label: '不支持此页面',
-      detail: `仅 HTTP(S) 顶层文档和普通 iframe 属于语言/时区支持范围；此页面为 unsupported / UNKNOWN。${PAGE_RUNTIME_DOCUMENT_SCOPE} ${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+      detail: '仅支持普通 HTTP(S) 网页。',
       canEnable: false,
       canDisable: false,
       disableDomain: null
@@ -74,8 +74,8 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
   if (!input.config.masterEnabled) {
     return {
       kind: 'global-disabled',
-      label: '全局总开关已关闭（配置）',
-      detail: `总开关已保存为关闭；${pageRuntimeMessage(input.syncReport)} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+      label: '总开关已关闭',
+      detail: '总开关已保存为关闭，同步状态见上方。',
       canEnable: !matchedRule,
       canDisable: Boolean(matchedRule),
       disableDomain: matchedRule?.domain || null
@@ -85,7 +85,7 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
     return {
       kind: 'not-allowlisted',
       label: '未启用当前网站',
-      detail: `当前网站不在已保存的启用规则中，实际注册结果请查看同步详情。已有文档不会热更新，当前页面实际值为 UNKNOWN。${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+      detail: '当前网站未加入白名单。',
       canEnable: true,
       canDisable: false,
       disableDomain: null
@@ -94,40 +94,47 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
   if (!input.payload || input.errors.length > 0) {
     return {
       kind: 'error',
-      label: '已匹配但语言/时区配置不完整',
-      detail: `${input.errors.length ? input.errors.join('；') : '当前规则缺少有效的语言/时区配置。'} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+      label: '配置不完整',
+      detail: input.errors.length ? input.errors.join('；') : '当前规则缺少有效的语言/时区配置，请打开完整配置。',
       canEnable: false,
       canDisable: true,
       disableDomain: matchedRule.domain
     };
   }
   if (isRuntimeInjectionPaused(input.syncReport)) return {
-    kind: 'paused', label: '页面伪装已暂停',
-    detail: `匹配规则：${matchedRule.domain}；规则已保存，页面 API 伪装暂停。WebRTC 请查看同步详情。${fontRuntimeMessage(input.syncReport)}`,
+    kind: 'paused', label: '语言/时区已暂停',
+    detail: `匹配规则：${matchedRule.domain}。请在完整配置查看暂停详情。`,
     canEnable: false, canDisable: true, disableDomain: matchedRule.domain
   };
   const operation = { canEnable: false, canDisable: true, disableDomain: matchedRule.domain };
+  const geolocation = getGeolocationPayload(input.config, domain);
+  if (!input.payload.languageConfig && !input.payload.timezone && geolocation) {
+    const runtime = input.syncReport?.geolocationRuntime;
+    return { ...operation, kind: !runtime ? 'unknown' : runtime.state === 'ready' ? runtime.reloadRequired ? 'reload-required' : 'enabled' : 'runtime-unavailable',
+      label: !runtime ? '定位同步待确认' : runtime.state === 'ready' ? runtime.reloadRequired ? '请重新加载网页' : '规则已同步' : geolocationRuntimeSummary(input.syncReport),
+      detail: `匹配规则：${matchedRule.domain}。${geolocationRuntimeSummary(input.syncReport)}。网页实际效果尚未验证。` };
+  }
   if (!input.payload.languageConfig && !input.payload.timezone) return {
     kind: 'disabled', label: '当前规则未启用语言/时区',
-    detail: `匹配规则：${matchedRule.domain}；当前规则的语言/时区均已保存为关闭，实际注册结果请查看同步详情。已有文档与 BFCache 不热更新，当前页面实际值为 UNKNOWN。WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+    detail: `匹配规则：${matchedRule.domain}。语言/时区均未开启。`,
     ...operation
   };
   const page = input.syncReport?.pageRuntime;
   if (!page) return {
-    kind: 'unknown', label: '页面语言/时区状态待确认',
-    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} ${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+    kind: 'unknown', label: '同步待确认',
+    detail: `匹配规则：${matchedRule.domain}。请重试同步。`,
     ...operation
   };
   if (page.state !== 'ready' && page.state !== 'disabled') return {
     kind: 'runtime-unavailable',
     label: ({ 'api-unsupported': '浏览器不支持 userScripts', 'permission-required': '缺少 userScripts 权限', 'switch-required': '请开启 Allow User Scripts', 'sync-failed': '页面语言/时区同步失败' })[page.state],
-    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)}`,
+    detail: `匹配规则：${matchedRule.domain}。${pageRuntimeSummary(input.syncReport)}，详情见完整配置。`,
     ...operation
   };
   return {
     kind: page.state === 'disabled' ? 'disabled' : page.reloadRequired ? 'reload-required' : 'enabled',
-    label: page.state === 'disabled' ? '页面语言/时区未注册' : page.reloadRequired ? '语言/时区待完整重载' : '新文档语言/时区可用',
-    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${fontRuntimeMessage(input.syncReport)} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`,
+    label: page.state === 'disabled' ? '语言/时区未启用' : page.reloadRequired ? '请重新加载网页' : '规则已同步',
+    detail: `匹配规则：${matchedRule.domain}。${page.state === 'disabled' ? '语言/时区未注册，同步详情见完整配置。' : page.reloadRequired ? '重新加载后应用最新设置。' : '网页实际效果尚未验证。'}`,
     ...operation
   };
 }

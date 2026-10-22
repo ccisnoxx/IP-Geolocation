@@ -175,6 +175,15 @@ export interface LanguageTimezonePayload {
   timezone?: string;
 }
 
+export interface GeolocationPayload {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  randomize: boolean;
+  randomRadiusMeters: number;
+  spoofPermission: boolean;
+}
+
 export interface PageRuntimeStatus {
   state: 'ready' | 'disabled' | 'api-unsupported' | 'permission-required' | 'switch-required' | 'sync-failed';
   // 只有成功读回后才有数量；失败不能将未知残留注册误报为零。
@@ -206,6 +215,7 @@ export interface RuntimeSyncReport {
   warnings?: RuntimeSyncError[];
   pageRuntime?: PageRuntimeStatus;
   fontRuntime?: FontRuntimeStatus;
+  geolocationRuntime?: PageRuntimeStatus;
 }
 
 export interface ConfigSaveResult {
@@ -218,10 +228,11 @@ export interface RuntimeSyncMetadata {
   version: 1;
   report: RuntimeSyncReport;
   // 旧记录未带 surfaces 时仅代表语言/时区；字体生产当时尚未恢复。
-  pendingReloads: Array<{ tabId: number; urlSignature: string; surfaces?: Array<'page' | 'font'> }>;
+  pendingReloads: Array<{ tabId: number; urlSignature: string; surfaces?: Array<'page' | 'font' | 'geolocation'> }>;
   // 保存到注册同步的非原子窗口：完成后仍须补录其间新建的标签页（含 iframe）。
   pendingFontScopeChange?: boolean;
+  pendingGeolocationScopeChange?: boolean;
   // 预写新签名后、local 写入前中断时，仍能恢复旧配置的刷新欠账。
-  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads']; pendingFontScopeChange?: boolean };
+  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads']; pendingFontScopeChange?: boolean; pendingGeolocationScopeChange?: boolean };
   pendingDetectionCleanup?: string;
 }

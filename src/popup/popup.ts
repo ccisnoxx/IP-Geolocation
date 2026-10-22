@@ -13,14 +13,13 @@ import {
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
-import { deriveCurrentSiteStatus, renderSetupStatus } from '../shared/ui-state';
+import { deriveCurrentSiteStatus } from '../shared/ui-state';
 import { ruleListToText, rulesFromText } from '../shared/rule-list';
 import type { GeolocationHistory, SiteSpoofConfig } from '../shared/types';
 
 const runtimeSyncStatusEl = document.getElementById('runtimeSyncStatus') as HTMLElement;
 const fontExposureStatusEl = document.getElementById('fontExposureStatus') as HTMLElement;
 const retryRuntimeSyncBtn = document.getElementById('retryRuntimeSync') as HTMLButtonElement;
-const setupStatusEl = document.getElementById('setupStatus') as HTMLElement;
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -84,11 +83,10 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
       }
       const report = response.syncReport || response.state?.syncReport;
       if (report) {
-        renderRuntimeSyncReport(runtimeSyncStatusEl, report);
-        renderFontRuntimeStatus(fontExposureStatusEl, report);
+        renderRuntimeSyncReport(runtimeSyncStatusEl, report, 'compact');
+        renderFontRuntimeStatus(fontExposureStatusEl, report, 'compact');
       }
       const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
-      if (config) renderSetupStatus(setupStatusEl, normalizeConfig(config), report);
       if (currentTabState && (config || report)) renderCurrentSiteStatus({ ...currentTabState, config: config || currentConfig, syncReport: report });
       resolve(response);
     });
@@ -98,7 +96,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
 function showOperationError(error: unknown): void {
   runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
   runtimeSyncStatusEl.dataset.status = 'failed';
-  renderFontRuntimeStatus(fontExposureStatusEl);
+  renderFontRuntimeStatus(fontExposureStatusEl, undefined, 'compact');
 }
 
 function runUiTask(task: Promise<unknown>): void { void task.catch(showOperationError); }
@@ -110,12 +108,10 @@ async function retryRuntimeSync(): Promise<void> {
 }
 
 function showAutoSaveToast(report?: RuntimeSyncReport): void {
-  autoSaveToast.textContent = isRuntimeInjectionPaused(report) ? '已保存，页面伪装已暂停／部分生效'
-    : report?.status !== 'ok' ? '已保存，部分同步未完成；请查看同步详情'
-      : (report.pageRuntime?.reloadRequired || report.fontRuntime?.reloadRequired) ? '已保存并同步；已有页面需完整重载'
-        : report.pageRuntime?.state === 'ready' ? '已保存；新文档语言/时区注册就绪'
-          : report.pageRuntime?.state === 'disabled' ? '已保存；页面语言/时区注册已关闭'
-            : '已保存；页面语言/时区状态待确认';
+  autoSaveToast.textContent = isRuntimeInjectionPaused(report) ? '已保存，语言/时区已暂停'
+    : report?.status !== 'ok' ? '已保存，部分同步未完成'
+      : (report.pageRuntime?.reloadRequired || report.fontRuntime?.reloadRequired || report.geolocationRuntime?.reloadRequired) ? '已保存，请重新加载网页'
+        : report.pageRuntime ? '已保存并同步' : '已保存，同步状态待确认';
   autoSaveToast.dataset.status = report?.status || 'partial';
   if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
   autoSaveToast.classList.add('show');
@@ -132,7 +128,7 @@ function webRtcSelectValue(config: SiteSpoofConfig): string {
 }
 
 function updateGlobalStatus(): void {
-  globalStatusEl.textContent = globalEnabledEl.checked ? '总开关已开启（配置）' : '总开关已关闭';
+  globalStatusEl.textContent = globalEnabledEl.checked ? '总开关已开启' : '总开关已关闭';
 }
 
 function setStatusBadgeClass(kind: string): void {
@@ -173,7 +169,7 @@ function updateExitLocationProfile(config: SiteSpoofConfig): void {
   currentExitProfileEl.textContent = !rule
     ? '当前站点没有启用规则'
     : !rule.exitLocationProfileId
-      ? '未选择出口；auto 时区不可用，地理位置配置仍暂停'
+      ? '未选择出口；自动位置/时区需要绑定出口档案'
       : !profile
         ? `引用的出口位置档案不存在：${rule.exitLocationProfileId}`
         : `${profile.name} · ${profile.publicIp || 'IP 未验证'} · ${profile.country || '国家未知'} · ${profile.timezone || '时区未知'}`;
@@ -373,4 +369,3 @@ resetBtn.addEventListener('click', () => {
 runUiTask(loadConfig());
 
 retryRuntimeSyncBtn.addEventListener('click', () => { runUiTask(retryRuntimeSync()); });
-document.getElementById('openOnboarding')!.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });

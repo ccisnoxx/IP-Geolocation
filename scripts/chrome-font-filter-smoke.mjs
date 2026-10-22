@@ -308,7 +308,7 @@ try {
   if(startupReadFailure) {
     const workerPath=join(staged,'background/service-worker.js');
     const worker=await readFile(workerPath,'utf8');
-    const anchor='const services = createBackgroundServices(pageRuntimeSource);';
+    const anchor='const services = createBackgroundServices(pageRuntimeSource, geolocationRuntimeSource);';
     assert.equal(worker.split(anchor).length,2,'实际worker服务入口必须唯一');
     const observed=anchor+'\n__vg025StartupReadFixture.observe(services);';
     const prefix=`const __vg025StartupReadFixture = (${startupReadFaultFixture.toString()})();\n`;
@@ -1091,7 +1091,7 @@ try {
       await chrome.storage.local.set({siteSpoofConfig:${JSON.stringify(config)},siteRulesInitialized:true});
       globalThis.gatedModule=await import(chrome.runtime.getURL('production-gated-services.js'));
       globalThis.candidateModule=await import(chrome.runtime.getURL('candidate-services.js'));
-      globalThis.fontServices=candidateModule.createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+      globalThis.fontServices=candidateModule.createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
       return true;
     })()`);
     const run=expression=>evaluate(control.sessionId,expression);
@@ -1109,7 +1109,7 @@ try {
     assert.equal((await sample(firstFiltered.sessionId)).first,true);
     assert.equal((await sample(firstFiltered.sessionId)).blocked,false);
     evidence.checks.actualServicesSaveRegisterAndIndependentReload=true;
-    const restarted=await run(`(async()=>{globalThis.fontServices=candidateModule.createBackgroundServices('function applyLanguageTimezoneRuntime() {}');return fontServices.initializeExtension()})()`);
+    const restarted=await run(`(async()=>{globalThis.fontServices=candidateModule.createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');return fontServices.initializeExtension()})()`);
     assert.deepEqual(restarted.fontRuntime,first.syncReport.fontRuntime);
     evidence.checks.newServiceInstanceReadsActualRegistrationAndDebt=true;
     assert.equal(await run(`(()=>{const el=document.createElement('p');candidateModule.renderFontRuntimeStatus(el,${JSON.stringify(restarted)});
@@ -1166,7 +1166,7 @@ try {
     assert.equal((await sample((await page(origin+'/services-disabled')).sessionId)).blocked,true);
     evidence.checks.actualServicesMasterDisableNewDocumentsNative=true;
     await save(enabled);
-    const gated=await run(`gatedModule.createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension()`);
+    const gated=await run(`gatedModule.createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}').initializeExtension()`);
     assert.equal(gated.fontRuntime.state,'paused');assert.equal(gated.fontRuntime.registeredRuleCount,0);
     assert.equal((await readScripts()).length,0);
     evidence.checks.syntheticPausedGateRevokesApprovedRegistrations=true;

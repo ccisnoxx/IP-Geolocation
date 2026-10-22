@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { compilePageScripts, PAGE_SCRIPT_PREFIX, reconcilePageScripts } from '../src/background/page-scripts';
+import { compilePageScripts, compileGeolocationScripts, reconcileGeolocationScripts, PAGE_SCRIPT_PREFIX, reconcilePageScripts } from '../src/background/page-scripts';
 import { createInitialConfig, createRule, normalizeLanguage, normalizeTimezone } from '../src/shared/config-model';
 import { getLanguageTimezonePayload } from '../src/shared/config-resolver';
 import { generatePageRuntime, assertSelfContainedFunction } from '../build/self-contained-runtime';
@@ -137,4 +137,28 @@ test('首阶段自包含生成函数只安装语言/Intl/Date，其他API引用�
   assert.equal(vm.runInContext('Worker===savedWorker && SharedWorker===savedSharedWorker', context), true);
   assert.equal(vm.runInContext('Temporal.Now.timeZoneId()', context), 'native');
   assert.ok(compilePageScripts(config(), fn)[0].id.startsWith(PAGE_SCRIPT_PREFIX));
+});
+
+
+test('定位最小payload、父子域覆盖和语言时区注册相互独立，auto必须verified绑定', async () => {
+  const value = config();
+  value.globalProfile.geolocation = { ...value.globalProfile.geolocation, enabled: true, mode: 'manual', latitude: 0, longitude: 0 };
+  const child = { ...value.rules[0], id: 'child', domain: 'sub.example.test', overrides: { ...value.rules[0].overrides, geolocation: { mode: 'disable' as const, value: null } } };
+  value.rules.push(child);
+  const scripts = compileGeolocationScripts(value, 'function applyGeolocationRuntime(payload) { globalThis.sample = payload; }');
+  assert.equal(scripts.length, 1);
+  assert.deepEqual(scripts[0].excludeMatches, ['*://*.sub.example.test/*', '*://sub.example.test/*']);
+  const context = vm.createContext({}); vm.runInContext(scripts[0].js[0].code!, context);
+  assert.deepEqual(Object.keys(context.sample).sort(), ['accuracy', 'latitude', 'longitude', 'randomRadiusMeters', 'randomize', 'spoofPermission']);
+  assert.equal(context.sample.latitude, 0); assert.equal(context.sample.longitude, 0);
+  const page = compilePageScripts(value, source);
+  const mock = browser(structuredClone(page));
+  try {
+    const result = await reconcileGeolocationScripts(value, 'function applyGeolocationRuntime() {}');
+    assert.equal(result.geolocationRuntime.state, 'ready');
+    assert.deepEqual(mock.read().filter(script => script.id.startsWith(PAGE_SCRIPT_PREFIX)), page);
+    value.globalProfile.geolocation.mode = 'auto';
+    assert.deepEqual(compileGeolocationScripts(value, source), []);
+    assert.equal(compilePageScripts(value, source).length, 2);
+  } finally { mock.restore(); }
 });

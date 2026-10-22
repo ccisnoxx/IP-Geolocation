@@ -14,7 +14,7 @@
       <div class="brand-block">
         <span class="eyebrow">Privacy Control</span>
         <h1>VanishGeo</h1>
-        <p>页面语言/时区与 WebRTC 控制台</p>
+        <p>位置、语言/时区与 WebRTC 控制台</p>
       </div>
       <button id="openOptionsHeader" class="icon-btn" title="打开完整配置" aria-label="打开完整配置">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -26,18 +26,14 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Geolocation / Permissions geolocation、Worker / SharedWorker 仍暂停。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
-      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。请求头保持浏览器原生值；WebRTC 分别报告，不代表当前页面已验证生效。</p>
-      <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
-      <button id="openOnboarding" class="btn-secondary btn-sm" type="button">打开配置引导</button>
-      <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
+      <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认同步状态…</p>
       <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
     </section>
     <section class="control-card primary-card" aria-label="全局保护">
       <div class="control-copy">
         <span class="section-kicker">Master Switch</span>
         <strong id="globalStatus">全局保护</strong>
-        <span>控制已保存的总开关；语言/时区注册、WebRTC 分别查看同步结果</span>
+        <span>仅对白名单网站应用页面设置</span>
       </div>
       <label class="switch">
         <input type="checkbox" id="globalEnabled">
@@ -91,7 +87,7 @@
         </select>
       </div>
       <button id="manageExitProfiles" class="btn-secondary full-width">检测或管理出口档案</button>
-      <p class="hint">Popup 只绑定已验证档案；检测、重新检测、重命名和删除在完整配置页完成。</p>
+      <p class="hint">在完整配置中检测或管理出口。</p>
     </section>
 
     <section class="config-section panel-card">
@@ -114,8 +110,9 @@
       </details>
 
       <details class="advanced-group">
-        <summary>地理位置（页面伪装已暂停）</summary>
+        <summary>地理位置</summary>
         <div class="config-content">
+          <p class="hint">使用配置的合成位置，修改后请重新加载网页。</p>
           <label class="checkbox-label">
             <input type="checkbox" id="geolocationEnabled">
             <span>启用</span>
@@ -144,14 +141,14 @@
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="spoofPermission">
-            <span>保存地理位置权限伪装配置（已暂停）</span>
+            <span>合成位置权限伪装</span>
           </label>
           <button id="saveCoordinate" class="btn-secondary btn-sm">保存当前坐标</button>
         </div>
       </details>
 
       <details class="advanced-group">
-        <summary>时区（新文档快照）</summary>
+        <summary>时区</summary>
         <div class="config-content">
           <div class="input-group">
             <label for="intlMode">时区与 Locale 模式（全局）</label>
@@ -159,7 +156,7 @@
               <option value="strict">strict · 强制一致性（默认）</option>
               <option value="compatible">compatible · 尊重显式参数</option>
             </select>
-            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。模式随新文档快照生效；已有文档与 BFCache 不热更新，需完整重载或关闭重开。</p>
+            <p id="intlModeHelp" class="hint">strict 使用配置的语言/时区；compatible 保留网页明确指定的值。修改后请重新加载网页。</p>
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="timezoneEnabled">
@@ -178,7 +175,7 @@
       </details>
 
       <details class="advanced-group">
-        <summary>语言（页面新文档快照）</summary>
+        <summary>语言</summary>
         <div class="config-content">
           <label class="checkbox-label">
             <input type="checkbox" id="languageEnabled">
@@ -215,14 +212,14 @@
       </details>
 
       <details class="advanced-group">
-        <summary>字体暴露过滤（独立运行状态）</summary>
+        <summary>字体暴露过滤</summary>
         <div class="config-content">
           <label class="checkbox-label">
             <input type="checkbox" id="fontExposureEnabled">
-            <span>保存字体暴露过滤开关</span>
+            <span>启用字体过滤</span>
           </label>
-          <p id="fontExposureStatus" class="hint" role="status" aria-live="polite">字体暴露过滤注册状态尚未确认；未取得确认前按未应用处理，不影响语言/时区注册状态。</p>
-          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面 measureText() 仅使用 monospace、sans-serif、serif 测量；具名字体回退为允许的通用字体。FontFaceSet.check() 和普通 iframe 仍过滤内置厂商／软件及简繁中文字体。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对、OffscreenCanvas 或 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
+          <p id="fontExposureStatus" class="hint" role="status" aria-live="polite">字体过滤：待确认</p>
+          <p class="hint">仅支持内置名单；自定义名单暂不应用。覆盖范围见完整配置。</p>
           <div class="input-group">
             <label for="fontExposureMode">过滤名单模式</label>
             <select id="fontExposureMode" class="input">
@@ -238,7 +235,7 @@
             <label for="fontExposureBlockedFamilies">自定义名单（每行一个）</label>
             <textarea id="fontExposureBlockedFamilies" class="input domain-textarea compact" rows="8"></textarea>
           </div>
-          <p class="hint">自定义过滤可能影响网页字体检测与排版兼容性。保存内置模式会替换自定义名单；需要保留时请先导出完整配置。此功能不会隐藏全部系统字体。</p>
+          <p class="hint">切换到内置名单会替换自定义名单；如需保留，请先在完整配置中导出。</p>
           <button id="resetFonts" class="btn-secondary">使用内置名单</button>
         </div>
       </details>

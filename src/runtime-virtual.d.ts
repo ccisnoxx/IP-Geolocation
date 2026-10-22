@@ -9,3 +9,7 @@ declare module 'virtual:vanishgeo-worker' {
 declare module 'virtual:vanishgeo-page-runtime-source' {
   export const pageRuntimeSource: string;
 }
+
+declare module 'virtual:vanishgeo-geolocation-runtime-source' {
+  export const geolocationRuntimeSource: string;
+}

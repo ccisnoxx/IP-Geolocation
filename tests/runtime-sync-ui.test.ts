@@ -71,14 +71,14 @@ for (const page of ['popup', 'options'] as const) {
     vm.runInContext(ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
     await vm.runInContext('loadConfig()', context);
     assert.equal(element('runtimeSyncStatus').dataset.status, 'ok');
-    assert.match(element('runtimeSyncStatus').textContent, /WebRTC 策略：已同步/);
-    assert.doesNotMatch(element('setupStatus').textContent, /页面伪装已暂停/);
-    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '新文档语言/时区可用');
+    assert.match(element('runtimeSyncStatus').textContent, page === 'popup' ? /WebRTC：已同步/ : /WebRTC 策略：已同步/);
+    if (page === 'options') assert.doesNotMatch(element('setupStatus').textContent, /页面伪装已暂停/);
+    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '规则已同步');
     for (const component of ['contentScripts', 'webrtc', 'tabReload'] as const) {
       nextReport = report(component);
       await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
-      assert.match(element('runtimeSyncStatus').textContent, /已保存但未完全生效/);
-      assert.match(element('runtimeSyncStatus').textContent, new RegExp(runtimeSync.RUNTIME_SYNC_COMPONENT_LABELS[component]));
+      if (page === 'options') assert.match(element('runtimeSyncStatus').textContent, /已保存但未完全生效/);
+      assert.match(element('runtimeSyncStatus').textContent, new RegExp(page === 'popup' && component === 'webrtc' ? 'WebRTC：同步失败' : runtimeSync.RUNTIME_SYNC_COMPONENT_LABELS[component]));
       assert.equal(element('runtimeSyncStatus').dataset.status, 'partial');
       if (page === 'options') assert.match(alerts.at(-1)!, /已保存但未完全生效/);
       else assert.doesNotMatch(element('autoSaveToast').textContent, /已自动保存并同步/);
@@ -90,10 +90,10 @@ for (const page of ['popup', 'options'] as const) {
       assert.equal(element('retryRuntimeSync').disabled, false);
     }
     const unavailable = {
-      'api-unsupported': /不支持所需 userScripts API.*Chrome 138\+/,
+      'api-unsupported': page === 'popup' ? /Chrome 138\+/ : /不支持所需 userScripts API.*Chrome 138\+/,
       'permission-required': /缺少 userScripts 权限/,
-      'switch-required': /chrome:\/\/extensions.*详情页.*Allow User Scripts.*重试同步/,
-      'sync-failed': /页面语言\/时区注册同步失败/
+      'switch-required': page === 'popup' ? /扩展详情.*Allow User Scripts/ : /chrome:\/\/extensions.*详情页.*Allow User Scripts.*重试同步/,
+      'sync-failed': page === 'popup' ? /语言\/时区：同步失败/ : /页面语言\/时区注册同步失败/
     } as const;
     for (const [state, expected] of Object.entries(unavailable)) {
       nextReport = report('contentScripts');
@@ -102,7 +102,7 @@ for (const page of ['popup', 'options'] as const) {
         await vm.runInContext(operation, context);
         assert.match(element('runtimeSyncStatus').textContent, expected);
         assert.equal(element('runtimeSyncStatus').dataset.pageRuntime, state);
-        assert.match(element('runtimeSyncStatus').textContent, /当前页面实际值为 UNKNOWN/);
+        if (page === 'options') assert.match(element('runtimeSyncStatus').textContent, /当前页面实际值为 UNKNOWN/);
         assert.doesNotMatch(element('runtimeSyncStatus').textContent, /已有受影响页面需完整重载/);
         if (page === 'popup') assert.doesNotMatch(element('siteStatusBadge').textContent, /新文档语言\/时区可用/);
       }
@@ -114,21 +114,26 @@ for (const page of ['popup', 'options'] as const) {
     await vm.runInContext('retryRuntimeSync()', context);
     assert.equal(actions.filter((action) => action === 'setSiteConfig').length, savesBeforeRetry);
     assert.equal(element('language').value, 'de-DE');
-    for (const text of [element('runtimeSyncStatus').textContent, ...(page === 'popup' ? [element('siteStatusDetail').textContent] : [])]) {
+    if (page === 'options') {
+      const text = element('runtimeSyncStatus').textContent;
       assert.match(text, /新建且匹配规则的 HTTP\(S\) 顶层文档和普通 iframe/);
       assert.match(text, /已有受影响页面需完整重载（reload）或关闭后重新打开/);
       assert.match(text, /BFCache 恢复文档保留原快照，不会热更新或自动刷新/);
       assert.match(text, /当前页面实际值尚未验证/);
-      assert.match(text, /Geolocation \/ Permissions geolocation、Worker \/ SharedWorker 仍暂停/);
+      assert.match(text, /Worker \/ SharedWorker 仍暂停/);
       assert.match(text, /about:blank、srcdoc、data:、blob:.*sandbox.*unsupported \/ UNKNOWN/);
       assert.doesNotMatch(text, /全部保护.*生效|当前页面已.*生效/);
+    } else {
+      assert.match(element('runtimeSyncStatus').textContent, /语言\/时区：已同步.*请重新加载已打开的网页/);
+      assert.equal(element('siteStatusBadge').textContent, '请重新加载网页');
+      assert.match(element('siteStatusDetail').textContent, /匹配规则：example.com。重新加载后应用最新设置/);
+      assert.doesNotMatch(element('runtimeSyncStatus').textContent + element('siteStatusDetail').textContent, /BFCache|快照|unsupported|新文档/);
     }
-    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '语言/时区待完整重载');
     nextReport = report();
     nextReport.pageRuntime = { state: 'disabled', registeredRuleCount: 0, reloadRequired: true };
     await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
-    assert.match(element('runtimeSyncStatus').textContent, /当前未注册启用规则.*使用当前关闭配置/);
-    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '页面语言/时区未注册');
+    assert.match(element('runtimeSyncStatus').textContent, page === 'popup' ? /语言\/时区：未启用.*请重新加载/ : /当前未注册启用规则.*使用当前关闭配置/);
+    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '语言/时区未启用');
     const fontStates = {
       ready: /固定内置名单字体过滤已注册 1 条规则.*仅覆盖 measureText\(\) 和 FontFaceSet.check\(\).*不隐藏 DOM 尺寸/,
       disabled: /字体过滤当前未注册启用规则/,
@@ -136,6 +141,10 @@ for (const page of ['popup', 'options'] as const) {
       'custom-paused': /自定义名单仅保存，当前不生产派发/,
       'sync-failed': /字体注册撤销或同步失败，残留注册数量尚未确认/
     } as const;
+    const compactFontStates = {
+      ready: '字体过滤：已同步', disabled: '字体过滤：未启用', paused: '字体过滤：暂不可用',
+      'custom-paused': '字体过滤：自定义名单暂不可用', 'sync-failed': '字体过滤：同步失败'
+    };
     for (const [state, expected] of Object.entries(fontStates)) {
       nextReport = report();
       nextReport.fontRuntime = { state: state as keyof typeof fontStates,
@@ -147,11 +156,15 @@ for (const page of ['popup', 'options'] as const) {
       }
       for (const operation of [page === 'popup' ? 'saveChanges()' : 'saveSettings()', 'loadConfig()', 'retryRuntimeSync()']) {
         await vm.runInContext(operation, context);
-        assert.match(element('fontExposureStatus').textContent, expected);
+        if (page === 'options') assert.match(element('fontExposureStatus').textContent, expected);
+        else assert.equal(element('fontExposureStatus').textContent, compactFontStates[state as keyof typeof compactFontStates]);
         assert.equal(element('fontExposureStatus').dataset.fontRuntime, state);
         assert.equal(element('runtimeSyncStatus').dataset.pageRuntime, 'ready');
-        assert.match(element('runtimeSyncStatus').textContent, /页面语言\/时区已注册 1 条规则/);
-        if (nextReport.fontRuntime.reloadRequired) assert.match(element('fontExposureStatus').textContent, /已有受影响页面需完整重载/);
+        assert.match(element('runtimeSyncStatus').textContent, page === 'popup' ? /语言\/时区：已同步/ : /页面语言\/时区已注册 1 条规则/);
+        if (nextReport.fontRuntime.reloadRequired) {
+          if (page === 'options') assert.match(element('fontExposureStatus').textContent, /已有受影响页面需完整重载/);
+          else assert.match(element('runtimeSyncStatus').textContent, /请重新加载已打开的网页/);
+        }
       }
     }
     nextReport = report('contentScripts');
@@ -160,15 +173,20 @@ for (const page of ['popup', 'options'] as const) {
     for (const operation of [page === 'popup' ? 'saveChanges()' : 'saveSettings()', 'loadConfig()', 'retryRuntimeSync()']) {
       await vm.runInContext(operation, context);
       const text = element('runtimeSyncStatus').textContent;
-      assert.match(text, /页面伪装已暂停/);
-      assert.match(text, /语言、时区、位置、字体暴露过滤和 worker/);
-      assert.match(text, /当前语言\/时区注册与 WebRTC 按各自状态报告；请求头保持原生/);
-      assert.match(text, /已有 hook 与旧 BFCache 文档需关闭并重建/);
-      assert.match(text, /重试同步不会恢复/);
-      assert.match(element('setupStatus').textContent, /历史报告：页面伪装已暂停／部分生效/);
-      assert.doesNotMatch(element('setupStatus').textContent, /所选站点按已保存配置运行/);
+      if (page === 'options') {
+        assert.match(text, /页面伪装已暂停/);
+        assert.match(text, /语言、时区、位置、字体暴露过滤和 worker/);
+        assert.match(text, /当前语言\/时区注册与 WebRTC 按各自状态报告；请求头保持原生/);
+        assert.match(text, /已有 hook 与旧 BFCache 文档需关闭并重建/);
+        assert.match(text, /重试同步不会恢复/);
+        assert.match(element('setupStatus').textContent, /历史报告：页面伪装已暂停／部分生效/);
+        assert.doesNotMatch(element('setupStatus').textContent, /所选站点按已保存配置运行/);
+      } else {
+        assert.match(text, /语言\/时区：已暂停，请查看完整配置/);
+        assert.equal(element('siteStatusBadge').textContent, '语言/时区已暂停');
+      }
     }
-    if (page === 'popup') assert.match(element('autoSaveToast').textContent, /页面伪装已暂停/);
+    if (page === 'popup') assert.match(element('autoSaveToast').textContent, /语言\/时区已暂停/);
     failure = true;
     await vm.runInContext(`runUiTask(${page === 'popup' ? 'saveChanges()' : 'saveSettings()'})`, context);
     await new Promise<void>((done) => setImmediate(done));
@@ -177,14 +195,19 @@ for (const page of ['popup', 'options'] as const) {
   });
 }
 
-test('Popup 与 Options 静态说明区分已授权固定字体与暂停表面', () => {
-  for (const page of ['popup', 'options']) {
-    const html = readFileSync(new URL(`../src/${page}/${page}.html`, import.meta.url), 'utf8');
-    assert.match(html, /Chrome 138\+、userScripts 权限及 Allow User Scripts 开关/);
-    assert.match(html, /Geolocation \/ Permissions geolocation、Worker \/ SharedWorker 仍暂停/);
-    assert.match(html, /固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP\(S\)站点规则均启用时独立注册，自定义名单仅保存/);
-    assert.match(html, /about:blank、srcdoc、data:、blob:.*unsupported \/ UNKNOWN/);
-    assert.match(html, /BFCache 恢复文档保留原快照/);
-    assert.doesNotMatch(html, /时区（页面伪装已暂停）|语言（DNR 可用，页面伪装暂停）|当前不在页面执行|保存配置不会恢复页面注入/);
-  }
+test('面板保留简短操作提示，完整能力边界和引导留在配置页', () => {
+  const popup = readFileSync(new URL('../src/popup/popup.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(popup, /openOnboarding|setupStatus|BFCache|新文档快照|独立运行状态|unsupported/);
+  assert.match(popup, /<summary>地理位置<\/summary>/);
+  assert.match(popup, /使用配置的合成位置/);
+  assert.match(popup, /<summary>时区<\/summary>/);
+  assert.match(popup, /<summary>语言<\/summary>/);
+  const html = readFileSync(new URL('../src/options/options.html', import.meta.url), 'utf8');
+  assert.match(html, /onboardingDetails/);
+  assert.match(html, /Chrome 138\+、userScripts 权限及 Allow User Scripts 开关/);
+  assert.match(html, /Worker \/ SharedWorker 仍暂停/);
+  assert.match(html, /固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP\(S\)站点规则均启用时独立注册，自定义名单仅保存/);
+  assert.match(html, /about:blank、srcdoc、data:、blob:.*unsupported \/ UNKNOWN/);
+  assert.match(html, /BFCache 恢复文档保留原快照/);
+  assert.doesNotMatch(html, /时区（页面伪装已暂停）|语言（DNR 可用，页面伪装暂停）|当前不在页面执行|保存配置不会恢复页面注入/);
 });

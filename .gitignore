@@ -258,3 +258,16 @@ Thumbs.db
 !.trellis/tasks/10-20-vg-025-font-filter/bounded-readonly-collection-2026-10-21.json
 !.trellis/tasks/10-20-vg-025-font-filter/newcase-runtime-font-source-2026-10-21.js
 !.trellis/tasks/10-20-vg-025-font-filter/newcase-source-collection-2026-10-21.json
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/
+.trellis/tasks/10-22-vg-029-geolocation-recovery/*
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/task.json
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/prd.md
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/design.md
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/implement.md
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/implement.jsonl
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/check.jsonl
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/chrome-evidence.json
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/current-chrome-evidence.json
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/current-chrome-regression.jpg
+!.trellis/tasks/10-22-vg-029-geolocation-recovery/commit-scope-chrome-evidence.json

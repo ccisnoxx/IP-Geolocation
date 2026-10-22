@@ -34,6 +34,7 @@ import type {
   EffectiveProfileResult,
   ExitLocationProfile,
   GeolocationConfig,
+  GeolocationPayload,
   LanguageConfig,
   LanguageTimezonePayload,
   SignalOverride,
@@ -343,6 +344,21 @@ export function getLanguageTimezonePayload(config: Partial<SiteSpoofConfig>, hos
     ...(payload.languageConfig ? { language: { language: payload.languageConfig.language, languages: payload.languageConfig.languages.slice() } } : {}),
     ...(payload.timezone ? { timezone: payload.timezone } : {})
   };
+}
+
+// 定位单独解析，语言/时区配置错误不阻断位置，匹配和verified边界仍复用同一所有者。
+export function getGeolocationPayload(config: Partial<SiteSpoofConfig>, hostname: string): GeolocationPayload | null {
+  const normalized = normalizeConfig(config);
+  if (!normalized.masterEnabled) return null;
+  const rule = findMatchingRule(normalized, hostname);
+  if (!rule) return null;
+  const geo = resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
+  const profile = rule.exitLocationProfileId
+    ? normalized.exitLocationProfiles.find(item => item.id === rule.exitLocationProfileId && item.verification === 'verified') || null : null;
+  const value = resolveGeolocationValue(geo, profile);
+  if (!value) return null;
+  return { latitude: value.latitude, longitude: value.longitude, accuracy: value.accuracy,
+    randomize: value.randomize, randomRadiusMeters: value.randomRadiusMeters, spoofPermission: value.spoofPermission };
 }
 
 function migrateLegacyLastLocation(config: SiteSpoofConfig, storageData: Record<string, any>): SiteSpoofConfig {

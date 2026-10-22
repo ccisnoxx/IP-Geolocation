@@ -2,7 +2,7 @@
 
 > **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 当前源码版本为 **2.1.1（未发布）**。页面语言/时区需 Chrome 138+、userScripts 权限及正常开启 Allow User Scripts；配置注册成功后按文档快照执行。WebRTC 独立报告；其他页面能力继续暂停。扩展不改变代理或网络出口。安装步骤见 [INSTALL](INSTALL.md)，数据处理见 [PRIVACY](PRIVACY.md)。
 
@@ -92,6 +92,17 @@ compatible 优先兼容使用固定语言/时区的站点，允许页面显式�
 
 ## VG-025 固定内置名单字体过滤（2026-10-20 已获恢复授权）
 
-仅在总开关、字体开关和HTTP(S) allowlist规则均启用且模式为vendor-software时，注册包内单文件font-exposure/filter.js（MAIN/document_start/allFrames，无origin fallback）。字体不依赖Allow User Scripts；语言/时区仍独立需要该开关。只覆盖CanvasRenderingContext2D.measureText与FontFaceSet.check；顶层measureText使用三种通用字体允许名单；check及iframe保持43项固定过滤，非目标透传。绘图/像素/导出保持原生，不覆盖DOM尺寸、local()、OffscreenCanvas或Worker。custom名单、位置和Worker继续暂停。
+仅在总开关、字体开关和HTTP(S) allowlist规则均启用且模式为vendor-software时，注册包内单文件font-exposure/filter.js（MAIN/document_start/allFrames，无origin fallback）。字体不依赖Allow User Scripts；语言/时区仍独立需要该开关。只覆盖CanvasRenderingContext2D.measureText与FontFaceSet.check；顶层measureText使用三种通用字体允许名单；check及iframe保持43项固定过滤，非目标透传。绘图/像素/导出保持原生，不覆盖DOM尺寸、local()、OffscreenCanvas或Worker。custom名单和Worker继续暂停；定位使用独立入口。
 
 固定字体文件不含用户配置、IP、位置、规则或档案payload，不读storage、不接受页面桥、不新增外部请求或权限。保存与Chrome注册撤销不是原子操作；同步报告确认的是新文档注册。旧hook/BFCache文档需完整重载或关闭重建，不热更新、不自动reload；字体重载提示保守包含可能嵌入受影响iframe的HTTP(S)标签页。恢复授权不等于人工验收通过，当前不提交或发布。
+
+
+## VG-029 地理位置
+
+2026-10-22 用户明确授权恢复，人工验收状态以 task-manifest 为准。仅在总开关、定位开关和有效站点规则均启用时，独立userScripts在MAIN/document_start/allFrames安装；Chrome138+正常开启Allow User Scripts，API不可用不回退。manual使用保存坐标；auto仅取当前规则明确绑定且verified的出口档案，不自动检测，不由网页提供配置。语言/时区与位置独立解析与报告。
+
+只在原生存在定位API、非opaque、安全上下文且Permissions-Policy允许的普通HTTP(S)网页工作。普通不安全HTTP、about:blank/srcdoc/data/blob/特殊sandbox与Worker不支持。getCurrentPosition返回合成位置，watchPosition首个结果及可见恢复时报告同一文档固定坐标；不模拟运动、不固定轮询。clearWatch取消待交付回调；隐藏/冻结暂停交付，BFCache恢复仍用原快照，离开文档清理监听。
+
+开启“合成位置权限伪装”时，geolocation权限结果表示本扩展提供合成坐标，不修改Chrome授权或调用真实定位；关闭时permissions.query保持原生，仅granted交付合成位置，prompt/denied返回拒绝，不唤起真实定位。权限API异常不变成授权成功。合成坐标对象保留原生prototype但不拥有浏览器内部slot；没有隐藏反射或保证无法检测的承诺。
+
+保存/改坐标/删除规则/关闭后，确认同步完成再重新加载或关闭重开原网页。旧文档与BFCache可能继续返回旧坐标，已交给网页的数据无法撤回。iframe按自身URL匹配，位置注册变化对所有普通HTTP(S)标签页保守提示重载，以覆盖顶层未匹配但子帧匹配的情况；后台重启/扩展更新恢复注册。面板只显示简短定位状态，完整错误与边界在配置页。

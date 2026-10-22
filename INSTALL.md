@@ -2,7 +2,7 @@
 
 > **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
-> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
+> **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
 ## 从源码加载
 
@@ -37,7 +37,7 @@ npm run build
 ## 排查
 
 - 加载失败：确认 dist 根部存在 manifest.json，检查扩展管理页的具体错误；重新构建，不编辑 dist 来修复。
-- 页面语言/时区没有变化：先区分 API 不支持、权限缺失、Allow User Scripts 未开启或注册同步失败。注册成功后再完整 reload 或关闭重开；已有 BFCache 文档保留旧快照。about:blank/srcdoc/data/blob/特殊 sandbox 不支持。自定义字体名单、位置和 Worker 仍暂停；固定内置字体过滤按独立注册状态报告。
+- 页面语言/时区没有变化：先区分 API 不支持、权限缺失、Allow User Scripts 未开启或注册同步失败。注册成功后再完整 reload 或关闭重开；已有 BFCache 文档保留旧快照。about:blank/srcdoc/data/blob/特殊 sandbox 不支持。自定义字体名单和 Worker 仍暂停；定位分别报告同步状态；固定内置字体过滤按独立注册状态报告。
 - Accept-Language 没有变化：当前版本保持 HTTP 请求头原生，不再与网页语言同步。当前版本已删除 DNR 权限及清理组件；旧 v2 跳级升级可能有磁盘残留，但不会启用，也不重新申请 DNR。
 - WebRTC 状态不一致：在 Options 查看实际 policy 和控制权；其他扩展或浏览器策略可能控制该设置。
 - 类型或构建失败：执行 `npm run typecheck`，依据具体错误修复；依赖安装使用锁文件和 `npm ci`。
@@ -48,4 +48,4 @@ npm run build
 在扩展管理页找到 VanishGeo，点击“移除”。浏览器会清除该扩展的本地存储；下载的 JSON、截图、浏览器历史、外部站点记录和该站点 localStorage 不随扩展卸载删除。外部诊断页设备基线可用其清除按钮删除；更多数据生命周期见 [PRIVACY](PRIVACY.md)。
 
 
-VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom、位置和Worker继续暂停。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
+VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。

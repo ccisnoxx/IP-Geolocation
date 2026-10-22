@@ -47,7 +47,7 @@ import type {
 import { RUNTIME_SYNC_COMPONENT_LABELS, RuntimeSyncOperationError, syncError, syncSignature } from '../shared/runtime-sync';
 import type { WebRtcPolicyState } from './webrtc';
 import { rulesFromText } from '../shared/rule-list';
-import { reconcilePageScripts } from './page-scripts';
+import { reconcilePageScripts, reconcileGeolocationScripts, hasGeolocationScriptsChanged } from './page-scripts';
 import { hasFontScriptScopeChanged, reconcileFontScripts, syncFontScriptRegistration } from './font-scripts';
 import { createDiagnosticRuns } from './diagnostic-runs';
 import type { DiagnosticOwner } from './diagnostic-runs';
@@ -114,7 +114,12 @@ function pendingFontWindow(metadata: RuntimeSyncMetadata | null, signature: stri
   return metadata?.previous?.configSignature === signature && metadata.previous.pendingFontScopeChange === true;
 }
 
-function addReloadDebt(pending: RuntimeSyncMetadata['pendingReloads'], item: { tabId: number; urlSignature: string }, surfaces: Array<'page' | 'font'>): void {
+function pendingGeolocationWindow(metadata: RuntimeSyncMetadata | null, signature: string): boolean {
+  if (metadata?.report.configSignature === signature) return metadata.pendingGeolocationScopeChange === true;
+  return metadata?.previous?.configSignature === signature && metadata.previous.pendingGeolocationScopeChange === true;
+}
+
+function addReloadDebt(pending: RuntimeSyncMetadata['pendingReloads'], item: { tabId: number; urlSignature: string }, surfaces: Array<'page' | 'font' | 'geolocation'>): void {
   const existing = pending.find(entry => entry.tabId === item.tabId && entry.urlSignature === item.urlSignature);
   if (existing) existing.surfaces = [...new Set([...(existing.surfaces || ['page' as const]), ...surfaces])];
   else pending.push({ ...item, surfaces });
@@ -244,7 +249,7 @@ export interface BackgroundServices {
   initializeExtension(): Promise<RuntimeSyncReport>;
 }
 
-export function createBackgroundServices(pageRuntimeSource: string): BackgroundServices {
+export function createBackgroundServices(pageRuntimeSource: string, geolocationRuntimeSource: string): BackgroundServices {
   const diagnosticRuns = createDiagnosticRuns(getSiteConfig);
   let configMutationQueue: Promise<void> = Promise.resolve();
   let detectionGeneration = 0;
@@ -307,6 +312,7 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
       version: 1, report: pendingSyncReport(signature),
       pendingReloads: pendingForSignature(stored, signature),
       ...(pendingFontWindow(stored, signature) ? { pendingFontScopeChange: true } : {}),
+      ...(pendingGeolocationWindow(stored, signature) ? { pendingGeolocationScopeChange: true } : {}),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
     const [pageSync, webrtc] = await Promise.all([
@@ -315,15 +321,22 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
         if (legacy.status !== 'ok') {
           // 旧路径撤销未确认时不新增字体注册，仍尝试清理字体命名空间。
           const font = await reconcileFontScripts({ ...config, masterEnabled: false });
-          return { component: { status: legacy.status, errors: [...legacy.errors, ...font.errors] },
+          const geo = await reconcileGeolocationScripts({ ...config, masterEnabled: false }, geolocationRuntimeSource);
+          return { component: { status: legacy.status, errors: [...legacy.errors, ...font.errors, ...geo.component.errors] },
+            geolocationRuntime: { state: 'sync-failed' as const, registeredRuleCount: geo.geolocationRuntime.registeredRuleCount, reloadRequired: false },
             pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false },
             fontRuntime: { state: 'sync-failed' as const, registeredRuleCount: font.fontRuntime.registeredRuleCount, reloadRequired: false } };
         }
         const page = await reconcilePageScripts(config, pageRuntimeSource);
+        const geo = await reconcileGeolocationScripts(config, geolocationRuntimeSource, async () => {
+          // 注册漂移/升级恢复也有旧文档窗口；必须先持久化再改变实际注册。
+          state.pendingGeolocationScopeChange = true;
+          await setRuntimeSyncMetadata(state);
+        });
         const font = await reconcileFontScripts(config);
-        return { ...page, fontRuntime: font.fontRuntime, component: {
-          status: page.component.status === 'ok' ? font.status : page.component.status,
-          errors: [...page.component.errors, ...font.errors]
+        return { ...page, geolocationRuntime: geo.geolocationRuntime, fontRuntime: font.fontRuntime, component: {
+          status: page.component.status !== 'ok' ? page.component.status : geo.component.status !== 'ok' ? geo.component.status : font.status,
+          errors: [...page.component.errors, ...geo.component.errors, ...font.errors]
         } };
       })(),
       runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(config,
@@ -332,6 +345,7 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     state.report.components = { ...state.report.components, contentScripts: pageSync.component, webrtc };
     state.report.pageRuntime = pageSync.pageRuntime;
     state.report.fontRuntime = pageSync.fontRuntime;
+    state.report.geolocationRuntime = pageSync.geolocationRuntime;
     if (state.pendingDetectionCleanup) {
       try {
         await removeConfirmedDetection(state.pendingDetectionCleanup);
@@ -342,7 +356,7 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     }
     // 不刷新或修改已加载/BFCache文档。只有注册完成后才向管理页提示完整reload。
     state.report.components.tabReload = { status: 'ok', errors: [] };
-    if (state.pendingReloads.length || state.pendingFontScopeChange) {
+    if (state.pendingReloads.length || state.pendingFontScopeChange || state.pendingGeolocationScopeChange) {
       try {
         const tabs = await queryScriptableTabs();
         const urls = new Map(await Promise.all(tabs.map(async tab => [tab.id, await syncSignature(tab.url)] as const)));
@@ -351,6 +365,10 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
           // allFrames 注册不能从顶层 URL 排除受影响 iframe；保守记录所有普通 HTTP(S) 标签页。
           for (const [tabId, urlSignature] of urls) addReloadDebt(state.pendingReloads, { tabId, urlSignature }, ['font']);
           if (state.report.fontRuntime.state !== 'sync-failed') delete state.pendingFontScopeChange;
+        }
+        if (state.pendingGeolocationScopeChange) {
+          for (const [tabId, urlSignature] of urls) addReloadDebt(state.pendingReloads, { tabId, urlSignature }, ['geolocation']);
+          if (['ready', 'disabled'].includes(state.report.geolocationRuntime.state)) delete state.pendingGeolocationScopeChange;
         }
       } catch {
         state.report.components.tabReload = { status: 'failed', errors: [{ code: 'tab-query-failed', message: '无法确认已有页面状态，请重试同步。' }] };
@@ -361,6 +379,8 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
       && state.pendingReloads.some(item => !item.surfaces || item.surfaces.includes('page'));
     state.report.fontRuntime.reloadRequired = state.report.fontRuntime.state !== 'sync-failed' && reloadKnown
       && state.pendingReloads.some(item => item.surfaces?.includes('font'));
+    state.report.geolocationRuntime.reloadRequired = ['ready', 'disabled'].includes(state.report.geolocationRuntime.state) && reloadKnown
+      && state.pendingReloads.some(item => item.surfaces?.includes('geolocation'));
     await checkpoint(state, stored);
     return state.report;
   }
@@ -376,19 +396,24 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
     const oldPending = pendingForSignature(oldMetadata, previousSignature);
     const oldFontWindow = pendingFontWindow(oldMetadata, previousSignature);
     const fontScopeChanged = hasFontScriptScopeChanged(previous, result.config);
+    const oldGeolocationWindow = pendingGeolocationWindow(oldMetadata, previousSignature);
+    const geolocationChanged = hasGeolocationScriptsChanged(previous, result.config);
     const pending = structuredClone(oldPending);
     for (const tab of tabs) {
-      const surfaces: Array<'page' | 'font'> = [];
+      const surfaces: Array<'page' | 'font' | 'geolocation'> = [];
       if (pagePayloadChanged(previous, result.config, tab.url)) surfaces.push('page');
       if (fontScopeChanged) surfaces.push('font');
+      if (geolocationChanged) surfaces.push('geolocation');
       if (surfaces.length) {
         addReloadDebt(pending, { tabId: tab.id, urlSignature: await syncSignature(tab.url) }, surfaces);
       }
     }
     const metadata: RuntimeSyncMetadata = { version: 1, report: pendingSyncReport(nextSignature), pendingReloads: pending,
       ...(fontScopeChanged || oldFontWindow ? { pendingFontScopeChange: true } : {}),
+      ...(geolocationChanged || oldGeolocationWindow ? { pendingGeolocationScopeChange: true } : {}),
       previous: { configSignature: previousSignature, pendingReloads: oldPending,
-        ...(oldFontWindow ? { pendingFontScopeChange: true } : {}) },
+        ...(oldFontWindow ? { pendingFontScopeChange: true } : {}),
+        ...(oldGeolocationWindow ? { pendingGeolocationScopeChange: true } : {}) },
       ...(oldMetadata?.pendingDetectionCleanup ? { pendingDetectionCleanup: oldMetadata.pendingDetectionCleanup } : {})
     };
     // 先准备恢复记录。配置写入失败时恢复旧欠账；成功后不回滚用户期望。
@@ -747,6 +772,12 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
       } catch (error) {
         // 启动状态不可确认时，只撤销所属字体注册；清理仍占用配置队列，不猜测或覆盖配置。
         const cleanup = await syncFontScriptRegistration([]);
+        const geolocationCleanup = await reconcileGeolocationScripts(createInitialConfig(), geolocationRuntimeSource);
+        if (geolocationCleanup.component.status !== 'ok') {
+          const reason = error instanceof Error ? error.message : String(error);
+          throw Object.assign(new RuntimeSyncOperationError('geolocation-scripts-sync-failed',
+            `启动初始化失败：${reason}；旧地理位置注册清理未能确认${cleanup.status !== 'ok' ? '，字体清理亦未确认' : ''}。`), { cause: error });
+        }
         if (cleanup.status !== 'ok') {
           const reason = error instanceof Error ? error.message : String(error);
           throw Object.assign(new RuntimeSyncOperationError('font-scripts-sync-failed',

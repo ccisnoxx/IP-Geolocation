@@ -3,7 +3,7 @@
   "name": "VanishGeo",
   "version": "2.1.1",
   "minimum_chrome_version": "138",
-  "description": "Allowlisted HTTP(S) language/timezone and fixed-list font filtering. Headers stay native; geolocation and Workers remain paused.",
+  "description": "Allowlisted language/timezone, synthetic geolocation and fixed-list font filtering. Headers stay native; Workers remain unchanged.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
