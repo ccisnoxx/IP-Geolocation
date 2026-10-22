@@ -14,11 +14,22 @@ function harness(page: 'popup' | 'options') {
   const source = readFileSync(new URL(`../src/${page}/${page}.ts`, import.meta.url), 'utf8');
   const parsed = ts.createSourceFile(`${page}.ts`, source, ts.ScriptTarget.Latest, true);
   const names = ['updateFontExposureMode', 'populateForm', 'readForm', 'updateTimezoneOffset', 'saveChanges', 'saveSettings',
-    'handleSaveAsCustom', 'closeSaveAsCustomModal', 'handleImportFile', 'handleResetFonts', 'exportConfiguration'];
+    'handleSaveAsCustom', 'closeSaveAsCustomModal', 'handleImportFile', 'handleResetFonts', 'exportConfiguration', 'updateLanguageList'];
   const functions = parsed.statements.filter((node): node is ts.FunctionDeclaration =>
     ts.isFunctionDeclaration(node) && names.includes(node.name?.text || ''));
-  const elements: Record<string, { value: string; checked: boolean }> = {};
-  for (const match of source.matchAll(/const (\w+El) = document\.getElementById\(/g)) elements[match[1]] = { value: '', checked: false };
+  const listeners: Record<string, () => void> = {};
+  const elements: Record<string, { value: string; checked: boolean; addEventListener: (event: string, listener: () => void) => void }> = {};
+  for (const match of source.matchAll(/const (\w+El) = document\.getElementById\(/g)) {
+    const name = match[1];
+    elements[name] = { value: '', checked: false, addEventListener(event, listener) { listeners[`${name}:${event}`] = listener; } };
+  }
+  const languageChangeListeners = parsed.statements.filter((node) => {
+    if (!ts.isExpressionStatement(node) || !ts.isCallExpression(node.expression)) return false;
+    const call = node.expression;
+    return ts.isPropertyAccessExpression(call.expression) && call.expression.expression.getText(parsed) === 'languageEl'
+      && call.expression.name.text === 'addEventListener'
+      && ts.isStringLiteral(call.arguments[0]) && call.arguments[0].text === 'change';
+  });
   const alerts: string[] = [];
   const writes: SiteSpoofConfig[] = [];
   const downloads: Array<{ filename: string; config: SiteSpoofConfig }> = [];
@@ -36,7 +47,7 @@ function harness(page: 'popup' | 'options') {
     geolocation: configModel.normalizeGeolocation({ mode: 'manual', latitude: 0, longitude: 0, accuracy: 50 }),
     timezone: configModel.normalizeTimezone({ mode: 'manual', timezone: 'UTC' })
   } });
-  const context = vm.createContext({ ...configModel, ...elements, initialConfig, createCustomProfile,
+  const context = vm.createContext({ ...configModel, ...elements, initialConfig, createCustomProfile, pendingConfigSaves: 0,
     confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn,
     ruleListToText, rulesFromText,
     downloadJson: (filename: string, config: SiteSpoofConfig) => downloads.push({ filename, config: structuredClone(config) }),
@@ -56,15 +67,53 @@ function harness(page: 'popup' | 'options') {
   });
   vm.runInContext(ts.transpileModule(`let currentConfig = normalizeConfig(initialConfig);
     ${functions.map((node) => node.getText(parsed)).join('\n')}
+    ${languageChangeListeners.map((node) => node.getText(parsed)).join('\n')}
     populateForm(currentConfig);`, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
   return { elements, alerts, writes, downloads, context, confirmSaveProfileBtn,
     pendingButtons: [confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn],
     getModalCloses: () => modalCloses,
     call: (expression: string) => vm.runInContext(expression, context),
+    changeLanguage: () => listeners['languageEl:change'](),
     setFailure(value: boolean) { failure = value; },
     setWaitForSave(value: Promise<void> | null) { waitForSave = value; },
     setDate(value: string) { now = value; }
   };
+}
+
+for (const page of ['popup', 'options'] as const) {
+  test(`${page} 主语言change事件重建列表，保存和重读不残留旧中文`, async () => {
+    const ui = harness(page);
+    ui.elements.languageEnabledEl.checked = true;
+    for (const [language, expected] of [
+      ['ja-JP', ['ja-JP', 'ja', 'en']],
+      ['en-US', ['en-US', 'en']],
+      ['es-MX', ['es-MX', 'es', 'en']],
+      ['en', ['en']]
+    ] as const) {
+      ui.elements.languageEl.value = 'zh-CN';
+      ui.elements.languagesEl.value = 'zh-CN, zh, en-US';
+      ui.elements.languageEl.value = language;
+      ui.changeLanguage();
+      assert.equal(ui.elements.languagesEl.value, expected.join(', '));
+      await ui.call(page === 'popup' ? 'saveChanges()' : 'saveSettings()');
+      const saved = ui.writes.at(-1)!.globalProfile.language;
+      assert.equal(saved.language, language);
+      assert.deepEqual(saved.languages, expected);
+      ui.call('populateForm(currentConfig)');
+      assert.equal(ui.elements.languagesEl.value, expected.join(', '));
+    }
+  });
+
+  test(`${page} 普通保存保留显式备用语言并保证主语言首位`, async () => {
+    const ui = harness(page);
+    ui.elements.languageEl.value = 'ja-JP';
+    ui.changeLanguage();
+    ui.elements.languagesEl.value = 'ko, ja-JP, en, ja-JP';
+    await ui.call(page === 'popup' ? 'saveChanges()' : 'saveSettings()');
+    assert.deepEqual(ui.writes.at(-1)!.globalProfile.language.languages, ['ja-JP', 'ko', 'en']);
+    ui.call('populateForm(currentConfig)');
+    assert.equal(ui.elements.languagesEl.value, 'ja-JP, ko, en');
+  });
 }
 
 test('Options 实际另存流程保留中文与同名方案，失败重试不重复添加', async () => {

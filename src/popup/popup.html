@@ -41,6 +41,8 @@
       </label>
     </section>
 
+    <p class="hint">停止保护：关闭总开关，等待上方同步完成，再完整重载已有网页。如需关闭 Chrome 的 Allow User Scripts，请在此之后操作；直接关闭它可能暂时残留旧语言请求头。</p>
+
     <section class="control-card compact-toggle" aria-label="调试模式">
       <div class="control-copy">
         <span class="section-kicker">Diagnostics</span>
@@ -188,6 +190,7 @@
           <div class="input-group">
             <label for="languages">语言列表</label>
             <input type="text" id="languages" class="input" placeholder="en-US, en">
+            <small class="field-note">修改主语言会重建列表，可随后自定义备用语言。Accept-Language 随站点语言同步；保存后请完整重载网页。</small>
           </div>
         </div>
       </details>

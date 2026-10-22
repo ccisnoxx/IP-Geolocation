@@ -47,6 +47,8 @@ for (const page of ['popup', 'options'] as const) {
     let currentReport = report();
     let nextReport = report();
     let failure = false;
+    let holdSaves = false;
+    const pendingSaves: Array<() => void> = [];
     const alerts: string[] = [];
     const actions: string[] = [];
     const context = vm.createContext({
@@ -61,8 +63,12 @@ for (const page of ['popup', 'options'] as const) {
         if (request.action === 'getCurrentTabState') return callback({ status: 'ok', state: { config, syncReport: currentReport, scriptable: true, domain: 'example.com' } });
         if (request.action === 'getSiteConfig') return callback({ status: 'ok', config, syncReport: currentReport });
         if (failure) return callback({ status: 'error', message: '合成存储失败' });
-        currentReport = nextReport;
-        callback({ status: currentReport.status === 'ok' ? 'ok' : 'partial', config: request.config || config, syncReport: currentReport, saved: true });
+        const deliver = () => {
+          currentReport = nextReport;
+          callback({ status: currentReport.status === 'ok' ? 'ok' : 'partial', config: request.config || config, syncReport: currentReport, saved: true });
+        };
+        if (holdSaves && request.action === 'setSiteConfig') pendingSaves.push(deliver);
+        else deliver();
       } } }
     });
     const source = readFileSync(new URL(`../src/${page}/${page}.ts`, import.meta.url), 'utf8');
@@ -131,9 +137,27 @@ for (const page of ['popup', 'options'] as const) {
     }
     nextReport = report();
     nextReport.pageRuntime = { state: 'disabled', registeredRuleCount: 0, reloadRequired: true };
-    await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
+    holdSaves = true;
+    element('globalEnabled').checked = false;
+    const alertsBeforeSave = alerts.length;
+    const saving = vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
+    const queuedSave = vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
+    assert.equal(element('runtimeSyncStatus').dataset.status, 'pending');
+    assert.equal(element('runtimeSyncStatus').dataset.pageRuntime, 'unknown');
+    assert.match(element('runtimeSyncStatus').textContent, /正在保存并同步.*完成前请勿关闭 Allow User Scripts/);
+    assert.doesNotMatch(element('runtimeSyncStatus').textContent, /已同步|同步已完成/);
+    pendingSaves.shift()!();
+    await saving;
+    assert.equal(element('runtimeSyncStatus').dataset.status, 'pending', '较早回包不能确认排队中的关闭操作');
+    if (page === 'popup') assert.equal(element('autoSaveToast').dataset.status, 'pending');
+    else assert.equal(alerts.length, alertsBeforeSave, '排队保存期间不能提前弹出同步完成提示');
+    pendingSaves.shift()!();
+    await queuedSave;
+    holdSaves = false;
+    assert.equal(element('runtimeSyncStatus').dataset.status, 'ok');
     assert.match(element('runtimeSyncStatus').textContent, page === 'popup' ? /语言\/时区：未启用.*请重新加载/ : /当前未注册启用规则.*使用当前关闭配置/);
-    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '语言/时区未启用');
+    if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '总开关已关闭');
+    element('globalEnabled').checked = true;
     const fontStates = {
       ready: /固定内置名单字体过滤已注册 1 条规则.*仅覆盖 measureText\(\) 和 FontFaceSet.check\(\).*不隐藏 DOM 尺寸/,
       disabled: /字体过滤当前未注册启用规则/,
@@ -176,7 +200,8 @@ for (const page of ['popup', 'options'] as const) {
       if (page === 'options') {
         assert.match(text, /页面伪装已暂停/);
         assert.match(text, /语言、时区、位置、字体暴露过滤和 worker/);
-        assert.match(text, /当前语言\/时区注册与 WebRTC 按各自状态报告；请求头保持原生/);
+        assert.match(text, /当前独立页面注册、Accept-Language 与 WebRTC 按各自状态报告/);
+        assert.match(text, /历史报告未确认请求头同步，请重试/);
         assert.match(text, /已有 hook 与旧 BFCache 文档需关闭并重建/);
         assert.match(text, /重试同步不会恢复/);
         assert.match(element('setupStatus').textContent, /历史报告：页面伪装已暂停／部分生效/);
@@ -188,10 +213,21 @@ for (const page of ['popup', 'options'] as const) {
     }
     if (page === 'popup') assert.match(element('autoSaveToast').textContent, /语言\/时区已暂停/);
     failure = true;
+    element('globalEnabled').checked = false;
     await vm.runInContext(`runUiTask(${page === 'popup' ? 'saveChanges()' : 'saveSettings()'})`, context);
     await new Promise<void>((done) => setImmediate(done));
     assert.match(element('runtimeSyncStatus').textContent, /操作结果未确认.*合成存储失败/);
     assert.equal(element('runtimeSyncStatus').dataset.status, 'failed');
+    failure = false;
+    nextReport = report();
+    await vm.runInContext('retryRuntimeSync()', context);
+    assert.equal(element('runtimeSyncStatus').dataset.status, 'failed', '旧配置对账成功不能确认失败的关闭保存');
+    assert.match(element('runtimeSyncStatus').textContent, /请重新保存配置.*不能确认本次关闭/);
+    nextReport.pageRuntime = { state: 'disabled', registeredRuleCount: 0, reloadRequired: false };
+    element('globalEnabled').checked = false;
+    await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
+    assert.equal(element('runtimeSyncStatus').dataset.status, 'ok');
+    assert.equal(element('runtimeSyncStatus').dataset.pageRuntime, 'disabled');
   });
 }
 

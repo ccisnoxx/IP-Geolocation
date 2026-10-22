@@ -216,7 +216,7 @@ export interface FontRuntimeStatus {
   registeredRuleCount: number | null;
   reloadRequired: boolean;
 }
-export type RuntimeSyncComponent = 'contentScripts' | 'webrtc' | 'tabReload';
+export type RuntimeSyncComponent = 'contentScripts' | 'webrtc' | 'tabReload' | 'headers';
 
 export interface RuntimeSyncError {
   code: string;
@@ -231,7 +231,8 @@ export interface RuntimeSyncComponentReport {
 export interface RuntimeSyncReport {
   configSignature: string;
   status: RuntimeSyncStatus;
-  components: Record<RuntimeSyncComponent, RuntimeSyncComponentReport>;
+  // 历史session报告没有headers；不能将缺失状态当作已同步。
+  components: Record<Exclude<RuntimeSyncComponent, 'headers'>, RuntimeSyncComponentReport> & { headers?: RuntimeSyncComponentReport };
   metadataError: RuntimeSyncError | null;
   warnings?: RuntimeSyncError[];
   pageRuntime?: PageRuntimeStatus;
@@ -253,7 +254,8 @@ export interface RuntimeSyncMetadata {
   // 保存到注册同步的非原子窗口：完成后仍须补录其间新建的标签页（含 iframe）。
   pendingFontScopeChange?: boolean;
   pendingGeolocationScopeChange?: boolean;
+  pendingPageScopeChange?: boolean;
   // 预写新签名后、local 写入前中断时，仍能恢复旧配置的刷新欠账。
-  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads']; pendingFontScopeChange?: boolean; pendingGeolocationScopeChange?: boolean };
+  previous?: { configSignature: string; pendingReloads: RuntimeSyncMetadata['pendingReloads']; pendingFontScopeChange?: boolean; pendingGeolocationScopeChange?: boolean; pendingPageScopeChange?: boolean };
   pendingDetectionCleanup?: string;
 }

@@ -30,6 +30,7 @@ function createFormHarness(page: 'popup' | 'options', initialConfig: SiteSpoofCo
   }
   const writes: SiteSpoofConfig[] = [];
   const context = vm.createContext({
+    pendingConfigSaves: 0,
     ...configModel,
     ...elements,
     initialConfig,

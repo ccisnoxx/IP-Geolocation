@@ -1,16 +1,16 @@
 # VanishGeo
 
-> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
+> **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
 > **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
-当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，保持 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。其他页面能力仍暂停。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
+当前源码版本为 **2.1.1（未发布）**。VanishGeo 是 Chromium Manifest V3 扩展，按站点规则管理页面语言/时区快照，同步站点的 Accept-Language，保持其他 HTTP 请求头原生，并管理浏览器 WebRTC IP 策略。定位与字体过滤各按独立状态报告，Worker语言仍原生。它不提供 VPN 或代理，不改变普通网页请求的公网出口，也不保证匿名、绕过检测或任何指纹评分。
 
 ## 当前能力与边界
 
 - 启用的域名 allowlist 规则继承全局设置，可配置语言、时区、位置的逐规则覆盖或禁用。
 - MAIN-world runtime 维护源仍保留用于隔离测试；生产后台已移除其调用依赖。ISOLATED 初始化脚本已撤销，残留通知也在后台拒绝。没有静态全站注入或页面可控配置桥。
-- 不再修改 `Accept-Language` 或其他 HTTP 请求头；网页语言可以与原生请求头不同。当前版本不再申请 DNR 权限或调用 DNR API。跳过 VG-028 的旧版升级可能留下不可启用的磁盘旧规则；未来重新引入 DNR 必须先设计独立清理迁移。
+- Accept-Language复用站点语言列表，按顺序生成权重；默认静态隔离先保护权限恢复窗口，清理已知旧规则并读回后才安装已核验的dynamic投影，稳定冷启动保留该投影。仅恢复host约束DNR权限，其他请求头保持原生；已有文档和同步期间需完整重载。
 - WebRTC 使用 Chrome privacy API 的全局策略，提供 strict、compatible 和 default；该设置影响浏览器普通会话，范围大于站点 allowlist。实际控制权和 ICE 结果需要分别观察。
 - 配置保存、worker 初始化和扩展 update 时由后台串行对账：先撤销失效/范围变化的注册，再更新保留规则，最后新增并读回验证。Popup/Options 分别显示 API/权限/用户开关不可用、注册失败、注册成功需重载或新文档可用；不自动刷新页面。
 - 出口位置只在用户点击检测或重新检测时请求外部 provider。候选确认后保存为 verified 档案，auto 位置/时区必须在每条规则上显式绑定该档案。**没有后台定时刷新**；更换代理或网络后需要主动重新检测。
@@ -51,7 +51,7 @@ npm run build
 npm run serve:leak-test
 ```
 
-服务默认地址为 `http://localhost:8787/leak-test/leak-test.html`，同源 `/headers.json` 回显实际请求头。报告页分别比较默认与固定显式 en-US/UTC 的 Intl/Date 调用，以及 language/languages、timezone/locale、位置/watch、WebRTC policy 与 ICE、iframe/worker 及设备透传参考。请求头只做原生观测，不参与保护 PASS/FAIL；本报告未采样目标字体，字体结果标为 UNKNOWN。run 绑定报告和目标文档、消费一次、两分钟过期；取消、执行中导航/关闭、配置改变或后台重启使 run 失效。完成结果只在当前扩展页面显示，TTL、清除或离开页面时释放。
+服务默认地址为 `http://localhost:8787/leak-test/leak-test.html`，同源 `/headers.json` 回显实际请求头。报告页分别比较默认与固定显式 en-US/UTC 的 Intl/Date 调用，以及 language/languages、timezone/locale、位置/watch、WebRTC policy 与 ICE、iframe/worker 及设备透传参考。启用站点语言时比较实际Accept-Language与预期列表，缺失或未启用时为UNKNOWN；本报告未采样目标字体，字体结果标为 UNKNOWN。run 绑定报告和目标文档、消费一次、两分钟过期；取消、执行中导航/关闭、配置改变或后台重启使 run 失效。完成结果只在当前扩展页面显示，TTL、清除或离开页面时释放。
 
 缺失或不可观察证据为 UNKNOWN。空 ICE 或 policy PASS 都不能证明网络防护通过；设备透传参考只是同文档 MAIN/ISOLATED 的当次比较。目标网页本来就能读取其可见 API，实际观测可能受页面干预。网络、存储及清理详情见 [PRIVACY](PRIVACY.md)，权限用途见 [PERMISSIONS](PERMISSIONS.md)。
 
@@ -78,7 +78,7 @@ VG-010 的定向真实 Chrome smoke 可运行 `node scripts/chrome-onboarding-sm
 
 VG-023 真实 Chrome 定向验证：构建后运行 `node scripts/chrome-language-timezone-smoke.mjs --output experiments/userscripts-document-start/production-evidence.json`。该 runner 使用已准备的独立 Lima Linux VM，Chrome 自身 sandbox 保持开启，测试期间新 namespace 仅 loopback，正常点击 Allow User Scripts；加载实际 dist，覆盖语言/时区首 inline、快照、禁用、恢复、原生请求头/权限退出/WebRTC 及暂停 surface（历史 JSON 保留当时 DNR 行为）。运行前须启动 `vg-userscripts-fixture` VM；环境与命令见 [实验说明](experiments/userscripts-document-start/README.md)。已人工验收的最小实验 [JSON](experiments/userscripts-document-start/linux-evidence.json) 与生产 [JSON](experiments/userscripts-document-start/production-evidence.json) 分开保留；语言/时区生产阶段已于2026-10-16通过用户人工验收；记录见 [VG-023](.trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md#2026-10-16-人工验收确认)。旧 integration/diagnostic/onboarding/worker runner 的全部 surface 预期不代表当前支持范围。
 
-VG-024 权限退出升级验证可运行 `node scripts/chrome-native-headers-upgrade.mjs --from vg028 --upgrade-from <已清理VG028的dist> --output <脱敏JSON>`，跳级场景使用 `--from v2` 和实际旧构建。需要 Node22+、真实Chrome和独立临时profile；验证权限收缩、原生header及worker恢复，不重授DNR权限，不恢复字体，也不替代完整人工验收。
+VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-upgrade.mjs --from vg028 --upgrade-from <已清理VG028的dist> --output <脱敏JSON>`，跳级场景使用 `--from v2` 和实际旧构建。需要 Node22+、真实Chrome和独立临时profile；其预期为当时的权限收缩、原生header及worker恢复，仅适用于VG-024旧候选，不能作为当前VG-032候选门禁；当前请求头验证使用下方专用脚本。
 
 [稳定化记录](docs/stabilization/README.md) 说明证据和缺口；[manifest](docs/stabilization/task-manifest.yaml) 是任务范围、依赖和状态的唯一来源。本地实现结束为 `review`，人工验收后才为 `done`。
 
@@ -90,3 +90,13 @@ VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-sm
 
 
 VG-025（2026-10-20）已获用户授权恢复固定内置名单字体过滤；仅启用的HTTP(S) allowlist生效，custom和Worker继续暂停；位置恢复见VG-029。注册成功只代表匹配新文档就绪，旧hook/BFCache须完整重建；恢复授权不等于人工验收通过。详见 [配置指南](CONFIG_GUIDE.md)。
+
+VG-032语言请求头验证：构建后执行 `node scripts/chrome-header-sync-smoke.mjs --output <脱敏JSON>`。使用临时profile和映射到loopback的测试域，先经过无DNR中间版本，再暂停候选后台验证静态隔离，随后验证迁移、普通Allow User Scripts开关、导航/iframe/跨源资源、子域关闭、快照重载、后台唤醒及扩展更新恢复。该脚本的 `--cold-restart` 是历史CDP临时加载探查，其阻塞证据保留，不能代替正常安装的冷启动验收。
+
+正常安装冷启动使用 `CHROME_BIN="<有界面Chrome或Chrome for Testing可执行文件>" node scripts/chrome-header-cold-start.mjs --output <脱敏JSON> --ui-signal-dir <本次临时目录>`。在脚本提示时，通过原生扩展管理页加载当前dist、正常开启用户脚本，并由UI驱动依次写入 `install-complete`、`user-scripts-complete` 完成信号；最后的关闭开关负例使用 `user-scripts-disabled`。信号只协调交互，安装路径和真实开关仍由浏览器读回验证。两轮稳定设置冷启动先采首HTTP再只读核验，另含配置写后中断恢复和用户脚本关闭负例。实测Chrome for Testing149：稳定冷启动通过；关闭用户脚本后首请求曾出现原生JS/旧语言头失配，后台核验后撤销并隔离，不把这一过渡窗口计作首请求一致性通过。详见VG-032任务证据。
+
+同一命令追加 `--http-session-restore` 可验证旧HTTP标签自动恢复：在正常设置页确认“继续浏览上次打开的网页”后写入 `session-restore-setting-complete` 信号，脚本另读实际偏好值确认。每轮退出前仅保留一个活动HTTP标签；确认整个观测进程树退出后，不传启动网址或强制恢复参数。服务器先记录该路径的首个新响应及其首inline语言报告，收到后才连接CDP并核验恢复文档。Chrome for Testing149的日语、改存德语两轮均通过；法语子iframe、关闭语言子iframe和同源/跨源请求也符合预期。本模式不重复中断与关闭开关负例，不覆盖多窗口、后台延迟标签或崩溃恢复。详见[自动恢复证据](.trellis/tasks/10-22-vg-032-header-sync/chrome-http-session-restore-evidence.json)。
+
+可靠关闭流程的独立验证使用同一命令追加 `--master-off-restore`：正常 Popup 总开关关闭、界面确认保存并同步后写入 `master-disabled`，随后正常关闭 Chrome 用户脚本开关并写入 `user-scripts-disabled`。先验证新顶层/iframe及同源、跨源请求均原生，再完整退出并自动恢复一个HTTP标签，在CDP连接前采集首导航头与首inline。Chrome149本轮9项通过，见[总开关关闭及重启证据](.trellis/tasks/10-22-vg-032-header-sync/chrome-master-off-restore-evidence.json)。正常安装和恢复设置的信号与上文相同。
+
+`--user-scripts-off-restore` 则保留直接关闭Chrome开关的负例，不执行插件总开关关闭；此模式及默认冷启动模式现在把首请求失配纳入整体FAIL，后台后续收敛不再代替首请求验收。旧JSON保留其当时判据，不覆盖历史失败观测。本轮用户选择插件总开关作为关闭入口，未宣称消除直接关闭Chrome开关的窗口。

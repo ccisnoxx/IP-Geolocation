@@ -26,7 +26,8 @@ test('manifest uses dynamic injection without background alarms or static all-ur
     'tabs',
     'contextMenus',
     'privacy',
-    'userScripts'
+    'userScripts',
+    'declarativeNetRequestWithHostAccess'
   ]);
   assert.equal(manifest.permissions.includes('activeTab'), false);
   assert.equal(manifest.permissions.includes('alarms'), false);
@@ -351,17 +352,19 @@ test('字体 UI 无请求头编辑或 Canvas 伪装，内置名单只读且独�
   }
 });
 
-test('DNR权限和清理组件已退出生产，未来重引入必须独立迁移', () => {
+test('DNR仅恢复host约束权限，随包默认隔离覆盖全部HTTP资源并先迁移再同步', () => {
   const manifest = JSON.parse(read('manifest.json'));
-  assert.equal(manifest.permissions.some((permission: string) => permission.startsWith('declarativeNetRequest')), false);
-  for (const file of ['src/background/services.ts', 'src/shared/types.ts', 'src/shared/runtime-sync.ts', 'src/shared/storage.ts']) {
-    assert.doesNotMatch(read(file), /declarativeNetRequest|legacyDnrCleanup|legacy-dnr-cleanup/);
-  }
-  for (const page of ['popup', 'options']) {
-    assert.doesNotMatch(read(`src/${page}/${page}.html`), /旧请求头规则清理|DNR/);
-  }
+  assert.deepEqual(manifest.permissions.filter((permission: string) => permission.startsWith('declarativeNetRequest')), ['declarativeNetRequestWithHostAccess']);
+  const [resource] = manifest.declarative_net_request.rule_resources;
+  assert.equal(resource.enabled, true);
+  const [guard] = JSON.parse(read(resource.path));
+  assert.equal(guard.priority, 2147483647);
+  assert.equal(guard.action.type, 'allow');
+  for (const type of ['main_frame', 'sub_frame', 'script', 'xmlhttprequest', 'webtransport', 'webbundle']) assert.ok(guard.condition.resourceTypes.includes(type));
+  assert.match(read('src/background/header-rules.ts'), /rule.id === 1001 \|\| rule.id === 1002/);
+  assert.match(read('vite.config.ts'), /src: 'rules'/);
   const permissions = read('PERMISSIONS.md');
-  assert.match(permissions, /不再申请.*DNR|不再请求.*DNR/);
+  assert.match(permissions, /declarativeNetRequestWithHostAccess/);
   assert.match(permissions, /磁盘|残留/);
-  assert.match(permissions, /重新引入.*独立.*迁移/);
+  assert.match(permissions, /1001/);
 });

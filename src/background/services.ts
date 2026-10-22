@@ -49,6 +49,7 @@ import type {
 import { RUNTIME_SYNC_COMPONENT_LABELS, RuntimeSyncOperationError, syncError, syncSignature } from '../shared/runtime-sync';
 import type { WebRtcPolicyState } from './webrtc';
 import { rulesFromText } from '../shared/rule-list';
+import { clearHeaderRules, finishHeaderRules, migrateLegacyHeaderRules, prepareHeaderRules, quarantineBeforeHeaderConfigWrite, quarantineHeaderRules } from './header-rules';
 import { recommendExitEnvironment } from '../shared/exit-recommendation';
 import { reconcilePageScripts, reconcileGeolocationScripts, hasGeolocationScriptsChanged } from './page-scripts';
 import { hasFontScriptScopeChanged, reconcileFontScripts, syncFontScriptRegistration } from './font-scripts';
@@ -94,7 +95,7 @@ function runtimeConfigSignature(config: SiteSpoofConfig): Promise<string> {
 function pendingSyncReport(configSignature: string): RuntimeSyncReport {
   const pending = (): RuntimeSyncComponentReport => ({ status: 'partial', errors: [{ code: 'pending', message: '等待同步确认。' }] });
   return { configSignature, status: 'partial', components: {
-    contentScripts: pending(), webrtc: pending(), tabReload: pending()
+    contentScripts: pending(), webrtc: pending(), tabReload: pending(), headers: pending()
   }, metadataError: null };
 }
 
@@ -120,6 +121,11 @@ function pendingFontWindow(metadata: RuntimeSyncMetadata | null, signature: stri
 function pendingGeolocationWindow(metadata: RuntimeSyncMetadata | null, signature: string): boolean {
   if (metadata?.report.configSignature === signature) return metadata.pendingGeolocationScopeChange === true;
   return metadata?.previous?.configSignature === signature && metadata.previous.pendingGeolocationScopeChange === true;
+}
+
+function pendingPageWindow(metadata: RuntimeSyncMetadata | null, signature: string): boolean {
+  if (metadata?.report.configSignature === signature) return metadata.pendingPageScopeChange === true;
+  return metadata?.previous?.configSignature === signature && metadata.previous.pendingPageScopeChange === true;
 }
 
 function addReloadDebt(pending: RuntimeSyncMetadata['pendingReloads'], item: { tabId: number; urlSignature: string }, surfaces: Array<'page' | 'font' | 'geolocation'>): void {
@@ -267,10 +273,16 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     return operation;
   }
 
-  async function getSiteConfig(): Promise<SiteSpoofConfig> {
-    const stored = await getStoredConfig();
+  // 所有可能迁移/修复配置的读取也占同一队列，避免写前guard被其他事务提前解除。
+  function getSiteConfig(): Promise<SiteSpoofConfig> { return enqueue(readSiteConfig); }
+
+  async function readSiteConfig(): Promise<SiteSpoofConfig> {
+    const stored = await getStoredConfig(quarantineHeaderRules);
     const { config, repaired } = repairInvalidRuleDomains(stored);
-    if (repaired) await chrome.storage.local.set({ siteSpoofConfig: config });
+    if (repaired) {
+      await quarantineHeaderRules();
+      await chrome.storage.local.set({ siteSpoofConfig: config });
+    }
     return config;
   }
 
@@ -313,6 +325,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
   }
 
   async function reconcile(config: SiteSpoofConfig, metadata?: RuntimeSyncMetadata): Promise<RuntimeSyncReport> {
+    let headerRules: chrome.declarativeNetRequest.Rule[] = [];
     const signature = await runtimeConfigSignature(config);
     const stored = metadata || await getRuntimeSyncMetadata();
     const state: RuntimeSyncMetadata = {
@@ -320,12 +333,19 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       pendingReloads: pendingForSignature(stored, signature),
       ...(pendingFontWindow(stored, signature) ? { pendingFontScopeChange: true } : {}),
       ...(pendingGeolocationWindow(stored, signature) ? { pendingGeolocationScopeChange: true } : {}),
+      ...(pendingPageWindow(stored, signature) ? { pendingPageScopeChange: true } : {}),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
     const beforeFontChange = async () => {
       state.pendingFontScopeChange = true;
       await setRuntimeSyncMetadata(state);
     };
+    const preparedHeaders = await runRuntimeSideEffect('headers', async () => {
+      headerRules = await prepareHeaderRules(config, async () => {
+        state.pendingPageScopeChange = true;
+        await setRuntimeSyncMetadata(state);
+      });
+    });
     const [pageSync, webrtc] = await Promise.all([
       (async () => {
         const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
@@ -357,6 +377,13 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     state.report.pageRuntime = pageSync.pageRuntime;
     state.report.fontRuntime = pageSync.fontRuntime;
     state.report.geolocationRuntime = pageSync.geolocationRuntime;
+    state.report.components.headers = preparedHeaders.status === 'ok'
+      ? await runRuntimeSideEffect('headers', () => finishHeaderRules(headerRules, ['ready', 'disabled'].includes(pageSync.pageRuntime.state)))
+      : preparedHeaders;
+    if (state.report.components.headers.status !== 'ok') {
+      const cleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
+      state.report.components.headers.errors.push(...cleanup.errors);
+    }
     if (state.pendingDetectionCleanup) {
       try {
         await removeConfirmedDetection(state.pendingDetectionCleanup);
@@ -367,11 +394,15 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     }
     // 不刷新或修改已加载/BFCache文档。只有注册完成后才向管理页提示完整reload。
     state.report.components.tabReload = { status: 'ok', errors: [] };
-    if (state.pendingReloads.length || state.pendingFontScopeChange || state.pendingGeolocationScopeChange) {
+    if (state.pendingReloads.length || state.pendingFontScopeChange || state.pendingGeolocationScopeChange || state.pendingPageScopeChange) {
       try {
         const tabs = await queryScriptableTabs();
         const urls = new Map(await Promise.all(tabs.map(async tab => [tab.id, await syncSignature(tab.url)] as const)));
         state.pendingReloads = state.pendingReloads.filter(item => urls.get(item.tabId) === item.urlSignature);
+        if (state.pendingPageScopeChange) {
+          for (const [tabId, urlSignature] of urls) addReloadDebt(state.pendingReloads, { tabId, urlSignature }, ['page']);
+          if (state.report.components.headers?.status === 'ok' && ['ready', 'disabled'].includes(state.report.pageRuntime.state)) delete state.pendingPageScopeChange;
+        }
         if (state.pendingFontScopeChange) {
           // allFrames 注册不能从顶层 URL 排除受影响 iframe；保守记录所有普通 HTTP(S) 标签页。
           for (const [tabId, urlSignature] of urls) addReloadDebt(state.pendingReloads, { tabId, urlSignature }, ['font']);
@@ -408,6 +439,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     const oldFontWindow = pendingFontWindow(oldMetadata, previousSignature);
     const fontScopeChanged = hasFontScriptScopeChanged(previous, result.config);
     const oldGeolocationWindow = pendingGeolocationWindow(oldMetadata, previousSignature);
+    const oldPageWindow = pendingPageWindow(oldMetadata, previousSignature);
     const geolocationChanged = hasGeolocationScriptsChanged(previous, result.config);
     const pending = structuredClone(oldPending);
     for (const tab of tabs) {
@@ -422,12 +454,15 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     const metadata: RuntimeSyncMetadata = { version: 1, report: pendingSyncReport(nextSignature), pendingReloads: pending,
       ...(fontScopeChanged || oldFontWindow ? { pendingFontScopeChange: true } : {}),
       ...(geolocationChanged || oldGeolocationWindow ? { pendingGeolocationScopeChange: true } : {}),
+      ...(oldPageWindow ? { pendingPageScopeChange: true } : {}),
       previous: { configSignature: previousSignature, pendingReloads: oldPending,
         ...(oldFontWindow ? { pendingFontScopeChange: true } : {}),
-        ...(oldGeolocationWindow ? { pendingGeolocationScopeChange: true } : {}) },
+        ...(oldGeolocationWindow ? { pendingGeolocationScopeChange: true } : {}),
+        ...(oldPageWindow ? { pendingPageScopeChange: true } : {}) },
       ...(oldMetadata?.pendingDetectionCleanup ? { pendingDetectionCleanup: oldMetadata.pendingDetectionCleanup } : {})
     };
     // 先准备恢复记录。配置写入失败时恢复旧欠账；成功后不回滚用户期望。
+    await quarantineBeforeHeaderConfigWrite(previous, result.config);
     await setRuntimeSyncMetadata(metadata);
     try { await chrome.storage.local.set({ [SITE_CONFIG_KEY]: result.config }); }
     catch (error) {
@@ -442,7 +477,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     afterSave?: (saved: ConfigSaveResult) => Promise<ConfigSaveResult>
   ): Promise<ConfigSaveResult> {
     return enqueue(async () => {
-      const current = await getSiteConfig();
+      const current = await readSiteConfig();
       const saved = await persistConfig(current, await mutator(normalizeConfig(current)));
       return afterSave ? afterSave(saved) : saved;
     });
@@ -450,7 +485,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
 
   function getConfigState(): Promise<ConfigSaveResult> {
     return enqueue(async () => {
-      const config = await getSiteConfig();
+      const config = await readSiteConfig();
       return { config, syncReport: await reconcile(config) };
     });
   }
@@ -793,24 +828,32 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
   function initializeExtension(): Promise<RuntimeSyncReport> {
     return enqueue(async () => {
       try {
+        let migratedHeaders = false;
+        // 先尝试迁移；DNR故障由后续headers组件独立报告，不停用其他页面能力。
+        await runRuntimeSideEffect('headers', async () => { migratedHeaders = await migrateLegacyHeaderRules(); });
         const before = await chrome.storage.local.get(null);
         const storedConfig = before[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
         const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 3)
           || Boolean(before[LEGACY_VANISHME_CONFIG_KEY]) || Boolean(before[LAST_LOCATION_KEY])
           || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
             .some((key) => Object.prototype.hasOwnProperty.call(before, key));
-        const config = await getSiteConfig();
-        if (hadLegacyConfig) {
+        const config = await readSiteConfig();
+        if (hadLegacyConfig || migratedHeaders) {
           const signature = await runtimeConfigSignature(config);
           const old = await getRuntimeSyncMetadata();
           const pendingReloads = old?.report.configSignature === signature ? old.pendingReloads.slice() : [];
           for (const tab of await queryScriptableTabs()) {
             if (isUrlMatchedByEnabledRule(config, tab.url)) pendingReloads.push({ tabId: tab.id, urlSignature: await syncSignature(tab.url) });
           }
-          await setRuntimeSyncMetadata({ version: 1, report: pendingSyncReport(signature), pendingReloads });
+          await setRuntimeSyncMetadata({ version: 1, report: pendingSyncReport(signature), pendingReloads,
+            ...(migratedHeaders || pendingPageWindow(old, signature) ? { pendingPageScopeChange: true } : {}),
+            ...(pendingFontWindow(old, signature) ? { pendingFontScopeChange: true } : {}),
+            ...(pendingGeolocationWindow(old, signature) ? { pendingGeolocationScopeChange: true } : {}),
+            ...(old?.pendingDetectionCleanup ? { pendingDetectionCleanup: old.pendingDetectionCleanup } : {}) });
         }
         return await reconcile(config);
       } catch (error) {
+        const headerCleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
         // 启动状态不可确认时，只撤销所属字体注册；清理仍占用配置队列，不猜测或覆盖配置。
         const cleanup = await syncFontScriptRegistration([]);
         const geolocationCleanup = await reconcileGeolocationScripts(createInitialConfig(), geolocationRuntimeSource);
@@ -823,6 +866,10 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
           const reason = error instanceof Error ? error.message : String(error);
           throw Object.assign(new RuntimeSyncOperationError('font-scripts-sync-failed',
             `启动初始化失败：${reason}；旧字体注册清理未能确认。`), { cause: error });
+        }
+        if (headerCleanup.status !== 'ok') {
+          const reason = error instanceof Error ? error.message : String(error);
+          throw Object.assign(new RuntimeSyncOperationError('header-cleanup-failed', `启动初始化失败：${reason}；请求头隔离或撤销未确认，请关闭扩展并检查权限。`), { cause: error });
         }
         throw error;
       }

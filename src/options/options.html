@@ -22,7 +22,7 @@
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
       <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。Worker / SharedWorker 仍暂停；地理位置仅在普通安全上下文且允许定位的匹配网页应用合成坐标。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
-      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。请求头保持浏览器原生值；WebRTC 分别报告，不代表当前页面已验证生效。</p>
+      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。Accept-Language 与页面语言、WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
       <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
@@ -62,7 +62,7 @@
             <option value="keep">保留当前字体配置</option>
             <option value="vendor-software">启用内置厂商／软件及中文字体过滤（仅已启用规则）</option>
           </select>
-          <p class="hint">选择内置建议会替换自定义名单；固定内置字体过滤按已启用HTTP(S)规则独立注册，自定义过滤仍暂停。地理位置需单独启用并重新加载网页，请求头保持原生。</p>
+          <p class="hint">选择内置建议会替换自定义名单；固定内置字体过滤按已启用HTTP(S)规则独立注册，自定义过滤仍暂停。地理位置需单独启用并重新加载网页；Accept-Language 随站点语言同步。</p>
           <label for="onboardingWebRtc">WebRTC 全局策略（影响范围大于所选站点）</label>
           <select id="onboardingWebRtc" class="input">
             <option value="keep">保留当前 WebRTC 策略</option>
@@ -92,7 +92,7 @@
           <label class="toggle-card">
             <span>
               <strong>全局保护</strong>
-              <small>控制已保存的总开关；语言/时区注册、WebRTC 分别查看同步结果</small>
+              <small>关闭后点击“保存当前配置”，等待同步完成，再完整重载已有网页</small>
             </span>
             <input type="checkbox" id="globalEnabled">
           </label>
@@ -104,6 +104,7 @@
             <input type="checkbox" id="debugMode">
           </label>
         </div>
+        <p class="hint">如需关闭 Chrome 的 Allow User Scripts，请先关闭并保存此总开关，确认页面脚本与 Accept-Language 同步完成；直接关闭 Chrome 开关可能暂时残留旧语言请求头。</p>
       </section>
 
       <section class="section">
@@ -217,6 +218,7 @@
           <div class="input-group">
             <label for="languages">语言列表</label>
             <input type="text" id="languages" class="input" placeholder="en-US, en">
+            <small class="field-note">修改主语言会重建列表，可随后自定义备用语言。Accept-Language 随站点语言同步；保存后请完整重载网页。</small>
           </div>
         </div>
 

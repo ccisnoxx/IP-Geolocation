@@ -1,0 +1,436 @@
+{
+  "task": "VG-032",
+  "scope": "normal-ui-automatic-http-session-restore",
+  "result": "PASS",
+  "chrome": "Chrome/149.0.7827.55",
+  "environment": {
+    "headed": true,
+    "temporaryProfile": true,
+    "personalProfileAccessed": false,
+    "fixtureTraffic": "HTTP loopback only"
+  },
+  "checks": {
+    "normalUiInstallCurrentDist": true,
+    "normalAllowUserScriptsEnabled": true,
+    "preRestartLanguageAndHeader": true,
+    "normalContinueWhereLeftOffEnabled": true,
+    "normalColdFirstRequestsConsistent": true,
+    "normalColdProjectionPreserved": true,
+    "changedLanguageColdFirstRequestsConsistent": true,
+    "changedLanguageColdProjectionPreserved": true,
+    "bothAutomaticRestorationsObservedBeforeCdp": true,
+    "allowUserScriptsPersistsAcrossBothColdStarts": true,
+    "unmodifiedDist": true
+  },
+  "coldStarts": [
+    {
+      "kind": "normal-clean-exit",
+      "observationOrder": [
+        "previous-process-tree-exited",
+        "new-process-spawned-without-startup-url",
+        "first-restored-navigation-and-inline-report-received-before-cdp",
+        "new-process-connected",
+        "restored-existing-target-confirmed-with-same-response-nonce",
+        "read-only-worker-inspection-after-http-probes"
+      ],
+      "onlyActiveHttpTabRetainedBeforeExit": true,
+      "managementPagesClosedBeforeExit": true,
+      "exit": {
+        "gracefulExit": true,
+        "mainProcessExited": true,
+        "observedProcessTreeExited": true,
+        "observedProcessCount": 9
+      },
+      "earlyFirstInlineReport": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+        "freshHttpResponseConfirmed": true,
+        "actualServerNavigationHeader": "ja-JP,ja;q=0.9,en;q=0.8",
+        "navigationReceivedAfterSpawnMs": 528,
+        "reportReceivedAfterSpawnMs": 661,
+        "receivedBeforeCdpConnection": true,
+        "receivedAfterNewProcessSpawn": true
+      },
+      "noStartupUrlOrForcedRestoreFlag": true,
+      "noTargetCreatedOrNavigatedBeforeFirstReport": true,
+      "noDebuggerAttachOrPauseBeforeFirstReport": true,
+      "first": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+        "same": "ja-JP,ja;q=0.9,en;q=0.8",
+        "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+        "frames": {
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "fr-FR,fr;q=0.9",
+            "same": "fr-FR,fr;q=0.9",
+            "cross": "fr-FR,fr;q=0.9"
+          },
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      },
+      "automaticallyRestoredExistingDocumentConfirmed": true,
+      "singleFreshTopLevelResponseConfirmed": true,
+      "outside": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      },
+      "firstConsistent": true,
+      "initialWorkerState": {
+        "sessionRuleIds": [],
+        "dynamicRuleIds": [
+          40000,
+          40001,
+          40002,
+          40003
+        ],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": false,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "recovered": {
+        "sessionRuleIds": [],
+        "dynamicRuleIds": [
+          40000,
+          40001,
+          40002,
+          40003
+        ],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": false,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "afterRecovery": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+        "same": "ja-JP,ja;q=0.9,en;q=0.8",
+        "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+        "frames": {
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "fr-FR,fr;q=0.9",
+            "same": "fr-FR,fr;q=0.9",
+            "cross": "fr-FR,fr;q=0.9"
+          },
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      },
+      "managementMessagesAfterRestart": 0,
+      "explicitExtensionReloadAfterRestart": false,
+      "explicitWorkerStartAfterRestart": false
+    },
+    {
+      "kind": "changed-language-clean-exit",
+      "observationOrder": [
+        "previous-process-tree-exited",
+        "new-process-spawned-without-startup-url",
+        "first-restored-navigation-and-inline-report-received-before-cdp",
+        "new-process-connected",
+        "restored-existing-target-confirmed-with-same-response-nonce",
+        "read-only-worker-inspection-after-http-probes"
+      ],
+      "onlyActiveHttpTabRetainedBeforeExit": true,
+      "managementPagesClosedBeforeExit": true,
+      "exit": {
+        "gracefulExit": true,
+        "mainProcessExited": true,
+        "observedProcessTreeExited": true,
+        "observedProcessCount": 8
+      },
+      "earlyFirstInlineReport": {
+        "firstInline": true,
+        "language": "de-DE",
+        "languages": [
+          "de-DE",
+          "de",
+          "en"
+        ],
+        "navigation": "de-DE,de;q=0.9,en;q=0.8",
+        "freshHttpResponseConfirmed": true,
+        "actualServerNavigationHeader": "de-DE,de;q=0.9,en;q=0.8",
+        "navigationReceivedAfterSpawnMs": 409,
+        "reportReceivedAfterSpawnMs": 547,
+        "receivedBeforeCdpConnection": true,
+        "receivedAfterNewProcessSpawn": true
+      },
+      "noStartupUrlOrForcedRestoreFlag": true,
+      "noTargetCreatedOrNavigatedBeforeFirstReport": true,
+      "noDebuggerAttachOrPauseBeforeFirstReport": true,
+      "first": {
+        "firstInline": true,
+        "language": "de-DE",
+        "languages": [
+          "de-DE",
+          "de",
+          "en"
+        ],
+        "navigation": "de-DE,de;q=0.9,en;q=0.8",
+        "same": "de-DE,de;q=0.9,en;q=0.8",
+        "cross": "de-DE,de;q=0.9,en;q=0.8",
+        "frames": {
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "fr-FR,fr;q=0.9",
+            "same": "fr-FR,fr;q=0.9",
+            "cross": "fr-FR,fr;q=0.9"
+          },
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      },
+      "automaticallyRestoredExistingDocumentConfirmed": true,
+      "singleFreshTopLevelResponseConfirmed": true,
+      "outside": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      },
+      "firstConsistent": true,
+      "initialWorkerState": {
+        "sessionRuleIds": [],
+        "dynamicRuleIds": [
+          40000,
+          40001,
+          40002,
+          40003
+        ],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": false,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "recovered": {
+        "sessionRuleIds": [],
+        "dynamicRuleIds": [
+          40000,
+          40001,
+          40002,
+          40003
+        ],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": false,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "afterRecovery": {
+        "firstInline": true,
+        "language": "de-DE",
+        "languages": [
+          "de-DE",
+          "de",
+          "en"
+        ],
+        "navigation": "de-DE,de;q=0.9,en;q=0.8",
+        "same": "de-DE,de;q=0.9,en;q=0.8",
+        "cross": "de-DE,de;q=0.9,en;q=0.8",
+        "frames": {
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          },
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "fr-FR,fr;q=0.9",
+            "same": "fr-FR,fr;q=0.9",
+            "cross": "fr-FR,fr;q=0.9"
+          }
+        }
+      },
+      "managementMessagesAfterRestart": 0,
+      "explicitExtensionReloadAfterRestart": false,
+      "explicitWorkerStartAfterRestart": false
+    }
+  ],
+  "cleanup": "PASS",
+  "limitations": [
+    "仅当前Chrome、当前OS和HTTP loopback，不代表Chrome138、其他OS或真实TLS站点",
+    "仅正常退出、一个活动HTTP顶层标签自动恢复；不代表多窗口、后台延迟标签、崩溃恢复或全部启动交错",
+    "两轮正常恢复均不插桩；中断和开关变化负例沿用独立冷启动证据，不在本模式重复",
+    "用户脚本开关改变时不保证首请求原子一致；负例只验后台校验后的撤销，首请求观测单独保留",
+    "不检查个人profile；Chrome自身后台网络未全量监控；Worker/SharedWorker的JavaScript语言仍原生"
+  ],
+  "native": {
+    "firstInline": true,
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN"
+    ],
+    "navigation": "zh-CN,zh;q=0.9",
+    "same": "zh-CN,zh;q=0.9",
+    "cross": "zh-CN,zh;q=0.9"
+  },
+  "install": {
+    "method": "normal-extension-manager-native-folder-picker",
+    "currentDistPathConfirmed": true,
+    "noPriorCard": true,
+    "cdpLoadUnpackedUsed": false,
+    "preferenceFilesWritten": false,
+    "extensionLoadFlagsUsed": false
+  },
+  "baseline": {
+    "firstInline": true,
+    "language": "ja-JP",
+    "languages": [
+      "ja-JP",
+      "ja",
+      "en"
+    ],
+    "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+    "same": "ja-JP,ja;q=0.9,en;q=0.8",
+    "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+    "frames": {
+      "fr.site.vg.test": {
+        "firstInline": true,
+        "language": "fr-FR",
+        "languages": [
+          "fr-FR",
+          "fr"
+        ],
+        "navigation": "fr-FR,fr;q=0.9",
+        "same": "fr-FR,fr;q=0.9",
+        "cross": "fr-FR,fr;q=0.9"
+      },
+      "native.site.vg.test": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      }
+    }
+  },
+  "sessionRestoreSetting": {
+    "method": "native-settings-on-startup",
+    "continueWhereLeftOffVisiblyConfirmed": true,
+    "actualPreferenceValue": 1,
+    "preferenceFileWrittenByRunner": false,
+    "forcedRestoreFlag": false
+  },
+  "distSha256": "aa70331e7974bb76114f0ea410ff2b2efb2e67589b4457cef45bc171bc2899d9"
+}

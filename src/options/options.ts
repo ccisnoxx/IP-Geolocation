@@ -1,10 +1,11 @@
 import './options.css';
-import { renderRuntimeSyncReport, renderFontRuntimeStatus, runtimeSyncMessage } from '../shared/runtime-sync';
+import { renderRuntimeSyncReport, renderRuntimeSyncPending, renderFontRuntimeStatus, runtimeSyncMessage } from '../shared/runtime-sync';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_FONT_EXPOSURE,
   VENDOR_SOFTWARE_FONT_FAMILIES,
   createInitialConfig,
+  getDefaultLanguages,
   getTimezoneOffsetMinutes,
   normalizeConfig,
   normalizeGeolocation,
@@ -88,20 +89,32 @@ const newProfileDescriptionEl = document.getElementById('newProfileDescription')
 const confirmSaveProfileBtn = document.getElementById('confirmSaveProfile') as HTMLButtonElement;
 const cancelSaveProfileBtn = document.getElementById('cancelSaveProfile') as HTMLButtonElement;
 
+let pendingConfigSaves = 0;
+let configSaveFailed = false;
 function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
+  const saving = message.action === 'setSiteConfig';
+  if (saving) {
+    pendingConfigSaves++;
+    renderRuntimeSyncPending(runtimeSyncStatusEl);
+  }
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, (response) => {
+      if (saving) pendingConfigSaves--;
       if (chrome.runtime.lastError) {
+        if (saving) configSaveFailed = true;
         reject(new Error(chrome.runtime.lastError.message));
         return;
       }
       if (!response || response.status === 'error') {
+        if (saving) configSaveFailed = true;
         reject(new Error(response?.message || '扩展后台返回未知错误'));
         return;
       }
+      if (saving) configSaveFailed = false;
       const report = response.syncReport || response.state?.syncReport;
-      if (report) {
-        renderRuntimeSyncReport(runtimeSyncStatusEl, report);
+      if (report && !configSaveFailed) {
+        if (pendingConfigSaves) renderRuntimeSyncPending(runtimeSyncStatusEl);
+        else renderRuntimeSyncReport(runtimeSyncStatusEl, report);
         renderFontRuntimeStatus(fontExposureStatusEl, report);
       }
       // getWebRtcConfig.state.config 只是局部 WebRtcConfig，不能投影为完整配置。
@@ -113,7 +126,7 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
 }
 
 function showOperationError(error: unknown): void {
-  runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
+  runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}${configSaveFailed ? ' 请重新保存配置；重试同步只对账已保存的配置，不能确认本次关闭。' : ''}`;
   runtimeSyncStatusEl.dataset.status = 'failed';
   renderFontRuntimeStatus(fontExposureStatusEl);
 }
@@ -136,6 +149,10 @@ function updateFontExposureMode(): void {
   const custom = fontExposureModeEl.value === 'custom';
   fontExposureVendorGroupEl.hidden = custom;
   fontExposureCustomGroupEl.hidden = !custom;
+}
+
+function updateLanguageList(): void {
+  languagesEl.value = getDefaultLanguages(languageEl.value).join(', ');
 }
 
 function populateForm(config: SiteSpoofConfig): void {
@@ -341,7 +358,7 @@ async function saveSettings(config?: SiteSpoofConfig): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'setSiteConfig', config: config ?? readForm() });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
-  alert(runtimeSyncMessage(response.syncReport));
+  if (!pendingConfigSaves) alert(runtimeSyncMessage(response.syncReport));
 }
 
 async function applyProfile(profileId: string): Promise<void> {
@@ -723,6 +740,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 
 saveBtn.addEventListener('click', () => { runUiTask(saveSettings()); });
 saveFooterBtn.addEventListener('click', () => { runUiTask(saveSettings()); });
+languageEl.addEventListener('change', updateLanguageList);
 saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
 confirmSaveProfileBtn.addEventListener('click', () => { runUiTask(handleSaveAsCustom()); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);

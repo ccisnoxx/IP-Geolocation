@@ -161,14 +161,25 @@ export function normalizeLanguages(value: unknown): string[] {
   return String(value || '').split(',').map((item) => normalizeString(item)).filter(Boolean);
 }
 
+export function getDefaultLanguages(language: string): string[] {
+  const primary = normalizeString(language) || DEFAULT_LANGUAGE.language;
+  return [...new Set([primary, primary.split('-')[0], 'en'])];
+}
+
+export function getAcceptLanguageValue(languages: readonly string[]): string {
+  // HTTP q 最多三位小数；入口限制1000项，保持每项正权重且严格递减。
+  const step = Math.min(100, Math.floor(1000 / languages.length));
+  return languages.map((language, index) => index ? `${language};q=${(1000 - index * step) / 1000}` : language).join(',');
+}
+
 export function normalizeLanguage(config: Partial<LanguageConfig> | null | undefined): LanguageConfig {
   const input = config || {};
   const languages = normalizeLanguages(input.languages);
   const language = normalizeString(input.language || languages[0] || DEFAULT_LANGUAGE.language);
-  const normalizedLanguages = languages.length ? languages : clone(DEFAULT_LANGUAGE.languages);
-  if (language && !normalizedLanguages.includes(language)) {
-    normalizedLanguages.unshift(language);
-  }
+  const fallbackLanguages = languages.length ? languages : getDefaultLanguages(language);
+  const normalizedLanguages = language
+    ? [language, ...fallbackLanguages.filter((item) => item !== language)]
+    : fallbackLanguages;
   return {
     enabled: input.enabled !== false,
     mode: input.mode === 'custom' ? 'custom' : 'preset',

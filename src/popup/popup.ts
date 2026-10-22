@@ -1,11 +1,12 @@
 import './popup.css';
-import { isRuntimeInjectionPaused, renderRuntimeSyncReport, renderFontRuntimeStatus } from '../shared/runtime-sync';
+import { isRuntimeInjectionPaused, renderRuntimeSyncReport, renderRuntimeSyncPending, renderFontRuntimeStatus } from '../shared/runtime-sync';
 import { getPageRuntimeProfile } from '../shared/config-resolver';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_FONT_EXPOSURE,
   VENDOR_SOFTWARE_FONT_FAMILIES,
   createInitialConfig,
+  getDefaultLanguages,
   getTimezoneOffsetMinutes,
   normalizeConfig,
   normalizeGeolocation,
@@ -70,20 +71,34 @@ let currentRuleId: string | null = null;
 let currentTabState: { domain: string; scriptable: boolean } | null = null;
 let autoSaveTimer: number | null = null;
 
+let pendingConfigSaves = 0;
+let configSaveFailed = false;
 function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
+  const saving = message.action === 'setSiteConfig';
+  if (saving) {
+    pendingConfigSaves++;
+    renderRuntimeSyncPending(runtimeSyncStatusEl);
+    autoSaveToast.textContent = '正在保存并同步…';
+    autoSaveToast.dataset.status = 'pending';
+  }
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, (response) => {
+      if (saving) pendingConfigSaves--;
       if (chrome.runtime.lastError) {
+        if (saving) configSaveFailed = true;
         reject(new Error(chrome.runtime.lastError.message));
         return;
       }
       if (!response || response.status === 'error') {
+        if (saving) configSaveFailed = true;
         reject(new Error(response?.message || '扩展后台返回未知错误'));
         return;
       }
+      if (saving) configSaveFailed = false;
       const report = response.syncReport || response.state?.syncReport;
-      if (report) {
-        renderRuntimeSyncReport(runtimeSyncStatusEl, report, 'compact');
+      if (report && !configSaveFailed) {
+        if (pendingConfigSaves) renderRuntimeSyncPending(runtimeSyncStatusEl);
+        else renderRuntimeSyncReport(runtimeSyncStatusEl, report, 'compact');
         renderFontRuntimeStatus(fontExposureStatusEl, report, 'compact');
       }
       const config = response.config || (message.action === 'getExtensionState' || message.action === 'getCurrentTabState' ? response.state?.config : undefined);
@@ -94,8 +109,12 @@ function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<
 }
 
 function showOperationError(error: unknown): void {
-  runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}`;
+  runtimeSyncStatusEl.textContent = `操作结果未确认：${error instanceof Error ? error.message : String(error)}${configSaveFailed ? ' 请重新保存配置；重试同步只对账已保存的配置，不能确认本次关闭。' : ''}`;
   runtimeSyncStatusEl.dataset.status = 'failed';
+  if (configSaveFailed) {
+    autoSaveToast.textContent = '保存结果未确认，请重新保存';
+    autoSaveToast.dataset.status = 'failed';
+  }
   renderFontRuntimeStatus(fontExposureStatusEl, undefined, 'compact');
 }
 
@@ -108,6 +127,7 @@ async function retryRuntimeSync(): Promise<void> {
 }
 
 function showAutoSaveToast(report?: RuntimeSyncReport): void {
+  if (pendingConfigSaves || configSaveFailed) return;
   autoSaveToast.textContent = isRuntimeInjectionPaused(report) ? '已保存，语言/时区已暂停'
     : report?.status !== 'ok' ? '已保存，部分同步未完成'
       : (report.pageRuntime?.reloadRequired || report.fontRuntime?.reloadRequired || report.geolocationRuntime?.reloadRequired) ? '已保存，请重新加载网页'
@@ -178,6 +198,10 @@ function updateExitLocationProfile(config: SiteSpoofConfig): void {
 function updateTimezoneOffset(): void {
   const offset = getTimezoneOffsetMinutes(timezoneEl.value);
   utcOffsetEl.value = offset === null ? '' : String(-offset / 60);
+}
+
+function updateLanguageList(): void {
+  languagesEl.value = getDefaultLanguages(languageEl.value).join(', ');
 }
 
 function updateFontExposureMode(): void {
@@ -347,6 +371,7 @@ intlModeEl.addEventListener('change', () => { runUiTask(saveChanges()); });
 timezoneEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
 timezoneEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languageEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+languageEl.addEventListener('change', updateLanguageList);
 languageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languagesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 webrtcEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });

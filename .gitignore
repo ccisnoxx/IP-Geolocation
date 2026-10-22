@@ -308,3 +308,24 @@ Thumbs.db
 !.trellis/tasks/10-22-vg-030-font-recovery-reload/chrome-geolocation-evidence.json
 !.trellis/tasks/10-22-vg-030-font-recovery-reload/commit-scope-font-evidence.json
 !.trellis/tasks/10-22-vg-030-font-recovery-reload/commit-scope-geolocation-evidence.json
+
+# VG-031 语言列表同步的正式任务记录
+!.trellis/tasks/10-22-vg-031-language-list-sync/
+.trellis/tasks/10-22-vg-031-language-list-sync/*
+!.trellis/tasks/10-22-vg-031-language-list-sync/task.json
+!.trellis/tasks/10-22-vg-031-language-list-sync/prd.md
+!.trellis/tasks/10-22-vg-031-language-list-sync/implement.md
+
+# VG-032 请求头同步正式记录
+!.trellis/tasks/10-22-vg-032-header-sync/
+.trellis/tasks/10-22-vg-032-header-sync/*
+!.trellis/tasks/10-22-vg-032-header-sync/task.json
+!.trellis/tasks/10-22-vg-032-header-sync/prd.md
+!.trellis/tasks/10-22-vg-032-header-sync/implement.md
+!.trellis/tasks/10-22-vg-032-header-sync/chrome-evidence.json
+!.trellis/tasks/10-22-vg-032-header-sync/chrome-cold-restart-evidence.json
+!.trellis/tasks/10-22-vg-032-header-sync/cold-start-followup.md
+!.trellis/tasks/10-22-vg-032-header-sync/chrome-normal-ui-cold-start-before-fix.json
+!.trellis/tasks/10-22-vg-032-header-sync/chrome-normal-ui-cold-start-evidence.json
+!.trellis/tasks/10-22-vg-032-header-sync/chrome-http-session-restore-evidence.json
+!.trellis/tasks/10-22-vg-032-header-sync/chrome-master-off-restore-evidence.json

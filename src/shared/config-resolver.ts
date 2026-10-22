@@ -50,6 +50,11 @@ function validateLanguage(language: LanguageConfig, path: string, errors: string
   if (!Array.isArray(language.languages) || language.languages.length === 0 || language.languages.some((item) => !normalizeString(item))) {
     errors.push(`${path}: navigator.languages must not be empty`);
   }
+  if (language.languages.length > 1000) errors.push(`${path}：语言列表最多1000项，以保持HTTP优先级可区分`);
+  for (const locale of [language.language, ...language.languages]) {
+    try { Intl.getCanonicalLocales(locale); }
+    catch { errors.push(`${path}：语言标签必须是有效的BCP 47 locale`); break; }
+  }
 }
 
 function validateGeolocation(geolocation: GeolocationConfig, path: string, errors: string[]): void {
@@ -175,7 +180,7 @@ export function buildContentScriptMatchesForDomain(domain: string): string[] {
   if (!normalized || !isValidDomain(normalized)) return [];
 
   const patterns = [`*://${normalized}/*`];
-  if (normalized !== 'localhost' && !isIpv4Address(normalized)) {
+  if (!isIpv4Address(normalized)) {
     patterns.push(`*://*.${normalized}/*`);
   }
   return patterns;

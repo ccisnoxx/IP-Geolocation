@@ -1,0 +1,132 @@
+{
+  "task": "VG-032",
+  "result": "PASS",
+  "chrome": "Chrome/155.0.8059.86",
+  "checks": {
+    "historicalRulesWereActive": true,
+    "noDnrIntermediateNative": true,
+    "preCleanupStaticQuarantine": true,
+    "migrationReadsActualRulesDespiteOldMarker": true,
+    "normalAllowUserScripts": true,
+    "navigationIframeCrossOriginResourcesAndExclusions": true,
+    "oldDocumentSnapshotAndReload": true,
+    "languageChangeAndDisableNative": true,
+    "localhostAndSubdomainsShareResolverScope": true,
+    "legacySession1002AndPreviousProjectionCleanedBeforeRelease": true,
+    "workerRecoveryWithoutManagementMessages": true,
+    "versionUpdateRecoversWithoutManagementMessages": true
+  },
+  "observations": {
+    "native": {
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN",
+        "zh"
+      ],
+      "navigation": "zh-CN,zh;q=0.9",
+      "same": "zh-CN,zh;q=0.9",
+      "cross": "zh-CN,zh;q=0.9"
+    },
+    "historical": {
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN",
+        "zh"
+      ],
+      "navigation": "zh-CN,zh;q=0.7",
+      "same": "zh-CN,zh;q=0.7",
+      "cross": "zh-CN,zh;q=0.7"
+    },
+    "preCleanup": {
+      "workerPausedBeforeExecution": true,
+      "legacyDynamicCount": 3,
+      "guardEnabled": true,
+      "observed": {
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN",
+          "zh"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9",
+        "frames": {
+          "jp.site.vg.test": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN",
+              "zh"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          },
+          "native.site.vg.test": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN",
+              "zh"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      }
+    },
+    "allowToggleBefore": {
+      "checked": false,
+      "disabled": false,
+      "x": 685,
+      "y": 262.25
+    },
+    "synced": {
+      "language": "ja-JP",
+      "languages": [
+        "ja-JP",
+        "ja",
+        "en"
+      ],
+      "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+      "same": "ja-JP,ja;q=0.9,en;q=0.8",
+      "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+      "frames": {
+        "jp.site.vg.test": {
+          "language": "fr-FR",
+          "languages": [
+            "fr-FR",
+            "fr"
+          ],
+          "navigation": "fr-FR,fr;q=0.9",
+          "same": "fr-FR,fr;q=0.9",
+          "cross": "fr-FR,fr;q=0.9"
+        },
+        "native.site.vg.test": {
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN",
+            "zh"
+          ],
+          "navigation": "zh-CN,zh;q=0.9",
+          "same": "zh-CN,zh;q=0.9",
+          "cross": "zh-CN,zh;q=0.9"
+        }
+      }
+    },
+    "buildManifestSha256": "00b3484280ee19b49dc610206f24e91a32e34b1013b3cf1adf16820f9ff9b1a6"
+  },
+  "environment": {
+    "realChrome": true,
+    "temporaryProfile": true,
+    "personalProfileAccessed": false,
+    "network": "loopback fixtures only"
+  },
+  "limitations": [
+    "仅当前Chrome的HTTP loopback实测，不代表Chrome138、其他OS或真实TLS站点",
+    "合成旧包预置已确认历史规则，未声称覆盖所有历史发布包",
+    "未执行整个Chrome进程重启，不作为普通用户profile自动加载或Allow User Scripts开关持久性验收；额外尝试的阻塞证据单独保留",
+    "页面和DNR不是原子事务，只验同步确认后新文档/完整重载",
+    "Worker语言仍原生，其他扩展的请求头改写未覆盖"
+  ],
+  "cleanup": "PASS"
+}

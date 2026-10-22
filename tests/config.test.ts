@@ -17,6 +17,7 @@ import {
   SITE_CONFIG_KEY,
   VENDOR_SOFTWARE_FONT_FAMILIES,
   normalizeFontExposure,
+  normalizeLanguage,
   normalizeConfig
 } from '../src/shared/config-model';
 import { getConfig } from '../src/shared/storage';
@@ -29,6 +30,22 @@ const LEGACY_DEFAULT_CANVAS_FAMILIES = [
   'Microsoft JhengHei', 'PMingLiU', 'MingLiU', 'DFKai-SB', 'PingFang TC', 'PingFang HK',
   'Source Han Sans TW', 'Noto Sans CJK TC'
 ];
+
+test('主语言移到列表首位且不重复，显式备用语言顺序和多语言偏好保留', () => {
+  const result = normalizeLanguage({ language: 'ja-JP', languages: ['zh-CN', 'ja-JP', 'en', 'ja-JP', 'ko'] });
+  assert.deepEqual(result.languages, ['ja-JP', 'zh-CN', 'en', 'ko']);
+  assert.deepEqual(normalizeLanguage(result), result);
+});
+
+test('空语言列表按当前主语言生成，不混入其他地区语言', () => {
+  for (const [language, expected] of [
+    ['ja-JP', ['ja-JP', 'ja', 'en']],
+    ['es-MX', ['es-MX', 'es', 'en']],
+    ['en', ['en']]
+  ] as const) {
+    assert.deepEqual(normalizeLanguage({ language, languages: [] }).languages, expected);
+  }
+});
 
 function v2Config(canvas: Record<string, unknown>) {
   const { fontExposure: _fontExposure, ...config } = normalizeConfig({ rules: [] });
@@ -322,6 +339,7 @@ test('getContentScriptMatches returns only enabled allowlist patterns', () => {
     '*://example.com/*',
     '*://*.example.com/*',
     '*://localhost/*',
+    '*://*.localhost/*',
     '*://127.0.0.1/*'
   ]);
 });
@@ -473,16 +491,16 @@ test('storage单次写回v2到v3，v3稳态仅补缺失标记且不覆盖有效�
     remove: async (keys: string[]) => { keys.forEach((key) => { delete data[key]; }); }
   } } } as any;
   try {
-    const migrated = await getConfig();
+    const migrated = await getConfig(async () => {});
     assert.equal(writes.length, 1);
     assert.equal(writes[0][RULES_INITIALIZED_KEY], true);
     assert.deepEqual(data[SITE_CONFIG_KEY], migrated);
     assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['My Font'] });
-    assert.deepEqual(await getConfig(), migrated);
+    assert.deepEqual(await getConfig(async () => {}), migrated);
     assert.equal(writes.length, 1);
     delete data[RULES_INITIALIZED_KEY];
     const raw = structuredClone(data[SITE_CONFIG_KEY]);
-    assert.deepEqual(await getConfig(), migrated);
+    assert.deepEqual(await getConfig(async () => {}), migrated);
     assert.deepEqual(writes[1], { [RULES_INITIALIZED_KEY]: true });
     assert.deepEqual(data[SITE_CONFIG_KEY], raw);
   } finally {
@@ -508,11 +526,11 @@ test('v2迁移写入失败保留原配置与旧键并传播错误，重试后才
     remove: async (keys: string[]) => { removals += 1; keys.forEach((key) => { delete data[key]; }); }
   } } } as any;
   try {
-    await assert.rejects(getConfig(), /synthetic storage failure/);
+    await assert.rejects(getConfig(async () => {}), /synthetic storage failure/);
     assert.deepEqual(data, before);
     assert.equal(removals, 0);
     failWrite = false;
-    const migrated = await getConfig();
+    const migrated = await getConfig(async () => {});
     assert.equal(data[SITE_CONFIG_KEY].schemaVersion, 3);
     assert.equal(data[RULES_INITIALIZED_KEY], true);
     assert.equal(removals, 1);

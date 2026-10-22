@@ -32,12 +32,13 @@ export function diagnosticEvidence(): DiagnosticEvidence {
 test('报告比较完整信号，缺失观测和无 ICE 不冒充 PASS', () => {
   const rows = compareDiagnosticEvidence(diagnosticEvidence());
   for (const label of ['Top language', 'Top languages', 'Top locale', 'Top timezone', 'Top Date offset', 'Top Date locale', 'getCurrentPosition', 'watchPosition', 'WebRTC policy', 'iframe 1 language', 'Worker module language', 'Pass-through hardwareConcurrency']) assert.equal(rows.find((row) => row.label === label)?.verdict, 'PASS', label);
-  for (const label of ['Accept-Language（原生观测）', '目标内置字体过滤', '非目标字体原生', '字体探测覆盖']) {
+  assert.equal(rows.find(row => row.label === 'Accept-Language')?.verdict, 'PASS');
+  for (const label of ['目标内置字体过滤', '非目标字体原生', '字体探测覆盖']) {
     assert.equal(rows.find(row => row.label === label)?.verdict, 'UNKNOWN', label);
   }
   const nativeHeader = diagnosticEvidence();
   nativeHeader.actual.header.value = 'en-US';
-  assert.equal(compareDiagnosticEvidence(nativeHeader).find(row => row.label === 'Accept-Language（原生观测）')?.verdict, 'UNKNOWN');
+  assert.equal(compareDiagnosticEvidence(nativeHeader).find(row => row.label === 'Accept-Language')?.verdict, 'FAIL');
   assert.equal(rows.find((row) => row.label === 'WebRTC ICE')?.verdict, 'UNKNOWN');
   assert.equal(rows.find((row) => row.label === 'Pass-through webglRenderer')?.verdict, 'UNKNOWN');
   const bad = diagnosticEvidence();
@@ -50,7 +51,7 @@ test('报告比较完整信号，缺失观测和无 ICE 不冒充 PASS', () => {
   bad.passThrough.value!.hardwareConcurrency = 8;
   const failures = compareDiagnosticEvidence(bad);
   for (const label of ['Top language', 'watchPosition accuracy', 'WebRTC policy', 'WebRTC ICE', 'Pass-through hardwareConcurrency']) assert.equal(failures.find((row) => row.label === label)?.verdict, 'FAIL', label);
-  assert.equal(failures.find((row) => row.label === 'Accept-Language（原生观测）')?.verdict, 'UNKNOWN');
+  assert.equal(failures.find((row) => row.label === 'Accept-Language')?.verdict, 'UNKNOWN');
 });
 
 function installRunMock() {
@@ -255,7 +256,7 @@ test('位置按随机半径比较且跨日期线距离正确，禁用信号 UNKN
   evidence.expectation.geolocation!.randomRadiusMeters = 1;
   assert.equal(compareDiagnosticEvidence(evidence).find((row) => row.label === 'getCurrentPosition')?.verdict, 'FAIL');
   evidence.expectation = { language: null, timezone: null, geolocation: null };
-  for (const label of ['Top language', 'Top timezone', 'getCurrentPosition', 'Accept-Language（原生观测）']) assert.equal(compareDiagnosticEvidence(evidence).find((row) => row.label === label)?.verdict, 'UNKNOWN');
+  for (const label of ['Top language', 'Top timezone', 'getCurrentPosition', 'Accept-Language']) assert.equal(compareDiagnosticEvidence(evidence).find((row) => row.label === label)?.verdict, 'UNKNOWN');
 });
 
 test('default 策略验证释放控制，不把浏览器实际策略硬编码为 default', () => {

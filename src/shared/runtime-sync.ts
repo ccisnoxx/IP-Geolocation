@@ -1,13 +1,13 @@
 import type { RuntimeSyncComponent, RuntimeSyncError, RuntimeSyncReport } from './types';
 
 export const RUNTIME_SYNC_COMPONENT_LABELS: Record<RuntimeSyncComponent, string> = {
-  contentScripts: '页面脚本注册', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
+  contentScripts: '页面脚本注册', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示', headers: 'Accept-Language 同步'
 };
 
 // 仅用于识别历史暂停报告；新页面注册以 pageRuntime 为准。
 export const RUNTIME_INJECTION_PAUSED: RuntimeSyncError = {
   code: 'runtime-injection-paused',
-  message: '历史完整页面 runtime 已暂停：语言、时区、位置、字体暴露过滤和 worker 均不由该路径执行。当前语言/时区注册与 WebRTC 按各自状态报告；请求头保持原生。已有 hook 与旧 BFCache 文档需关闭并重建，暂停不会撤销已执行代码。'
+  message: '历史完整页面 runtime 已暂停：语言、时区、位置、字体暴露过滤和 worker 均不由该路径执行。当前独立页面注册、Accept-Language 与 WebRTC 按各自状态报告。已有 hook 与旧 BFCache 文档需关闭并重建，暂停不会撤销已执行代码。'
 };
 
 export function isRuntimeInjectionPaused(report?: RuntimeSyncReport): boolean {
@@ -108,21 +108,22 @@ export async function syncSignature(value: string): Promise<string> {
 export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
   if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${geolocationRuntimeMessage()} ${fontRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
   const details = (Object.keys(RUNTIME_SYNC_COMPONENT_LABELS) as RuntimeSyncComponent[])
-    .filter((key) => key === 'webrtc' || report.components[key].status !== 'ok')
+    .filter((key) => key === 'webrtc' || key === 'headers' || report.components[key]?.status !== 'ok')
     .map((key) => {
-      const component = report.components[key];
+      const component = report.components[key] || { status: 'partial', errors: [{ code: 'header-status-unknown', message: '历史报告未确认请求头同步，请重试。' }] };
       const status = component.status === 'ok' ? '已同步' : component.status === 'failed' ? '同步失败' : '部分同步';
       return `${RUNTIME_SYNC_COMPONENT_LABELS[key]}：${status}${component.errors.length ? `（${component.errors.map((error) => error.message).join('；')}）` : ''}`;
     });
   if (report.metadataError) details.push(report.metadataError.message);
   if (report.warnings) details.push(...report.warnings.map((warning) => warning.message));
-  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${geolocationRuntimeMessage(report)} ${fontRuntimeMessage(report)} ${details.join('；')}。请求头保持浏览器原生值。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
+  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${geolocationRuntimeMessage(report)} ${fontRuntimeMessage(report)} ${details.join('；')}。请求头规则供同步确认后的新文档使用；更新期间及已有文档的请求头与旧页面快照可能不同，需完整重载。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
 }
 
 export function runtimeSyncSummary(report?: RuntimeSyncReport): string {
   if (!report) return '同步状态待确认，请重试同步。';
   const webrtc = report.components.webrtc.status;
   const parts = [geolocationRuntimeSummary(report), pageRuntimeSummary(report), fontRuntimeSummary(report),
+    `Accept-Language：${report.components.headers?.status === 'ok' ? '已同步' : report.components.headers?.status === 'failed' ? '同步失败' : '待确认'}`,
     `WebRTC：${webrtc === 'ok' ? '已同步' : webrtc === 'failed' ? '同步失败' : '部分同步'}`];
   for (const key of ['contentScripts', 'tabReload'] as const) {
     if (report.components[key].status !== 'ok') parts.push(`${RUNTIME_SYNC_COMPONENT_LABELS[key]}：未完成`);
@@ -138,4 +139,12 @@ export function renderRuntimeSyncReport(element: HTMLElement, report?: RuntimeSy
   element.dataset.pageRuntime = report?.pageRuntime?.state || 'unknown';
   element.dataset.geolocationRuntime = report?.geolocationRuntime?.state || 'unknown';
   element.dataset.fontRuntime = report?.fontRuntime?.state || 'unknown';
+}
+
+export function renderRuntimeSyncPending(element: HTMLElement): void {
+  element.textContent = '正在保存并同步，完成前请勿关闭 Allow User Scripts。';
+  element.dataset.status = 'pending';
+  element.dataset.pageRuntime = 'unknown';
+  element.dataset.geolocationRuntime = 'unknown';
+  element.dataset.fontRuntime = 'unknown';
 }

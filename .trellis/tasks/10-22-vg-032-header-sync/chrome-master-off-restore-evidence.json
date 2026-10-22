@@ -1,0 +1,209 @@
+{
+  "task": "VG-032",
+  "scope": "master-off-then-user-scripts-off-automatic-restore",
+  "result": "PASS",
+  "chrome": "Chrome/149.0.7827.55",
+  "environment": {
+    "headed": true,
+    "temporaryProfile": true,
+    "personalProfileAccessed": false,
+    "fixtureTraffic": "HTTP loopback only"
+  },
+  "checks": {
+    "normalUiInstallCurrentDist": true,
+    "normalAllowUserScriptsEnabled": true,
+    "preRestartLanguageAndHeader": true,
+    "normalContinueWhereLeftOffEnabled": true,
+    "masterSwitchRestoresPageAndHeadersBeforeChromeSwitch": true,
+    "offRestoredFirstResponseObservedBeforeCdp": true,
+    "userScriptsOffFirstRequestsNative": true,
+    "disabledConfigAndEmptyHeadersPreservedAfterRestart": true,
+    "unmodifiedDist": true
+  },
+  "coldStarts": [],
+  "cleanup": "PASS",
+  "limitations": [
+    "仅当前Chrome、当前OS和HTTP loopback，不代表Chrome138、其他OS或真实TLS站点",
+    "仅正常退出、一个活动HTTP顶层标签自动恢复；不代表多窗口、后台延迟标签、崩溃恢复或全部启动交错",
+    "关闭开关后的首请求为严格验收项；未调用管理同步，不插桩生产API",
+    "开关关闭后的首请求不一致会判FAIL，后台后续恢复不替代首请求验收",
+    "不检查个人profile；Chrome自身后台网络未全量监控；Worker/SharedWorker的JavaScript语言仍原生"
+  ],
+  "native": {
+    "firstInline": true,
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN"
+    ],
+    "navigation": "zh-CN,zh;q=0.9",
+    "same": "zh-CN,zh;q=0.9",
+    "cross": "zh-CN,zh;q=0.9"
+  },
+  "install": {
+    "method": "normal-extension-manager-native-folder-picker",
+    "currentDistPathConfirmed": true,
+    "noPriorCard": true,
+    "cdpLoadUnpackedUsed": false,
+    "preferenceFilesWritten": false,
+    "extensionLoadFlagsUsed": false
+  },
+  "baseline": {
+    "firstInline": true,
+    "language": "ja-JP",
+    "languages": [
+      "ja-JP",
+      "ja",
+      "en"
+    ],
+    "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+    "same": "ja-JP,ja;q=0.9,en;q=0.8",
+    "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+    "frames": {
+      "fr.site.vg.test": {
+        "firstInline": true,
+        "language": "fr-FR",
+        "languages": [
+          "fr-FR",
+          "fr"
+        ],
+        "navigation": "fr-FR,fr;q=0.9",
+        "same": "fr-FR,fr;q=0.9",
+        "cross": "fr-FR,fr;q=0.9"
+      },
+      "native.site.vg.test": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      }
+    }
+  },
+  "sessionRestoreSetting": {
+    "method": "native-settings-on-startup",
+    "continueWhereLeftOffVisiblyConfirmed": true,
+    "actualPreferenceValue": 1,
+    "preferenceFileWrittenByRunner": false,
+    "forcedRestoreFlag": false
+  },
+  "masterOff": {
+    "method": "normal-popup-master-switch",
+    "state": {
+      "sessionRuleIds": [],
+      "dynamicRuleIds": [],
+      "guards": [],
+      "headers": {
+        "errors": [],
+        "status": "ok"
+      },
+      "pageRuntime": {
+        "registeredRuleCount": 0,
+        "reloadRequired": false,
+        "state": "disabled"
+      },
+      "userScriptsAvailable": true,
+      "userScriptsReadError": null,
+      "languageScriptCount": 0,
+      "storedConfigUnchanged": true
+    },
+    "first": {
+      "firstInline": true,
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN"
+      ],
+      "navigation": "zh-CN,zh;q=0.9",
+      "same": "zh-CN,zh;q=0.9",
+      "cross": "zh-CN,zh;q=0.9",
+      "frames": {
+        "fr.site.vg.test": {
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "navigation": "zh-CN,zh;q=0.9",
+          "same": "zh-CN,zh;q=0.9",
+          "cross": "zh-CN,zh;q=0.9"
+        },
+        "native.site.vg.test": {
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "navigation": "zh-CN,zh;q=0.9",
+          "same": "zh-CN,zh;q=0.9",
+          "cross": "zh-CN,zh;q=0.9"
+        }
+      }
+    }
+  },
+  "userScriptsOff": {
+    "boundary": "关闭开关后的首请求必须与原生页面语言一致",
+    "onlyActiveHttpTabRetainedBeforeExit": true,
+    "exit": {
+      "gracefulExit": true,
+      "mainProcessExited": true,
+      "observedProcessTreeExited": true,
+      "observedProcessCount": 10
+    },
+    "earlyFirstInlineReport": {
+      "firstInline": true,
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN"
+      ],
+      "navigation": "zh-CN,zh;q=0.9",
+      "actualServerNavigationHeader": "zh-CN,zh;q=0.9",
+      "navigationReceivedAfterSpawnMs": 527,
+      "reportReceivedAfterSpawnMs": 610,
+      "receivedBeforeCdpConnection": true
+    },
+    "noStartupUrlOrForcedRestoreFlag": true,
+    "first": {
+      "firstInline": true,
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN"
+      ],
+      "navigation": "zh-CN,zh;q=0.9",
+      "same": "zh-CN,zh;q=0.9",
+      "cross": "zh-CN,zh;q=0.9"
+    },
+    "firstRequestConsistency": "PASS",
+    "recovered": {
+      "sessionRuleIds": [],
+      "dynamicRuleIds": [],
+      "guards": [],
+      "headers": {
+        "errors": [],
+        "status": "ok"
+      },
+      "pageRuntime": {
+        "registeredRuleCount": null,
+        "reloadRequired": false,
+        "state": "switch-required"
+      },
+      "userScriptsAvailable": false,
+      "userScriptsReadError": null,
+      "languageScriptCount": null,
+      "storedConfigUnchanged": true
+    },
+    "afterRecovery": {
+      "firstInline": true,
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN"
+      ],
+      "navigation": "zh-CN,zh;q=0.9",
+      "same": "zh-CN,zh;q=0.9",
+      "cross": "zh-CN,zh;q=0.9"
+    },
+    "managementMessagesAfterRestart": 0
+  },
+  "distSha256": "c659b709bcdaae0c716bbd5e6f318d85dc7a3afe46d74479be2f10f0038fd0ba"
+}

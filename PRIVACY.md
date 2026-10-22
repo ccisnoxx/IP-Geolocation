@@ -1,6 +1,6 @@
 # VanishGeo 隐私边界
 
-> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
+> **VG-032（2026-10-22，人工验收通过，未发布）**：仅恢复 `declarativeNetRequestWithHostAccess`，先隔离并迁移历史规则，再以已核验的持久规则按站点同步 Accept-Language；旧文档仍需完整重载。当前状态与实际验证以任务记录为准。
 
 > **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；定位已于 VG-029（2026-10-22）获用户授权恢复，按独立注册状态报告；Worker / SharedWorker 继续暂停；固定内置字体过滤已于 VG-025（2026-10-20）获用户授权恢复，按独立注册状态报告。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
@@ -21,6 +21,8 @@ auto 使用每条规则显式绑定的 verified 档案。verified 只由后台�
 | `chrome.storage.local` 的 `siteSpoofConfig` | schema v3 总开关/debug、全局 Intl strict/compatible 模式、规则域名与绑定/覆盖、语言、时区、手工坐标与精度/随机设置、用户保存的坐标历史、自定义环境方案、字体暴露过滤模式与名单；已确认出口档案含名称、公网 IP、坐标、国家、时区、provider 与检测时间 | 跨浏览器重启保留；由用户编辑/删除或重置配置。删除档案前必须解除规则引用；卸载会清除扩展本地存储。没有扩展实现的加密层 |
 | local 的 `vanishgeoRulesInitialized` | 规则初始化/迁移标记 | 用于一次配置迁移；旧配置键按 storage 维护源清理 |
 | local 的 `legacyDnrCleanupV3Complete` | 旧版历史清理布尔标记，不含配置或请求数据 | 当前版本不写入或依赖此惰性旧键；保留读取兼容，卸载清除 |
+| local 的 `headerRulesDynamicOwnerV1` | 已接管DNR命名空间的版本号，不含语言或规则副本 | 首次确认新范围无未知占用后建立；重置保留以便核验和清理所属规则，卸载清除；不能代替实际迁移读回 |
+| 浏览器 DNR dynamic 规则及静态隔离状态 | 按配置派生的目标/发起域、排除域和Accept-Language；持久隔离状态保护未完成配置事务 | 跨浏览器会话保留；配置关闭/删除后清理，更新时先隔离再对账，卸载清除；不保存请求日志、Cookie或正文，不是可独立编辑的配置来源 |
 | `chrome.storage.session` 的 `pendingExitLocationDetection` | 一份待确认 candidate（IP/坐标/国家/时区/provider/时间）、检测 ID、重检目标与旧验证时间、过期时间 | 五分钟后拒绝确认；成功确认/取消/访问已过期候选时删除，新检测覆盖旧候选。没有定时物理删除器；service worker 暂停不等同于 session 清空 |
 | `chrome.storage.session` 的 `runtimeSyncMetadata` | 版本、配置 SHA-256 摘要、语言/时区与字体注册/WebRTC/人工重载提示状态与固定错误类别、待重载 tab ID 和 URL 摘要；预写时保留旧配置摘要的刷新欠账（含可选page/font标签和字体注册窗口补录标记）；已确认检测的待清理 ID | 用于 service worker 暂停后的恢复，关闭/导航清理相应人工重载提示；同 URL 完整重载可能保守保留提示。没有配置副本、原始 URL、IP、坐标或原始 API 错误；不进入配置导出。浏览器重启、扩展重载/更新/禁用时 session 清空，避免旧 tab ID 跨会话重用；摘要不承诺匿名化 |
 | 后台诊断内存 | 最小预期信号、run ID、报告/目标文档身份、状态、两分钟 TTL | 消费一次；完成、取消、过期、执行中导航/关闭/配置变更或后台重启失效并释放敏感状态。少量有上限的短期终态只保留原因/所有者 |
@@ -33,7 +35,7 @@ auto 使用每条规则显式绑定的 verified 档案。verified 只由后台�
 
 导入会把出口档案降为 unverified，清空其公网 IP/provider/verifiedAt 与规则出口绑定，但仍可能保留坐标、名称和历史等其他配置字段。重置会清空本地配置、规则、环境方案、出口档案与历史，删除 pending session 候选，使重置前在途检测响应失效，并关闭保护、恢复本扩展 WebRTC 默认策略；清理失败会明确报错。重置不删除下载文件或外部记录。跳过引导只关闭保护和恢复本扩展 WebRTC 默认策略，保留已保存内容。迁移/保存的权威源是 [storage.ts](src/shared/storage.ts) 与 [config-model.ts](src/shared/config-model.ts)，不存在第二份配置存储或网页配置桥。
 
-## 站点注入、原生请求头与 WebRTC
+## 站点注入、语言请求头与 WebRTC
 
 manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则域名，也支持后台主动 provider 请求、定向脚本与请求头处理。这是较宽的能力授权，不能解读为没有广泛访问能力；当前后台只清理旧 ISOLATED 初始化脚本，不接受页面初始化消息。生产语言/时区使用 userScripts 提前注册，需 Chrome138+ 和用户正常开启 Allow User Scripts；主动诊断仍按原入口采集实际值。普通网页不能传入可信 payload，也不能访问扩展报告 actions。
 
@@ -43,7 +45,7 @@ manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则�
 
 注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。定位按独立 userScripts 状态报告，Worker/SharedWorker 继续暂停；固定内置字体过滤按独立注册状态报告；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
 
-HTTP Accept-Language 与其他请求头保持原生；当前版本不再申请 DNR 权限，不调用或回读该 API，不写清理标记。旧 v2 跳级升级可能保留磁盘旧规则，但权限缺失时不启用；未来重新引入 DNR 必须独立设计清理迁移。请求仍直接到目标站点，不经过扩展提供的转发服务器。目标、网络出口服务和服务器日志仍可看到正常 IP/请求头。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账只调用现有 Chrome 脚本/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
+仅在站点语言规则生效时由DNR改写Accept-Language，导航按目标域、子资源按发起域取同一语言列表；其他请求头原生。迁移删除已知旧规则，范围外规则保留，未知语言头冲突报告失败；新规则是浏览器保存的dynamic投影（域名及语言头），不保存请求正文、Cookie或网络日志。请求仍直接发到原目标服务器，不经扩展转发；目标服务器可见正常公网出口及配置的语言头。页面注册与头更新不是原子操作，旧文档和更新窗口需完整重载。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账调用Chrome脚本/DNR/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
 
 ## 诊断目标页与扩展侧比较
 
@@ -51,7 +53,9 @@ HTTP Accept-Language 与其他请求头保持原生；当前版本不再申请 D
 
 采集通过 Chrome scripting API 在目标 MAIN world 执行自包含函数，不传预期参数；ISOLATED 提供文档身份和同文档设备参考。每个子帧重新检查规则和文档身份；来源不能确定或无法观测时 UNKNOWN。报告只证明当次可观测行，不是完整浏览器审计；MAIN 观测仍可受目标页面干预。执行中取消/过期可以拒绝报告交付，但已经派发的采样依靠有界超时清理，不能承诺瞬间终止所有请求。
 
-请求头只作原生观测，不与网页语言比较保护 PASS/FAIL；字体检测未采样目标字体，即使固定内置名单注册成功也保持 UNKNOWN。配置迁移和字体模型变更不新增外部请求或敏感数据流。
+站点语言启用时，报告将实际Accept-Language与预期语言列表比较PASS/FAIL；缺失观测或未启用语言为UNKNOWN。字体检测未采样目标字体，即使固定内置名单注册成功也保持 UNKNOWN。配置迁移和字体模型变更不新增外部请求或敏感数据流。
+
+Chrome的Allow User Scripts开关与DNR不是同一权限。关闭用户脚本后、后台完成核验前，已持久语言头可能继续发送；真实冷启动负例已观察到原生JS与旧语言头的短暂失配。后台核验后撤销所属dynamic投影、保持隔离并报告失败；不承诺开关过渡窗口原子同步。
 
 外部 leak-test 固定 observation mode，显示实际值，行与摘要保持 UNKNOWN。它不接收扩展预期配置、privacy 快照或配置桥，不给出配置 PASS/FAIL；旧预期 query 会被忽略。MAIN runtime 的 debugMode 只输出固定应用提示，不记录完整 payload 或预期坐标；后台仍可能显示操作失败类别/消息，提交问题前应脱敏日志。
 

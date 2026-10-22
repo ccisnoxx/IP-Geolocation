@@ -55,12 +55,7 @@ test('父域排除更具体启用域，包括没有有效信号的子规则；�
   assert.equal(scripts[0].world, 'MAIN'); assert.equal(scripts[0].runAt, 'document_start'); assert.equal(scripts[0].allFrames, true);
   const text = "ja-JP');globalThis.unwanted=true;//\u2028<";
   value.globalProfile.language.language = text;
-  const context = vm.createContext({}, { codeGeneration: { strings: false, wasm: false } });
-  vm.runInContext(compilePageScripts(value, source)[0].js[0].code!, context);
-  assert.equal(context.sample.language.language, text);
-  assert.equal(context.unwanted, undefined);
-  assert.deepEqual(Object.keys(context.sample).sort(), ['intlMode', 'language', 'timezone']);
-  assert.deepEqual(Object.keys(context.sample.language).sort(), ['language', 'languages']);
+  assert.throws(() => compilePageScripts(value, source), /配置校验失败/);
 });
 
 test('对账先撤销失效范围，再更新保留注册，最后新增；重复对账无写操作', async () => {
@@ -126,12 +121,13 @@ test('首阶段自包含生成函数只安装语言/Intl/Date，其他API引用�
   const fn = assertSelfContainedFunction(generated.code, 'applyLanguageTimezoneRuntime');
   assert.doesNotMatch(fn, /installGeolocationSpoof|installFontExposureFilter|installWorkerHooks|workerBootstrap|new Blob|postMessage|executeScript/);
   const context = vm.createContext({ location: { protocol: 'http:' }, origin: 'http://localhost' }, { codeGeneration: { strings: false, wasm: false } });
-  vm.runInContext(`class Navigator { get language(){return 'en-US'} get languages(){return ['en-US']} }
+  vm.runInContext(`class Navigator { get language(){return 'zh-CN'} get languages(){return ['zh-CN', 'zh', 'en-US']} }
     globalThis.navigator = new Navigator(); globalThis.Worker=function Worker(){}; globalThis.SharedWorker=function SharedWorker(){};
     globalThis.savedWorker=Worker;globalThis.savedSharedWorker=SharedWorker;
     globalThis.Temporal={Now:{timeZoneId:()=> 'native'}};`, context);
   vm.runInContext(`(${fn})(${JSON.stringify(getLanguageTimezonePayload(config(), 'example.test'))})`, context);
   assert.equal(vm.runInContext('navigator.language', context), 'ja-JP');
+  assert.deepEqual(Array.from(vm.runInContext('navigator.languages', context)), ['ja-JP', 'ja']);
   assert.equal(vm.runInContext('Intl.DateTimeFormat().resolvedOptions().timeZone', context), 'Asia/Tokyo');
   assert.equal(vm.runInContext('new Date(Date.UTC(2024,0,1)).getTimezoneOffset()', context), -540);
   assert.equal(vm.runInContext('Worker===savedWorker && SharedWorker===savedSharedWorker', context), true);

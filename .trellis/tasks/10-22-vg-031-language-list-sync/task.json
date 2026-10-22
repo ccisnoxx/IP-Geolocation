@@ -1,0 +1,6 @@
+{
+  "id": "VG-031",
+  "name": "主语言切换同步语言列表与请求头一致性调查",
+  "status": "review",
+  "dependencies": ["VG-023", "VG-024"]
+}

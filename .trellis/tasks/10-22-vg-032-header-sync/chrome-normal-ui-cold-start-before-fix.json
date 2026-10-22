@@ -1,0 +1,392 @@
+{
+  "task": "VG-032",
+  "scope": "normal-ui-language-header-cold-start",
+  "result": "FAIL",
+  "chrome": "Chrome/149.0.7827.55",
+  "environment": {
+    "headed": true,
+    "temporaryProfile": true,
+    "personalProfileAccessed": false,
+    "fixtureTraffic": "HTTP loopback only"
+  },
+  "checks": {
+    "normalUiInstallCurrentDist": true,
+    "normalAllowUserScriptsEnabled": true,
+    "preRestartLanguageAndHeader": true,
+    "normalColdFirstRequestsConsistent": false,
+    "normalColdStartAutomaticallyConsistent": true,
+    "missingRulesColdFirstRequestsConsistent": false,
+    "missingSessionRulesAutomaticallyRebuiltAfterColdStart": true,
+    "allowUserScriptsPersistsAcrossBothColdStarts": true,
+    "unmodifiedDist": true
+  },
+  "coldStarts": [
+    {
+      "kind": "normal-clean-exit",
+      "observationOrder": [
+        "new-process-connected",
+        "first-http-probe-before-extension-inspection",
+        "read-only-worker-inspection-after-http-probes"
+      ],
+      "exit": {
+        "gracefulExit": true,
+        "mainProcessExited": true,
+        "observedProcessTreeExited": true,
+        "observedProcessCount": 10
+      },
+      "first": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9",
+        "frames": {
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          },
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      },
+      "outside": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      },
+      "initialWorkerState": {
+        "sessionRuleIds": [
+          30000,
+          30001,
+          30002,
+          30003
+        ],
+        "dynamicRuleIds": [],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": true,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "settledWorkerState": {
+        "sessionRuleIds": [
+          30000,
+          30001,
+          30002,
+          30003
+        ],
+        "dynamicRuleIds": [],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": true,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "afterRecovery": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+        "same": "ja-JP,ja;q=0.9,en;q=0.8",
+        "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+        "frames": {
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          },
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "fr-FR,fr;q=0.9",
+            "same": "fr-FR,fr;q=0.9",
+            "cross": "fr-FR,fr;q=0.9"
+          }
+        }
+      },
+      "firstConsistent": false,
+      "recovered": {
+        "sessionRuleCount": 4,
+        "dynamicRuleCount": 0,
+        "guardReleased": true,
+        "storedConfigUnchanged": true,
+        "userScriptsApiAvailable": true,
+        "languageScriptCount": 2,
+        "extensionVersion": "2.1.1"
+      },
+      "managementMessagesAfterRestart": 0,
+      "explicitExtensionReloadAfterRestart": false,
+      "explicitWorkerStartAfterRestart": false
+    },
+    {
+      "kind": "session-rules-removed-before-exit",
+      "observationOrder": [
+        "new-process-connected",
+        "first-http-probe-before-extension-inspection",
+        "read-only-worker-inspection-after-http-probes"
+      ],
+      "sessionRulesConfirmedEmptyBeforeExit": true,
+      "exit": {
+        "gracefulExit": true,
+        "mainProcessExited": true,
+        "observedProcessTreeExited": true,
+        "observedProcessCount": 9
+      },
+      "first": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9",
+        "frames": {
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          },
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      },
+      "outside": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      },
+      "initialWorkerState": {
+        "sessionRuleIds": [
+          30000,
+          30001,
+          30002,
+          30003
+        ],
+        "dynamicRuleIds": [],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": true,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "settledWorkerState": {
+        "sessionRuleIds": [
+          30000,
+          30001,
+          30002,
+          30003
+        ],
+        "dynamicRuleIds": [],
+        "guards": [],
+        "headers": {
+          "errors": [],
+          "status": "ok"
+        },
+        "pageRuntime": {
+          "registeredRuleCount": 2,
+          "reloadRequired": true,
+          "state": "ready"
+        },
+        "userScriptsAvailable": true,
+        "userScriptsReadError": null,
+        "languageScriptCount": 2,
+        "storedConfigUnchanged": true
+      },
+      "afterRecovery": {
+        "firstInline": true,
+        "language": "ja-JP",
+        "languages": [
+          "ja-JP",
+          "ja",
+          "en"
+        ],
+        "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+        "same": "ja-JP,ja;q=0.9,en;q=0.8",
+        "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+        "frames": {
+          "fr.site.vg.test": {
+            "firstInline": true,
+            "language": "fr-FR",
+            "languages": [
+              "fr-FR",
+              "fr"
+            ],
+            "navigation": "fr-FR,fr;q=0.9",
+            "same": "fr-FR,fr;q=0.9",
+            "cross": "fr-FR,fr;q=0.9"
+          },
+          "native.site.vg.test": {
+            "firstInline": true,
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "navigation": "zh-CN,zh;q=0.9",
+            "same": "zh-CN,zh;q=0.9",
+            "cross": "zh-CN,zh;q=0.9"
+          }
+        }
+      },
+      "firstConsistent": false,
+      "recovered": {
+        "sessionRuleCount": 4,
+        "dynamicRuleCount": 0,
+        "guardReleased": true,
+        "storedConfigUnchanged": true,
+        "userScriptsApiAvailable": true,
+        "languageScriptCount": 2,
+        "extensionVersion": "2.1.1"
+      },
+      "managementMessagesAfterRestart": 0,
+      "explicitExtensionReloadAfterRestart": false,
+      "explicitWorkerStartAfterRestart": false
+    }
+  ],
+  "cleanup": "PASS",
+  "limitations": [
+    "仅当前Chrome、当前OS和HTTP loopback，不代表Chrome138、其他OS或真实TLS站点",
+    "重启启动页为about:blank；首HTTP探针在CDP连接后创建，不代表自动恢复旧HTTP标签的最早启动时序",
+    "不检查个人profile；Chrome自身后台网络未全量监控；Worker/SharedWorker的JavaScript语言仍原生"
+  ],
+  "native": {
+    "firstInline": true,
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN"
+    ],
+    "navigation": "zh-CN,zh;q=0.9",
+    "same": "zh-CN,zh;q=0.9",
+    "cross": "zh-CN,zh;q=0.9"
+  },
+  "install": {
+    "method": "normal-extension-manager-native-folder-picker",
+    "currentDistPathConfirmed": true,
+    "noPriorCard": true,
+    "cdpLoadUnpackedUsed": false,
+    "preferenceFilesWritten": false,
+    "extensionLoadFlagsUsed": false
+  },
+  "baseline": {
+    "firstInline": true,
+    "language": "ja-JP",
+    "languages": [
+      "ja-JP",
+      "ja",
+      "en"
+    ],
+    "navigation": "ja-JP,ja;q=0.9,en;q=0.8",
+    "same": "ja-JP,ja;q=0.9,en;q=0.8",
+    "cross": "ja-JP,ja;q=0.9,en;q=0.8",
+    "frames": {
+      "fr.site.vg.test": {
+        "firstInline": true,
+        "language": "fr-FR",
+        "languages": [
+          "fr-FR",
+          "fr"
+        ],
+        "navigation": "fr-FR,fr;q=0.9",
+        "same": "fr-FR,fr;q=0.9",
+        "cross": "fr-FR,fr;q=0.9"
+      },
+      "native.site.vg.test": {
+        "firstInline": true,
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "navigation": "zh-CN,zh;q=0.9",
+        "same": "zh-CN,zh;q=0.9",
+        "cross": "zh-CN,zh;q=0.9"
+      }
+    }
+  },
+  "distSha256": "742f96081ceacc9ea77632b0ea36d4e9ab6f454b83d80428ac973825c4d1f920"
+}
