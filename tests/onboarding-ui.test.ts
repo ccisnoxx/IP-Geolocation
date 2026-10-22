@@ -26,7 +26,7 @@ function harness() {
   let config = configModel.createInitialConfig();
   const ok = () => ({ status: 'ok' as const, errors: [] });
   const report: RuntimeSyncReport = { configSignature: 'synthetic', status: 'ok', metadataError: null,
-    components: { contentScripts: ok(), legacyDnrCleanup: ok(), webrtc: ok(), tabReload: ok() } };
+    components: { contentScripts: ok(), webrtc: ok(), tabReload: ok() } };
   let accept = false;
   let failure = false;
   let pending: Promise<void> | null = null;

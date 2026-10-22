@@ -181,7 +181,7 @@ export interface PageRuntimeStatus {
   registeredRuleCount: number | null;
   reloadRequired: boolean;
 }
-export type RuntimeSyncComponent = 'contentScripts' | 'legacyDnrCleanup' | 'webrtc' | 'tabReload';
+export type RuntimeSyncComponent = 'contentScripts' | 'webrtc' | 'tabReload';
 
 export interface RuntimeSyncError {
   code: string;

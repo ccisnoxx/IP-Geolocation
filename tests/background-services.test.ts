@@ -94,10 +94,9 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
   const registeredScripts: chrome.scripting.RegisteredContentScript[][] = [];
   let actualScripts: chrome.scripting.RegisteredContentScript[] = options.initialScripts || [];
   let userScripts: chrome.userScripts.RegisteredUserScript[] = [];
-  let dynamicRules: chrome.declarativeNetRequest.Rule[] = [];
   let privacyValue = 'default';
   let privacyControl = 'controllable_by_this_extension';
-  const mutations = { content: 0, dnr: 0, webrtc: 0 };
+  const mutations = { content: 0, webrtc: 0 };
   const pageMutations = { register: 0, update: 0, unregister: 0 };
   const executeCalls: chrome.scripting.ScriptInjection<any[], any>[] = [];
   const reloadCalls: number[] = [];
@@ -153,16 +152,6 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
       executeScript: async (details: chrome.scripting.ScriptInjection<any[], any>) => {
         executeCalls.push(details);
         return [];
-      }
-    },
-    declarativeNetRequest: {
-      MAX_NUMBER_OF_REGEX_RULES: 1000,
-      MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES: 5000,
-      getDynamicRules: async () => dynamicRules,
-      getSessionRules: async () => [],
-      updateDynamicRules: async (update: chrome.declarativeNetRequest.UpdateRuleOptions) => {
-        mutations.dnr += 1;
-        dynamicRules = dynamicRules.filter((rule) => !update.removeRuleIds?.includes(rule.id)).concat(update.addRules || []);
       }
     },
     privacy: {
@@ -454,7 +443,7 @@ test('保存和导入在原始 Profile 校验失败时拒绝，不写配置或�
       await assert.rejects(services.saveSiteConfig(candidate), error);
       assert.deepEqual(storage[SITE_CONFIG_KEY], config);
       assert.deepEqual(mock.sessionStorage, {});
-      assert.deepEqual(mock.mutations, { content: 0, dnr: 0, webrtc: 0 });
+      assert.deepEqual(mock.mutations, { content: 0, webrtc: 0 });
     }
     const imported = (await services.importSiteConfig({ ...config, profile: { activeProfileId: valid.id, profiles: [valid] } })).config;
     assert.equal(imported.profile.profiles[0].geolocation.latitude, 0);
@@ -485,7 +474,7 @@ test('旧存储未初始化时非法 Profile 保存或导入不触发迁移写�
     assert.equal(removes, 0);
     assert.deepEqual(storage, original);
     assert.deepEqual(mock.sessionStorage, {});
-    assert.deepEqual(mock.mutations, { content: 0, dnr: 0, webrtc: 0 });
+    assert.deepEqual(mock.mutations, { content: 0, webrtc: 0 });
   } finally { mock.restore(); }
 });
 
@@ -501,7 +490,7 @@ test('非法字体或schema输入在旧存储迁移前拒绝，合法v2导入去
       await assert.rejects(services.saveSiteConfig(candidate as any));
       assert.deepEqual(storage, before);
       assert.deepEqual(mock.sessionStorage, {});
-      assert.deepEqual(mock.mutations, { content: 0, dnr: 0, webrtc: 0 });
+      assert.deepEqual(mock.mutations, { content: 0, webrtc: 0 });
     }
     const legacy: any = { ...createSingleRuleConfig(), schemaVersion: 2,
       canvas: { enabled: true, targetFonts: [' MiSans ', 'misans', 'Custom Font'] } };
@@ -716,7 +705,6 @@ test('空storage安装/重复初始化安全关闭，不设置strict、注册脚
     assert.equal(requests, 0);
     assert.equal(privacySets, 0);
     assert.equal(mock.mutations.content, 0);
-    assert.equal(mock.mutations.dnr, 0);
     assert.deepEqual(mock.pageMutations, { register: 0, update: 0, unregister: 0 });
     assert.deepEqual(await chrome.userScripts.getScripts(), []);
     assert.deepEqual(mock.reloadCalls, []);
@@ -985,14 +973,14 @@ test('localhost 目标只带固定 UI 参数且拒绝非法目标或端口', asy
   } finally { mock.restore(); }
 });
 
-for (const component of ['contentScripts', 'legacyDnrCleanup', 'webrtc'] as const) {
+for (const component of ['contentScripts', 'webrtc'] as const) {
   test(`${component} 保存失败组件可见，worker 再初始化恢复注册与人工重载提示且收敛后幂等`, async () => {
     const config = createSingleRuleConfig('example.com', { automatic: false });
     const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
     const mock = installChromeMock(storage, { tabs: [{ id: 1, url: 'https://example.com/page' }] as chrome.tabs.Tab[] });
     const target: any = component === 'contentScripts' ? chrome.userScripts
-      : component === 'legacyDnrCleanup' ? chrome.declarativeNetRequest : chrome.privacy.network.webRTCIPHandlingPolicy;
-    const method = component === 'contentScripts' ? 'register' : component === 'legacyDnrCleanup' ? 'getDynamicRules' : 'set';
+      : chrome.privacy.network.webRTCIPHandlingPolicy;
+    const method = component === 'contentScripts' ? 'register' : 'set';
     const original = target[method];
     target[method] = async () => { throw new Error('合成 API 故障 https://private.example.test/sensitive'); };
     try {
@@ -1009,7 +997,7 @@ for (const component of ['contentScripts', 'legacyDnrCleanup', 'webrtc'] as cons
         error.code === (component === 'contentScripts' ? 'userscripts-register-failed' : 'browser-api-failed')));
       assert.deepEqual(response.syncReport.components.tabReload, { status: 'ok', errors: [] });
       assert.equal(response.syncReport.pageRuntime.reloadRequired, component !== 'contentScripts');
-      for (const other of ['contentScripts', 'legacyDnrCleanup', 'webrtc'] as const) {
+      for (const other of ['contentScripts', 'webrtc'] as const) {
         if (other !== component) assert.equal(response.syncReport.components[other].status, 'ok');
       }
       assert.equal(storage[SITE_CONFIG_KEY].globalProfile.language.language, 'de-DE');
@@ -1113,35 +1101,11 @@ test('配置修改与初始化串行，延迟旧副作用不会覆盖后来的�
     assert.equal(storage[SITE_CONFIG_KEY].masterEnabled, false);
     assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
     assert.deepEqual(await chrome.userScripts.getScripts(), []);
-    assert.deepEqual(await chrome.declarativeNetRequest.getDynamicRules(), []);
     assert.deepEqual(mock.executeCalls, []);
     assert.deepEqual(mock.reloadCalls, []);
   } finally { release(); mock.restore(); }
 });
 
-test('配置保存不再做DNR容量预检，语言启用或修改不产生请求头规则', async () => {
-  const config = createSingleRuleConfig('example.com', { automatic: false });
-  const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
-  const mock = installChromeMock(storage);
-  try {
-    const next = clone(config);
-    next.rules = Array.from({ length: 1001 }, (_, index) => ({ ...clone(config.rules[0]), id: `r-${index}`, domain: `site${index}.example.test` }));
-    // 旧请求头容量不得再成为保存门槛；页面注册仍由其自身 API 决定。
-    (chrome.declarativeNetRequest as any).MAX_NUMBER_OF_REGEX_RULES = 0;
-    chrome.declarativeNetRequest.getSessionRules = async () => { throw new Error('不得执行DNR容量检查'); };
-    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
-    const saved = await services.saveSiteConfig(next);
-    assert.equal(saved.syncReport.status, 'ok');
-    assert.equal(saved.config.rules.length, 1001);
-    assert.equal(saved.syncReport.components.legacyDnrCleanup.status, 'ok');
-    next.globalProfile.language.language = 'de-DE';
-    next.globalProfile.language.languages = ['de-DE'];
-    await services.saveSiteConfig(next);
-    await services.setExtensionEnabled(false);
-    assert.equal(mock.mutations.dnr, 0);
-    assert.deepEqual(await chrome.declarativeNetRequest.getDynamicRules(), []);
-  } finally { mock.restore(); }
-});
 
 test('session 预写失败不保存；保存后 checkpoint 失败可见且下次初始化恢复', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
@@ -1253,7 +1217,6 @@ test('旧 bootstrap 注销失败或虚假成功均阻止新注册；恢复后注
       assert.equal(report.components.contentScripts.status, 'failed');
       assert.deepEqual(report.pageRuntime, { state: 'sync-failed', registeredRuleCount: null, reloadRequired: false });
       assert.ok(report.components.contentScripts.errors.some((error) => error.code === (failure === 'reject' ? 'browser-api-failed' : 'verification-failed')));
-      assert.equal(report.components.legacyDnrCleanup.status, 'ok');
       assert.equal(report.components.webrtc.status, 'ok');
       assert.equal(Reflect.has(services, 'initializeRuntimeForSender'), false);
       assert.deepEqual(await chrome.userScripts.getScripts(), []);
@@ -1328,21 +1291,31 @@ test('候选清理失败后导入降级，同检测 ID 碰撞须拒绝且保留�
 });
 
 
-test('同配置重复对账与worker再初始化都复核旧DNR，marker不成为清理缓存', async () => {
-  const config = createSingleRuleConfig('example.com', { automatic: false });
-  const storage: Record<string, any> = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
-  const mock = installChromeMock(storage);
-  const rule = (id: number): chrome.declarativeNetRequest.Rule => ({ id,
-    action: { type: 'block' as chrome.declarativeNetRequest.RuleActionType }, condition: { urlFilter: 'never-requested.synthetic' } });
-  try {
-    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
-    await services.initializeExtension();
-    assert.equal(storage.legacyDnrCleanupV3Complete, true);
-    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [rule(1100), rule(2100)] });
-    assert.equal((await services.reconcileRuntime()).syncReport.components.legacyDnrCleanup.status, 'ok');
-    assert.deepEqual((await chrome.declarativeNetRequest.getDynamicRules()).map(rule => rule.id), [2100]);
-    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [rule(2099)] });
-    assert.equal((await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension()).components.legacyDnrCleanup.status, 'ok');
-    assert.deepEqual((await chrome.declarativeNetRequest.getDynamicRules()).map(rule => rule.id), [2100]);
-  } finally { mock.restore(); }
+test('移除DNR权限后无API也能保存、启停和worker恢复，旧marker不产生清理状态或新写入', async () => {
+  for (const marker of [undefined, true, false]) {
+    const config = createSingleRuleConfig('example.com', { automatic: false });
+    const storage: Record<string, any> = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true,
+      ...(marker === undefined ? {} : { legacyDnrCleanupV3Complete: marker }) };
+    const mock = installChromeMock(storage);
+    try {
+      assert.equal((chrome as any).declarativeNetRequest, undefined);
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}');
+      const check = (report: any) => {
+        assert.equal(report.status, 'ok');
+        assert.deepEqual(Object.keys(report.components).sort(), ['contentScripts', 'tabReload', 'webrtc']);
+      };
+      check(await services.initializeExtension());
+      const next = clone(config);
+      next.globalProfile.language = { enabled: true, mode: 'custom', language: 'de-DE', languages: ['de-DE'] };
+      check((await services.saveSiteConfig(next)).syncReport);
+      check((await services.setExtensionEnabled(false)).syncReport);
+      check((await services.setExtensionEnabled(true)).syncReport);
+      check((await services.reconcileRuntime()).syncReport);
+      check(await createBackgroundServices('function applyLanguageTimezoneRuntime() {}').initializeExtension());
+      assert.equal(storage.legacyDnrCleanupV3Complete, marker);
+      assert.equal(Object.prototype.hasOwnProperty.call(storage, 'legacyDnrCleanupV3Complete'), marker !== undefined);
+      assert.deepEqual(mock.executeCalls, []);
+      assert.deepEqual(mock.reloadCalls, []);
+    } finally { mock.restore(); }
+  }
 });

@@ -83,7 +83,7 @@ function printChecklist(origin, chromePath, launchStatus) {
   console.log('- Geolocation / Permissions geolocation、字体暴露过滤、Worker / SharedWorker 仍暂停；about:blank/srcdoc/data/blob/特殊 sandbox 为 unsupported / UNKNOWN。');
   console.log('- 真实隔离 smoke：node scripts/chrome-language-timezone-smoke.mjs --output experiments/userscripts-document-start/production-evidence.json；必须先准备并启动独立 Linux fixture VM，自身 sandbox 和仅 loopback 均须 PASS。');
   console.log('- 最小实验 linux-evidence.json 已人工验收；生产 smoke 单独保存 earliest、A→B/reload、disable/reload、恢复与暂停边界证据，不把 dry-run 当真实 Chrome 通过。');
-  console.log('- Accept-Language 仅原生观测，不与网页语言比较 PASS/FAIL；旧请求头规则只做清理。WebRTC policy 独立报告，其同步不等于 ICE 网络防护通过。本阶段 smoke 不访问第三方测试站点、provider 或 STUN。');
+  console.log('- Accept-Language 仅原生观测，不与网页语言比较 PASS/FAIL；当前版本不再申请 DNR 权限。WebRTC policy 独立报告，其同步不等于 ICE 网络防护通过。本阶段 smoke 不访问第三方测试站点、provider 或 STUN。');
   console.log('- 扩展 diagnostic/report.html 可比较实际值；observation mode leak-test 只展示观测 / UNKNOWN，不接收配置。Capture pass-through baseline / Run all checks 是旧完整清单入口，暂停/不支持项不能算配置 PASS。');
   console.log('- pass-through real-device surfaces 保持原生；历史 --injection（chrome-injection-smoke.mjs）、worker/geolocation 全能力 runner 不能作本阶段全通过门禁。');
   console.log('\nPress Ctrl+C here when manual validation is complete.');

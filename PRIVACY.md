@@ -1,6 +1,6 @@
 # VanishGeo 隐私边界
 
-> **VG-028（2026-10-20，人工验收通过，未发布）**：VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
 > **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；字体暴露过滤仍暂停，配置仅保存。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
@@ -43,7 +43,7 @@ manifest 的 `<all_urls>` host 权限允许用户在运行时选择任意规则�
 
 注册代码仅由固定构建模板和安全 JSON 最小 payload 组成；payload 只有 intlMode 与启用的 language/languages、timezone，不含位置、公网 IP/provider、完整规则/档案或暂停信号，不接受用户 JavaScript、不下载代码、无页面配置桥。匹配的新顶层文档/普通 HTTP(S) iframe 可读语言与时区配置值；旧文档与 BFCache 保留原快照，不尝试撤销 hook 或热更新。配置切换、禁用和更新后，确认注册同步完成再完整 reload 或关闭重开。Geolocation/Permissions geolocation、Worker/SharedWorker 继续暂停；固定内置字体过滤按独立注册状态报告；about:blank/srcdoc/data/blob/特殊 sandbox unsupported / UNKNOWN，其他设备 API 保持原生透传。
 
-HTTP Accept-Language 与其他请求头保持原生；VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。请求仍直接到目标站点，不经过扩展提供的转发服务器。目标、网络出口服务和服务器日志仍可看到正常 IP/请求头。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账只调用现有 Chrome 脚本/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
+HTTP Accept-Language 与其他请求头保持原生；当前版本不再申请 DNR 权限，不调用或回读该 API，不写清理标记。旧 v2 跳级升级可能保留磁盘旧规则，但权限缺失时不启用；未来重新引入 DNR 必须独立设计清理迁移。请求仍直接到目标站点，不经过扩展提供的转发服务器。目标、网络出口服务和服务器日志仍可看到正常 IP/请求头。WebRTC 使用浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy`，strict/compatible/default 的操作见 [CONFIG_GUIDE](CONFIG_GUIDE.md)；它不限于 allowlist 站点。设置可能受其他扩展或浏览器策略控制，期望值、实际控制权与 ICE 网络结果分开报告。运行时对账只调用现有 Chrome 脚本/privacy/tabs API，不主动检测出口或 ICE；完整 reload 由用户手动执行，会产生网页自身的正常网络请求，仍受该页面/目标服务的数据边界约束。
 
 ## 诊断目标页与扩展侧比较
 

@@ -116,11 +116,11 @@ Popup 与 Options 共用 src/shared/rule-list.ts 的 ruleListToText/rulesFromTex
 
 ## 场景：运行时副作用对账（VG-006）
 
-siteSpoofConfig 仍是 schema v3 的唯一 desired state。services 的配置修改和初始化共享串行队列；修改返回 ConfigSaveResult = {config, syncReport}，报告绑定配置 SHA-256，包含 contentScripts/legacyDnrCleanup/webrtc/tabReload 的 ok/failed/partial 与可展示固定错误。修改消息 status 为 ok 或 partial，saved:true 只表示配置写入已成功；普通网页不能调用管理页对账 action。
+siteSpoofConfig 仍是 schema v3 的唯一 desired state。services 的配置修改和初始化共享串行队列；修改返回 ConfigSaveResult = {config, syncReport}，报告绑定配置 SHA-256，包含 contentScripts/webrtc/tabReload 的 ok/failed/partial 与可展示固定错误。修改消息 status 为 ok 或 partial，saved:true 只表示配置写入已成功；普通网页不能调用管理页对账 action。
 
 storage 拥有 session runtimeSyncMetadata 读写，只记录摘要、组件状态和待刷新 tab ID/URL 摘要。预写新配置摘要前保存旧摘要欠账，以覆盖 local 写入前/后中断；没有第二份配置。配置写失败恢复旧记录，已保存的配置不因副作用失败回滚。预写/快照失败发生在保存前，保持错误语义；保存后 checkpoint 失败通过 metadataError 可见。浏览器重启/扩展重载会清空 session，worker 启动及 onInstalled(update) 会按 desired state 恢复 userScripts 注册。
 
-对账先观测实际脚本和 privacy 状态，只对差异进行写操作并确认结果；不把期望 policy 当成功。default/禁用不能只由 effective 控制权推断 own override 不存在；必须取得 clear 确认后才允许同一签名跳过。DNR仅清理本扩展历史1100至2099并回读，范围外保留；不生成新规则或预检容量，成功才写清理标记。页面注册读回成功后才设置 pageRuntime.reloadRequired，其他组件继续独立报告。没有 tabs.reload 或页面热更新；关闭/导航清理对应待办，同 URL 已完整重载也可能保守保留提示，不能借提示认定当前页面已更新。已有/BFCache 文档保持旧快照。
+对账先观测实际脚本和 privacy 状态，只对差异进行写操作并确认结果；不把期望 policy 当成功。default/禁用不能只由 effective 控制权推断 own override 不存在；必须取得 clear 确认后才允许同一签名跳过。DNR 权限和组件均已删除，无规则读取、写入或容量预检。页面注册读回成功后才设置 pageRuntime.reloadRequired，其他组件继续独立报告。没有 tabs.reload 或页面热更新；关闭/导航清理对应待办，同 URL 已完整重载也可能保守保留提示，不能借提示认定当前页面已更新。已有/BFCache 文档保持旧快照。
 
 worker 顶层、onInstalled/onStartup、管理页读取和显式 reconcileRuntime 使用同一对账路径。Popup/Options 常驻状态，部分失败显示“已保存但未完全生效”；重试只读取保存配置，不能保存未提交表单。相同配置收敛后不重复 Chrome 注册修改；不自动刷新。
 
@@ -165,4 +165,4 @@ config-model 是 FontExposureConfig 和规范键的唯一配置所有者；fontE
 
 storage key不变，v2首次读取迁移写回v3；已规范化v3不重写。规则（含禁用规则）、verified档案、WebRTC、位置、时区、intlMode不丢失；导入继续降级verified和清空绑定。旧宽名单只作私有迁移识别常量。回滚旧构建可能重新生成请求头规则，不能承诺无损降级。
 
-VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。 运行时组件包含contentScripts、legacyDnrCleanup、webrtc和tabReload。
+VG-028清理阶段已人工验收。VG-024已移除DNR权限与过渡组件，现行同步仅contentScripts/webrtc/tabReload；旧marker可惰性保留但不得写入/依赖。v2跳级残留可能留在磁盘，但权限缺失时不启用；未来重新引入须独立授权和清理迁移，不能直接恢复权限。

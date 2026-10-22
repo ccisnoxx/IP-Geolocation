@@ -168,3 +168,4 @@ VG-013 本地结果：170/170、源码/测试类型、build、diff与dry-run通�
 本次仅按用户授权整理必要前置任务和VG-029为本地提交；不push、不发布，其他任务保持未提交。任务状态以manifest为准；旧阶段的暂停、测试数量和未提交描述保留历史含义。
 
 - VG-028：schema v3、原生请求头、16项字体配置与维护源；DNR仅清理历史1100至2099，语言/时区保持，字体/位置/Worker生产暂停。 [执行记录](../../.trellis/tasks/10-20-vg-028-header-font-contract/implement.md)。
+- VG-024：移除两项DNR权限和过渡清理；已清理VG028与旧v2跳级升级分别保留真实Chrome证据。无权限下磁盘残留状态不承诺已清除。 [执行记录](../../.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md)。

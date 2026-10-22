@@ -482,3 +482,24 @@ tasks:
       - 自定义名单、禁用规则、verified档案等保留，v3无acceptLanguage和canvas
       - 普通字体及Canvas图像、WebGL、UA和硬件原生透传，无权限版本host扩大
       - 本地门禁和独立只读复核，真实Chrome未验证如实记录，结束仅review不发布
+
+  - id: VG-024
+    title: 删除 DNR 权限与过渡清理组件
+    phase: R6
+    dependencies: [VG-028]
+    branch: codex/vg-024-remove-dnr-permissions
+    status: done
+    human_acceptance:
+      accepted_by: 用户
+      accepted_at: '2026-10-20'
+      evidence: .trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md#2026-10-20-人工验收
+    trellis_task: .trellis/tasks/10-20-vg-024-remove-dnr-permissions
+    scope:
+      - 移除两项DNR权限、过渡清理模块/同步组件和标记写入
+      - 原生请求头、schema3、语言时区userScripts及WebRTC语义不变
+      - 仅本地候选，不提交、不发布、不恢复字体位置Worker
+    acceptance:
+      - 生产不依赖DNR API，保存/初始化/worker恢复和UI不含清理组件
+      - 已清理VG028直接升级与旧v2跳级升级均验证原生header和权限收缩
+      - 跳级遗留规则可能留存但不得启用，不重新申请DNR；未来重引入须独立迁移
+      - 最低本地门禁和独立只读复核，结束仅review、人工确认后才done

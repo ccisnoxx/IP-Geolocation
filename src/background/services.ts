@@ -1,5 +1,4 @@
 // 后台统一持有配置事务、出口检测及新文档语言/时区注册；既有文档保持快照。
-import { cleanupLegacyAcceptLanguageRules } from './legacy-dnr-cleanup';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, getWebRTCPolicyState } from './webrtc';
 import {
   getLanguageTimezonePayload,
@@ -91,7 +90,7 @@ function runtimeConfigSignature(config: SiteSpoofConfig): Promise<string> {
 function pendingSyncReport(configSignature: string): RuntimeSyncReport {
   const pending = (): RuntimeSyncComponentReport => ({ status: 'partial', errors: [{ code: 'pending', message: '等待同步确认。' }] });
   return { configSignature, status: 'partial', components: {
-    contentScripts: pending(), legacyDnrCleanup: pending(), webrtc: pending(), tabReload: pending()
+    contentScripts: pending(), webrtc: pending(), tabReload: pending()
   }, metadataError: null };
 }
 
@@ -299,18 +298,17 @@ export function createBackgroundServices(pageRuntimeSource: string): BackgroundS
       pendingReloads: pendingForSignature(stored, signature),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
-    const [pageSync, legacyDnrCleanup, webrtc] = await Promise.all([
+    const [pageSync, webrtc] = await Promise.all([
       (async () => {
         const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
         if (legacy.status !== 'ok') return { component: legacy,
           pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false } };
         return reconcilePageScripts(config, pageRuntimeSource);
       })(),
-      runRuntimeSideEffect('legacyDnrCleanup', cleanupLegacyAcceptLanguageRules),
       runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(config,
         stored?.report.configSignature === signature && stored.report.components.webrtc.status === 'ok'))
     ]);
-    state.report.components = { ...state.report.components, contentScripts: pageSync.component, legacyDnrCleanup, webrtc };
+    state.report.components = { ...state.report.components, contentScripts: pageSync.component, webrtc };
     state.report.pageRuntime = pageSync.pageRuntime;
     if (state.pendingDetectionCleanup) {
       try {

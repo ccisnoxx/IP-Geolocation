@@ -1,6 +1,6 @@
 # VanishGeo 权限边界
 
-> **VG-028（2026-10-20，人工验收通过，未发布）**：VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
 > **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；字体暴露过滤仍暂停，配置仅保存。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
@@ -15,15 +15,15 @@
 | `userScripts` | 后台提前注册扩展固定模板与安全 JSON 最小语言/时区 payload，MAIN / document_start；用户须在详情页正常开启 Allow User Scripts。关闭开关、API 不支持或权限不可用时不注入且不回退 |
 | `tabs` | 后台、Popup 和扩展菜单读取当前/全部标签页 URL、选择诊断目标、创建目标/报告，并在有效语言/时区 payload 注册范围改变后记录人工重载提示，不调用 tabs.reload。没有标签页历史上传流程 |
 | `contextMenus` | 提供规则启停、诊断入口和 WebRTC 策略重置菜单 |
-| `declarativeNetRequest` | 仅过渡清理本扩展历史请求头规则1100至2099并回读；不生成新规则 |
-| `declarativeNetRequestWithHostAccess` | 配合历史host范围清理，权限删除另行实施 |
 | `privacy` | 设置、清除及读取浏览器全局 `chrome.privacy.network.webRTCIPHandlingPolicy` 与 levelOfControl；该作用域不限于站点规则 |
 
 `alarms` 已移除：出口位置只在用户主动检测或重新检测时请求外部 provider，没有后台定时刷新。诊断与候选的 TTL 不等于 alarms 刷新。
 
-## 过渡 DNR 权限（仅遗留规则清理）
+## 已移除的 DNR 权限与升级边界
 
-VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+VG-024 不再申请 DNR 权限：`declarativeNetRequest`、`declarativeNetRequestWithHostAccess` 均已从 manifest 删除，生产代码没有 DNR API 调用，也不提供 optional 权限或动态重新请求路径。过渡清理模块、同步组件及成功标记写入已删除。
+
+VG-028 已人工验收并保留真实 Chrome 受管范围清理证据。从该前置升级不再需要继续清理。旧 v2 跳过该前置直接升级时，历史动态规则可能仍有磁盘残留；缺少权限时不会启用，本版本不宣称已读取或删除这些残留。以后重新引入 DNR 必须先设计独立清理迁移，不能直接重授权限而恢复旧规则。当前候选只做本地验证，不发布。
 
 ## Host 权限与文档边界
 

@@ -1,7 +1,7 @@
 import type { RuntimeSyncComponent, RuntimeSyncError, RuntimeSyncReport } from './types';
 
 export const RUNTIME_SYNC_COMPONENT_LABELS: Record<RuntimeSyncComponent, string> = {
-  contentScripts: '页面语言/时区注册', legacyDnrCleanup: '旧请求头规则清理', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
+  contentScripts: '页面语言/时区注册', webrtc: 'WebRTC 策略', tabReload: '已有文档刷新提示'
 };
 
 // 仅用于识别历史暂停报告；新页面注册以 pageRuntime 为准。
@@ -57,15 +57,15 @@ export async function syncSignature(value: string): Promise<string> {
 export function runtimeSyncMessage(report?: RuntimeSyncReport): string {
   if (!report) return `同步状态尚未确认，请重试同步。${pageRuntimeMessage()} ${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
   const details = (Object.keys(RUNTIME_SYNC_COMPONENT_LABELS) as RuntimeSyncComponent[])
-    .filter((key) => key === 'legacyDnrCleanup' || key === 'webrtc' || report.components[key].status !== 'ok')
+    .filter((key) => key === 'webrtc' || report.components[key].status !== 'ok')
     .map((key) => {
       const component = report.components[key];
-      const status = component.status === 'ok' ? key === 'legacyDnrCleanup' ? '已确认旧规则不存在（请求头保持原生）' : '已同步' : component.status === 'failed' ? '同步失败' : '部分同步';
+      const status = component.status === 'ok' ? '已同步' : component.status === 'failed' ? '同步失败' : '部分同步';
       return `${RUNTIME_SYNC_COMPONENT_LABELS[key]}：${status}${component.errors.length ? `（${component.errors.map((error) => error.message).join('；')}）` : ''}`;
     });
   if (report.metadataError) details.push(report.metadataError.message);
   if (report.warnings) details.push(...report.warnings.map((warning) => warning.message));
-  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${details.join('；')}。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
+  return `${report.status === 'ok' ? '配置已保存，同步已完成。' : '已保存但未完全生效。'}${pageRuntimeMessage(report)} ${details.join('；')}。请求头保持浏览器原生值。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`;
 }
 
 export function renderRuntimeSyncReport(element: HTMLElement, report?: RuntimeSyncReport): void {

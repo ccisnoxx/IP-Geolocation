@@ -14,7 +14,7 @@ export function deriveSetupStatus(config: SiteSpoofConfig): { kind: string; mess
   const invalid = enabledRules.filter((rule) => getPageRuntimeProfile(preview, rule.domain).errors.length);
   if (!enabledRules.length || invalid.length) return { kind: 'partial', message: `部分配置${config.masterEnabled ? ' · 总开关已开启' : ' · 保护关闭'}。${!enabledRules.length ? '尚未选择启用站点。' : `${invalid.length} 条规则缺少有效配置，请检查出口绑定与信号。`}` };
   return config.masterEnabled
-    ? { kind: 'enabled', message: '总开关已开启（配置）· 所选站点规则已启用；页面语言/时区注册、旧请求头规则清理与 WebRTC 分别查看同步详情。当前页面实际值尚未验证。' }
+    ? { kind: 'enabled', message: '总开关已开启（配置）· 所选站点规则已启用；页面语言/时区注册、WebRTC 分别查看同步详情。当前页面实际值尚未验证。' }
     : { kind: 'ready', message: '已配置 · 保护关闭。只有明确开启总开关后才生效。' };
 }
 
@@ -23,7 +23,7 @@ export function renderSetupStatus(element: HTMLElement, config: SiteSpoofConfig,
   element.dataset.setup = state.kind;
   element.dataset.sync = report?.status || 'unknown';
   if (isRuntimeInjectionPaused(report)) {
-    element.textContent = '历史报告：页面伪装已暂停／部分生效。已保存的开关与站点规则保留；旧请求头规则清理和 WebRTC 请查看同步详情。已有 hook 与旧 BFCache 文档需关闭并重建。';
+    element.textContent = '历史报告：页面伪装已暂停／部分生效。已保存的开关与站点规则保留；WebRTC 请查看同步详情。已有 hook 与旧 BFCache 文档需关闭并重建。';
     return;
   }
   element.textContent = `${state.message}${report?.status === 'ok' ? '' : ' 同步尚未完成或确认，请查看同步详情并重试。'}`;
@@ -75,7 +75,7 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
     return {
       kind: 'global-disabled',
       label: '全局总开关已关闭（配置）',
-      detail: `总开关已保存为关闭；${pageRuntimeMessage(input.syncReport)} 旧请求头规则清理与 WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
+      detail: `总开关已保存为关闭；${pageRuntimeMessage(input.syncReport)} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
       canEnable: !matchedRule,
       canDisable: Boolean(matchedRule),
       disableDomain: matchedRule?.domain || null
@@ -95,7 +95,7 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
     return {
       kind: 'error',
       label: '已匹配但语言/时区配置不完整',
-      detail: `${input.errors.length ? input.errors.join('；') : '当前规则缺少有效的语言/时区配置。'} 旧请求头规则清理与 WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
+      detail: `${input.errors.length ? input.errors.join('；') : '当前规则缺少有效的语言/时区配置。'} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
       canEnable: false,
       canDisable: true,
       disableDomain: matchedRule.domain
@@ -103,13 +103,13 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
   }
   if (isRuntimeInjectionPaused(input.syncReport)) return {
     kind: 'paused', label: '页面伪装已暂停',
-    detail: `匹配规则：${matchedRule.domain}；规则已保存，页面 API 伪装暂停。旧请求头规则清理与 WebRTC 请查看同步详情。`,
+    detail: `匹配规则：${matchedRule.domain}；规则已保存，页面 API 伪装暂停。WebRTC 请查看同步详情。`,
     canEnable: false, canDisable: true, disableDomain: matchedRule.domain
   };
   const operation = { canEnable: false, canDisable: true, disableDomain: matchedRule.domain };
   if (!input.payload.languageConfig && !input.payload.timezone) return {
     kind: 'disabled', label: '当前规则未启用语言/时区',
-    detail: `匹配规则：${matchedRule.domain}；当前规则的语言/时区均已保存为关闭，实际注册结果请查看同步详情。已有文档与 BFCache 不热更新，当前页面实际值为 UNKNOWN。旧请求头规则清理与 WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
+    detail: `匹配规则：${matchedRule.domain}；当前规则的语言/时区均已保存为关闭，实际注册结果请查看同步详情。已有文档与 BFCache 不热更新，当前页面实际值为 UNKNOWN。WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
     ...operation
   };
   const page = input.syncReport?.pageRuntime;
@@ -121,13 +121,13 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
   if (page.state !== 'ready' && page.state !== 'disabled') return {
     kind: 'runtime-unavailable',
     label: ({ 'api-unsupported': '浏览器不支持 userScripts', 'permission-required': '缺少 userScripts 权限', 'switch-required': '请开启 Allow User Scripts', 'sync-failed': '页面语言/时区同步失败' })[page.state],
-    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} 旧请求头规则清理与 WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
+    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES}`,
     ...operation
   };
   return {
     kind: page.state === 'disabled' ? 'disabled' : page.reloadRequired ? 'reload-required' : 'enabled',
     label: page.state === 'disabled' ? '页面语言/时区未注册' : page.reloadRequired ? '语言/时区待完整重载' : '新文档语言/时区可用',
-    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} 旧请求头规则清理与 WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`,
+    detail: `匹配规则：${matchedRule.domain}；${pageRuntimeMessage(input.syncReport)} WebRTC 请分别查看同步详情。${PAGE_RUNTIME_PAUSED_SURFACES} ${PAGE_RUNTIME_DOCUMENT_SCOPE}`,
     ...operation
   };
 }

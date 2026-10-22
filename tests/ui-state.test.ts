@@ -10,7 +10,7 @@ import { deriveCurrentSiteStatus, deriveSetupStatus } from '../src/shared/ui-sta
 function readyReport(): RuntimeSyncReport {
   const ok = () => ({ status: 'ok' as const, errors: [] });
   return { configSignature: 'synthetic', status: 'ok', metadataError: null,
-    components: { contentScripts: ok(), legacyDnrCleanup: ok(), webrtc: ok(), tabReload: ok() },
+    components: { contentScripts: ok(), webrtc: ok(), tabReload: ok() },
     pageRuntime: { state: 'ready', registeredRuleCount: 1, reloadRequired: false } };
 }
 
@@ -121,14 +121,14 @@ test('暂停报告不会把已匹配站点显示为页面伪装生效，规则�
   const config = createConfig();
   const ok = { status: 'ok' as const, errors: [] };
   const syncReport: RuntimeSyncReport = { configSignature: 'synthetic', status: 'partial', metadataError: null,
-    components: { contentScripts: { status: 'partial', errors: [RUNTIME_INJECTION_PAUSED] }, legacyDnrCleanup: ok, webrtc: ok, tabReload: ok } };
+    components: { contentScripts: { status: 'partial', errors: [RUNTIME_INJECTION_PAUSED] }, webrtc: ok, tabReload: ok } };
   const state = deriveCurrentSiteStatus({ domain: 'example.com', scriptable: true, config,
     ...getPageRuntimeProfile(config, 'example.com'), syncReport });
   assert.equal(state.kind, 'paused');
   assert.equal(state.label, '页面伪装已暂停');
   assert.equal(state.canEnable, false);
   assert.equal(state.canDisable, true);
-  assert.match(state.detail, /旧请求头规则清理与 WebRTC 请查看同步详情/);
+  assert.match(state.detail, /WebRTC 请查看同步详情/);
 });
 
 test('暂停的 auto 地理位置不阻断语言/手工时区配置，旧报告也不能覆盖新注册状态', () => {

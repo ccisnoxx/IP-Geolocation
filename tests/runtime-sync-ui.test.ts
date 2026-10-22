@@ -15,7 +15,7 @@ function report(failed?: RuntimeSyncComponent): RuntimeSyncReport {
   const ok = () => ({ status: 'ok' as const, errors: [] });
   const result: RuntimeSyncReport = { configSignature: 'synthetic-signature', status: 'ok', metadataError: null,
     pageRuntime: { state: 'ready', registeredRuleCount: 1, reloadRequired: false },
-    components: { contentScripts: ok(), legacyDnrCleanup: ok(), webrtc: ok(), tabReload: ok() } };
+    components: { contentScripts: ok(), webrtc: ok(), tabReload: ok() } };
   if (failed) {
     result.status = 'partial';
     result.components[failed] = { status: 'failed', errors: [{ code: 'synthetic-failure', message: '合成失败，请重试。' }] };
@@ -71,10 +71,10 @@ for (const page of ['popup', 'options'] as const) {
     vm.runInContext(ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
     await vm.runInContext('loadConfig()', context);
     assert.equal(element('runtimeSyncStatus').dataset.status, 'ok');
-    assert.match(element('runtimeSyncStatus').textContent, /旧请求头规则清理：已确认旧规则不存在（请求头保持原生）；WebRTC 策略：已同步/);
+    assert.match(element('runtimeSyncStatus').textContent, /WebRTC 策略：已同步/);
     assert.doesNotMatch(element('setupStatus').textContent, /页面伪装已暂停/);
     if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '新文档语言/时区可用');
-    for (const component of ['contentScripts', 'legacyDnrCleanup', 'webrtc', 'tabReload'] as const) {
+    for (const component of ['contentScripts', 'webrtc', 'tabReload'] as const) {
       nextReport = report(component);
       await vm.runInContext(page === 'popup' ? 'saveChanges()' : 'saveSettings()', context);
       assert.match(element('runtimeSyncStatus').textContent, /已保存但未完全生效/);

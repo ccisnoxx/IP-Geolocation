@@ -1,6 +1,6 @@
 # VanishGeo
 
-> **VG-028（2026-10-20，人工验收通过，未发布）**：VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
 > **VG-023 第一阶段（2026-10-16 已通过用户人工验收）**：页面语言与时区改用 Chrome `userScripts` 在 `MAIN` / `document_start` 提前执行。最低 Chrome 138，需在扩展详情页正常开启 **Allow User Scripts**。仅支持普通 HTTP(S) 顶层文档和 iframe；Geolocation / Permissions geolocation、Worker / SharedWorker 继续暂停；字体暴露过滤仍暂停，配置仅保存。配置按每文档快照生效：注册成功后新文档使用新值，旧文档及 BFCache 保留旧值，需完整 reload 或关闭重开。没有热更新或 documentId 注入回退。WebRTC 独立报告。旧路径调查保留在 [VG-011 记录](docs/stabilization/document-id-investigation.md)。
 
@@ -10,7 +10,7 @@
 
 - 启用的域名 allowlist 规则继承全局设置，可配置语言、时区、位置的逐规则覆盖或禁用。
 - MAIN-world runtime 维护源仍保留用于隔离测试；生产后台已移除其调用依赖。ISOLATED 初始化脚本已撤销，残留通知也在后台拒绝。没有静态全站注入或页面可控配置桥。
-- 不再修改 `Accept-Language` 或其他 HTTP 请求头；网页语言可以与原生请求头不同。VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+- 不再修改 `Accept-Language` 或其他 HTTP 请求头；网页语言可以与原生请求头不同。当前版本不再申请 DNR 权限或调用 DNR API。跳过 VG-028 的旧版升级可能留下不可启用的磁盘旧规则；未来重新引入 DNR 必须先设计独立清理迁移。
 - WebRTC 使用 Chrome privacy API 的全局策略，提供 strict、compatible 和 default；该设置影响浏览器普通会话，范围大于站点 allowlist。实际控制权和 ICE 结果需要分别观察。
 - 配置保存、worker 初始化和扩展 update 时由后台串行对账：先撤销失效/范围变化的注册，再更新保留规则，最后新增并读回验证。Popup/Options 分别显示 API/权限/用户开关不可用、注册失败、注册成功需重载或新文档可用；不自动刷新页面。
 - 出口位置只在用户点击检测或重新检测时请求外部 provider。候选确认后保存为 verified 档案，auto 位置/时区必须在每条规则上显式绑定该档案。**没有后台定时刷新**；更换代理或网络后需要主动重新检测。
@@ -77,7 +77,7 @@ VG-010 的定向真实 Chrome smoke 可运行 `node scripts/chrome-onboarding-sm
 
 VG-023 真实 Chrome 定向验证：构建后运行 `node scripts/chrome-language-timezone-smoke.mjs --output experiments/userscripts-document-start/production-evidence.json`。该 runner 使用已准备的独立 Lima Linux VM，Chrome 自身 sandbox 保持开启，测试期间新 namespace 仅 loopback，正常点击 Allow User Scripts；加载实际 dist，覆盖语言/时区首 inline、快照、禁用、恢复、原生请求头/权限退出/WebRTC 及暂停 surface（历史 JSON 保留当时 DNR 行为）。运行前须启动 `vg-userscripts-fixture` VM；环境与命令见 [实验说明](experiments/userscripts-document-start/README.md)。已人工验收的最小实验 [JSON](experiments/userscripts-document-start/linux-evidence.json) 与生产 [JSON](experiments/userscripts-document-start/production-evidence.json) 分开保留；语言/时区生产阶段已于2026-10-16通过用户人工验收；记录见 [VG-023](.trellis/tasks/10-16-vg-023-userscripts-language-timezone/implement.md#2026-10-16-人工验收确认)。旧 integration/diagnostic/onboarding/worker runner 的全部 surface 预期不代表当前支持范围。
 
-VG-028 升级定向验证使用 `node scripts/chrome-legacy-dnr-upgrade.mjs --upgrade-from <旧构建目录> --output <脱敏JSON>`；仅临时profile及合成规则，验证受管范围删除和范围外保留，不代表全部生命周期验收。
+VG-024 权限退出升级验证可运行 `node scripts/chrome-native-headers-upgrade.mjs --from vg028 --upgrade-from <已清理VG028的dist> --output <脱敏JSON>`，跳级场景使用 `--from v2` 和实际旧构建。需要 Node22+、真实Chrome和独立临时profile；验证权限收缩、原生header及worker恢复，不重授DNR权限，不恢复字体，也不替代完整人工验收。
 
 [稳定化记录](docs/stabilization/README.md) 说明证据和缺口；[manifest](docs/stabilization/task-manifest.yaml) 是任务范围、依赖和状态的唯一来源。本地实现结束为 `review`，人工验收后才为 `done`。
 

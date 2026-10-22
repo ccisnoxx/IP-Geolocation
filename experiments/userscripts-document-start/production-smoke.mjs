@@ -230,11 +230,11 @@ try {
   heldB = await document(local); configured(heldB.rows, 'fr-FR', 'Europe/Paris', -60);
   assert.equal(heldB.rows[0].current.explicit.locale, 'en-US'); assert.equal(heldB.rows[0].current.explicit.timeZone, 'UTC'); evidence.checks.compatible = 'PASS';
   assert.equal(latestHeader, nativeHeader);
-  const legacyRules = await evaluate(options, 'chrome.declarativeNetRequest.getDynamicRules().then(r=>r.filter(x=>x.id>=1100&&x.id<=2099).length)');
-  assert.equal(legacyRules, 0);
-  assert.equal(changed.syncReport.components.legacyDnrCleanup.status, 'ok');
+  const permissions = await evaluate(options, 'chrome.permissions.getAll()');
+  assert.equal(permissions.permissions.some(permission => permission.startsWith('declarativeNetRequest')), false);
+  assert.deepEqual(Object.keys(changed.syncReport.components).sort(), ['contentScripts', 'tabReload', 'webrtc']);
   const policy = await message({ action: 'getWebRtcConfig' }); assert.equal(policy.state.policyState.actualPolicy, 'disable_non_proxied_udp');
-  evidence.observations.networkPolicy = { headerNative: latestHeader === nativeHeader, legacyRuleCount: legacyRules, webRtcPolicy: policy.state.policyState.actualPolicy };
+  evidence.observations.networkPolicy = { headerNative: latestHeader === nativeHeader, dnrPermissionAbsent: true, webRtcPolicy: policy.state.policyState.actualPolicy };
   evidence.checks['dnr-webrtc'] = 'PASS';
   }
   // 从此处到两个恢复场景结束，管理页全部关闭；只直接读取浏览器注册，不调用业务消息。

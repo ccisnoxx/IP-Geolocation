@@ -23,7 +23,7 @@ VanishGeo 使用 TypeScript + Vite/Rollup 构建 Chromium MV3 扩展，原生 HT
 - Chrome 直接按 MAIN / document_start / matches / excludeMatches / allFrames 执行普通 HTTP(S) 新文档；最长域名优先，即使子规则无有效页面信号。无 content 初始化、worker documentId 或 scripting.executeScript 生产回退。
 - 所有注册修改经 services 唯一串行队列，先撤销失效/范围变化并确认，再更新保留项，最后新增并读回。每次失败进入报告；worker 初始化及 onInstalled(update) 幂等恢复。注册完成后才能提示手动完整 reload/关闭重开，不自动刷新，不热更新旧/BFCache 文档。
 - 普通 iframe 按自己的 URL 匹配；about:blank/srcdoc/data/blob/特殊 sandbox 明确 unsupported / UNKNOWN，不启用 origin fallback 或父子帧遍历。管理动作仍 requireExtensionPage，无 postMessage/DOM 配置桥。
-- HTTP 请求头保持原生；仅保留DNR权限用于历史1100至2099范围清理和验证，不生成新规则；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
+- HTTP 请求头保持原生；manifest 不再声明 DNR 权限，生产不调用 DNR API，无过渡清理组件或标记写入；WebRTC 使用 Chrome privacy setting，期望策略与实际控制状态分别报告。
 - manifest 权限或 host scope 变化须有明确任务授权，同步 `PERMISSIONS.md` 和 wiring 测试。不得为测试放宽权限或校验；optional host permissions 需要独立设计拒绝状态、重新注册与失效处理。
 - Refactor 默认保持 runtime action、storage 键/schema、payload 和入口合同；语义变化必须在任务中明确授权和验收。
 

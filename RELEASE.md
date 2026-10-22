@@ -1,6 +1,6 @@
 # VanishGeo 构建与发布说明
 
-> **VG-028（2026-10-20，人工验收通过，未发布）**：VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。
+> **VG-024（2026-10-20，人工验收通过，未发布）**：已移除两项 DNR 权限与过渡清理组件，请求头保持原生。VG-028 已获人工验收；语言／时区 userScripts、WebRTC 与其他页面能力的暂停边界不变。不提交、不发布。
 
 [CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 检查 v*.*.* tag push 并发布。稳定化任务完成不授予提交、push、tag、Release、托管部署或远端设置权限；这些操作需对应明确授权。VG-005 建立本地门禁；VG-014 的候选结论、逐项证据、阻断和回滚见 [release-readiness](docs/stabilization/release-readiness.md)。VG-023 仅恢复普通 HTTP(S) 文档语言/时区快照，已于2026-10-16通过用户人工验收；其他页面能力仍暂停，本任务不授权发布。
 
@@ -68,9 +68,13 @@ changelog 写入 RUNNER_TEMP 文件，经 body_path 传给 Release；提交文�
 
 `tests/release-gates.test.ts` 核对 workflow 顺序/权限/失败旁路，在临时 npm 项目注入失败证明后续构建未到达，并用临时 Git 仓库验证首发、跨 tag、无关分支、第二父提交的已发布 tag、同提交轻量/附注 tag 及浅克隆。合成 tags 只创建在临时 fixture 仓库，finally 删除；不操作当前仓库 tags。这些是本地/静态证据，未实际运行 GitHub Actions、Release API 或真实 Chrome。
 
-## VG-028 本地候选
+## VG-024 候选与权限退出
 
-VG-028 停止请求头改写，仅保留两项DNR权限用于清理并回读本扩展历史ID 1100至2099；范围外规则保留，不新增请求头规则。清理成功才写legacyDnrCleanupV3Complete，标记不替代实际回读；失败明确报告。 两项DNR权限的退出留给后续独立任务，不改版本或发布。
+VG-028 已于2026-10-20人工验收通过，历史清理及真实Chrome证据保留。本任务按第二阶段删除两项DNR权限与过渡组件，已完成人工验收，仅保留本地候选；不改版本、不创建ZIP、不提交、不发布。
+
+升级验收覆盖已清理VG-028直接升级，以及旧v2跳过清理直接升级。两者都核验同profile同路径、权限确实减少、header原生、配置保存与worker唤醒不依赖DNR。跳级后的旧规则磁盘残留无法在无权限下证明已清除，不得重新授权来制造“清理通过”；本版本不会重新申请DNR，未来重新引入必须先设计独立清理迁移。正式证据只保留布尔/数量/摘要。
+
+回滚只恢复本任务可识别的增量，保留VG-028和用户已有工作；回到VG-028会重新声明过渡DNR权限，需人工决定权限与兼容风险。回旧v2可能重新生成请求头规则，不能承诺无损或同等隐私；先安全备份v3配置，不使用reset/stash覆盖工作。
 
 ## 人工发布和恢复
 

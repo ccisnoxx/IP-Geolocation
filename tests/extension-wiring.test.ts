@@ -26,8 +26,6 @@ test('manifest uses dynamic injection without background alarms or static all-ur
     'tabs',
     'contextMenus',
     'privacy',
-    'declarativeNetRequest',
-    'declarativeNetRequestWithHostAccess',
     'userScripts'
   ]);
   assert.equal(manifest.permissions.includes('activeTab'), false);
@@ -344,14 +342,17 @@ test('字体 UI 无请求头编辑或 Canvas 伪装，内置名单只读且独�
   }
 });
 
-test('请求头权限仅过渡用于遗留清理，不再生成语言改写规则', () => {
-  const services = read('src/background/services.ts');
-  const cleanup = read('src/background/legacy-dnr-cleanup.ts');
+test('DNR权限和清理组件已退出生产，未来重引入必须独立迁移', () => {
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.equal(manifest.permissions.some((permission: string) => permission.startsWith('declarativeNetRequest')), false);
+  for (const file of ['src/background/services.ts', 'src/shared/types.ts', 'src/shared/runtime-sync.ts', 'src/shared/storage.ts']) {
+    assert.doesNotMatch(read(file), /declarativeNetRequest|legacyDnrCleanup|legacy-dnr-cleanup/);
+  }
+  for (const page of ['popup', 'options']) {
+    assert.doesNotMatch(read(`src/${page}/${page}.html`), /旧请求头规则清理|DNR/);
+  }
   const permissions = read('PERMISSIONS.md');
-  assert.match(services, /legacy-dnr-cleanup/);
-  assert.doesNotMatch(services, /from ['"].*\/dnr['"]|validateLanguageDnr|reconcileLanguageDnr|syncLanguageDnr/);
-  assert.match(cleanup, /getDynamicRules/);
-  assert.match(cleanup, /removeRuleIds/);
-  assert.doesNotMatch(cleanup, /modifyHeaders|requestHeaders|regexFilter/);
-  assert.match(permissions, /遗留.*清理|旧.*清理/);
+  assert.match(permissions, /不再申请.*DNR|不再请求.*DNR/);
+  assert.match(permissions, /磁盘|残留/);
+  assert.match(permissions, /重新引入.*独立.*迁移/);
 });

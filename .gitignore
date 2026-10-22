@@ -222,3 +222,12 @@ Thumbs.db
 !.trellis/tasks/10-20-vg-028-header-font-contract/design.md
 !.trellis/tasks/10-20-vg-028-header-font-contract/implement.md
 !.trellis/tasks/10-20-vg-028-header-font-contract/chrome-upgrade-evidence.json
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/
+.trellis/tasks/10-20-vg-024-remove-dnr-permissions/*
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/task.json
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/prd.md
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/design.md
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/implement.md
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/chrome-from-vg028.json
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/chrome-from-v2.json
+!.trellis/tasks/10-20-vg-024-remove-dnr-permissions/source-changes.patch

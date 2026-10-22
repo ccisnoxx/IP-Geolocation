@@ -16,8 +16,6 @@
     "tabs",
     "contextMenus",
     "privacy",
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess",
     "userScripts"
   ],
   "host_permissions": [
