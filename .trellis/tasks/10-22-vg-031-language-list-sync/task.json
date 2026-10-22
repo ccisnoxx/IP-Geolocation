@@ -1,6 +1,15 @@
 {
   "id": "VG-031",
   "name": "主语言切换同步语言列表与请求头一致性调查",
-  "status": "review",
-  "dependencies": ["VG-023", "VG-024"]
+  "status": "done",
+  "dependencies": [
+    "VG-023",
+    "VG-024"
+  ],
+  "human_acceptance": {
+    "status": "accepted",
+    "accepted_by": "用户",
+    "accepted_at": "2026-10-22",
+    "evidence": "implement.md#2026-10-22-人工验收确认"
+  }
 }

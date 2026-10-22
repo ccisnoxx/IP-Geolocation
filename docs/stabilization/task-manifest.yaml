@@ -614,7 +614,12 @@ tasks:
     title: 主语言切换同步语言列表与请求头一致性调查
     phase: R7
     dependencies: [VG-023, VG-024]
-    status: review
+    status: done
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      evidence: .trellis/tasks/10-22-vg-031-language-list-sync/implement.md#2026-10-22-人工验收确认
     trellis_task: .trellis/tasks/10-22-vg-031-language-list-sync
     scope:
       - Popup和Options切换主语言时重建语言列表，移除旧语言残留
@@ -624,7 +629,7 @@ tasks:
       - 两个管理入口切换主语言后保存、重读和生产页面payload不残留旧中文
       - 主语言已在列表后部及重复出现时归一化到首位，其他备用语言顺序保留
       - 定向回归与完整本地门禁通过，Chrome实机证据与Node/VM证据明确区分
-      - 本地完成后仅review，不重新引入DNR，不提交或发布
+      - 本地完成后review，人工验收后done；本任务不重新引入DNR，提交和发布另依授权
 
   - id: VG-032
     title: Accept-Language按站点同步与DNR安全重授权迁移
