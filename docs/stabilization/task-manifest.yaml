@@ -542,7 +542,12 @@ tasks:
     title: 出口环境推荐与明确确认流程
     phase: R7
     dependencies: [VG-024, VG-028]
-    status: review
+    status: done
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      evidence: .trellis/tasks/10-20-vg-026-exit-recommendation/implement.md#2026-10-22-人工验收确认
     trellis_task: .trellis/tasks/10-20-vg-026-exit-recommendation
     scope:
       - 标准国家码、时区置信度和地区 locale 推荐
@@ -550,7 +555,7 @@ tasks:
     acceptance:
       - 推荐无副作用，verified 仍由后台检测确认事务建立
       - 只修改用户选择站点，不自动恢复暂停 surface
-      - 定向行为验证和独立复核后仅 review
+      - 定向行为验证和独立复核后review，人工验收后done；提交和发布另依授权
 
   - id: VG-027
     title: 可信早期环境交付架构与位置恢复资格

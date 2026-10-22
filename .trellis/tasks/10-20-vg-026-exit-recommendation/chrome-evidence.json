@@ -1,0 +1,133 @@
+{
+  "task": "VG-026",
+  "result": "PASS",
+  "chrome": "Chrome/149.0.7827.55",
+  "checks": {
+    "safeDefaultsAndNoImplicitRequest": true,
+    "confirmationRequired": true,
+    "activeDetectionConfirmedBeforeRecommendation": true,
+    "viewOnlyRecommendationDoesNotSave": true,
+    "keepLanguageAndGlobalPoliciesExplicitSave": true,
+    "userSwitchRequiredReportedAsPartial": true,
+    "explicitExitLanguageAndAuthorizedFixedFontRegistration": true,
+    "normalAllowUserScriptsEnabled": true,
+    "selectedPageFirstInlineLanguageTimezoneHeaderAndFonts": true,
+    "unmatchedPageRemainsNative": true,
+    "explicitWebRtcPolicyAndMasterOffRestore": true,
+    "optionsMasterOffNewDocumentRestoresNative": true,
+    "noManagementReconciliationBetweenUiSaveAndPageProbe": true,
+    "disabledRegistrationsAndHeaderRulesEmpty": true,
+    "syntheticProviderOnlyOneExplicitRequest": true,
+    "noRuntimeExceptions": true,
+    "unmodifiedDist": true
+  },
+  "cleanup": "PASS",
+  "failure": null,
+  "environment": {
+    "temporaryProfile": true,
+    "headed": true,
+    "installation": "CDP Extensions.loadUnpacked",
+    "optionsInteraction": "DOM events on actual Options page",
+    "provider": "CDP fulfilled synthetic response before external transmission",
+    "fixture": "HTTP loopback only"
+  },
+  "mode": "options-page-effects-and-native-restore",
+  "limitations": [
+    "仅当前macOS/Chrome、HTTP loopback、顶层新文档；未覆盖iframe、BFCache、重启或真实TLS",
+    "未验证真实action popup、其他浏览器或真实provider定位精度"
+  ],
+  "distSha256": "c659b709bcdaae0c716bbd5e6f318d85dc7a3afe46d74479be2f10f0038fd0ba",
+  "native": {
+    "firstInline": true,
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN"
+    ],
+    "timezone": "Asia/Shanghai",
+    "header": "zh-CN,zh;q=0.9",
+    "fonts": {
+      "pingfang": true,
+      "times": 174.703125,
+      "sans": 180.5439453125,
+      "serif": 171.19998168945312
+    },
+    "geolocationAvailable": true,
+    "subresourceHeader": "zh-CN,zh;q=0.9"
+  },
+  "nativeWebRtc": {
+    "value": "default",
+    "levelOfControl": "controllable_by_this_extension"
+  },
+  "enabledWebRtc": {
+    "value": "default_public_interface_only",
+    "levelOfControl": "controlled_by_this_extension"
+  },
+  "appliedSync": {
+    "status": "ok",
+    "page": "ready",
+    "font": "ready",
+    "headers": "ok"
+  },
+  "enabled": {
+    "firstInline": true,
+    "language": "ja-JP",
+    "languages": [
+      "ja-JP",
+      "ja"
+    ],
+    "timezone": "Asia/Tokyo",
+    "header": "ja-JP,ja;q=0.9",
+    "fonts": {
+      "pingfang": false,
+      "times": 180.5439453125,
+      "sans": 180.5439453125,
+      "serif": 171.19998168945312
+    },
+    "geolocationAvailable": true,
+    "subresourceHeader": "ja-JP,ja;q=0.9"
+  },
+  "unmatched": {
+    "firstInline": true,
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN"
+    ],
+    "timezone": "Asia/Shanghai",
+    "header": "zh-CN,zh;q=0.9",
+    "fonts": {
+      "pingfang": true,
+      "times": 174.703125,
+      "sans": 180.5439453125,
+      "serif": 171.19998168945312
+    },
+    "geolocationAvailable": true,
+    "subresourceHeader": "zh-CN,zh;q=0.9"
+  },
+  "disabledWebRtc": {
+    "value": "default",
+    "levelOfControl": "controllable_by_this_extension"
+  },
+  "disabled": {
+    "firstInline": true,
+    "language": "zh-CN",
+    "languages": [
+      "zh-CN"
+    ],
+    "timezone": "Asia/Shanghai",
+    "header": "zh-CN,zh;q=0.9",
+    "fonts": {
+      "pingfang": true,
+      "times": 174.703125,
+      "sans": 180.5439453125,
+      "serif": 171.19998168945312
+    },
+    "geolocationAvailable": true,
+    "subresourceHeader": "zh-CN,zh;q=0.9"
+  },
+  "disabledRegistries": {
+    "userScripts": [],
+    "contentScripts": [],
+    "dynamic": [],
+    "session": []
+  }
+}

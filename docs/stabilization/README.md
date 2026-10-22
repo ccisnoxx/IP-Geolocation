@@ -206,3 +206,7 @@ VG-026正式依赖VG-024／VG-028、VG-027正式依赖VG-023／VG-024／VG-028�
 新增定向9项修复前失败、修复后通过；完整npm run check为257/257、源码/测试类型及构建PASS。Chrome155/macOS arm64临时profile：字体故障恢复12项、固定字体正常接线15项（含43字体正对照）、未改写实际dist定位/语言/时区/字体联合30项PASS，cleanup均PASS。合成存储拒绝与真实磁盘故障区分；原runner前置不符的首轮BLOCKED保留。独立只读复核无确认阻断。详见[VG-030执行与证据](../../.trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md)。
 
 2026-10-22用户明确确认验收通过，manifest为done、Trellis completed、human_acceptance accepted；确认原文见[人工验收记录](../../.trellis/tasks/10-22-vg-030-font-recovery-reload/implement.md#2026-10-22-人工验收确认)。原VG-025/VG-029的done、历史原始证据和未验证边界保持。已完成本次任务收尾，保留原记录路径和其他未提交改动，不新增提交、push或发布。
+
+### 2026-10-22 VG-026 验收收尾补充
+
+VG-026恢复缺失记录后，定向Node/VM测试73/73通过；用户随后授权当前构建真实Chrome补验，有界面Chrome149的Options推荐、明确应用、顶层新文档语言/时区/请求头/字体实际效果、WebRTC策略及总开关关闭恢复共17项通过。正式JSON见[当前Chrome证据](../../.trellis/tasks/10-20-vg-026-exit-recommendation/chrome-evidence.json)，方法及范围见[实施记录](../../.trellis/tasks/10-20-vg-026-exit-recommendation/implement.md#2026-10-22-当前构建真实chrome补验)。未覆盖iframe、BFCache、重启、Chrome138、真实provider精度或action Popup。历史八项证据未找回，不以本轮推定旧现场根因。用户已于2026-10-22确认本轮验收通过，VG-026为done，见[人工验收记录](../../.trellis/tasks/10-20-vg-026-exit-recommendation/implement.md#2026-10-22-人工验收确认)；已授权本地提交，暂不push。此前2026-10-21状态和暂停描述为历史阶段，其他任务状态仍以task-manifest为准。

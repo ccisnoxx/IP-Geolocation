@@ -1,0 +1,16 @@
+{
+  "id": "VG-026",
+  "name": "出口环境推荐与明确确认流程",
+  "status": "done",
+  "dependencies": [
+    "VG-024",
+    "VG-028"
+  ],
+  "record_restored_at": "2026-10-22",
+  "human_acceptance": {
+    "status": "accepted",
+    "accepted_by": "用户",
+    "accepted_at": "2026-10-22",
+    "evidence": "implement.md#2026-10-22-人工验收确认"
+  }
+}
