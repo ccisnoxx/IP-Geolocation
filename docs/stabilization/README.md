@@ -210,3 +210,11 @@ VG-026正式依赖VG-024／VG-028、VG-027正式依赖VG-023／VG-024／VG-028�
 ### 2026-10-22 VG-026 验收收尾补充
 
 VG-026恢复缺失记录后，定向Node/VM测试73/73通过；用户随后授权当前构建真实Chrome补验，有界面Chrome149的Options推荐、明确应用、顶层新文档语言/时区/请求头/字体实际效果、WebRTC策略及总开关关闭恢复共17项通过。正式JSON见[当前Chrome证据](../../.trellis/tasks/10-20-vg-026-exit-recommendation/chrome-evidence.json)，方法及范围见[实施记录](../../.trellis/tasks/10-20-vg-026-exit-recommendation/implement.md#2026-10-22-当前构建真实chrome补验)。未覆盖iframe、BFCache、重启、Chrome138、真实provider精度或action Popup。历史八项证据未找回，不以本轮推定旧现场根因。用户已于2026-10-22确认本轮验收通过，VG-026为done，见[人工验收记录](../../.trellis/tasks/10-20-vg-026-exit-recommendation/implement.md#2026-10-22-人工验收确认)；已授权本地提交，暂不push。此前2026-10-21状态和暂停描述为历史阶段，其他任务状态仍以task-manifest为准。
+
+### 2026-10-22 VG-027 限定范围研究收尾（已验收）
+
+VG-027研究正文已区分2026-10-20历史NO_GO、VG-029后续独立授权与实测覆盖、剩余证据缺口，见[六项门槛对账](early-environment-delivery.md#2026-10-22-限定范围收尾对账)。原VG-027任务目录和独立复核记录未找回，现有任务记录明确标注为重建；不伪造历史审查或人工签收。
+
+VG-029的11个原记录/证据文件从838c301按字节恢复（后续删除提交da068f2），恢复来源和摘要见[VG-027执行记录](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md)。其两份30项Chrome证据、人工签收和限制保留；VG-029仍done。此前“位置全面暂停”、watch interval及旧验收暂停描述只代表历史阶段，不覆盖VG-029已授权范围，也不推翻旧负向实验。
+
+本轮仅恢复文档与证据，没有运行新Chrome/测试、修改生产代码或扩大Worker能力。用户已按限定范围验收，VG-027为done，见[人工验收记录](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md#2026-10-22-人工验收确认)；已授权本地提交，暂不push。完整对抗矩阵、document.open、受控撤销窗口、Chrome138、其他OS、TLS和定位冷启动等缺口不自动变为通过。其他任务状态仍以task-manifest为准。

@@ -1,0 +1,19 @@
+{
+  "id": "VG-027",
+  "name": "可信早期环境交付架构与位置恢复资格",
+  "status": "done",
+  "dependencies": [
+    "VG-023",
+    "VG-024",
+    "VG-028"
+  ],
+  "record_reconstructed_at": "2026-10-22",
+  "human_acceptance": {
+    "status": "accepted",
+    "accepted_by": "用户",
+    "accepted_at": "2026-10-22",
+    "scope": "历史研究与VG-029后续证据的限定范围对账，不扩大生产合同或验证范围",
+    "evidence": "implement.md#2026-10-22-人工验收确认"
+  },
+  "scope": "历史研究与VG-029后续证据对账；不扩大生产合同或实验范围"
+}

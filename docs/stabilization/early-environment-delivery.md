@@ -1,5 +1,9 @@
 # VG-027：可信早期环境交付与位置恢复资格
 
+> **阅读顺序（2026-10-22）**：下方“2026-10-20 原始研究”保留当时的NO_GO与暂停判断，不代表当前生产状态。VG-029后续已独立获准恢复并人工验收；当前范围和剩余缺口见文末[限定范围收尾对账](#2026-10-22-限定范围收尾对账)。VG-027已按限定范围人工验收为done，本次不扩大生产合同。
+
+## 2026-10-20 原始研究（历史阶段）
+
 2026-10-20。本轮为实施计划第9节允许的架构研究交付，状态以 `task-manifest.yaml` 为准。**现有语言/时区恢复保持；动态位置、Permissions geolocation 和 Worker 恢复为 NO_GO。** 这表示缺少恢复资格证据，不是证明 userScripts 无法承载坐标。未改动 VG-022、旧负向证据或生产位置入口。
 
 ## 基线与编号
@@ -44,3 +48,41 @@
 [Chrome scripting](https://developer.chrome.com/docs/extensions/reference/api/scripting) 的注册与命令式注入是不同入口；[content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) 描述 document_start 和 MAIN world 与页面共享环境。公开API文档不证明特定Chrome缺陷已经修复，也不保证页面不能事后替换hook。旧 documentId 负向证据保留，当前位置不使用任何新入口。
 
 只做公开文档GET与本地源审查，无用户配置/位置上传；没有重新运行或覆盖历史Chrome JSON，没有访问provider/STUN/第三方检测站，没有commit、push或发布。
+
+## 2026-10-22 限定范围收尾对账
+
+本节依据当前源码和从Git恢复的VG-029原始记录整理，不改写上述历史研究、旧负向结果或当时未验证项。VG-027缺失的任务记录已[明确标注为重建](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md)。本次仅文档及证据收尾，不运行新实验、不恢复Worker；用户已授权本地提交，暂不push。
+
+### 后续独立授权与证据来源
+
+VG-029于2026-10-22独立取得最小定位userScripts和Geolocation/Permissions geolocation恢复授权并获人工验收；[验收记录](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md#2026-10-22-人工验收确认)、[原工作树Chrome证据](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/chrome-evidence.json)、[独立提交范围Chrome证据](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/commit-scope-chrome-evidence.json)和[用户当前Chrome现场记录](../../.trellis/tasks/10-22-vg-029-geolocation-recovery/current-chrome-evidence.json)已从838c301按字节恢复。删除发生于da068f2；恢复来源及摘要见VG-027执行记录。
+
+两份自动Chrome证据均为Chrome155.0.8059.86/macOS arm64/headless、30/30 PASS、cleanup PASS；用户现场签收另有记录。历史NO_GO说明当时缺少恢复资格，不证明userScripts无法承载坐标。后续限定范围恢复来自位置自身实现、实测与授权，不是从字体静态脚本或语言/时区PASS推导。
+
+### 六项门槛的当前证据层级
+
+| 原研究门槛 | VG-029补充及当前合同 | 仍需保留的边界 |
+| --- | --- | --- |
+| 最终执行文档身份 | Chrome声明式MAIN/document_start定位专用注册；普通顶层及同源/跨源iframe正负对照 | 不使用旧documentId路径；不宣称所有文档生命周期或替换攻击均验证 |
+| 首次API读取前可信配置可用 | 固定模板加安全JSON；六字段最小位置payload；首inline、三方法、参数和回调实测 | 自动坐标仅取规则绑定verified档案；网站能读到交付坐标，不是无敏感信息路径 |
+| 更新/撤销新鲜度 | 共享配置队列；注册撤销、更新、新增和读回；A→B、reload、关闭和删规则新文档对照 | 配置持久化与浏览器注册不原子；旧文档/BFCache保持旧值，受控撤销窗口未有独立完整位置实测 |
+| 网页不能提供可信配置 | 后台解析、独立闭包快照，无页面配置桥；receiver和getter重入测试及Chrome对照 | 不能提升为完整同源父页/原型污染对抗证明，也不承诺网页无法事后替换hook |
+| BFCache/iframe/worker/reload | 实际persisted=true，恢复同一A文档仍A；watch初次和恢复各一次；iframe、reload、后台worker唤醒及扩展update | 后台service worker恢复不等于页面Worker伪装恢复；document.open等仍缺独立实测，页面Worker/SharedWorker不支持 |
+| 旧hook清理与提示 | watch隐藏/冻结暂停、取消及退出清理，独立定位重载债；静态位置不再interval轮询 | 关闭/撤销完成后的新文档恢复，不撤回旧网页已取得坐标；旧文档必须完整重建 |
+
+### 现行合同
+
+定位解析由[config-resolver](../../src/shared/config-resolver.ts)拥有，仅交付latitude、longitude、accuracy、randomize、randomRadiusMeters、spoofPermission，不含IP/provider/档案标识。独立[定位入口](../../src/injected/runtime-modules/geolocation-entry.ts)和[注册实现](../../src/background/page-scripts.ts)不扩展语言/时区payload，不恢复完整runtime或页面桥。
+
+只在原生定位API存在、非opaque、安全上下文且Permissions-Policy允许的普通HTTP(S)文档工作。启用合成权限时，geolocation权限语义表示扩展提供合成坐标；关闭时保留原生query，仅原生granted才交付，prompt/denied拒绝，不主动获取真实位置。权限API异常不能转换成granted。当前合同详见[配置指南](../../CONFIG_GUIDE.md#vg-029-地理位置)；失败状态不代表能保证撤回所有旧注册或既有文档数据。
+
+### 未验证项与收尾判定
+
+- 未找到完整同源父页/原型污染攻击矩阵、document.open、受控撤销窗口的独立位置Chrome证据。相关Node/VM行为与真实浏览器覆盖分别保留，不将它们合并为全六项PASS。
+- Chrome138、其他OS、真实TLS传输、定位完整冷启动/会话自动恢复和全部故障组合仍未验。HTTPS origin fixture通过CDP本地fulfill提供，不是TLS传输验证。
+- 原生取位调用次数没有在Chrome JSON中测量；fixtureInvokedNativePosition只表示fixture未主动调用，哨兵只证明未交付该值。源码/VM支持的结论单独记录。
+- 合成对象保持原型兼容但无原生内部slot；不保证无法检测。旧坐标不可撤回，特殊文档及Worker继续不支持。
+- 当前定位入口、运行时、注册模块和定位Chrome脚本相对838c301未变；共享匹配器后续增加localhost子域，语言校验也变化，旧30项不冒充当前完整构建重验。
+- 原VG-027独立复核记录未找回；VG-029记录载明其自身独立复核及人工验收，不能冒充VG-027本轮新独立复核；本次限定范围人工签收另行记录。
+
+限定范围交付结论：保留历史NO_GO；承认VG-029独立授权下已验收的定位恢复；未验证项保持未知，Worker不恢复。VG-027研究收尾无需为了完成文档而补跑全部未来矩阵，用户已按限定范围人工验收，状态done，不新增生产授权。见[人工验收记录](../../.trellis/tasks/10-20-vg-027-early-delivery/implement.md#2026-10-22-人工验收确认)。

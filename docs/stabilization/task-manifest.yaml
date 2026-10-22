@@ -561,15 +561,21 @@ tasks:
     title: 可信早期环境交付架构与位置恢复资格
     phase: R7
     dependencies: [VG-023, VG-024, VG-028]
-    status: review
+    status: done
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-22'
+      scope: 历史研究与VG-029后续证据的限定范围对账，不扩大生产合同或将未验证项改为通过
+      evidence: .trellis/tasks/10-20-vg-027-early-delivery/implement.md#2026-10-22-人工验收确认
     trellis_task: .trellis/tasks/10-20-vg-027-early-delivery
     scope:
       - 核对已恢复语言时区与历史 NO_GO 的架构差异
       - 交付位置最小化、文档身份、新鲜度和生命周期恢复资格决策
     acceptance:
       - 不以字体静态脚本推定动态位置或 Worker 可恢复
-      - 按六项安全门槛明确 GO/NO_GO 与未验证项，位置保持 fail closed
-      - 独立复核后仅 review，研究完成不代表生产恢复
+      - 按六项安全门槛区分历史NO_GO、VG-029独立授权后的限定覆盖与未验证项，不扩大现行恢复合同
+      - 本地交付后review，限定范围人工验收后done；研究完成不构成新的生产恢复授权
 
   - id: VG-029
     title: 地理位置生产恢复与真实 Chrome 验证

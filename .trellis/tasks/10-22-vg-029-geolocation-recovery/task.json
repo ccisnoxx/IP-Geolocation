@@ -1,0 +1,32 @@
+{
+  "id": "vg-029-geolocation-recovery",
+  "name": "vg-029-geolocation-recovery",
+  "title": "VG-029 地理位置生产恢复与真实 Chrome 验证",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "777",
+  "assignee": "777",
+  "createdAt": "2026-10-22",
+  "completedAt": "2026-10-22",
+  "branch": null,
+  "base_branch": "codex/vg-024-remove-dnr-permissions",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "2026-10-22用户明确确认验收通过，要求VG-029标记done并收尾；manifest done、Trellis completed。本地248项、真实Chrome30项、独立复核与当前用户Chrome匹配网站坐标变更/语言时区字体回归证据保留，原配置已恢复。不提交、不push、不发布，不启动后续任务。",
+  "meta": {},
+  "human_acceptance": {
+    "status": "accepted",
+    "accepted_by": "用户",
+    "accepted_at": "2026-10-22",
+    "evidence": ".trellis/tasks/10-22-vg-029-geolocation-recovery/acceptance.md#2026-10-22-人工验收确认"
+  }
+}
