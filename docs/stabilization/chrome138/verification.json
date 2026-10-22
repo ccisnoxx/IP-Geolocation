@@ -1,0 +1,77 @@
+{
+  "result": "PASS",
+  "scope": "selected Chrome 138 machine evidence assertions; human acceptance recorded separately",
+  "checks": [
+    {
+      "name": "只接受已记录的提前重启拒绝，其余采集错误不得忽略",
+      "result": "PASS"
+    },
+    {
+      "name": "Chrome 138 实际版本与已完成清理",
+      "result": "PASS"
+    },
+    {
+      "name": "新安装关闭且无规则，缺用户脚本开关准确报告",
+      "result": "PASS"
+    },
+    {
+      "name": "已确认推荐不隐式保存规则或启用",
+      "result": "PASS"
+    },
+    {
+      "name": "明确应用后页面、定位、字体注册与语言头同步成功",
+      "result": "PASS"
+    },
+    {
+      "name": "匹配首inline语言、时区与实际导航/子请求头一致",
+      "result": "PASS"
+    },
+    {
+      "name": "固定字体过滤有原生正对照",
+      "result": "PASS"
+    },
+    {
+      "name": "未匹配站点保持原生",
+      "result": "PASS"
+    },
+    {
+      "name": "enabled-restart-clean 完整退出、单次首导航和首inline在CDP前一致",
+      "result": "PASS"
+    },
+    {
+      "name": "disabled-restart 完整退出、单次首导航和首inline在CDP前一致",
+      "result": "PASS"
+    },
+    {
+      "name": "总开关关闭保存并重载后原生，规则退出且配置跨重启保持",
+      "result": "PASS"
+    },
+    {
+      "name": "真实HTTPS两次网络响应可信且语言头随开关恢复",
+      "result": "PASS"
+    },
+    {
+      "name": "HTTPS页面语言/时区/合成定位生效，旧快照保留与重载恢复",
+      "result": "PASS"
+    },
+    {
+      "name": "实际dist与浏览器取证构建指纹一致",
+      "result": "PASS"
+    }
+  ],
+  "evidenceSha256": {
+    "observations": "14eb366f0cacb5562ac4442637d7e2abe9e18e2aca94d445198c01748da50c73",
+    "https": "69ec4cfb6a138a9e771186a07552727262981adb4fc3c852e6e4f63bdd7b667f"
+  },
+  "excludedAttempts": [
+    "首次浏览器准备超过20秒等待窗口，未开始正式产品验收",
+    "enabled-restart 出现系统窗口恢复提示且自动导航未完成；后续手动诊断不得计入首请求通过",
+    "第一次restart命令在浏览器尚未退出时被拒绝，保留原始errors"
+  ],
+  "limitations": [
+    "原生安装/操作过程由人工操作记录支持，JSON不能单独证明鼠标操作来源",
+    "HTTPS为实际网络响应和加载后页面观测，未测HTTPS最早inline或HTTPS会话恢复",
+    "Chrome138仅当前macOS arm64、新安装、单窗口单活动HTTP标签正常恢复；不是全部138补丁版本、其他OS、升级迁移、多窗口或崩溃恢复通过",
+    "关闭后未调用原生定位，不能宣称实际传感器交付已验证"
+  ]
+}

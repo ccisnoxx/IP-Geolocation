@@ -1,0 +1,823 @@
+{
+  "scope": "Chrome 138 normal UI acceptance",
+  "result": "OBSERVATIONS_COMPLETE",
+  "chrome": "Chrome/138.0.7204.183",
+  "distSha256": "c659b709bcdaae0c716bbd5e6f318d85dc7a3afe46d74479be2f10f0038fd0ba",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "temporaryProfile": true,
+    "normalUiInstallation": true,
+    "optionsInteraction": "native UI",
+    "provider": "synthetic response intercepted before external request",
+    "fixture": "HTTP loopback"
+  },
+  "phases": {
+    "native": {
+      "navigations": [
+        {
+          "nonce": "0e848e0b-1fba-4643-ab7a-cf2f4b9fddbe",
+          "header": "zh-CN,zh;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": true,
+          "sinceLaunchMs": 579
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "0e848e0b-1fba-4643-ab7a-cf2f4b9fddbe",
+          "header": "zh-CN,zh;q=0.9",
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "timezone": "Asia/Shanghai",
+          "fonts": {
+            "pingfang": true,
+            "times": 174.703125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "zh-CN,zh;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 614
+        }
+      ]
+    },
+    "installed": {
+      "navigations": [],
+      "reports": [],
+      "state": {
+        "masterEnabled": false,
+        "rules": [],
+        "verified": [],
+        "sync": {
+          "components": {
+            "contentScripts": {
+              "errors": [
+                {
+                  "code": "userscripts-switch-required",
+                  "message": "请在扩展详情页开启 Allow User Scripts，然后重试同步。"
+                },
+                {
+                  "code": "userscripts-switch-required",
+                  "message": "请在扩展详情页开启 Allow User Scripts，然后重试同步。"
+                }
+              ],
+              "status": "failed"
+            },
+            "headers": {
+              "errors": [],
+              "status": "ok"
+            },
+            "tabReload": {
+              "errors": [],
+              "status": "ok"
+            },
+            "webrtc": {
+              "errors": [],
+              "status": "ok"
+            }
+          },
+          "configSignature": "a4af48394a11dfc6d0ce6d7feb4453afb2d6f168b710a392ead3d86338b3eab1",
+          "fontRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": false,
+            "state": "disabled"
+          },
+          "geolocationRuntime": {
+            "registeredRuleCount": null,
+            "reloadRequired": false,
+            "state": "switch-required"
+          },
+          "metadataError": null,
+          "pageRuntime": {
+            "registeredRuleCount": null,
+            "reloadRequired": false,
+            "state": "switch-required"
+          },
+          "status": "partial"
+        },
+        "ui": {
+          "setup": "unconfigured",
+          "status": "partial",
+          "onboarding": "",
+          "recommendation": "选择已确认档案后生成推荐；推荐不会保存配置或发起外部请求。"
+        },
+        "dynamicCount": 0
+      }
+    },
+    "recommendation": {
+      "navigations": [],
+      "reports": [],
+      "state": {
+        "masterEnabled": false,
+        "rules": [],
+        "verified": [
+          "verified"
+        ],
+        "sync": {
+          "components": {
+            "contentScripts": {
+              "errors": [
+                {
+                  "code": "userscripts-switch-required",
+                  "message": "请在扩展详情页开启 Allow User Scripts，然后重试同步。"
+                },
+                {
+                  "code": "userscripts-switch-required",
+                  "message": "请在扩展详情页开启 Allow User Scripts，然后重试同步。"
+                }
+              ],
+              "status": "failed"
+            },
+            "headers": {
+              "errors": [],
+              "status": "ok"
+            },
+            "tabReload": {
+              "errors": [],
+              "status": "ok"
+            },
+            "webrtc": {
+              "errors": [],
+              "status": "ok"
+            }
+          },
+          "configSignature": "6f2e6fb5137db856bf056dd9944632e07c661c5e06084cfeda1a18ffe39b9d4b",
+          "fontRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": false,
+            "state": "disabled"
+          },
+          "geolocationRuntime": {
+            "registeredRuleCount": null,
+            "reloadRequired": false,
+            "state": "switch-required"
+          },
+          "metadataError": null,
+          "pageRuntime": {
+            "registeredRuleCount": null,
+            "reloadRequired": false,
+            "state": "switch-required"
+          },
+          "status": "partial"
+        },
+        "ui": {
+          "setup": "partial",
+          "status": "partial",
+          "onboarding": "请先检测并确认出口，选择站点，并勾选明确启用。",
+          "recommendation": "国家代码：JP；时区：Asia/Tokyo；置信度：已确认服务响应，未交叉验证。\n来自已确认的同一次 IP 定位响应；单一服务声明，未交叉验证，不证明实际所在位置。\n出口地区语言：ja-JP。地区常用语言候选；多语言地区仅列出一个示例，不代表个人偏好，默认保留现有语言设置。\n字体建议：可选内置厂商／软件及27项简繁中文字体探测过滤；可能影响文本测量和站点排版。固定内置名单仅在已启用HTTP(S)规则上注册，自定义名单仍暂停；已有文档需完整重建。\nWebRTC：建议 compatible（仅公网接口），可能影响通话兼容性；不保证代理出口一致。全局策略需另行明确选择。\n应用范围：仅所选站点的语言/时区覆盖；保留我的语言会保留该站点已有覆盖或全局语言设置，并非修改浏览器偏好。全局语言、时区和地理位置设置不改。开启总开关也会启用其他已保存的有效规则。"
+        },
+        "dynamicCount": 0
+      }
+    },
+    "enabled": {
+      "navigations": [
+        {
+          "nonce": "52170574-f391-4940-9bdc-531a9e1be7cb",
+          "header": "ja-JP,ja;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": false,
+          "sinceLaunchMs": 149215
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "52170574-f391-4940-9bdc-531a9e1be7cb",
+          "header": "ja-JP,ja;q=0.9",
+          "firstInline": true,
+          "language": "ja-JP",
+          "languages": [
+            "ja-JP",
+            "ja"
+          ],
+          "timezone": "Asia/Tokyo",
+          "fonts": {
+            "pingfang": false,
+            "times": 180.5439453125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "ja-JP,ja;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 149246
+        }
+      ],
+      "state": {
+        "masterEnabled": true,
+        "rules": [
+          {
+            "domain": "localhost",
+            "enabled": true,
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "ja-JP",
+                  "languages": [
+                    "ja-JP",
+                    "ja"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          },
+          {
+            "domain": "example.com",
+            "enabled": true,
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "ja-JP",
+                  "languages": [
+                    "ja-JP",
+                    "ja"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          }
+        ],
+        "verified": [
+          "verified"
+        ],
+        "sync": {
+          "components": {
+            "contentScripts": {
+              "errors": [],
+              "status": "ok"
+            },
+            "headers": {
+              "errors": [],
+              "status": "ok"
+            },
+            "tabReload": {
+              "errors": [],
+              "status": "ok"
+            },
+            "webrtc": {
+              "errors": [],
+              "status": "ok"
+            }
+          },
+          "configSignature": "a6dcbe5468ea0ddf098c7a4751852bdccc23868297a788390bdfb58985ba8681",
+          "fontRuntime": {
+            "registeredRuleCount": 2,
+            "reloadRequired": false,
+            "state": "ready"
+          },
+          "geolocationRuntime": {
+            "registeredRuleCount": 2,
+            "reloadRequired": false,
+            "state": "ready"
+          },
+          "metadataError": null,
+          "pageRuntime": {
+            "registeredRuleCount": 2,
+            "reloadRequired": false,
+            "state": "ready"
+          },
+          "status": "ok"
+        },
+        "ui": {
+          "setup": "enabled",
+          "status": "ok",
+          "onboarding": "所选推荐配置已保存；定位、语言/时区与固定字体分别报告同步状态，自定义字体过滤仍暂停。 配置已保存，同步已完成。页面语言/时区已注册 2 条规则，新建且匹配规则的 HTTP(S) 顶层文档和普通 iframe 可使用已同步的语言/时区快照。已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。 定位：已同步（2 条规则）。仅普通安全上下文且允许使用定位的匹配网页可用；权限伪装仅代表合成位置授权，不申请真实定位。已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。 固定内置名单字体过滤已注册 2 条规则，仅供新建且匹配规则的 HTTP(S) 顶层文档和普通 iframe 使用。仅覆盖 measureText() 和 FontFaceSet.check()；不隐藏 DOM 尺寸、local()、像素比对或 Worker 内字体。已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。 WebRTC 策略：已同步；Accept-Language 同步：已同步。请求头规则供同步确认后的新文档使用；更新期间及已有文档的请求头与旧页面快照可能不同，需完整重载。Worker / SharedWorker 仍暂停。字体过滤与地理位置分别报告注册状态。 about:blank、srcdoc、data:、blob: 和特殊 sandbox 文档不支持（unsupported / UNKNOWN）。",
+          "recommendation": "国家代码：JP；时区：Asia/Tokyo；置信度：已确认服务响应，未交叉验证。\n来自已确认的同一次 IP 定位响应；单一服务声明，未交叉验证，不证明实际所在位置。\n出口地区语言：ja-JP。地区常用语言候选；多语言地区仅列出一个示例，不代表个人偏好，默认保留现有语言设置。\n字体建议：可选内置厂商／软件及27项简繁中文字体探测过滤；可能影响文本测量和站点排版。固定内置名单仅在已启用HTTP(S)规则上注册，自定义名单仍暂停；已有文档需完整重建。\nWebRTC：建议 compatible（仅公网接口），可能影响通话兼容性；不保证代理出口一致。全局策略需另行明确选择。\n应用范围：仅所选站点的语言/时区覆盖；保留我的语言会保留该站点已有覆盖或全局语言设置，并非修改浏览器偏好。全局语言、时区和地理位置设置不改。开启总开关也会启用其他已保存的有效规则。"
+        },
+        "dynamicCount": 4
+      }
+    },
+    "unmatched": {
+      "navigations": [
+        {
+          "nonce": "22defbb1-421e-4bab-a075-b001a9c7279f",
+          "header": "zh-CN,zh;q=0.9",
+          "host": "127.0.0.1:52950",
+          "path": "/probe",
+          "beforeCdp": false,
+          "sinceLaunchMs": 179690
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "22defbb1-421e-4bab-a075-b001a9c7279f",
+          "header": "zh-CN,zh;q=0.9",
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "timezone": "Asia/Shanghai",
+          "fonts": {
+            "pingfang": true,
+            "times": 174.703125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "zh-CN,zh;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 179722
+        }
+      ]
+    },
+    "before-enabled-restart": {
+      "navigations": [
+        {
+          "nonce": "ec252701-0bde-4fa5-8fdf-43240c0b0e68",
+          "header": "ja-JP,ja;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": false,
+          "sinceLaunchMs": 214591
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "ec252701-0bde-4fa5-8fdf-43240c0b0e68",
+          "header": "ja-JP,ja;q=0.9",
+          "firstInline": true,
+          "language": "ja-JP",
+          "languages": [
+            "ja-JP",
+            "ja"
+          ],
+          "timezone": "Asia/Tokyo",
+          "fonts": {
+            "pingfang": false,
+            "times": 180.5439453125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "ja-JP,ja;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 214621
+        }
+      ]
+    },
+    "enabled-restart": {
+      "navigations": [
+        {
+          "nonce": "676b5b00-8942-45b6-81b6-31e9a2926bc6",
+          "header": "zh-CN,zh;q=0.9",
+          "host": "127.0.0.1:52950",
+          "path": "/probe",
+          "beforeCdp": false,
+          "sinceLaunchMs": 102013
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "676b5b00-8942-45b6-81b6-31e9a2926bc6",
+          "header": "zh-CN,zh;q=0.9",
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "timezone": "Asia/Shanghai",
+          "fonts": {
+            "pingfang": true,
+            "times": 174.703125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "zh-CN,zh;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 102044
+        }
+      ]
+    },
+    "diagnostic-reload": {
+      "navigations": [
+        {
+          "nonce": "55e876f3-e9fc-4db3-a792-d41a4429c3e8",
+          "header": "ja-JP,ja;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": false,
+          "sinceLaunchMs": 112856
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "55e876f3-e9fc-4db3-a792-d41a4429c3e8",
+          "header": "ja-JP,ja;q=0.9",
+          "firstInline": true,
+          "language": "ja-JP",
+          "languages": [
+            "ja-JP",
+            "ja"
+          ],
+          "timezone": "Asia/Tokyo",
+          "fonts": {
+            "pingfang": false,
+            "times": 180.5439453125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "ja-JP,ja;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 112886
+        }
+      ]
+    },
+    "enabled-restart-clean": {
+      "navigations": [
+        {
+          "nonce": "eb189499-1a04-4dc1-8b5b-b44da7ce1ad0",
+          "header": "ja-JP,ja;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": true,
+          "sinceLaunchMs": 604
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "eb189499-1a04-4dc1-8b5b-b44da7ce1ad0",
+          "header": "ja-JP,ja;q=0.9",
+          "firstInline": true,
+          "language": "ja-JP",
+          "languages": [
+            "ja-JP",
+            "ja"
+          ],
+          "timezone": "Asia/Tokyo",
+          "fonts": {
+            "pingfang": false,
+            "times": 180.5439453125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "ja-JP,ja;q=0.9",
+          "beforeCdp": true,
+          "sinceLaunchMs": 646
+        }
+      ]
+    },
+    "disabled": {
+      "navigations": [
+        {
+          "nonce": "6e7fc2c2-8334-4957-b4df-217f27be01f2",
+          "header": "zh-CN,zh;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": false,
+          "sinceLaunchMs": 115287
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "6e7fc2c2-8334-4957-b4df-217f27be01f2",
+          "header": "zh-CN,zh;q=0.9",
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "timezone": "Asia/Shanghai",
+          "fonts": {
+            "pingfang": true,
+            "times": 174.703125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "zh-CN,zh;q=0.9",
+          "beforeCdp": false,
+          "sinceLaunchMs": 115323
+        }
+      ],
+      "state": {
+        "masterEnabled": false,
+        "rules": [
+          {
+            "domain": "localhost",
+            "enabled": true,
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "ja-JP",
+                  "languages": [
+                    "ja-JP",
+                    "ja"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          },
+          {
+            "domain": "example.com",
+            "enabled": true,
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "ja-JP",
+                  "languages": [
+                    "ja-JP",
+                    "ja"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          }
+        ],
+        "verified": [
+          "verified"
+        ],
+        "sync": {
+          "components": {
+            "contentScripts": {
+              "errors": [],
+              "status": "ok"
+            },
+            "headers": {
+              "errors": [],
+              "status": "ok"
+            },
+            "tabReload": {
+              "errors": [],
+              "status": "ok"
+            },
+            "webrtc": {
+              "errors": [],
+              "status": "ok"
+            }
+          },
+          "configSignature": "11641875a76d9e5a8b796dab3017cf975ada306c42d5769ea93a8a4cd2838644",
+          "fontRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": true,
+            "state": "disabled"
+          },
+          "geolocationRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": true,
+            "state": "disabled"
+          },
+          "metadataError": null,
+          "pageRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": true,
+            "state": "disabled"
+          },
+          "status": "ok"
+        },
+        "ui": {
+          "setup": "ready",
+          "status": "ok",
+          "onboarding": "",
+          "recommendation": "选择已确认档案后生成推荐；推荐不会保存配置或发起外部请求。"
+        },
+        "dynamicCount": 0
+      }
+    },
+    "disabled-restart": {
+      "navigations": [
+        {
+          "nonce": "1aaa3a00-3b17-44bd-ae09-3235a9bc62b5",
+          "header": "zh-CN,zh;q=0.9",
+          "host": "localhost:52950",
+          "path": "/probe",
+          "beforeCdp": true,
+          "sinceLaunchMs": 617
+        }
+      ],
+      "reports": [
+        {
+          "nonce": "1aaa3a00-3b17-44bd-ae09-3235a9bc62b5",
+          "header": "zh-CN,zh;q=0.9",
+          "firstInline": true,
+          "language": "zh-CN",
+          "languages": [
+            "zh-CN"
+          ],
+          "timezone": "Asia/Shanghai",
+          "fonts": {
+            "pingfang": true,
+            "times": 174.703125,
+            "sans": 180.5439453125,
+            "serif": 171.19998168945312
+          },
+          "subresourceHeader": "zh-CN,zh;q=0.9",
+          "beforeCdp": true,
+          "sinceLaunchMs": 673
+        }
+      ],
+      "state": {
+        "masterEnabled": false,
+        "rules": [
+          {
+            "domain": "localhost",
+            "enabled": true,
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "ja-JP",
+                  "languages": [
+                    "ja-JP",
+                    "ja"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          },
+          {
+            "domain": "example.com",
+            "enabled": true,
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "ja-JP",
+                  "languages": [
+                    "ja-JP",
+                    "ja"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          }
+        ],
+        "verified": [
+          "verified"
+        ],
+        "sync": {
+          "components": {
+            "contentScripts": {
+              "errors": [],
+              "status": "ok"
+            },
+            "headers": {
+              "errors": [],
+              "status": "ok"
+            },
+            "tabReload": {
+              "errors": [],
+              "status": "ok"
+            },
+            "webrtc": {
+              "errors": [],
+              "status": "ok"
+            }
+          },
+          "configSignature": "11641875a76d9e5a8b796dab3017cf975ada306c42d5769ea93a8a4cd2838644",
+          "fontRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": false,
+            "state": "disabled"
+          },
+          "geolocationRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": false,
+            "state": "disabled"
+          },
+          "metadataError": null,
+          "pageRuntime": {
+            "registeredRuleCount": 0,
+            "reloadRequired": false,
+            "state": "disabled"
+          },
+          "status": "ok"
+        },
+        "ui": {
+          "setup": "ready",
+          "status": "ok",
+          "onboarding": "",
+          "recommendation": "选择已确认档案后生成推荐；推荐不会保存配置或发起外部请求。"
+        },
+        "dynamicCount": 0
+      }
+    }
+  },
+  "coldStarts": [
+    {
+      "phase": "enabled-restart",
+      "gracefulExit": true,
+      "observedProcessCount": 9,
+      "observedProcessTreeExited": true,
+      "noStartupUrl": true
+    },
+    {
+      "phase": "enabled-restart-clean",
+      "gracefulExit": true,
+      "observedProcessCount": 8,
+      "observedProcessTreeExited": true,
+      "noStartupUrl": true
+    },
+    {
+      "phase": "disabled-restart",
+      "gracefulExit": true,
+      "observedProcessCount": 9,
+      "observedProcessTreeExited": true,
+      "noStartupUrl": true
+    }
+  ],
+  "providerRequests": 1,
+  "errors": [
+    {
+      "command": "restart",
+      "message": "必须先用UI完全退出\n\nnull !== 0\n"
+    }
+  ],
+  "checks": {},
+  "cleanup": "PASS",
+  "limitations": [
+    "仅macOS arm64和Chrome 138.0.7204.183；非全部平台或全部故障组合",
+    "provider为合成响应，不验证真实出口定位精度",
+    "HTTP fixture首inline可测；第三方HTTPS若补测仅按实际观测范围解释",
+    "Chrome自身后台网络未全量监控"
+  ]
+}
