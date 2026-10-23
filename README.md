@@ -84,7 +84,7 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 
 ## 许可证
 
-采用 MIT License；参见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。NOTICE 保留原作品来源归属。
+VanishGeo 独立开发和维护，部分代码与功能参考了 [IP-Geolocation](https://github.com/L2OI/IP-Geolocation) 和 [VanishMe](https://github.com/XiNian-dada/VanishMe)。采用 MIT License；[LICENSE](LICENSE) 保留来源项目的版权声明及完整许可条款，[NOTICE](NOTICE) 记录代码来源归属。
 
 VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>`，使用实际worker/router/包内固定字体资产和临时profile；不读取用户配置、不修改Allow User Scripts开关。默认不带--production仍是隔离固定脚本资格验证，不替代生产接线或人工验收。VG-027位置资格见 [可信早期环境交付](docs/stabilization/early-environment-delivery.md)。
 

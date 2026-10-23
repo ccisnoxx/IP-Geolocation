@@ -1,20 +1,19 @@
 VanishGeo
 =========
 
-VanishGeo is a derivative work based on VanishMe:
+VanishGeo is independently developed and maintained. Parts of its code and
+functionality draw on the following projects:
 
-  https://github.com/XiNian-dada/VanishMe
+  IP-Geolocation — https://github.com/L2OI/IP-Geolocation
+  Copyright (c) 2026 L2OI
 
-The original work is licensed under the MIT License. Its copyright and license
-text are preserved in LICENSE. This source attribution is not an installation,
-repository setup, update, or release destination for VanishGeo.
+  VanishMe — https://github.com/XiNian-dada/VanishMe
+  Copyright (c) 2026 XiNian
 
-VanishGeo uses a unified site configuration model, dynamic document-targeted
-runtime injection, DNR Accept-Language rules, browser WebRTC policy control,
-user-initiated exit-location detection and confirmation, extension-side
-one-time diagnostic reports, observation fixtures, and regression tests.
-Exit-location providers are contacted only for explicit detection or
-redetection; there is no periodic background location refresh.
+These projects use the MIT License. Their copyright notices and the full MIT
+license text are preserved in LICENSE. These links record source attribution;
+they are not installation, repository synchronization, update, or release
+destinations for VanishGeo.
 
 Current installation, permission, privacy, and release behavior is documented
 in README.md, INSTALL.md, PERMISSIONS.md, PRIVACY.md, and RELEASE.md.
