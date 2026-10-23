@@ -1,0 +1,77 @@
+{
+  "task": "VG-036",
+  "chrome": "Chrome/138.0.7204.183",
+  "scope": "production master switch and full reload; temporary profile; not browser restart",
+  "result": "PASS",
+  "observations": {
+    "enabled": {
+      "language": "en-US",
+      "languages": [
+        "en-US",
+        "en"
+      ],
+      "timeZone": "America/Los_Angeles"
+    },
+    "disabledOldDocument": {
+      "language": "en-US",
+      "languages": [
+        "en-US",
+        "en"
+      ],
+      "timeZone": "America/Los_Angeles"
+    },
+    "disabledAfterReload": {
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN"
+      ],
+      "timeZone": "Asia/Shanghai"
+    },
+    "reenabledBeforeReload": {
+      "language": "zh-CN",
+      "languages": [
+        "zh-CN"
+      ],
+      "timeZone": "Asia/Shanghai"
+    },
+    "reenabledAfterReload": {
+      "language": "en-US",
+      "languages": [
+        "en-US",
+        "en"
+      ],
+      "timeZone": "America/Los_Angeles"
+    }
+  },
+  "checks": [
+    {
+      "name": "enabled-worker",
+      "passed": true
+    },
+    {
+      "name": "disabled-sync",
+      "passed": true
+    },
+    {
+      "name": "old-document-retains-snapshot",
+      "passed": true
+    },
+    {
+      "name": "disabled-full-reload-native",
+      "passed": true
+    },
+    {
+      "name": "reenabled-sync",
+      "passed": true
+    },
+    {
+      "name": "native-document-not-hot-patched",
+      "passed": true
+    },
+    {
+      "name": "reenabled-reload-synced",
+      "passed": true
+    }
+  ],
+  "cleanup": "PASS"
+}

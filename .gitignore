@@ -367,3 +367,13 @@ Thumbs.db
 !.trellis/tasks/10-23-vg-035-http-worker-feasibility/task.json
 !.trellis/tasks/10-23-vg-035-http-worker-feasibility/prd.md
 !.trellis/tasks/10-23-vg-035-http-worker-feasibility/implement.md
+
+# VG-036 Chrome138 Blob Worker补验
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/
+.trellis/tasks/10-23-vg-036-chrome138-blob-worker/*
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/task.json
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/prd.md
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/implement.md
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/chrome-evidence.json
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/qualification-evidence.json
+!.trellis/tasks/10-23-vg-036-chrome138-blob-worker/reload-evidence.json

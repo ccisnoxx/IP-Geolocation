@@ -1,0 +1,927 @@
+{
+  "task": "VG-036",
+  "status": "PASS",
+  "sourceCommit": "d0a695f8036c95d68ecd7a0bc89dd4933d0e468a",
+  "chrome": "Chrome/138.0.7204.183",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "headed": true,
+    "temporaryProfile": true,
+    "installation": "normal native UI",
+    "userScriptsPermission": "normal native UI",
+    "traffic": "HTTP loopback; browser background traffic not fully monitored"
+  },
+  "distSha256": "14ba8f5f2c49567a3aa44a9c8ae121b6f3674c070b929160bc06aa1607eee653",
+  "production": [
+    {
+      "phase": "native-before-install",
+      "policy": "normal",
+      "first": {
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "locale": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "winter": -480,
+        "summer": -480
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"zh-CN\",\"languages\":[\"zh-CN\"],\"locale\":\"zh-CN\",\"timeZone\":\"Asia/Shanghai\",\"winter\":-480,\"summer\":-480}",
+        "VG034_CHAIN {\"chain\":\"classic>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"classic>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_DONE {\"passed\":true}",
+        "VG034_PARENT_TERMINATE {\"passed\":true,\"descendantTicks\":0,\"workerOwnedURLsAlive\":0,\"leafLanguage\":\"zh-CN\",\"leafTimeZone\":\"Asia/Shanghai\"}"
+      ],
+      "warnings": [],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "value": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "value": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        }
+      ],
+      "sharedUnchanged": true
+    },
+    {
+      "phase": "enabled",
+      "policy": "normal",
+      "first": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "winter": 480,
+        "summer": 420
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"en-US\",\"languages\":[\"en-US\",\"en\"],\"locale\":\"en-US\",\"timeZone\":\"America/Los_Angeles\",\"winter\":480,\"summer\":420}",
+        "VG034_CHAIN {\"chain\":\"classic>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"classic>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_DONE {\"passed\":true}",
+        "VG034_PARENT_TERMINATE {\"passed\":true,\"descendantTicks\":0,\"workerOwnedURLsAlive\":0,\"leafLanguage\":\"en-US\",\"leafTimeZone\":\"America/Los_Angeles\"}"
+      ],
+      "warnings": [],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "value": {
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "locale": "en-US",
+            "timeZone": "America/Los_Angeles",
+            "winter": 480,
+            "summer": 420
+          }
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "value": {
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "locale": "en-US",
+            "timeZone": "America/Los_Angeles",
+            "winter": 480,
+            "summer": 420
+          }
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        }
+      ],
+      "sharedUnchanged": true
+    },
+    {
+      "phase": "enabled",
+      "policy": "connect-blocked",
+      "first": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "winter": 480,
+        "summer": 420
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"en-US\",\"languages\":[\"en-US\",\"en\"],\"locale\":\"en-US\",\"timeZone\":\"America/Los_Angeles\",\"winter\":480,\"summer\":420}",
+        "VG034_CHAIN {\"chain\":\"classic>classic>module\",\"levels\":3,\"firstMatches\":false,\"dependencyMatches\":false,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"classic>module>classic\",\"levels\":3,\"firstMatches\":false,\"dependencyMatches\":false,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>classic>module\",\"levels\":3,\"firstMatches\":false,\"dependencyMatches\":false,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>module>classic\",\"levels\":3,\"firstMatches\":false,\"dependencyMatches\":false,\"earlyMessages\":true}",
+        "VG034_DONE {\"passed\":false}",
+        "VG034_PARENT_TERMINATE {\"passed\":true,\"descendantTicks\":0,\"workerOwnedURLsAlive\":0,\"leafLanguage\":\"zh-CN\",\"leafTimeZone\":\"Asia/Shanghai\"}"
+      ],
+      "warnings": [
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。",
+        "VanishGeo：Blob Worker 源无法核验，本次语言/时区未同步，保持原生加载。"
+      ],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "value": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "value": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        }
+      ],
+      "sharedUnchanged": true
+    },
+    {
+      "phase": "enabled",
+      "policy": "script-blocked",
+      "first": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "winter": 480,
+        "summer": 420
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"en-US\",\"languages\":[\"en-US\",\"en\"],\"locale\":\"en-US\",\"timeZone\":\"America/Los_Angeles\",\"winter\":480,\"summer\":420}",
+        "VG034_FAILURE {\"chain\":\"classic>classic\",\"error\":\"Uncaught NetworkError: Failed to execute 'importScripts' on 'WorkerGlobalScope': The script at 'blob:http://localhost:64019/a1ba729f-8bdf-44b9-84a0-fc2a3678aa89' failed to load.\"}",
+        "VG034_FAILURE {\"chain\":\"classic>module\",\"error\":\"Uncaught NetworkError: Failed to execute 'importScripts' on 'WorkerGlobalScope': The script at 'blob:http://localhost:64019/e76ac33c-60f8-42de-83c1-9d342cc9c570' failed to load.\"}",
+        "VG034_FAILURE {\"chain\":\"module>classic\",\"error\":\"Uncaught NetworkError: Failed to execute 'importScripts' on 'WorkerGlobalScope': The script at 'blob:http://localhost:64019/32c53075-4454-4147-bfd7-9bec2ffc8280' failed to load.\"}",
+        "VG034_FAILURE {\"chain\":\"module>module\",\"error\":\"Uncaught NetworkError: Failed to execute 'importScripts' on 'WorkerGlobalScope': The script at 'blob:http://localhost:64019/86a7fbf9-fc21-4452-b43a-d6e99807233a' failed to load.\"}",
+        "VG034_DONE {\"passed\":false}",
+        "VG034_PARENT_TERMINATE {\"passed\":false,\"error\":\"timeout\"}"
+      ],
+      "warnings": [],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "value": {
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "locale": "en-US",
+            "timeZone": "America/Los_Angeles",
+            "winter": 480,
+            "summer": 420
+          }
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        }
+      ],
+      "sharedUnchanged": true
+    },
+    {
+      "phase": "enabled",
+      "policy": "worker-blocked",
+      "first": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "winter": 480,
+        "summer": 420
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"en-US\",\"languages\":[\"en-US\",\"en\"],\"locale\":\"en-US\",\"timeZone\":\"America/Los_Angeles\",\"winter\":480,\"summer\":420}",
+        "VG034_FAILURE {\"chain\":\"classic>classic\",\"error\":\"worker-error\"}",
+        "VG034_FAILURE {\"chain\":\"classic>module\",\"error\":\"worker-error\"}",
+        "VG034_FAILURE {\"chain\":\"module>classic\",\"error\":\"worker-error\"}",
+        "VG034_FAILURE {\"chain\":\"module>module\",\"error\":\"worker-error\"}",
+        "VG034_DONE {\"passed\":false}",
+        "VG034_PARENT_TERMINATE {\"passed\":false,\"error\":\"timeout\"}"
+      ],
+      "warnings": [],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "error": "worker-error"
+        }
+      ],
+      "sharedUnchanged": true
+    },
+    {
+      "phase": "disabled-new-document",
+      "policy": "normal",
+      "first": {
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN"
+        ],
+        "locale": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "winter": -480,
+        "summer": -480
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"zh-CN\",\"languages\":[\"zh-CN\"],\"locale\":\"zh-CN\",\"timeZone\":\"Asia/Shanghai\",\"winter\":-480,\"summer\":-480}",
+        "VG034_CHAIN {\"chain\":\"classic>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"classic>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_DONE {\"passed\":true}",
+        "VG034_PARENT_TERMINATE {\"passed\":true,\"descendantTicks\":0,\"workerOwnedURLsAlive\":0,\"leafLanguage\":\"zh-CN\",\"leafTimeZone\":\"Asia/Shanghai\"}"
+      ],
+      "warnings": [],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "value": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "value": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        }
+      ],
+      "sharedUnchanged": true
+    },
+    {
+      "phase": "reenabled-new-document",
+      "policy": "normal",
+      "first": {
+        "language": "en-US",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "locale": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "winter": 480,
+        "summer": 420
+      },
+      "records": [
+        "VG034_PAGE {\"language\":\"en-US\",\"languages\":[\"en-US\",\"en\"],\"locale\":\"en-US\",\"timeZone\":\"America/Los_Angeles\",\"winter\":480,\"summer\":420}",
+        "VG034_CHAIN {\"chain\":\"classic>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"classic>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>classic>module\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_CHAIN {\"chain\":\"module>module>classic\",\"levels\":3,\"firstMatches\":true,\"dependencyMatches\":true,\"earlyMessages\":true}",
+        "VG034_DONE {\"passed\":true}",
+        "VG034_PARENT_TERMINATE {\"passed\":true,\"descendantTicks\":0,\"workerOwnedURLsAlive\":0,\"leafLanguage\":\"en-US\",\"leafTimeZone\":\"America/Los_Angeles\"}"
+      ],
+      "warnings": [],
+      "singles": [
+        {
+          "type": "classic",
+          "kind": "success",
+          "value": {
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "locale": "en-US",
+            "timeZone": "America/Los_Angeles",
+            "winter": 480,
+            "summer": 420
+          }
+        },
+        {
+          "type": "classic",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "classic",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        },
+        {
+          "type": "module",
+          "kind": "success",
+          "value": {
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "locale": "en-US",
+            "timeZone": "America/Los_Angeles",
+            "winter": 480,
+            "summer": 420
+          }
+        },
+        {
+          "type": "module",
+          "kind": "error",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "revoked",
+          "error": "worker-error"
+        },
+        {
+          "type": "module",
+          "kind": "terminate",
+          "terminated": true,
+          "messages": 0
+        }
+      ],
+      "sharedUnchanged": true
+    }
+  ],
+  "qualification": [],
+  "checks": [
+    {
+      "name": "native-before-install:page-first",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:four-combinations",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:done",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:descendant-terminate",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:classic:success",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:classic:error",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:classic:revoked",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:classic:terminate",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:module:success",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:module:error",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:module:revoked",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:module:terminate",
+      "passed": true
+    },
+    {
+      "name": "native-before-install:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "enabled:page-first",
+      "passed": true
+    },
+    {
+      "name": "enabled:four-combinations",
+      "passed": true
+    },
+    {
+      "name": "enabled:done",
+      "passed": true
+    },
+    {
+      "name": "enabled:descendant-terminate",
+      "passed": true
+    },
+    {
+      "name": "enabled:classic:success",
+      "passed": true
+    },
+    {
+      "name": "enabled:classic:error",
+      "passed": true
+    },
+    {
+      "name": "enabled:classic:revoked",
+      "passed": true
+    },
+    {
+      "name": "enabled:classic:terminate",
+      "passed": true
+    },
+    {
+      "name": "enabled:module:success",
+      "passed": true
+    },
+    {
+      "name": "enabled:module:error",
+      "passed": true
+    },
+    {
+      "name": "enabled:module:revoked",
+      "passed": true
+    },
+    {
+      "name": "enabled:module:terminate",
+      "passed": true
+    },
+    {
+      "name": "enabled:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "connect-blocked:page-first",
+      "passed": true
+    },
+    {
+      "name": "connect-blocked:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "connect-blocked:classic",
+      "passed": true
+    },
+    {
+      "name": "connect-blocked:module",
+      "passed": true
+    },
+    {
+      "name": "script-blocked:page-first",
+      "passed": true
+    },
+    {
+      "name": "script-blocked:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "script-blocked:classic",
+      "passed": true
+    },
+    {
+      "name": "script-blocked:module",
+      "passed": true
+    },
+    {
+      "name": "worker-blocked:page-first",
+      "passed": true
+    },
+    {
+      "name": "worker-blocked:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "worker-blocked:classic",
+      "passed": true
+    },
+    {
+      "name": "worker-blocked:module",
+      "passed": true
+    },
+    {
+      "name": "master-disabled-synced",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:page-first",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:four-combinations",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:done",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:descendant-terminate",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:classic:success",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:classic:error",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:classic:revoked",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:classic:terminate",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:module:success",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:module:error",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:module:revoked",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:module:terminate",
+      "passed": true
+    },
+    {
+      "name": "disabled-new-document:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:page-first",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:four-combinations",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:done",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:descendant-terminate",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:classic:success",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:classic:error",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:classic:revoked",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:classic:terminate",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:module:success",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:module:error",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:module:revoked",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:module:terminate",
+      "passed": true
+    },
+    {
+      "name": "reenabled-new-document:shared-unchanged",
+      "passed": true
+    },
+    {
+      "name": "dist-unchanged",
+      "passed": true
+    }
+  ],
+  "cleanup": "PASS",
+  "limitations": [
+    "不代表HTTPS、其他OS、Chrome全部138补丁版本或重启/BFCache完整矩阵",
+    "HTTP父Worker显式装补丁的资格对照不构成生产HTTP覆盖；SharedWorker仅引用未变检查，不做功能验收",
+    "URL清理观测仅既有探针可见范围，500ms无后代消息不等于任意生命周期证明"
+  ],
+  "normalUiInstallation": true,
+  "enabledSync": {
+    "pageRuntime": {
+      "state": "ready",
+      "registeredRuleCount": 1,
+      "reloadRequired": false
+    },
+    "headers": {
+      "status": "ok",
+      "errors": []
+    }
+  },
+  "disabledSync": {
+    "pageRuntime": {
+      "state": "disabled",
+      "registeredRuleCount": 0,
+      "reloadRequired": false
+    },
+    "headers": {
+      "status": "ok",
+      "errors": []
+    }
+  },
+  "metadataNote": "sourceCommit与脚本/源码摘要在采样结束的整理阶段绑定；没有重新执行浏览器。",
+  "sha256": {
+    "scripts/chrome138-blob-worker-acceptance.mjs": "4924cc30978afb875580ce8c8a2006aff217c9cd6bffbc95f2f797b5f47dd17e",
+    "scripts/chrome138-nested-blob-csp-probe.mjs": "10c53651b9fde2ca69f30a5bac04d3ffad52fa8c68f150aaaee4a1cd52ee53d8",
+    "scripts/chrome138-blob-reload-probe.mjs": "cff9d3788896645ad5483498ae25ea17def63b416129a4307904c1d22917a56a",
+    "scripts/nested-blob-worker-probe.js": "9ae27aa97be51be1b75d6070b204b5cf1f772380130a04b0a4cab33fa995662d",
+    "scripts/serve-nested-blob-worker-probe.ts": "d24daf92d94827d265cd3601b1dea5ab6ac1c152bb5f4ced47814256f147a820",
+    "build/self-contained-runtime.ts": "be6184c317db22a3b1fa5edcb990dd7020424d18b6cd6478104982beff17a73c",
+    "src/injected/runtime-modules/blob-worker-entry.ts": "6c43c1af408771e91fb3ef6c625ae46bece68bd3a65996cbdae0e9e47c668cbf",
+    "src/injected/runtime-modules/surfaces/blob-worker.ts": "3aefefd5622e0fbe44965c0bfddc0a20d48cbe1f4d105984c6874d7510396821"
+  }
+}

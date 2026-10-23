@@ -1,5 +1,9 @@
 # 稳定化验收矩阵
 
+## 2026-10-23 Chrome138 Blob Worker定向补验（人工验收通过）
+
+VG-036仅补验VG-033／VG-034已有Blob范围。当前dist在正常UI安装的Chrome138.0.7204.183／macOS arm64临时profile中，66项生产断言、40组独立CSP／生命周期资格对照及7项关闭／reload边界通过；[正式记录与原始证据](../../.trellis/tasks/10-23-vg-036-chrome138-blob-worker/implement.md)保留CSP负例中的失败／未同步原始结果。HTTP父Worker显式补丁对照不算生产HTTP覆盖，HTTP(S) Worker／SharedWorker继续暂停。用户于2026-10-23明确验收通过，VG-036为done，已授权相关脚本、文档及证据本地提交，先不推送；见[人工验收记录](../../.trellis/tasks/10-23-vg-036-chrome138-blob-worker/implement.md#2026-10-23-人工验收与本地提交授权)。不扩写为HTTPS、完整重启或发布通过。
+
 ## 2026-10-23 HTTP(S) Worker 实验归档与暂停决定
 
 当前用户 Chrome 的九组 HTTP module Dedicated Worker 原生／Blob启动对照确认 CSP 与全局相对地址不等价。66 项历史结果断言用于确认差异，不能计作生产兼容性通过。HTTP(S) Dedicated Worker 继续暂停；SharedWorker 不动；VG-033／VG-034 已验收的限定 Blob 范围保持不变。历史 VG-007 Worker 验收不构成当前恢复授权。

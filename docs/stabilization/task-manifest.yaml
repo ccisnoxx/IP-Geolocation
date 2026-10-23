@@ -756,3 +756,31 @@ tasks:
       - 当前Chrome九组对照可复核，CSP与全局相对地址不等价结论可追溯
       - HTTPS、Service Worker响应、DNR防护及完整网络生命周期矩阵明确未验证
       - 用户已验收归档资料并授权本地提交；不推送、不启动恢复实现
+
+  - id: VG-036
+    title: Blob及嵌套Blob Worker的Chrome138定向补验
+    phase: R7
+    dependencies: [VG-033, VG-034, VG-035]
+    status: done
+    trellis_task: .trellis/tasks/10-23-vg-036-chrome138-blob-worker
+    authorization:
+      date: '2026-10-23'
+      scope: 仅现有Blob范围的Chrome138首读、父子组合、撤销终止、CSP拒绝及关闭恢复补验；不扩大功能、不自动提交
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-23'
+      scope: Chrome138现有Blob及嵌套Blob定向补验；HTTP(S) Worker和SharedWorker继续暂停
+      evidence: .trellis/tasks/10-23-vg-036-chrome138-blob-worker/implement.md#2026-10-23-人工验收与本地提交授权
+    acceptance_authorization:
+      date: '2026-10-23'
+      local_commit: true
+      push: false
+    scope:
+      - 真实Chrome138正常加载当前dist、独立临时profile与合成美西配置
+      - 分开记录生产派发与显式补丁资格对照，绑定构建身份及未覆盖范围
+      - HTTP(S) Worker与SharedWorker继续暂停，不改生产源码或权限
+    acceptance:
+      - 已支持的页面及嵌套Blob classic/module首读与模块依赖、撤销终止有真实证据
+      - CSP拒绝如实报错或明确未同步，总开关关闭后新文档恢复原生
+      - 用户已验收本轮限定补验并授权本地提交，不推送或恢复暂停范围
