@@ -1,7 +1,5 @@
 // 无配置初始化副作用，固定字体候选与配置模型共用唯一内置名单。
 // 保留 vendor-software 配置键；2026-10-22 获授权加入 27 项简繁中文字体。
-export const CANVAS_MEASUREMENT_ALLOWED_FAMILIES = ['monospace', 'sans-serif', 'serif'] as const;
-
 export const VENDOR_SOFTWARE_FONT_FAMILIES = [
   'MiSans',
   'MIUI',

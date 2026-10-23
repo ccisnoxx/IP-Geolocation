@@ -1,6 +1,6 @@
 // Popup 的当前站点状态投影；有效 payload 由共享解析器唯一生成。
 import { isRuntimeInjectionPaused, pageRuntimeSummary, geolocationRuntimeSummary } from './runtime-sync';
-import { domainMatches, getPageRuntimeProfile, getGeolocationPayload } from './config-resolver';
+import { findMatchingRule, getPageRuntimeProfile, getGeolocationPayload } from './config-resolver';
 import type { EffectivePayload, RuntimeSyncReport, SiteRule, SiteSpoofConfig } from './types';
 
 export function deriveSetupStatus(config: SiteSpoofConfig): { kind: string; message: string } {
@@ -51,15 +51,9 @@ export interface CurrentSiteStatus {
   disableDomain: string | null;
 }
 
-function enabledRuleForDomain(config: SiteSpoofConfig, domain: string): SiteRule | null {
-  return config.rules
-    .filter((rule) => rule.enabled && domainMatches(domain, rule.domain))
-    .sort((a, b) => b.domain.length - a.domain.length)[0] || null;
-}
-
 export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentSiteStatus {
   const domain = input.domain || '';
-  const matchedRule = input.rule || (domain ? enabledRuleForDomain(input.config, domain) : null);
+  const matchedRule = input.rule || (domain ? findMatchingRule(input.config, domain) : null);
 
   if (!input.scriptable || !domain) {
     return {
@@ -78,7 +72,7 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
       detail: '总开关已保存为关闭，同步状态见上方。',
       canEnable: !matchedRule,
       canDisable: Boolean(matchedRule),
-      disableDomain: matchedRule?.domain || null
+      disableDomain: matchedRule ? domain : null
     };
   }
   if (!input.matched || !matchedRule) {
@@ -98,15 +92,15 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
       detail: input.errors.length ? input.errors.join('；') : '当前规则缺少有效的语言/时区配置，请打开完整配置。',
       canEnable: false,
       canDisable: true,
-      disableDomain: matchedRule.domain
+      disableDomain: domain
     };
   }
   if (isRuntimeInjectionPaused(input.syncReport)) return {
     kind: 'paused', label: '语言/时区已暂停',
     detail: `匹配规则：${matchedRule.domain}。请在完整配置查看暂停详情。`,
-    canEnable: false, canDisable: true, disableDomain: matchedRule.domain
+    canEnable: false, canDisable: true, disableDomain: domain
   };
-  const operation = { canEnable: false, canDisable: true, disableDomain: matchedRule.domain };
+  const operation = { canEnable: false, canDisable: true, disableDomain: domain };
   const geolocation = getGeolocationPayload(input.config, domain);
   if (!input.payload.languageConfig && !input.payload.timezone && geolocation) {
     const runtime = input.syncReport?.geolocationRuntime;

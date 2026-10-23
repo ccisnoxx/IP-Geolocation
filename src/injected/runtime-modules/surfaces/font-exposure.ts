@@ -4,13 +4,24 @@ import { createNativeProxyFunction, replaceMethod } from '../registry';
 export const FONT_SIZE_PATTERN =
   /(?:^|\s)(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|larger|smaller|(?:\d*\.)?\d+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%))(?:\/(?:normal|[\d.]+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%)?))?(?=\s|$)/i;
 
+function trimFontWhitespace(value: string): string {
+  return value.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, '');
+}
+
 export function fontFamilyKey(family: string): string {
-  return family.trim().replace(/^['"]|['"]$/g, '')
-    .replace(/\\([0-9a-f]{1,6})(?:\r\n|[\t\n\f\r ])?|\\([^\n\r\f])/gi, (_match, hex: string, escaped: string) => {
-      if (!hex) return escaped;
-      const code = parseInt(hex, 16);
-      return String.fromCodePoint(code === 0 || code > 0x10ffff || code >= 0xd800 && code <= 0xdfff ? 0xfffd : code);
-    }).replace(/\\(?:\r\n|[\n\r\f])/g, '').replace(/\s+/g, '').toLowerCase();
+  const token = trimFontWhitespace(family);
+  const quoted = (token[0] === '"' || token[0] === "'") && token[token.length - 1] === token[0];
+  // 在解码转义的同一次扫描中折叠分隔空白；转义产生的空格属于字体名称。
+  return (quoted ? token.slice(1, -1) : token)
+    .replace(/\\([0-9a-f]{1,6})(?:\r\n|[\t\n\f\r ])?|\\([^\n\r\f])|\\(?:\r\n|[\n\r\f])|([\t\n\f\r ]+)/gi, (match, hex: string, escaped: string, whitespace: string) => {
+      if (hex) {
+        const code = parseInt(hex, 16);
+        return String.fromCodePoint(code === 0 || code > 0x10ffff || code >= 0xd800 && code <= 0xdfff ? 0xfffd : code);
+      }
+      if (escaped !== undefined) return escaped;
+      if (whitespace) return quoted ? match : ' ';
+      return '';
+    }).toLowerCase();
 }
 
 export function splitFontFamilies(familyList: string): string[] {
@@ -40,13 +51,13 @@ export function splitFontFamilies(familyList: string): string[] {
       continue;
     }
     if (char === ',' && !quote) {
-      if (current.trim()) families.push(current.trim());
+      if (trimFontWhitespace(current)) families.push(trimFontWhitespace(current));
       current = '';
       continue;
     }
     current += char;
   }
-  if (current.trim()) families.push(current.trim());
+  if (trimFontWhitespace(current)) families.push(trimFontWhitespace(current));
   return families;
 }
 
@@ -54,8 +65,8 @@ function filterMeasurementFont(font: string, keepFamily: (family: string) => boo
   const sizeMatch = font.match(FONT_SIZE_PATTERN);
   if (!sizeMatch || sizeMatch.index === undefined) return null;
   const familyStart = sizeMatch.index + sizeMatch[0].length;
-  const prefix = font.slice(0, familyStart).trim();
-  const families = splitFontFamilies(font.slice(familyStart).trim());
+  const prefix = trimFontWhitespace(font.slice(0, familyStart));
+  const families = splitFontFamilies(trimFontWhitespace(font.slice(familyStart)));
   if (!families.length) return null;
   const fallbackFamilies = families.filter(keepFamily);
   if (fallbackFamilies.length === families.length) return null;
@@ -66,22 +77,15 @@ export function getFallbackFont(font: string, blockedFontFamilyKeys: Set<string>
   return filterMeasurementFont(font, family => !blockedFontFamilyKeys.has(fontFamilyKey(family)), 'monospace');
 }
 
-export function getAllowedMeasurementFont(font: string, allowedFamilies: ReadonlySet<string>): string | null {
-  // 引号包围的同名字体仍是具名字体，不能当作通用字体关键字保留。
-  return filterMeasurementFont(font, family => allowedFamilies.has(family.toLowerCase()), 'sans-serif');
-}
-
 export function installFontExposureFilter(
   globals: typeof globalThis & Record<string, any>,
   realmState: RuntimeState,
-  fontExposure: RuntimePayload['fontExposureConfig'],
-  measurementAllowedFamilies?: readonly string[]
+  fontExposure: RuntimePayload['fontExposureConfig']
 ): void {
   if (!fontExposure?.enabled || !Array.isArray(fontExposure.blockedFamilies)) return;
   realmState.values.blockedFontFamilyKeys = new Set(fontExposure.blockedFamilies.map(fontFamilyKey));
   if (!realmState.values.blockedFontFamilyKeys.size || realmState.installedSurfaces.has('fontExposure')) return;
   realmState.installedSurfaces.add('fontExposure');
-  const allowedMeasurementKeys = measurementAllowedFamilies && new Set(measurementAllowedFamilies);
 
   const apply = (target: Function, receiver: unknown, args: unknown[]) => (
     realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, receiver, args)
@@ -117,9 +121,7 @@ export function installFontExposureFilter(
       const useFallback = () => {
         // 转换回调可能更改字体；只在用户代码返回primitive之后选择本次测量字体。
         originalFont = apply(fontDescriptor.get!, thisArg, []);
-        const fallbackFont = allowedMeasurementKeys
-          ? getAllowedMeasurementFont(originalFont, allowedMeasurementKeys)
-          : getFallbackFont(originalFont, realmState.values.blockedFontFamilyKeys);
+        const fallbackFont = getFallbackFont(originalFont, realmState.values.blockedFontFamilyKeys);
         if (fallbackFont) {
           apply(fontDescriptor.set!, thisArg, [fallbackFont]);
           restoreFont = originalFont;

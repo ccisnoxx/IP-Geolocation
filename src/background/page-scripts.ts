@@ -21,7 +21,7 @@ function compileScripts(config: SiteSpoofConfig, source: string, surface: Surfac
       id: (surface === 'page' ? PAGE_SCRIPT_PREFIX : GEOLOCATION_SCRIPT_PREFIX) + domain,
       matches: buildContentScriptMatchesForDomain(domain),
       // 即使更具体规则无有效信号，也必须阻止父规则重新覆盖该域。
-      excludeMatches: domains.filter(child => child !== domain && domainMatches(child, domain))
+      excludeMatches: validated.config.rules.map(rule => rule.domain).filter(child => child !== domain && domainMatches(child, domain))
         .flatMap(buildContentScriptMatchesForDomain).sort(),
       world: 'MAIN' as const, runAt: 'document_start' as const, allFrames: true,
       js: [{ code: `(${source})(${json});` }]

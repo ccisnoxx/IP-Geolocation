@@ -223,7 +223,7 @@ const restoreProbe = `(() => {
   const ctx=document.createElement('canvas').getContext('2d');
   const metrics=font=>{ctx.font=font;return [ctx.measureText('WWiiii字A').width]};
   return {first,blocked,firstFontStack,target:metrics('32px MiSans'),fallback:metrics('32px monospace'),
-    measurementTarget:metrics('32px Courier New'),measurementFallback:metrics('32px sans-serif'),
+    measurementTarget:metrics('32px MiSans'),measurementFallback:metrics('32px monospace'),
     ordinaryCheck:document.fonts.check('32px Arial')};
 })()`;
 const probe = `(() => {
@@ -238,7 +238,7 @@ const probe = `(() => {
   const pixels = Array.from(ctx.getImageData(0,0,180,60).data);
   const outcome = fn => {try {fn();return 'NO_ERROR';}catch(e){return e.name+':'+e.message;}};
   return { first: document.readyState === 'loading' && document.scripts.length === 1,
-    target, fallback, allowed, ordinary, measurementTarget:ordinary[2],measurementFallback:allowed[1], pixels, image: canvas.toDataURL(),
+    target, fallback, allowed, ordinary, measurementTarget:target,measurementFallback:fallback, pixels, image: canvas.toDataURL(),
     blocked: document.fonts.check('32px MiSans'), ordinaryCheck: document.fonts.check('32px Arial'),
     conversionErrors: [()=>ctx.measureText(),()=>ctx.measureText(Symbol('text')),
       ()=>ctx.measureText({[Symbol.toPrimitive](){return Symbol('text')}}),
@@ -1114,11 +1114,11 @@ try {
     phase='production-earliest-inline-baseline';
     evidence.checks.actualDistWorkerRegistersFixedFileAndReportsIndependentStatus=true;
     const filtered=await page(origin+'/production-filtered');const current=await sample(filtered.sessionId);
-    assert.equal(current.first,true);assert.equal(current.blocked,false);assert.deepEqual(current.target,current.allowed[1]);
+    assert.equal(current.first,true);assert.equal(current.blocked,false);assert.deepEqual(current.target,current.fallback);
     assert.notDeepEqual(baseline.ordinary[2],baseline.allowed[1],'具名字体须有首inline原生差异正对照');
-    assert.ok(current.ordinary.every(value=>JSON.stringify(value)===JSON.stringify(current.allowed[1])));
+    assert.deepEqual(current.ordinary,baseline.ordinary,'名单外显式字体保持原生测量');
     assert.deepEqual(current.allowed,baseline.allowed);
-    evidence.checks.topMeasurementAllowlistAtFirstInline=true;
+    evidence.checks.topOnlyFixedFontsFilteredAtFirstInline=true;
     for(const key of ['conversionErrors','fontCheckErrors','allowed','ordinaryCheck','pixels','image','receiverError','fontSyntaxError','descriptor','language','timezone','device','offscreen']) assert.deepEqual(current[key],baseline[key],key);
     evidence.checks.actualDistEarliestInlineAndNativeBaseline=true;
     phase='production-fixed-font-width-scan';
@@ -1130,17 +1130,17 @@ try {
     evidence.fixedFontScan={total:43,addedChineseFamilies:27,genericFamilies:3,
       nativePositiveControl:true,filteredExistenceAndWidths:true,fontRestored:true};
     evidence.checks.actualDistAll43FontsBlockedAgainstSiteWidthProbe=true;
-    phase='production-measurement-allowlist';
+    phase='production-measurement-fixed-list';
     const nativePolicy=await scanMeasurementPolicy(baselinePage.sessionId);
     const topPolicy=await scanMeasurementPolicy(filtered.sessionId);
     const iframePolicy=await scanMeasurementPolicy(filtered.sessionId,true);
     assert.ok(nativePolicy.detected&&!nativePolicy.namedOnlyUsesSans&&nativePolicy.unlistedCheckVisible);
-    assert.deepEqual(topPolicy,{detected:false,restored:true,namedOnlyUsesSans:true,nativeMetrics:true,unlistedCheckVisible:true});
+    assert.deepEqual(topPolicy,nativePolicy,'顶层中的未知字体保持原生测量');
     assert.deepEqual(iframePolicy,nativePolicy,'iframe中的未知字体继续原生测量');
-    evidence.measurementAllowlist={families:['monospace','sans-serif','serif'],
-      unknownFontNativePositiveControl:true,topUnknownFontSuppressed:true,iframeUnknownFontRemainsNative:true,
+    evidence.measurementPolicy={blockedFamilies:43,
+      unknownFontNativePositiveControl:true,topUnknownFontRemainsNative:true,iframeUnknownFontRemainsNative:true,
       unlistedFontCheckUnchanged:true,nativeTextMetricsAndFontRestore:true};
-    evidence.checks.actualDistTopOnlyMeasurementAllowlistAndUnchangedCheck=true;
+    evidence.checks.actualDistTopAndIframeFixedListAndUnchangedCheck=true;
     assert.equal(await evaluate(filtered.sessionId,'frames[0].fontObservation.first&&frames[0].fontObservation.blocked===false'),true);
     const iframeFirst=await evaluate(filtered.sessionId,'frames[0].fontObservation');
     assert.deepEqual(iframeFirst.target,iframeFirst.fallback,'iframe已知字体仍按原名单回退monospace');
@@ -1293,7 +1293,7 @@ try {
   assert.equal(await evaluate(control.sessionId, '(async()=>{const s=await chrome.scripting.getRegisteredContentScripts();return s.length===1&&s[0].js[0]==="font-exposure/filter.js"&&s[0].world==="MAIN"})()'), true);
   const filtered = await page(origin + '/filtered');
   const current = await sample(filtered.sessionId);
-  assert.equal(current.first,true); assert.equal(current.blocked,false); assert.deepEqual(current.target,current.allowed[1]);
+  assert.equal(current.first,true); assert.equal(current.blocked,false); assert.deepEqual(current.target,current.fallback);
   evidence.checks.earliestInlineTargetFilter = true;
   phase = 'loaded-target-font';
   const shorthands = ['calc(16px + 16px) MiSans', 'italic 700 32px MiSans', 'oblique 12deg 32px MiSans',

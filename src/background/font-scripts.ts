@@ -18,7 +18,7 @@ export function compileFontScripts(config: SiteSpoofConfig): chrome.scripting.Re
   return domains.map(domain => ({
     id: FONT_SCRIPT_PREFIX + domain,
     matches: buildContentScriptMatchesForDomain(domain),
-    excludeMatches: domains.filter(child => child !== domain && domainMatches(child, domain))
+    excludeMatches: value.rules.map(rule => rule.domain).filter(child => child !== domain && domainMatches(child, domain))
       .flatMap(buildContentScriptMatchesForDomain).sort(),
     world: 'MAIN', runAt: 'document_start', allFrames: true,
     matchOriginAsFallback: false, persistAcrossSessions: true,

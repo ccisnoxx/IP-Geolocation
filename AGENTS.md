@@ -33,3 +33,5 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - VG-034已于2026-10-23获用户明确授权：仅已同步Blob Dedicated Worker链中各realm自身新建Blob子Worker递归继承同一语言/时区快照；HTTP(S)、SharedWorker、外来Blob与未接管父级仍未覆盖。沿用VG-033安全及生命周期限制；2026-10-23用户人工验收通过并授权本次本地提交，不推送。
 
 - 2026-10-23用户要求HTTP(S) Dedicated Worker继续暂停、SharedWorker不动。VG-035仅归档HTTP module的Blob启动实验：全局相对路径及入口CSP不等价；不得从语言时区首读成功推定生产恢复资格。证据与未覆盖范围见`docs/stabilization/http-module-worker-feasibility.md`，当前状态以task-manifest为准。
+
+- VG-040于2026-10-23获用户明确授权调整字体测量合同：仅过滤既定43项字体，其他显式字体正常测量；HTTP(S)顶层与普通iframe一致。取代VG-025历史顶层三通用字体允许名单策略，保留原门禁、绘制及像素原生。当前网站关闭只禁用当前域名，禁用子规则阻断父域覆盖，不影响兄弟子域；更具体启用规则仍按最长域名优先。

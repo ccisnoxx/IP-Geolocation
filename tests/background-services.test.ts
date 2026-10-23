@@ -2242,3 +2242,42 @@ test('字体故障恢复：注册、查询和最终checkpoint失败后跨worker�
     } finally { mock.restore(); }
   });
 });
+
+test('关闭当前子域保留父域兄弟及出口覆盖，四种投影一致排除；重新启用恢复设置', async () => {
+  const config = createSingleRuleConfig();
+  config.fontExposure.enabled = true;
+  const beforeParent = structuredClone(config.rules[0]);
+  const storage = { [SITE_CONFIG_KEY]: config };
+  const mock = installChromeMock(storage);
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+    const saved = await services.setDomainRuleEnabled('news.example.com', false);
+    assert.deepEqual(saved.config.rules.find(rule => rule.domain === 'example.com'), beforeParent);
+    const child = saved.config.rules.find(rule => rule.domain === 'news.example.com')!;
+    assert.equal(child.enabled, false);
+    assert.equal(child.exitLocationProfileId, beforeParent.exitLocationProfileId);
+    assert.deepEqual(child.overrides, beforeParent.overrides);
+    for (const host of ['news.example.com', 'a.news.example.com']) {
+      assert.equal((await services.getPayloadForUrl(`https://${host}/`)).matched, false);
+    }
+    for (const host of ['example.com', 'shop.example.com']) {
+      assert.equal((await services.getPayloadForUrl(`https://${host}/`)).rule?.id, beforeParent.id);
+    }
+    const exclusions = ['*://*.news.example.com/*', '*://news.example.com/*'];
+    const scripts = await chrome.userScripts.getScripts();
+    assert.equal(scripts.length, 2);
+    for (const script of scripts) assert.deepEqual(script.excludeMatches, exclusions);
+    const fonts = await chrome.scripting.getRegisteredContentScripts();
+    assert.equal(fonts.length, 1);
+    assert.deepEqual(fonts[0].excludeMatches, exclusions);
+    const headers = await chrome.declarativeNetRequest.getDynamicRules();
+    assert.equal(headers.length, 2);
+    assert.deepEqual(headers[0].condition.excludedRequestDomains, ['news.example.com']);
+    assert.deepEqual(headers[1].condition.excludedInitiatorDomains, ['news.example.com']);
+    await services.addDomainRule('news.example.com');
+    const restored = await services.getPayloadForUrl('https://news.example.com/');
+    assert.equal(restored.matched, true);
+    assert.equal(restored.rule?.id, child.id);
+    assert.equal(restored.rule?.exitLocationProfileId, beforeParent.exitLocationProfileId);
+  } finally { mock.restore(); }
+});

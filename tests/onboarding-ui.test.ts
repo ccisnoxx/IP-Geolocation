@@ -42,9 +42,9 @@ function harness() {
       if (request.action === 'cancelExitLocationDetection') return callback({ status: 'ok' });
       if (pending) await pending;
       if (failure) return callback({ status: 'error', message: '合成写入失败' });
-      if (request.action === 'confirmExitLocationDetection') config.exitLocationProfiles = [{ id: 'confirmed', name: '合成出口', verification: 'verified',
+      if (request.action === 'confirmExitLocationDetection') config.exitLocationProfiles = [...config.exitLocationProfiles, { id: 'exit-synthetic', name: '合成出口', verification: 'verified',
         publicIp: '203.0.113.10', country: 'Synthetic', countryCode: 'JP', timezone: 'UTC', latitude: 0, longitude: 0, provider: 'synthetic', verifiedAt: 1 }];
-      if (request.action === 'completeOnboarding') config = { ...config, masterEnabled: true, rules: [configModel.normalizeRule({ domain: 'example.com', exitLocationProfileId: 'confirmed' })] };
+      if (request.action === 'completeOnboarding') config = { ...config, masterEnabled: true, rules: [configModel.normalizeRule({ domain: 'example.com', exitLocationProfileId: 'exit-synthetic' })] };
       if (request.action === 'skipOnboarding') config = { ...config, masterEnabled: false, webRtc: { globalMode: 'default' } };
       if (request.action === 'resetSiteConfig') config = configModel.createInitialConfig();
       callback({ status: report.status === 'ok' ? 'ok' : 'partial', config, syncReport: report });
@@ -56,6 +56,7 @@ function harness() {
   vm.runInContext(ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
   return { element, requests, report,
     call: (code: string) => vm.runInContext(code, context),
+    addConcurrentProfile() { config.exitLocationProfiles.push({ id: 'exit-other', name: '另一窗口出口', verification: 'verified', publicIp: '203.0.113.20', country: 'Synthetic', countryCode: 'JP', timezone: 'UTC', latitude: 0, longitude: 0, provider: 'synthetic', verifiedAt: 2 }); },
     setAccept(value: boolean) { accept = value; }, setFailure(value: boolean) { failure = value; }, setPending(value: Promise<void> | null) { pending = value; }
   };
 }
@@ -78,7 +79,9 @@ test('Options打开不检测，取消不确认，未勾选不启用；按用户�
   ui.setAccept(true);
   await ui.call('detectNewExitLocation()');
   assert.equal(ui.requests.at(-1).action, 'confirmExitLocationDetection');
-  ui.element('onboardingProfile').value = 'confirmed';
+  assert.equal(ui.element('onboardingProfile').value, 'exit-synthetic');
+  assert.equal(ui.element('onboardingConfirm').checked, false);
+  assert.equal(ui.requests.some(request => request.action === 'completeOnboarding'), false);
   ui.element('onboardingDomains').value = 'example.com';
   ui.element('onboardingWebRtc').value = 'default';
   ui.element('onboardingConfirm').checked = true;
@@ -94,7 +97,7 @@ test('Options打开不检测，取消不确认，未勾选不启用；按用户�
   const submits = ui.requests.filter((request) => request.action === 'completeOnboarding');
   assert.equal(submits.length, 1);
   assert.equal(submits[0].confirmed, true);
-  assert.equal(submits[0].profileId, 'confirmed');
+  assert.equal(submits[0].profileId, 'exit-synthetic');
   assert.equal(submits[0].domains, 'example.com');
   assert.equal(submits[0].webRtcMode, 'default');
   assert.deepEqual(submits[0].recommendation, { expectedVerifiedAt: 1, language: 'keep', timezone: 'exit', fontExposure: 'keep' });
@@ -121,7 +124,7 @@ test('查看/修改推荐不写入或检测，变更撤销确认；地区语言�
   await new Promise<void>((done) => setImmediate(done));
   ui.setAccept(true);
   await ui.call('detectNewExitLocation()');
-  ui.element('onboardingProfile').value = 'confirmed';
+  ui.element('onboardingProfile').value = 'exit-synthetic';
   const before = ui.call('JSON.stringify(currentConfig)');
   const count = ui.requests.length;
   ui.element('onboardingConfirm').checked = true;
@@ -154,4 +157,15 @@ test('查看/修改推荐不写入或检测，变更撤销确认；地区语言�
   assert.equal(ui.element('onboardingExitLanguage').disabled, true);
   assert.equal(ui.element('onboardingLanguage').value, 'keep');
   assert.match(ui.element('onboardingRecommendation').textContent, /国家代码：未知（不猜测）/);
+});
+
+test('另一个设置窗口新增出口后，本次确认仍精确选中自己的检测结果', async () => {
+  const ui = harness();
+  await new Promise<void>((done) => setImmediate(done));
+  ui.addConcurrentProfile();
+  ui.setAccept(true);
+  await ui.call('detectNewExitLocation()');
+  assert.equal(ui.element('onboardingProfile').value, 'exit-synthetic');
+  assert.equal(ui.element('onboardingConfirm').checked, false);
+  assert.equal(ui.requests.some(request => request.action === 'completeOnboarding'), false);
 });

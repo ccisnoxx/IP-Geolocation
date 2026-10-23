@@ -20,7 +20,7 @@ export function compileHeaderRules(config: SiteSpoofConfig): Rule[] {
   for (const domain of domains) {
     const language = getLanguageTimezonePayload(validated.config, domain)?.language;
     if (!language) continue;
-    const children = domains.filter(child => child !== domain && domainMatches(child, domain));
+    const children = validated.config.rules.map(rule => rule.domain).filter(child => child !== domain && domainMatches(child, domain));
     const common = { regexFilter: '^https?://' };
     const conditions: chrome.declarativeNetRequest.RuleCondition[] = [
       { ...common, requestDomains: [domain], ...(children.length ? { excludedRequestDomains: children } : {}),

@@ -1,0 +1,352 @@
+{
+  "newExitAutoSelected": true,
+  "selectionWasNotManuallyChanged": true,
+  "confirmationInitiallyUnchecked": true,
+  "baseline": {
+    "top": {
+      "first": {
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai"
+      },
+      "language": "zh-CN",
+      "timeZone": "Asia/Shanghai",
+      "loaded": true,
+      "positiveWidthControl": true,
+      "blockedChecks": 0,
+      "blockedWidths": 0,
+      "nativeTargetWidths": 43,
+      "ordinaryChecks": true,
+      "ordinaryWidths": true,
+      "restored": true,
+      "nativeMetrics": true
+    },
+    "frame": {
+      "first": {
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai"
+      },
+      "language": "zh-CN",
+      "timeZone": "Asia/Shanghai",
+      "loaded": true,
+      "positiveWidthControl": true,
+      "blockedChecks": 0,
+      "blockedWidths": 0,
+      "nativeTargetWidths": 43,
+      "ordinaryChecks": true,
+      "ordinaryWidths": true,
+      "restored": true,
+      "nativeMetrics": true
+    },
+    "headers": {
+      "acceptLanguage": "zh-CN,zh;q=0.9"
+    }
+  },
+  "enabled": {
+    "parent": {
+      "top": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "en-US,en;q=0.9"
+      }
+    },
+    "a": {
+      "top": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "en-US,en;q=0.9"
+      }
+    },
+    "b": {
+      "top": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "en-US,en;q=0.9"
+      }
+    }
+  },
+  "afterDisable": {
+    "a": {
+      "top": {
+        "first": {
+          "language": "zh-CN",
+          "timeZone": "Asia/Shanghai"
+        },
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 0,
+        "blockedWidths": 0,
+        "nativeTargetWidths": 43,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "zh-CN",
+          "timeZone": "Asia/Shanghai"
+        },
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 0,
+        "blockedWidths": 0,
+        "nativeTargetWidths": 43,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "zh-CN,zh;q=0.9"
+      }
+    },
+    "b": {
+      "top": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "en-US,en;q=0.9"
+      }
+    },
+    "parent": {
+      "top": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "en-US,en;q=0.9"
+      }
+    }
+  },
+  "afterCleanup": {
+    "top": {
+      "first": {
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai"
+      },
+      "language": "zh-CN",
+      "timeZone": "Asia/Shanghai",
+      "loaded": true,
+      "positiveWidthControl": true,
+      "blockedChecks": 0,
+      "blockedWidths": 0,
+      "nativeTargetWidths": 43,
+      "ordinaryChecks": true,
+      "ordinaryWidths": true,
+      "restored": true,
+      "nativeMetrics": true
+    },
+    "frame": {
+      "first": {
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai"
+      },
+      "language": "zh-CN",
+      "timeZone": "Asia/Shanghai",
+      "loaded": true,
+      "positiveWidthControl": true,
+      "blockedChecks": 0,
+      "blockedWidths": 0,
+      "nativeTargetWidths": 43,
+      "ordinaryChecks": true,
+      "ordinaryWidths": true,
+      "restored": true,
+      "nativeMetrics": true
+    },
+    "headers": {
+      "acceptLanguage": "zh-CN,zh;q=0.9"
+    }
+  },
+  "metadata": {
+    "date": "2026-10-24",
+    "environment": "existing real Chrome profile",
+    "extensionVersion": "2.1.1",
+    "candidateDistSha256": "d71bb9b826de9050a767b1e140eb3ba2e462219d147d69703b55ee1de6b4de44",
+    "candidateZipSha256": "7c43c302ad427fb835d06ec25b5edc4974908b603be31364b776281cd4aa819d",
+    "sourceInventorySha256": "007186058412421daac9ec1473c47f27a5a445ac4594926df3400a9289414cb4",
+    "extensionReloadedFromDist": true,
+    "permissionChanges": false,
+    "temporaryServerStopped": true,
+    "temporaryTabsClosed": true
+  },
+  "restoration": {
+    "originalRulesAndBindingsEqual": true,
+    "globalConfigurationEqual": true,
+    "temporaryRulesAbsent": true,
+    "temporaryProfilesAbsent": true,
+    "baselineProfiles": 2,
+    "remainingOriginalProfiles": 1,
+    "missingOriginalProfileUnused": true,
+    "fullBaselineEqual": false,
+    "userClarification": "2026-10-24 用户确认主动删除未使用的旧档案，要求保留",
+    "equalsUserAdjustedBaseline": true,
+    "status": "passed"
+  },
+  "limitations": [
+    "第一次出口流程含用户手动选择，不计入自动选中证据；第二次由代理完整处理确认和命名，无下拉框操作。",
+    "字体使用FontFace本地等宽字体别名作正对照，测试名单过滤，不宣称覆盖所有实际字体排版。",
+    "iframe为普通HTTP同源iframe；本轮未验跨源嵌套iframe、特殊文档或Worker字体。",
+    "关闭子域实测Popup路径；右键菜单本轮未操作。"
+  ]
+}

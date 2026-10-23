@@ -423,3 +423,15 @@ Thumbs.db
 !.trellis/tasks/10-23-vg-039-chrome155-regression/whitelist-frame.mjs
 !.trellis/tasks/10-23-vg-039-chrome155-regression/whitelist-phase-console.js
 !.trellis/tasks/10-23-vg-039-chrome155-regression/whitelist-frame-evidence.json
+
+# VG-040 产品契约修正记录
+!.trellis/tasks/10-23-vg-040-product-contract/
+.trellis/tasks/10-23-vg-040-product-contract/*
+!.trellis/tasks/10-23-vg-040-product-contract/task.json
+!.trellis/tasks/10-23-vg-040-product-contract/prd.md
+!.trellis/tasks/10-23-vg-040-product-contract/implement.md
+
+# VG-040 当前 Chrome 脱敏验收证据
+!.trellis/tasks/10-23-vg-040-product-contract/chrome-fixture.mjs
+!.trellis/tasks/10-23-vg-040-product-contract/chrome-current-evidence.json
+!.trellis/tasks/10-23-vg-040-product-contract/chrome-sibling-preserved.png

@@ -145,9 +145,11 @@ export function domainMatches(hostname: string, domain: string): boolean {
 
 export function findMatchingRule(config: Partial<SiteSpoofConfig>, hostname: string): SiteRule | null {
   const normalized = normalizeConfig(config);
-  return normalized.rules
-    .filter((rule) => rule.enabled && domainMatches(hostname, rule.domain))
-    .sort((a, b) => b.domain.length - a.domain.length)[0] || null;
+  // 最长域名先决定作用域；禁用子规则阻断父规则，不重新回退。
+  const rule = normalized.rules
+    .filter((rule) => domainMatches(hostname, rule.domain))
+    .sort((a, b) => b.domain.length - a.domain.length)[0];
+  return rule?.enabled ? rule : null;
 }
 
 export function getEnabledRuleDomains(config: Partial<SiteSpoofConfig>): string[] {
@@ -198,7 +200,7 @@ export function isUrlMatchedByEnabledRule(config: Partial<SiteSpoofConfig>, url:
   const hostname = parseHostname(url);
   if (!hostname) return false;
 
-  return normalized.rules.some((rule) => rule.enabled && domainMatches(hostname, rule.domain));
+  return Boolean(findMatchingRule(normalized, hostname));
 }
 
 function resolveSignal<T extends { enabled: boolean }>(

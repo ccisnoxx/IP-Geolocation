@@ -135,3 +135,30 @@ test('字体实际注册变化先预写，预写失败零变更，幂等对账�
     assert.deepEqual(actual, [foreign]);
   } finally { globalThis.chrome = previous; }
 });
+
+test('生产固定入口在顶层及iframe仅过滤43项，其他显式字体测量和font属性保持原生', async () => {
+  const fn = assertSelfContainedFunction((await generateFontFilter()).code, 'applyFixedFontFilter');
+  for (const isTop of [true, false]) {
+    const context = vm.createContext({ location: { protocol: 'https:' }, origin: 'https://example.test' },
+      { codeGeneration: { strings: false, wasm: false } });
+    vm.runInContext(`globalThis.window = globalThis; globalThis.top = ${isTop ? 'globalThis' : '{}'};
+      const fonts = new WeakMap();
+      globalThis.CanvasRenderingContext2D = class {
+        constructor() { fonts.set(this, '10px sans-serif'); }
+        get font() { return fonts.get(this); }
+        set font(value) { fonts.set(this, value); }
+        measureText(text) { return { font: this.font, text: String(text) }; }
+      };
+      globalThis.ctx = new CanvasRenderingContext2D();`, context);
+    vm.runInContext(`(${fn})();`, context);
+    for (const font of VENDOR_SOFTWARE_FONT_FAMILIES) {
+      context.sampleFont = `20px "${font}", Arial, serif`;
+      assert.equal(vm.runInContext('ctx.font = sampleFont; ctx.measureText("字A").font', context), '20px Arial, serif');
+      assert.equal(vm.runInContext('ctx.font', context), context.sampleFont);
+    }
+    for (const font of ['20px Arial', '20px "Mi Sans"', '20px PingFangSC', '20px PingFang\\a0 SC', '20px PingFang\\20\\20SC', '20px PingFang\u00a0SC', '20px MiSans\u00a0', '20px "PingFang  SC"', '20px "Future Font"', '20px "测试字体"', '20px "serif"', '20px monospace, sans-serif']) {
+      context.sampleFont = font;
+      assert.equal(vm.runInContext('ctx.font = sampleFont; ctx.measureText("字A").font', context), font);
+    }
+  }
+});

@@ -1,0 +1,29 @@
+{
+  "id": "VG-040",
+  "name": "产品契约与单站点关闭修正及候选复核",
+  "status": "completed",
+  "dependencies": [
+    "VG-025",
+    "VG-032",
+    "VG-038"
+  ],
+  "acceptance": {
+    "status": "passed",
+    "local_commit_authorized": true,
+    "push_authorized": false,
+    "date": "2026-10-24"
+  },
+  "verification": {
+    "date": "2026-10-24",
+    "tests_passed": 342,
+    "source_typecheck": "passed",
+    "test_typecheck": "passed",
+    "build": "passed",
+    "artifact_audit": "passed",
+    "independent_review": "passed_after_fixes",
+    "real_chrome_candidate_acceptance": "three_focus_behaviors_passed",
+    "final_commit_rc": "see_local_commit_bound_report",
+    "configuration_restoration": "passed_preserving_user_confirmed_unused_profile_deletion",
+    "final_commit_rc_report": "release/vg040-final-commit-rc.json"
+  }
+}

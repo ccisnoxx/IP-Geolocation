@@ -467,6 +467,12 @@ async function detectNewExitLocation(): Promise<void> {
       return;
     }
     await confirmDetection(preview, name);
+    const confirmedId = preview.targetProfileId || `exit-${preview.detectionId}`;
+    const created = currentConfig.exitLocationProfiles.find(profile => profile.id === confirmedId && profile.verification === 'verified');
+    if (created) {
+      onboardingProfileEl.value = created.id;
+      changeOnboardingChoice();
+    }
   } catch (error) {
     alert(`检测出口位置失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {

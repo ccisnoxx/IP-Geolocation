@@ -11,8 +11,8 @@ import type { RollupWatcher } from 'rollup';
 import { generateRuntime, generatePageRuntime, assertSelfContainedFunction, projectRoot } from '../build/self-contained-runtime';
 import { runtimePlugin } from '../build/runtime-plugin';
 import { normalizeTimezonePayload } from '../src/injected/runtime-modules/payload';
-import { fontFamilyKey, splitFontFamilies, getFallbackFont, getAllowedMeasurementFont } from '../src/injected/runtime-modules/surfaces/font-exposure';
-import { CANVAS_MEASUREMENT_ALLOWED_FAMILIES } from '../src/shared/font-families';
+import { fontFamilyKey, splitFontFamilies, getFallbackFont } from '../src/injected/runtime-modules/surfaces/font-exposure';
+import { VENDOR_SOFTWARE_FONT_FAMILIES } from '../src/shared/font-families';
 import { randomCoordinateInRadius } from '../src/injected/runtime-modules/surfaces/geolocation-permissions';
 
 function page() {
@@ -30,21 +30,25 @@ const payload = { extensionEnabled: true, languageConfig: { enabled: true, langu
 test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有合同', () => {
   assert.deepEqual(normalizeTimezonePayload({ timezone: 'UTC' }), { timezone: null });
   assert.deepEqual(normalizeTimezonePayload({ timezone: 'UTC', timezoneConfig: { enabled: true, mode: 'auto', timezone: '' } }), { timezone: 'UTC' });
-  assert.equal(fontFamilyKey(' "Arial Narrow" '), 'arialnarrow');
+  assert.equal(fontFamilyKey(' "Arial Narrow" '), 'arial narrow');
   assert.deepEqual(splitFontFamilies('"Font, With Comma", Arial, sans-serif'), ['"Font, With Comma"', 'Arial', 'sans-serif']);
-  assert.equal(getFallbackFont('italic 12px "Font, With Comma", monospace', new Set(['font,withcomma'])), 'italic 12px monospace');
+  assert.equal(getFallbackFont('italic 12px "Font, With Comma", monospace', new Set(['font, with comma'])), 'italic 12px monospace');
   assert.equal(getFallbackFont('12px Arial', new Set(['other'])), null);
   assert.deepEqual(randomCoordinateInRadius(12, 23, 0), { latitude: 12, longitude: 23 });
 });
 
-test('测量允许名单保留通用字体顺序，未知具名字体和引号同名字体使用回退', () => {
-  const allowed = new Set<string>(CANVAS_MEASUREMENT_ALLOWED_FAMILIES);
-  assert.equal(getAllowedMeasurementFont('72px "Future Font", monospace', allowed), '72px monospace');
-  assert.equal(getAllowedMeasurementFont('italic bold 24px Arial, serif, sans-serif', allowed), 'italic bold 24px serif, sans-serif');
-  assert.equal(getAllowedMeasurementFont('20px "Font, With Comma"', allowed), '20px sans-serif');
-  assert.equal(getAllowedMeasurementFont('20px "serif"', allowed), '20px sans-serif');
-  assert.equal(getAllowedMeasurementFont('20px s erif', allowed), '20px sans-serif');
-  assert.equal(getAllowedMeasurementFont('20px monospace, sans-serif, serif', allowed), null);
+test('字体测量仅过滤固定名单，名单外显式字体与混合列表顺序保持', () => {
+  const blocked = new Set(VENDOR_SOFTWARE_FONT_FAMILIES.map(fontFamilyKey));
+  assert.equal(blocked.size, 43);
+  assert.equal(getFallbackFont('20px PingFang   SC', blocked), '20px monospace');
+  assert.equal(getFallbackFont('20px "Mi\\53 ans"', blocked), '20px monospace');
+  for (const name of VENDOR_SOFTWARE_FONT_FAMILIES) {
+    assert.equal(getFallbackFont(`20px "${name}"`, blocked), '20px monospace');
+    assert.equal(getFallbackFont(`20px "${name}", Arial, serif`, blocked), '20px Arial, serif');
+  }
+  for (const font of ['20px Arial', '20px "Mi Sans"', '20px PingFangSC', '20px PingFang\\a0 SC', '20px PingFang\\20\\20SC', '20px PingFang\u00a0SC', '20px MiSans\u00a0', '20px "PingFang  SC"', '20px "Future Font"', '20px "serif"', '20px "Font, With Comma"', '20px "测试字体"', '20px monospace, sans-serif, serif']) {
+    assert.equal(getFallbackFont(font, blocked), null);
+  }
 });
 
 test('构建守卫拒绝外部 helper、动态 import、运行期编译及函数外状态', () => {

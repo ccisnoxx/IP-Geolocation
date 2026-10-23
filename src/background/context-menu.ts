@@ -56,8 +56,8 @@ export function handleContextMenuClick(services: BackgroundServices, info: chrom
         break;
       case 'disable-on-site':
         if (tab?.url) {
-          const matched = await services.getPayloadForUrl(tab.url);
-          if (matched.rule) await services.deleteDomainRule(matched.rule.domain);
+          const url = new URL(tab.url);
+          if (/^https?:$/.test(url.protocol)) await services.setDomainRuleEnabled(url.hostname, false);
         }
         break;
       case 'open-leak-test':

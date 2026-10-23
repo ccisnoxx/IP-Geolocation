@@ -171,7 +171,7 @@ function renderCurrentSiteStatus(state: any): void {
   enableSiteBtn.disabled = !status.canEnable;
   disableSiteBtn.disabled = !status.canDisable;
   enableSiteBtn.textContent = status.kind === 'enabled' ? '已启用' : '启用当前网站';
-  disableSiteBtn.textContent = status.disableDomain ? `移除 ${status.disableDomain}` : '不启用';
+  disableSiteBtn.textContent = status.disableDomain ? `关闭 ${status.disableDomain}` : '关闭当前网站';
 }
 
 function updateExitLocationProfile(config: SiteSpoofConfig): void {
@@ -321,7 +321,7 @@ async function handleEnableSite(): Promise<void> {
 async function handleDisableSite(): Promise<void> {
   const domain = currentDisableDomain || currentHostname;
   if (!domain) return;
-  await sendRuntimeMessage({ action: 'deleteDomainRule', domain });
+  await sendRuntimeMessage({ action: 'setDomainRuleEnabled', domain, enabled: false });
   await loadConfig();
 }
 

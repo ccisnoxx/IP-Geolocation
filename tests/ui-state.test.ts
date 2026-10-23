@@ -188,3 +188,21 @@ test('关闭全部页面信号时不把匹配规则显示为可用', () => {
   assert.equal(status.kind, 'disabled');
   assert.equal(status.label, '当前规则未启用语言/时区');
 });
+
+test('当前网站关闭定位到当前子域，禁用子域阻断父域且更具体启用规则仍优先', () => {
+  const config = createConfig();
+  const domain = 'news.example.com';
+  const status = () => deriveCurrentSiteStatus({ domain, scriptable: true, config, ...getPageRuntimeProfile(config, domain) });
+  assert.equal(status().disableDomain, domain);
+  config.rules.push({ ...structuredClone(config.rules[0]), id: 'disabled-child', domain, enabled: false });
+  assert.equal(status().canEnable, true);
+  assert.equal(status().canDisable, false);
+  config.masterEnabled = false;
+  assert.equal(status().canEnable, true);
+  assert.equal(status().canDisable, false);
+  config.masterEnabled = true;
+  config.rules.push({ ...structuredClone(config.rules[0]), id: 'enabled-grandchild', domain: 'app.news.example.com' });
+  assert.equal(getPageRuntimeProfile(config, 'app.news.example.com').rule?.id, 'enabled-grandchild');
+  assert.equal(getPageRuntimeProfile(config, 'other.news.example.com').matched, false);
+  assert.equal(getPageRuntimeProfile(config, 'shop.example.com').rule?.id, config.rules[0].id);
+});

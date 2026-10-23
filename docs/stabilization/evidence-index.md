@@ -1,5 +1,7 @@
 # 稳定化验收证据索引
 
+> 最新已验收工作（2026-10-24）：[VG-040记录](../../.trellis/tasks/10-23-vg-040-product-contract/implement.md)及[本地候选](release-candidate/vg040/README.md)。下文36项计数对应VG-037整理时点，当前跨任务状态只以manifest为准。
+
 跨任务状态以 [task-manifest.yaml](task-manifest.yaml) 为准；已验收的36项（含VG-033～VG-037）均为done，保留各自限定验收范围。历史研究处置的 done 不表示实验成功。
 
 本次恢复缺失任务目录中的 Git 已跟踪文件，不覆盖现存记录；字节摘要和来源见 [restored-evidence.json](restored-evidence.json)。恢复内容保持历史原文，历史候选、权限及暂停结论不能代替现行合同。

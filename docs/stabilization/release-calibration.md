@@ -1,5 +1,7 @@
 # 发布资料校准与历史记录
 
+> 2026-10-24更新：[VG-040本地候选](release-candidate/vg040/README.md)已人工验收通过；最终提交级审查以本地release/vg040-final-commit-rc.json为准。下文VG-037范围／计数均为历史。
+
 ## 2026-10-23 当前Blob候选资料对齐（VG-037，人工验收通过）
 
 当前已验收任务为36项，VG-037仅整理发布资料并重建核验ZIP，未改变版本2.1.1、生产功能、权限或workflow。[当前候选记录](release-candidate/README.md)绑定生产基线1a3962d、已验收主提交`ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5`、产物与新ZIP；下文2026-10-22的31项、旧库存摘要和“全部Worker暂停”均为历史阶段，不能覆盖现行VG-033／VG-034的限定Blob支持。

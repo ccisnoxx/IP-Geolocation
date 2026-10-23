@@ -1,6 +1,7 @@
 // 后台统一持有配置事务、出口检测及新文档语言/时区注册；既有文档保持快照。
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, getWebRTCPolicyState } from './webrtc';
 import {
+  findMatchingRule,
   getLanguageTimezonePayload,
   getPageRuntimeProfile,
   isUrlMatchedByEnabledRule,
@@ -795,7 +796,16 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
 
   async function setDomainRuleEnabled(domain: string, enabled: boolean): Promise<ConfigSaveResult> {
     return mutateConfig((config) => {
-      const rule = config.rules.find((item) => item.domain === normalizeDomain(domain));
+      const normalizedDomain = normalizeDomain(domain);
+      let rule = config.rules.find((item) => item.domain === normalizedDomain);
+      if (!rule && !enabled) {
+        const parent = findMatchingRule(config, normalizedDomain);
+        if (parent) {
+          // 保留继承时的出口和覆盖，重新启用该子规则时不丢失原有效设置。
+          rule = { ...createRule(normalizedDomain), exitLocationProfileId: parent.exitLocationProfileId, overrides: structuredClone(parent.overrides) };
+          config.rules.push(rule);
+        }
+      }
       if (!rule) throw new Error('站点规则不存在');
       rule.enabled = Boolean(enabled);
       return config;

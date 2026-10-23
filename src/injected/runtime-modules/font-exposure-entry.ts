@@ -1,4 +1,4 @@
-import { CANVAS_MEASUREMENT_ALLOWED_FAMILIES, VENDOR_SOFTWARE_FONT_FAMILIES } from '../../shared/font-families';
+import { VENDOR_SOFTWARE_FONT_FAMILIES } from '../../shared/font-families';
 import { createRuntimeState } from './registry';
 import { installFontExposureFilter } from './surfaces/font-exposure';
 
@@ -8,5 +8,5 @@ export function applyFontFilter(): void {
   if (!/^https?:$/.test(root.location.protocol) || root.origin === 'null') return;
   installFontExposureFilter(root, createRuntimeState(root), {
     enabled: true, mode: 'vendor-software', blockedFamilies: [...VENDOR_SOFTWARE_FONT_FAMILIES]
-  }, root.top === root.window ? CANVAS_MEASUREMENT_ALLOWED_FAMILIES : undefined);
+  });
 }

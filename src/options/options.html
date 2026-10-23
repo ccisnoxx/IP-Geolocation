@@ -245,7 +245,7 @@
             <span>保存字体暴露过滤开关</span>
           </label>
           <p id="fontExposureStatus" class="hint" role="status" aria-live="polite">字体暴露过滤注册状态尚未确认；未取得确认前按未应用处理，不影响语言/时区注册状态。</p>
-          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面 measureText() 仅使用 monospace、sans-serif、serif 测量；具名字体回退为允许的通用字体。FontFaceSet.check() 和普通 iframe 仍过滤内置厂商／软件及简繁中文字体。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对、OffscreenCanvas 或 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
+          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面与普通 iframe 使用相同的 43 项内置厂商／软件及简繁中文字体名单。measureText() 仅移除名单内字体，保留其他显式字体及顺序，无剩余字体时回退 monospace；FontFaceSet.check() 对名单内字体返回 false，其他字体保持原生。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对、OffscreenCanvas 或 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
           <div class="input-group">
             <label for="fontExposureMode">过滤名单模式</label>
             <select id="fontExposureMode" class="input">
