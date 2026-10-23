@@ -2,7 +2,9 @@
 
 当前本地候选为 **2.1.1**，最低 Chrome 138。语言／时区和合成定位通过 `userScripts` 在 MAIN / document_start 提前注册，需正常开启 **Allow User Scripts**。VG-032 已验收语言请求头同步，仅申请 `declarativeNetRequestWithHostAccess`；固定内置字体过滤和 WebRTC 按独立状态报告。当前验收与历史证据见 [证据索引](docs/stabilization/evidence-index.md)，任务完成不表示已发布。
 
-仅支持合同内的普通 HTTP(S) 文档，配置按每文档快照生效；注册成功后完整 reload 或关闭重开已有页面，BFCache 也保留旧值。Worker / SharedWorker、自定义字体名单仍暂停，无热更新或 documentId 注入回退。
+仅支持合同内的普通 HTTP(S) 文档，配置按每文档快照生效；注册成功后完整 reload 或关闭重开已有页面，BFCache 也保留旧值。本页及已同步Blob链内各realm安装后自身创建的Blob Dedicated Worker按VG-033／VG-034同步语言时区；HTTP(S) Worker、SharedWorker、自定义字体名单仍暂停，无热更新或 documentId 注入回退。
+
+Blob源核验失败时会在网页控制台或Chrome扩展“错误”页看到黄色警告“本次语言/时区未同步，保持原生加载”。它表示该次Worker没有同步，不是扩展安装失败；CSP拒绝读取或URL已撤销等路径均可能触发，不能凭该提示单独确认原因，也不能据此宣称Worker已清除中文／上海值。
 
 ## 从源码加载
 
@@ -37,7 +39,7 @@ npm run build
 ## 排查
 
 - 加载失败：确认 dist 根部存在 manifest.json，检查扩展管理页的具体错误；重新构建，不编辑 dist 来修复。
-- 页面语言/时区没有变化：先区分 API 不支持、权限缺失、Allow User Scripts 未开启或注册同步失败。注册成功后再完整 reload 或关闭重开；已有 BFCache 文档保留旧快照。about:blank/srcdoc/data/blob/特殊 sandbox 不支持。自定义字体名单和 Worker 仍暂停；定位分别报告同步状态；固定内置字体过滤按独立注册状态报告。
+- 页面语言/时区没有变化：先区分 API 不支持、权限缺失、Allow User Scripts 未开启或注册同步失败。注册成功后再完整 reload 或关闭重开；已有 BFCache 文档保留旧快照。about:blank/srcdoc/data/blob/特殊 sandbox 不支持。HTTP(S) Worker、SharedWorker和自定义字体名单仍暂停；Blob及限定嵌套Blob覆盖见README；定位分别报告同步状态；固定内置字体过滤按独立注册状态报告。
 - Accept-Language 没有变化：检查匹配规则的语言是否启用，以及页面注册和请求头同步状态。导航按目标域、子资源按发起域，关闭子规则排除父规则；其他请求头保持原生。旧规则迁移或范围外冲突应按实际错误处理，不能把失败显示当作已同步。
 - 可靠恢复原生：先关闭插件总开关，等待保存和同步成功，再完整 reload 或关闭重开页面；随后可按需关闭 Allow User Scripts。直接关闭 Chrome 的 Allow User Scripts 与 DNR 是独立操作，仍可能有首请求携带旧语言头的窗口，不承诺跨 API 原子同步。
 - WebRTC 状态不一致：在 Options 查看实际 policy 和控制权；其他扩展或浏览器策略可能控制该设置。

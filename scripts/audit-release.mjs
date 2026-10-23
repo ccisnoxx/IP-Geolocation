@@ -58,7 +58,8 @@ for (const [name, bytes] of files) {
   assert.ok(!/\.map$|\.ts$|(^|\/)\.(git|env)|node_modules|__MACOSX|\.DS_Store/.test(name), `不应分发：${name}`);
   if (!/\.(js|html|css|json|md)$/.test(name) && !['LICENSE', 'NOTICE'].includes(name)) continue;
   const text = bytes.toString('utf8');
-  assert.doesNotMatch(text, /sourceMappingURL|sourceURL/);
+  // 普通sourceURL标识符不是调试指令；同时检查嵌入运行时字符串中的真实指令。
+  assert.equal(/\/[/*][#@]\s*(?:sourceMappingURL|sourceURL)\s*=/.test(text), false, `不应包含源码指令：${name}`);
   // 只保留命中路径，不输出可疑内容。
   if (/(?:\/Users\/|\/home\/)[^\s'"<>]+|[A-Z]:\\Users\\|-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|\b(?:gh[pousr]_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\b/.test(text)) sensitiveFindings.push(name);
   for (const match of text.matchAll(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g)) {

@@ -2,6 +2,8 @@
 
 2026-10-22。当前状态：**人工验收通过**。用户最初授权在当前功能范围补做最低版本验收，条件允许时补真实 HTTPS；现已确认验收并授权本地提交，不改版本、不 push。生产候选为 `d56ee9c` 的 2.1.1；本轮仅增加取证脚本、原始记录和核验文档，未改生产代码、manifest、权限或 workflow。
 
+本记录绑定2026-10-22的核心功能候选，不覆盖随后新增的Blob能力。2026-10-23的Blob及嵌套Blob最低版本补验已另获人工验收，见[VG-036记录](../../../.trellis/tasks/10-23-vg-036-chrome138-blob-worker/implement.md)；当前构建及ZIP对应关系见[候选资料](../release-candidate/README.md)。
+
 ## 环境与真实操作
 
 - Google Chrome for Testing **138.0.7204.183**，macOS arm64，有界面、独立临时 profile。来自 [Google 官方 CfT 版本清单](https://github.com/GoogleChromeLabs/chrome-for-testing/blob/main/data/latest-versions-per-milestone-with-downloads.json) 的 mac-arm64 包；未替换个人 Chrome，未访问其配置。

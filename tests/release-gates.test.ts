@@ -143,6 +143,13 @@ test('changelog 首发列出历史，跨 tag 只含新提交，排除无关分�
     assert.match(notes, /直接关闭该开关仍可能让首请求携带旧语言头/);
     assert.match(notes, /BFCache/);
     assert.match(notes, /不代表其他平台/);
+    assert.match(notes, /VG-033／VG-034.*自身新建的Blob Dedicated Worker/);
+    assert.match(notes, /HTTP\(S\) Dedicated Worker、SharedWorker.*继续暂停/);
+    assert.match(notes, /外来Blob和未接管父级的后代不在覆盖范围/);
+    assert.match(notes, /源无法核验时明确警告.*本次语言\/时区未同步.*保持原生/);
+    assert.match(notes, /VG-035.*入口CSP与全局相对路径不等价/);
+    assert.match(notes, /VG-036.*四种父子组合/);
+    assert.doesNotMatch(notes, /Worker \/ SharedWorker、自定义字体与非普通/);
     assert.match(notes, /自 v1\.0\.0/);
     assert.match(notes, /门禁修复/);
     assert.doesNotMatch(notes, /初始化合成仓库|首次发布前的改动|无关分支|v9\.0\.0/);

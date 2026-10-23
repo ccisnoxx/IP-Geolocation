@@ -784,3 +784,33 @@ tasks:
       - 已支持的页面及嵌套Blob classic/module首读与模块依赖、撤销终止有真实证据
       - CSP拒绝如实报错或明确未同步，总开关关闭后新文档恢复原生
       - 用户已验收本轮限定补验并授权本地提交，不推送或恢复暂停范围
+
+  - id: VG-037
+    title: 当前Blob候选发布资料与ZIP核验对齐
+    phase: R7
+    dependencies: [VG-033, VG-034, VG-035, VG-036]
+    status: done
+    trellis_task: .trellis/tasks/10-23-vg-037-release-candidate-alignment
+    authorization:
+      date: '2026-10-23'
+      scope: 对齐发布资料、证据索引及发布说明，重新构建并核验新候选ZIP；版本不改，不自动提交推送发布
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-23'
+      scope: 发布资料对齐和候选ZIP核验；版本2.1.1及暂停范围不变，Blob警告保留未确认
+      evidence: .trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md#2026-10-23-人工验收与本地提交授权
+    acceptance_authorization:
+      date: '2026-10-23'
+      local_commit: true
+      push: false
+      tag: false
+      publication: false
+    scope:
+      - 补VG-033至VG-036现行Blob范围、人工验收、原始证据与未覆盖边界
+      - 保留历史候选报告，绑定当前源码基线、工作区改动、构建与ZIP摘要
+      - HTTP(S) Worker与SharedWorker继续暂停，现场Blob核验警告按未确认原因记录
+    acceptance:
+      - 发布说明不再称全部Worker暂停，也不扩大Blob恢复范围
+      - 本地门禁和全新ZIP审查通过，证据身份与限制准确
+      - 用户已验收发布资料与ZIP核验并授权本地提交；不推送、tag或发布

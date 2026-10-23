@@ -1,0 +1,20 @@
+{
+  "id": "VG-037",
+  "name": "当前Blob候选发布资料与ZIP核验对齐",
+  "status": "done",
+  "dependencies": [
+    "VG-033",
+    "VG-034",
+    "VG-035",
+    "VG-036"
+  ],
+  "acceptance": {
+    "status": "accepted",
+    "local_commit_authorized": true,
+    "push_authorized": false,
+    "date": "2026-10-23",
+    "by": "user",
+    "tag_authorized": false,
+    "publication_authorized": false
+  }
+}

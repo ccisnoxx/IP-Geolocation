@@ -80,7 +80,7 @@ function printChecklist(origin, chromePath, launchStatus) {
   console.log('- Chrome 138+；在 chrome://extensions 详情页正常开启 Allow User Scripts。API/权限/用户开关不可用或注册失败时 fail closed，无 documentId 回退。');
   console.log('- Popup/Options 确认注册成功，再完整 reload 或关闭重开已有页面；旧文档与 BFCache 保持旧快照，无热更新或自动刷新。');
   console.log('- 普通 HTTP(S) 顶层和 iframe 的首 inline 应读取配置语言/时区；未匹配 origin 保持原生，子域规则优先。');
-  console.log('- 固定内置名单字体过滤按已启用HTTP(S)规则独立注册；地理位置按独立userScripts状态报告；自定义名单、Worker / SharedWorker 仍暂停；about:blank/srcdoc/data/blob/特殊 sandbox 为 unsupported / UNKNOWN。');
+  console.log('- 固定内置名单字体过滤按已启用HTTP(S)规则独立注册；地理位置按独立userScripts状态报告；已同步Blob链内自身新建Blob Dedicated Worker按VG-033/034限定范围同步；HTTP(S) Worker、SharedWorker、自定义名单仍暂停；about:blank/srcdoc/data/blob/特殊 sandbox 为 unsupported / UNKNOWN。');
   console.log('- 当前验收证据索引：docs/stabilization/evidence-index.md；推荐流程、定位、字体与语言头按各自生产 runner 和覆盖范围解释。');
   console.log('- 历史 Linux 最小实验和 VG-023 smoke 只证明当时范围；当前候选需记录 earliest、配置切换/reload、关闭恢复、完整退出重启及未支持边界，不把 dry-run 当真实 Chrome 通过。');
   console.log('- Accept-Language 从有效语言 payload 同步，需核对请求头与新文档语言；可靠关闭入口为插件总开关，等待保存/同步后完整重载，再按需关闭 Allow User Scripts。直接关闭 Chrome 开关不保证首请求原生。WebRTC policy 独立报告，其同步不等于 ICE 网络防护通过。dry-run 不执行网络或浏览器验收。');

@@ -88,3 +88,22 @@ test('产物审查拒绝 ZIP 同路径旧字节与额外残留文件', () => {
     const result = audit(dir); assert.notEqual(result.status, 0); assert.match(result.stderr, /ZIP 必须完整且仅包含当前 dist/);
   });
 });
+
+
+test('产物审查允许sourceURL标识符但拒绝真实源码指令及map文件', () => {
+  fixture((dir, write) => {
+    write('dist/background/service-worker.js', 'const sourceURL = "blob:synthetic"; void sourceURL;');
+    zip(dir);
+    const result = audit(dir); assert.equal(result.status, 0, result.stderr);
+  });
+  for (const directive of ['//# sourceURL=synthetic.js', '//@ sourceMappingURL=synthetic.map', '/*# sourceMappingURL=synthetic.map */']) {
+    fixture((dir, write) => {
+      write('dist/background/service-worker.js', 'void 0;\n' + directive);
+      const result = audit(dir); assert.notEqual(result.status, 0); assert.match(result.stderr, /不应包含源码指令/);
+    });
+  }
+  fixture((dir, write) => {
+    write('dist/background/extra.map', '{}');
+    const result = audit(dir); assert.notEqual(result.status, 0); assert.match(result.stderr, /不应分发/);
+  });
+});

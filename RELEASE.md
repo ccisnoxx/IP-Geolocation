@@ -1,12 +1,12 @@
 # VanishGeo 构建与发布说明
 
-当前交付合同以本文、[安装说明](INSTALL.md)、[权限说明](PERMISSIONS.md)和 [稳定化清单](docs/stabilization/task-manifest.yaml) 为准。31 项稳定化任务均已人工验收为 done；完整索引见 [验收证据](docs/stabilization/evidence-index.md)。[VG-014 报告](docs/stabilization/release-readiness.md)保留历史候选事实，不能作为当前构建的发布批准。
+当前交付合同以本文、[安装说明](INSTALL.md)、[权限说明](PERMISSIONS.md)和 [稳定化清单](docs/stabilization/task-manifest.yaml) 为准。36 项任务（含 VG-033～VG-037）均已人工验收为 done；VG-037仅批准发布资料对齐和本地候选ZIP核验；完整索引见 [验收证据](docs/stabilization/evidence-index.md)。[VG-014 报告](docs/stabilization/release-readiness.md)保留历史候选事实，不能作为当前构建的发布批准。
 
 [CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 在 v*.*.* tag push 后检查并直接发布。任务完成不授予提交、push、tag、Release、托管部署或远端设置权限，需对应明确授权。
 
 ## 本地候选
 
-当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（本地候选）**，本轮不改版本。Chrome 138+、userScripts 权限及正常开启 Allow User Scripts 是语言／时区与合成定位的前提。VG-032 已恢复同一语言 payload 的 Accept-Language 同步，必要权限为 declarativeNetRequestWithHostAccess；固定名单字体过滤和 WebRTC 独立报告。自定义字体、Worker / SharedWorker 继续暂停。
+当前 package.json、package-lock.json（顶层与根包）和 manifest.json 均为 **2.1.1（本地候选）**，本轮不改版本。Chrome 138+、userScripts 权限及正常开启 Allow User Scripts 是语言／时区与合成定位的前提。VG-032 已恢复同一语言 payload 的 Accept-Language 同步，必要权限为 declarativeNetRequestWithHostAccess；固定名单字体过滤和 WebRTC 独立报告。页面及已同步Blob链内各realm安装后自身创建的Blob Dedicated Worker已按VG-033／VG-034限定范围同步语言时区；HTTP(S) Worker、SharedWorker、自定义字体继续暂停。
 
 可靠关闭使用插件总开关，等待保存／同步后完整重载文档，再按需关闭 Allow User Scripts。直接关闭 Chrome 开关仍可能让首请求带旧语言头；不承诺跨 API 原子同步。旧文档和 BFCache 保留旧快照。当前证据边界及发布前待办见 [发布校准记录](docs/stabilization/release-calibration.md)。
 
@@ -25,14 +25,14 @@ VG-005 建立的聚合入口为 `npm run check`，顺序为 `npm run typecheck &
 
 分发包含完整 dist：manifest、background/content/popup/options/leak-test/diagnostic 六个 JS 入口、页面 HTML/CSS、assets/ 共享 chunks、icons、fixtures、LICENSE 与 NOTICE。还必须包含默认启用的 rules/header-migration-guard.json 和独立 font-exposure/filter.js。后台使用固定语言／时区与独立定位模板；完整 runtime 保留隔离测试，构建期运行自包含守卫。没有独立 injected/runtime.js。ZIP 根部直接含 manifest.json。
 
-真实 Chrome 证据按各任务记录解释：VG-026 推荐流程、明确应用及关闭恢复，VG-029 定位恢复，VG-030 字体故障恢复，VG-031 语言列表和 VG-032 请求头同步／完整退出重启，见 [证据索引](docs/stabilization/evidence-index.md)。VG-014 的旧暂停 runner、旧完整 runtime 隔离实验及 Chrome dry-run 均不能代替当前候选的真实 Chrome 验收。任何新候选的改动须评估已有证据是否仍适用。
+真实 Chrome 证据按各任务记录解释：VG-026 推荐流程、明确应用及关闭恢复，VG-029 定位恢复，VG-030 字体故障恢复，VG-031 语言列表和 VG-032 请求头同步／完整退出重启，见 [证据索引](docs/stabilization/evidence-index.md)。VG-014 的旧暂停 runner、旧完整 runtime 隔离实验及 Chrome dry-run 均不能代替当前候选的真实 Chrome 验收。VG-033／VG-034有当前Chrome实测，VG-036补充Chrome138 Blob及嵌套Blob定向验收；VG-035的HTTP包装反例支持继续暂停。任何新候选的改动须评估已有证据是否仍适用。
 
-本地打包与只读核验（归档名须使用本次获准的候选名；执行前确认目标 ZIP 不存在，避免 zip 更新已有归档而留下旧条目）：
+本地打包与只读核验（下列命令用于未被Chrome写入`_metadata`的干净dist；已在Chrome中加载的目录请保留浏览器缓存，按[VG-037记录](.trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md)使用独立交付快照。归档名须使用本次获准候选名，且目标ZIP必须不存在，避免更新旧归档留下旧条目）：
 
 ```bash
 mkdir -p release
-(cd dist && zip -r ../release/vanishgeo-v2.1.1-candidate.zip .)
-node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.1-candidate.zip --output <脱敏JSON路径>
+(cd dist && zip -r ../release/vanishgeo-v2.1.1-candidate-vg037.zip .)
+node scripts/audit-release.mjs --zip release/vanishgeo-v2.1.1-candidate-vg037.zip --output <脱敏JSON路径>
 ```
 
 审查器核对版本、Chrome 138 下限、现行精确权限集合、默认启用的静态隔离规则及其维护源字节、独立字体入口、入口/资源图、共享 chunk 可达性、远程执行/运行期编译/map/敏感模式和 ZIP 文件/字节一致性。它不能识别所有任意秘密或动态计算 URL，需要与维护源审查共同解释。报告摘要采用相对路径 localeCompare 排序的 [path, SHA-256] JSON 再 SHA-256，不能与使用路径加文件字节的 Chrome runner 摘要直接比较。归档供本地人工检查，未发布；审查器目前是手动步骤，未接入 CI / release workflow。
