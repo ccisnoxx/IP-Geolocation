@@ -65,10 +65,10 @@ test('禁用或空首次安装不写全局状态，私有句柄更新不热更�
   const fn = assertSelfContainedFunction((await generateRuntime()).code, 'applyVanishGeoRuntime');
   for (const initial of ['undefined', 'null', '{extensionEnabled:false}', '{enabled:false}']) {
     const context = page();
+    const globalKeys = vm.runInContext('Reflect.ownKeys(globalThis)', context);
     const controller = vm.runInContext(`(${fn})(${initial})`, context);
     assert.equal(vm.runInContext('navigator.language', context), 'en-US');
-    assert.equal(vm.runInContext("Symbol.for('disabled-document') in globalThis", context), false);
-    assert.equal(vm.runInContext("Object.getOwnPropertyDescriptor(globalThis, Symbol.for('disabled-document'))", context), undefined);
+    assert.deepEqual(vm.runInContext('Reflect.ownKeys(globalThis)', context), globalKeys);
     controller.update(payload);
     assert.equal(vm.runInContext('navigator.language', context), 'en-US');
   }
@@ -115,7 +115,7 @@ test('完整页面与 worker 经 facade 二次打包后分别脱离闭包，sour
   const fn = assertSelfContainedFunction(declaration.getText(parsed), 'applyVanishGeoRuntime');
   assert.ok(chunk.exports.includes('pageRuntimeSource'));
   const context = page();
-  vm.runInContext(`(${fn})(${JSON.stringify(payload)}, 'synthetic-document')`, context);
+  vm.runInContext(`(${fn})(${JSON.stringify(payload)})`, context);
   assert.equal(vm.runInContext('navigator.language', context), 'fr-FR');
   assert.equal(vm.runInContext('Intl.DateTimeFormat().resolvedOptions().timeZone', context), 'Europe/Paris');
   assert.equal(vm.runInContext("Object.getOwnPropertySymbols(globalThis).length", context), 0);
@@ -131,7 +131,7 @@ test('完整页面与 worker 经 facade 二次打包后分别脱离闭包，sour
   // 使用新文档，使 constructor 在首次安装时存在。
   const workerPage = page();
   Object.assign(workerPage, { URL: context.URL, Blob: context.Blob, Worker: context.Worker });
-  vm.runInContext(`(${fn})(${JSON.stringify(payload)}, 'worker-document'); new Worker('/classic.js')`, workerPage);
+  vm.runInContext(`(${fn})(${JSON.stringify(payload)}); new Worker('/classic.js')`, workerPage);
   const prelude = blobs[0].slice(0, blobs[0].lastIndexOf('\nimportScripts('));
   const worker = page();
   Object.assign(worker, { URL: context.URL, Blob: context.Blob, Worker: context.Worker });

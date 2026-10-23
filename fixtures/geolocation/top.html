@@ -48,7 +48,6 @@
     <button id="run-success" type="button">Run success</button>
     <button id="run-watch" type="button">Run watch</button>
     <button id="run-clear-watch" type="button">Run clearWatch</button>
-    <button id="run-error" type="button">Run forced error</button>
   </div>
 
   <section>
@@ -67,10 +66,6 @@
       function setText(id, value) {
         var el = document.getElementById(id);
         if (el) el.textContent = value == null || value === '' ? '-' : String(value);
-      }
-
-      function getGeoController() {
-        return window.__ipGeoGeolocationController || null;
       }
 
       function snapshotSuccessPayload(payload) {
@@ -125,32 +120,12 @@
         setText('geo-clear-watch', JSON.stringify({ watchId: watchId, cleared: result }));
       }
 
-      function runForcedError() {
-        setText('geo-action', 'forced-error');
-        var controller = getGeoController();
-        if (!controller) {
-          setText('geo-error', JSON.stringify({ code: 0, message: 'missing geolocation controller' }));
-          return;
-        }
-        controller.setForcedError({ code: 1, message: 'Permission denied (fixture)' });
-        navigator.geolocation.getCurrentPosition(
-          function(position) {
-            setText('geo-success', snapshotSuccessPayload(position));
-          },
-          function(error) {
-            setText('geo-error', JSON.stringify({ code: error.code, message: error.message }));
-          }
-        );
-        controller.clearForcedError();
-      }
-
       async function runGeolocationDiagnostics() {
         runSuccess();
         await new Promise((resolve) => setTimeout(resolve, 0));
         runWatch();
         await new Promise((resolve) => setTimeout(resolve, 0));
         runClearWatch();
-        runForcedError();
         return {
           successResult: document.getElementById('geo-success').textContent,
           watchResult: document.getElementById('geo-watch').textContent,
@@ -163,7 +138,6 @@
       document.getElementById('run-success').addEventListener('click', runSuccess);
       document.getElementById('run-watch').addEventListener('click', runWatch);
       document.getElementById('run-clear-watch').addEventListener('click', runClearWatch);
-      document.getElementById('run-error').addEventListener('click', runForcedError);
     })();
   </script>
 </body>

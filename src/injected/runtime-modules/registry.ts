@@ -25,7 +25,6 @@ export function createRuntimeState(globals: typeof globalThis & Record<string, a
       language: null,
       languages: null,
       timezone: null,
-      geolocation: null,
       geolocationCoordinate: null,
       blockedFontFamilyKeys: new Set<string>()
     }

@@ -135,9 +135,3 @@ export async function applyWebRTCPolicy(config: SiteSpoofConfig, releaseConfirme
   if (!converged(after)) throw new RuntimeSyncOperationError('verification-failed', 'WebRTC 策略更新后仍未确认生效。');
   return after;
 }
-
-export async function resetWebRTCPolicy(): Promise<void> {
-  const setting = getWebRTCPolicySetting();
-  if (!setting) return;
-  await callChromeSetting(setting.clear.bind(setting), { scope: 'regular' });
-}

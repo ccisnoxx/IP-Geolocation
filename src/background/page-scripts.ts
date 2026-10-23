@@ -82,7 +82,8 @@ async function reconcileScripts(config: SiteSpoofConfig, source: string, surface
   const remove = actual.filter(script => !wanted.has(script.id) || scope(script) !== scope(wanted.get(script.id)!)).map(script => script.id);
   if (beforeChange && (remove.length || desired.some(script => !actual.some(current => current.id === script.id && signature(current) === signature(script))))) {
     try { await beforeChange(); }
-    catch { return failed('sync-failed', 'geolocation-metadata-write-failed', '定位注册变化前的重载恢复记录写入失败，未改变注册。'); }
+    catch { return failed('sync-failed', surface === 'page' ? 'page-metadata-write-failed' : 'geolocation-metadata-write-failed',
+      `${label}注册变化前的重载恢复记录写入失败，未改变注册。`); }
   }
   if (remove.length) {
     try {
@@ -118,8 +119,8 @@ async function reconcileScripts(config: SiteSpoofConfig, source: string, surface
   } };
 }
 
-export function reconcilePageScripts(config: SiteSpoofConfig, source: string): Promise<PageScriptSync> {
-  return reconcileScripts(config, source, 'page');
+export function reconcilePageScripts(config: SiteSpoofConfig, source: string, beforeChange?: () => Promise<void>): Promise<PageScriptSync> {
+  return reconcileScripts(config, source, 'page', beforeChange);
 }
 
 export async function reconcileGeolocationScripts(config: SiteSpoofConfig, source: string, beforeChange?: () => Promise<void>) {

@@ -21,7 +21,6 @@ http://localhost:8765/fixtures/geolocation/top.html
 - `getCurrentPosition` success
 - `watchPosition`
 - `clearWatch`
-- forced error branch
 
 ## Not Covered In First Round
 

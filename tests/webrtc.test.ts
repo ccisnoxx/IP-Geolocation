@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyWebRTCPolicy, getWebRTCPolicyState, resetWebRTCPolicy } from '../src/background/webrtc';
+import { applyWebRTCPolicy, getWebRTCPolicyState } from '../src/background/webrtc';
 import { normalizeConfig } from '../src/shared/config-model';
 
 function installChromePolicyMock(initialValue = 'default') {
@@ -77,8 +77,6 @@ test('applyWebRTCPolicy clears Chrome policy for default or disabled protection'
     assert.equal(state.actualPolicy, 'default');
     assert.equal(state.leakProtectionActive, false);
 
-    await resetWebRTCPolicy();
-    assert.equal(chromeMock.calls[1].method, 'clear');
   } finally {
     chromeMock.restore();
   }

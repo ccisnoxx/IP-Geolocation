@@ -384,3 +384,13 @@ Thumbs.db
 !.trellis/tasks/10-23-vg-037-release-candidate-alignment/task.json
 !.trellis/tasks/10-23-vg-037-release-candidate-alignment/prd.md
 !.trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md
+
+# VG-038 证据审计与清理记录
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/
+.trellis/tasks/10-23-vg-038-code-audit-cleanup/*
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/task.json
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/prd.md
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/implement.md
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/chrome-regression.md
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/chrome138-evidence.json
+!.trellis/tasks/10-23-vg-038-code-audit-cleanup/chrome-current-evidence.json

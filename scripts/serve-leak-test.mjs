@@ -44,9 +44,7 @@ function normalizePort(rawPort) {
   return port;
 }
 
-function resolveRequestPath(distRoot, requestUrl, host = DEFAULT_LEAK_TEST_HOST) {
-  const url = new URL(requestUrl || '/', `http://${host}`);
-  const decodedPath = decodeURIComponent(url.pathname);
+function resolveRequestPath(distRoot, decodedPath) {
   const relativePath = decodedPath === '/'
     ? join('leak-test', 'leak-test.html')
     : decodedPath.replace(/^\/+/, '');
@@ -80,7 +78,17 @@ export function createLeakTestServer(options = {}) {
       return;
     }
 
-    const requestUrl = new URL(request.url || '/', `http://${host}`);
+    let requestUrl;
+    let decodedPath;
+    try {
+      requestUrl = new URL(request.url || '/', `http://${host}`);
+      decodedPath = decodeURIComponent(requestUrl.pathname);
+    } catch (error) {
+      if (!(error instanceof TypeError || error instanceof URIError)) throw error;
+      response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('Bad Request');
+      return;
+    }
     if (requestUrl.pathname === '/headers.json') {
       writeJson(response, request, {
         acceptLanguage: request.headers['accept-language'] || null,
@@ -89,7 +97,7 @@ export function createLeakTestServer(options = {}) {
       return;
     }
 
-    const filePath = resolveRequestPath(distRoot, request.url, host);
+    const filePath = resolveRequestPath(distRoot, decodedPath);
     if (!filePath || !existsSync(filePath) || !statSync(filePath).isFile()) {
       response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       response.end('Not Found');

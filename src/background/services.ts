@@ -336,33 +336,36 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       ...(pendingPageWindow(stored, signature) ? { pendingPageScopeChange: true } : {}),
       ...(stored?.pendingDetectionCleanup ? { pendingDetectionCleanup: stored.pendingDetectionCleanup } : {})
     };
-    const beforeFontChange = async () => {
-      state.pendingFontScopeChange = true;
+    let checkpointBaseline = stored;
+    const beforeScopeChange = async (field: 'pendingPageScopeChange' | 'pendingFontScopeChange' | 'pendingGeolocationScopeChange') => {
+      state[field] = true;
       await setRuntimeSyncMetadata(state);
+      // 最终状态可能等于启动快照，但仍须收尾本次已持久化的注册变化窗口。
+      checkpointBaseline = structuredClone(state);
     };
+    const beforeFontChange = () => beforeScopeChange('pendingFontScopeChange');
+    const beforePageChange = () => beforeScopeChange('pendingPageScopeChange');
     const preparedHeaders = await runRuntimeSideEffect('headers', async () => {
-      headerRules = await prepareHeaderRules(config, async () => {
-        state.pendingPageScopeChange = true;
-        await setRuntimeSyncMetadata(state);
-      });
+      headerRules = await prepareHeaderRules(config, beforePageChange);
     });
     const [pageSync, webrtc] = await Promise.all([
       (async () => {
         const legacy = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
         if (legacy.status !== 'ok') {
-          // 旧路径撤销未确认时不新增字体注册，仍尝试清理字体命名空间。
-          const font = await reconcileFontScripts({ ...config, masterEnabled: false }, beforeFontChange);
-          const geo = await reconcileGeolocationScripts({ ...config, masterEnabled: false }, geolocationRuntimeSource);
-          return { component: { status: legacy.status, errors: [...legacy.errors, ...font.errors, ...geo.component.errors] },
+          // 旧路径撤销未确认时拒绝新增，仍撤销各自命名空间的既有注册。
+          const inactiveConfig = { ...config, masterEnabled: false };
+          const page = await reconcilePageScripts(inactiveConfig, pageRuntimeSource, beforePageChange);
+          const font = await reconcileFontScripts(inactiveConfig, beforeFontChange);
+          const geo = await reconcileGeolocationScripts(inactiveConfig, geolocationRuntimeSource);
+          return { component: { status: legacy.status, errors: [...legacy.errors, ...page.component.errors, ...font.errors, ...geo.component.errors] },
             geolocationRuntime: { state: 'sync-failed' as const, registeredRuleCount: geo.geolocationRuntime.registeredRuleCount, reloadRequired: false },
             pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false },
             fontRuntime: { state: 'sync-failed' as const, registeredRuleCount: font.fontRuntime.registeredRuleCount, reloadRequired: false } };
         }
-        const page = await reconcilePageScripts(config, pageRuntimeSource);
+        const page = await reconcilePageScripts(config, pageRuntimeSource, beforePageChange);
         const geo = await reconcileGeolocationScripts(config, geolocationRuntimeSource, async () => {
           // 注册漂移/升级恢复也有旧文档窗口；必须先持久化再改变实际注册。
-          state.pendingGeolocationScopeChange = true;
-          await setRuntimeSyncMetadata(state);
+          await beforeScopeChange('pendingGeolocationScopeChange');
         });
         const font = await reconcileFontScripts(config, beforeFontChange);
         return { ...page, geolocationRuntime: geo.geolocationRuntime, fontRuntime: font.fontRuntime, component: {
@@ -423,7 +426,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       && state.pendingReloads.some(item => item.surfaces?.includes('font'));
     state.report.geolocationRuntime.reloadRequired = ['ready', 'disabled'].includes(state.report.geolocationRuntime.state) && reloadKnown
       && state.pendingReloads.some(item => item.surfaces?.includes('geolocation'));
-    await checkpoint(state, stored);
+    await checkpoint(state, checkpointBaseline);
     return state.report;
   }
 
@@ -854,22 +857,22 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
         return await reconcile(config);
       } catch (error) {
         const headerCleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
-        // 启动状态不可确认时，只撤销所属字体注册；清理仍占用配置队列，不猜测或覆盖配置。
+        // 启动状态不可确认时撤销各自命名空间；清理仍占用配置队列，不猜测或覆盖配置。
+        const legacyCleanup = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
         const cleanup = await syncFontScriptRegistration([]);
+        const pageCleanup = await reconcilePageScripts(createInitialConfig(), pageRuntimeSource);
         const geolocationCleanup = await reconcileGeolocationScripts(createInitialConfig(), geolocationRuntimeSource);
-        if (geolocationCleanup.component.status !== 'ok') {
-          const reason = error instanceof Error ? error.message : String(error);
-          throw Object.assign(new RuntimeSyncOperationError('geolocation-scripts-sync-failed',
-            `启动初始化失败：${reason}；旧地理位置注册清理未能确认${cleanup.status !== 'ok' ? '，字体清理亦未确认' : ''}。`), { cause: error });
-        }
-        if (cleanup.status !== 'ok') {
-          const reason = error instanceof Error ? error.message : String(error);
-          throw Object.assign(new RuntimeSyncOperationError('font-scripts-sync-failed',
-            `启动初始化失败：${reason}；旧字体注册清理未能确认。`), { cause: error });
-        }
-        if (headerCleanup.status !== 'ok') {
-          const reason = error instanceof Error ? error.message : String(error);
-          throw Object.assign(new RuntimeSyncOperationError('header-cleanup-failed', `启动初始化失败：${reason}；请求头隔离或撤销未确认，请关闭扩展并检查权限。`), { cause: error });
+        const failures = [
+          { code: 'legacy-content-scripts-sync-failed', message: '旧页面初始化注册清理未能确认', component: legacyCleanup },
+          { code: 'page-scripts-sync-failed', message: '旧页面语言/时区注册清理未能确认', component: pageCleanup.component },
+          { code: 'geolocation-scripts-sync-failed', message: '旧地理位置注册清理未能确认', component: geolocationCleanup.component },
+          { code: 'font-scripts-sync-failed', message: '旧字体注册清理未能确认', component: cleanup },
+          { code: 'header-cleanup-failed', message: '请求头隔离或撤销未确认，请关闭扩展并检查权限', component: headerCleanup }
+        ].filter(item => item.component.status !== 'ok');
+        if (failures.length) {
+          const details = failures.map(item => `${item.message}（${item.component.errors.map(entry => `${entry.code}：${entry.message}`).join('；')}）`).join('；');
+          throw Object.assign(new RuntimeSyncOperationError(failures[0].code,
+            `启动初始化失败：${formatError(error)}；${details}。`), { cause: error });
         }
         throw error;
       }

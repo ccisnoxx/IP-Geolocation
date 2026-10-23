@@ -89,33 +89,6 @@ export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
   value: null
 };
 
-export const LANGUAGE_PRESETS = [
-  { label: 'English (US)', language: 'en-US', languages: ['en-US', 'en'] },
-  { label: 'English (UK)', language: 'en-GB', languages: ['en-GB', 'en'] },
-  { label: 'Chinese (Simplified)', language: 'zh-CN', languages: ['zh-CN', 'zh', 'en'] },
-  { label: 'Chinese (Traditional)', language: 'zh-TW', languages: ['zh-TW', 'zh', 'en'] },
-  { label: 'Japanese', language: 'ja-JP', languages: ['ja-JP', 'ja', 'en'] },
-  { label: 'Korean', language: 'ko-KR', languages: ['ko-KR', 'ko', 'en'] },
-  { label: 'German', language: 'de-DE', languages: ['de-DE', 'de', 'en'] },
-  { label: 'French', language: 'fr-FR', languages: ['fr-FR', 'fr', 'en'] }
-] as const;
-
-export const TIMEZONE_PRESETS = [
-  'UTC',
-  'America/Los_Angeles',
-  'America/New_York',
-  'America/Chicago',
-  'Europe/London',
-  'Europe/Berlin',
-  'Europe/Paris',
-  'Asia/Shanghai',
-  'Asia/Hong_Kong',
-  'Asia/Tokyo',
-  'Asia/Seoul',
-  'Asia/Singapore',
-  'Australia/Sydney'
-];
-
 const DEFAULT_RULE_DOMAINS = [
   'chatgpt.com',
   'openai.com',

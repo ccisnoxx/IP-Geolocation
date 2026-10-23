@@ -6,9 +6,17 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import * as configModel from '../src/shared/config-model';
 import { createCustomProfile } from '../src/shared/profile';
+import { formatCoordinate } from '../src/shared/last-location-display';
 import { ruleListToText, rulesFromText } from '../src/shared/rule-list';
 import { validateConfig } from '../src/shared/config-resolver';
 import type { SiteSpoofConfig } from '../src/shared/types';
+
+test('出口档案缺失坐标保持空白，合法零坐标与小数按实际值显示', () => {
+  for (const value of [null, undefined, NaN, Infinity]) assert.equal(formatCoordinate(value), '');
+  assert.equal(formatCoordinate(0), '0');
+  assert.equal(formatCoordinate(-30.125), '-30.125');
+  assert.equal(formatCoordinate(1.23456789), '1.234568');
+});
 
 function harness(page: 'popup' | 'options') {
   const source = readFileSync(new URL(`../src/${page}/${page}.ts`, import.meta.url), 'utf8');

@@ -54,7 +54,6 @@ export type RuntimeState = {
     language: string | null;
     languages: string[] | null;
     timezone: string | null;
-    geolocation: RuntimePayload['geolocation'];
     geolocationCoordinate: { key: string; latitude: number; longitude: number } | null;
     blockedFontFamilyKeys: Set<string>;
   };

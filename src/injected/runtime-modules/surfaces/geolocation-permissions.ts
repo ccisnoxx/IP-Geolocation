@@ -98,7 +98,6 @@ export function installGeolocationSpoof(
     : undefined;
   const apply = realmState.originals.reflectApply;
   const snapshot = { ...geolocation };
-  realmState.values.geolocation = snapshot;
   getStableGeolocationCoordinate(realmState, snapshot);
   realmState.installedSurfaces.add('geolocation');
 

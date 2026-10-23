@@ -40,6 +40,8 @@ export function installDateTimeSpoof(
 
   const originalResolvedOptions = originals.resolvedOptions;
   const originalGetTimezoneOffset = originals.getTimezoneOffset;
+  const reflectApply = realmState.originals.reflectApply;
+  const reflectConstruct = globals.Reflect.construct;
 
   const getParts = (date: Date, timeZone = realmState.values.timezone) => {
     if (!timeZone) return null;
@@ -48,6 +50,7 @@ export function installDateTimeSpoof(
         timeZone,
         hourCycle: 'h23',
         year: 'numeric',
+        era: 'short',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
@@ -60,27 +63,31 @@ export function installDateTimeSpoof(
       formatter.formatToParts(date).forEach((part: Intl.DateTimeFormatPart) => {
         if (part.type !== 'literal') parts[part.type] = part.value;
       });
+      // Date 字符串与墙钟换算使用完整年份；公元前 1 年对应年份 0。
+      const year = parts.era === 'BC' ? 1 - Number(parts.year) : Number(parts.year);
+      parts.year = year < 0 ? `-${String(-year).padStart(4, '0')}` : String(year).padStart(4, '0');
       return parts;
     } catch {
       return null;
     }
   };
 
+  const dateFromParts = (parts: Record<string, string>, milliseconds = 0) => {
+    const date = new OriginalDate(0);
+    // 格式化年份不应触发 Date.UTC 对 0..99 的 1900 年映射。
+    date.setUTCFullYear(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+    date.setUTCHours(Number(parts.hour) % 24, Number(parts.minute), Number(parts.second), milliseconds);
+    return date;
+  };
+
   const resolveOffset = (date: Date) => {
     const parts = getParts(date);
     if (!parts || !realmState.values.timezone) return originalGetTimezoneOffset.call(date);
-    const asUTC = OriginalDate.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour) % 24,
-      Number(parts.minute),
-      Number(parts.second)
-    );
+    const asUTC = dateFromParts(parts).getTime();
     return Math.round((date.getTime() - asUTC) / 60000);
   };
 
-  const makeWallDate = (args: IArguments | unknown[]) => {
+  const makeWallTime = (args: unknown[]) => {
     const year = Number(args[0]);
     const month = Number(args[1]);
     const day = args.length > 2 ? Number(args[2]) : 1;
@@ -93,21 +100,13 @@ export function installDateTimeSpoof(
       utc = OriginalDate.UTC(year, month, day, hour, minute, second, ms)
         + resolveOffset(new OriginalDate(utc)) * 60000;
     }
-    return new OriginalDate(utc);
+    return utc;
   };
 
   const getWallDate = (date: Date) => {
     const parts = getParts(date);
     if (!parts) return null;
-    return new OriginalDate(OriginalDate.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour) % 24,
-      Number(parts.minute),
-      Number(parts.second),
-      date.getUTCMilliseconds()
-    ));
+    return dateFromParts(parts, date.getUTCMilliseconds());
   };
 
   const policy = createIntlPolicy(config.intlMode, spoofLanguage, timezone);
@@ -119,8 +118,9 @@ export function installDateTimeSpoof(
     const OriginalCtor = originals[name];
     if (typeof OriginalCtor !== 'function') return;
 
-    function SpoofedIntlConstructor(locales?: string | string[], options?: unknown) {
-      return new OriginalCtor(normalizeLocale(locales), options);
+    function SpoofedIntlConstructor(this: unknown, locales?: string | string[], options?: unknown) {
+      const args = [normalizeLocale(locales), options];
+      return new.target ? reflectConstruct(OriginalCtor, args, new.target) : reflectApply(OriginalCtor, this, args);
     }
 
     realmState.originals.objectSetPrototypeOf.call(globals.Object || Object, SpoofedIntlConstructor, OriginalCtor);
@@ -139,8 +139,9 @@ export function installDateTimeSpoof(
   if (!realmState.installedSurfaces.has('intl-date-format')) {
     realmState.installedSurfaces.add('intl-date-format');
 
-    function SpoofedDateTimeFormat(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
-      return new OriginalDateTimeFormat(normalizeLocale(locales), normalizeIntlOptions(options));
+    function SpoofedDateTimeFormat(this: unknown, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+      const args = [normalizeLocale(locales), normalizeIntlOptions(options)];
+      return new.target ? reflectConstruct(OriginalDateTimeFormat, args, new.target) : reflectApply(OriginalDateTimeFormat, this, args);
     }
     realmState.originals.objectSetPrototypeOf.call(globals.Object || Object, SpoofedDateTimeFormat, OriginalDateTimeFormat);
     SpoofedDateTimeFormat.prototype = OriginalDateTimeFormat.prototype;
@@ -171,13 +172,9 @@ export function installDateTimeSpoof(
   if (realmState.values.timezone && !realmState.installedSurfaces.has('date-timezone')) {
     realmState.installedSurfaces.add('date-timezone');
 
-    function SpoofedDate(this: Date, ...args: unknown[]) {
-      if (!(this instanceof SpoofedDate)) {
-        return new (SpoofedDate as any)().toString();
-      }
-      if (args.length === 0) return new OriginalDate();
-      if (args.length === 1) return new OriginalDate(args[0]);
-      return makeWallDate(args);
+    function SpoofedDate(...args: unknown[]) {
+      if (!new.target) return new OriginalDate().toString();
+      return reflectConstruct(OriginalDate, args.length > 1 ? [makeWallTime(args)] : args, new.target);
     }
     realmState.originals.objectSetPrototypeOf.call(globals.Object || Object, SpoofedDate, OriginalDate);
     SpoofedDate.prototype = OriginalDate.prototype;

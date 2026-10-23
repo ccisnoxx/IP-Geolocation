@@ -214,10 +214,8 @@ test('manifest permission boundary documents active detection and avoids redunda
     assert.match(permissionsDoc, new RegExp(`\`${permission}\``));
   });
   assert.match(permissionsDoc, /`<all_urls>`/);
-  assert.match(permissionsDoc, /optional host permissions 暂不处理/);
-  assert.match(permissionsDoc, /`activeTab` 不申请/);
-  assert.match(permissionsDoc, /`alarms` 已移除/);
-  assert.equal(manifest.permissions.includes('activeTab'), false);
+  assert.match(permissionsDoc, /没有将其改为逐站点可选授权/);
+  assert.match(permissionsDoc, /当前未申请[^\n]*`alarms`[^\n]*`activeTab`/);
 });
 
 test('configuration UI wires explicit exit-profile selection, active detection, WebRTC, and selective font exposure controls', () => {
@@ -365,6 +363,10 @@ test('DNR仅恢复host约束权限，随包默认隔离覆盖全部HTTP资源并
   assert.match(read('vite.config.ts'), /src: 'rules'/);
   const permissions = read('PERMISSIONS.md');
   assert.match(permissions, /declarativeNetRequestWithHostAccess/);
-  assert.match(permissions, /磁盘|残留/);
-  assert.match(permissions, /1001/);
+  assert.match(permissions, /规则可跨浏览器会话保存/);
+  assert.match(permissions, /\[开发记录\]\(docs\/development\/project-history\.md#请求头隔离与迁移实现摘录\)/);
+  const migration = read('docs/development/project-history.md').split('## 请求头隔离与迁移实现摘录\n')[1]?.split('\n## ')[0];
+  assert.ok(migration, '权限文档链接的迁移段落必须存在');
+  assert.match(migration, /磁盘/);
+  assert.match(migration, /1001、1002及1100\.\.2099/);
 });

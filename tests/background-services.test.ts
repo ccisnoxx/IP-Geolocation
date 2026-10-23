@@ -19,6 +19,7 @@ import {
 } from '../src/shared/config-model';
 import type { ExitLocationProfile, Profile, SiteSpoofConfig } from '../src/shared/types';
 import { createDnrMock } from './helpers/dnr-mock';
+import { compilePageScripts, compileGeolocationScripts, PAGE_SCRIPT_PREFIX, GEOLOCATION_SCRIPT_PREFIX } from '../src/background/page-scripts';
 
 const VERIFIED_AT = 1_752_551_200_000;
 
@@ -87,6 +88,7 @@ interface ChromeMockOptions {
   tabs?: chrome.tabs.Tab[];
   sessionStorage?: Record<string, any>;
   initialScripts?: chrome.scripting.RegisteredContentScript[];
+  initialUserScripts?: chrome.userScripts.RegisteredUserScript[];
 }
 
 function installChromeMock(storage: Record<string, any>, options: ChromeMockOptions = {}) {
@@ -94,7 +96,7 @@ function installChromeMock(storage: Record<string, any>, options: ChromeMockOpti
   const sessionStorage: Record<string, any> = options.sessionStorage || {};
   const registeredScripts: chrome.scripting.RegisteredContentScript[][] = [];
   let actualScripts: chrome.scripting.RegisteredContentScript[] = options.initialScripts || [];
-  let userScripts: chrome.userScripts.RegisteredUserScript[] = [];
+  let userScripts: chrome.userScripts.RegisteredUserScript[] = options.initialUserScripts || [];
   let privacyValue = 'default';
   let privacyControl = 'controllable_by_this_extension';
   const mutations = { content: 0, webrtc: 0 };
@@ -699,7 +701,7 @@ test('初始化先撤销旧 ISOLATED bootstrap，再注册新文档语言/时区
   } finally { mock.restore(); globalThis.fetch = originalFetch; }
 });
 
-test('启动读取失败仍撤销所属字体注册，保留其他ID及原始错误，恢复后可再次对账', async (t) => {
+test('启动读取失败撤销既有bootstrap语言定位字体注册，保留其他ID及原始错误，恢复后可再次对账', async (t) => {
   for (const source of [
     { name: '首次 local 读取', area: 'local', failAt: 1 },
     { name: '配置 local 读取', area: 'local', failAt: 2 },
@@ -710,9 +712,13 @@ test('启动读取失败仍撤销所属字体注册，保留其他ID及原始错
     const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
     const before = clone(storage);
     const other = { id: 'other-owned-component', matches: ['*://example.test/*'], js: ['font-exposure/filter.js'] };
+    const otherUserScript = { id: 'other-user-script', matches: ['*://other.test/*'], js: [{ code: 'void 0' }] };
+    const previousConfig = createSingleRuleConfig('example.test', { automatic: false });
     const mock = installChromeMock(storage, { initialScripts: [
-      { ...other, id: 'vanishgeo-font-exposure-example.test' }, other
-    ] });
+      { ...other, id: 'vanishgeo-font-exposure-example.test' },
+      { id: 'vanishgeo-runtime-init', matches: ['*://example.test/*'], js: ['content/content.js'] }, other
+    ], initialUserScripts: [...compilePageScripts(previousConfig, 'function applyLanguageTimezoneRuntime() {}'),
+      ...compileGeolocationScripts(previousConfig, 'function applyGeolocationRuntime() {}'), otherUserScript] });
     const area = chrome.storage[source.area];
     const originalGet = area.get;
     const readError = new Error(`合成${source.name}失败`);
@@ -728,7 +734,8 @@ test('启动读取失败仍撤销所属字体注册，保留其他ID及原始错
       assert.deepEqual(mock.registeredScripts, []);
       assert.deepEqual(storage, before);
       assert.deepEqual(mock.sessionStorage, {});
-      assert.deepEqual(mock.pageMutations, { register: 0, update: 0, unregister: 0 });
+      assert.deepEqual(await chrome.userScripts.getScripts(), [otherUserScript]);
+      assert.deepEqual(mock.pageMutations, { register: 0, update: 0, unregister: 2 });
       assert.equal(mock.mutations.webrtc, 0);
       assert.deepEqual(mock.executeCalls, []);
       assert.deepEqual(mock.reloadCalls, []);
@@ -738,6 +745,50 @@ test('启动读取失败仍撤销所属字体注册，保留其他ID及原始错
       assert.equal(restored.fontRuntime?.state, 'disabled');
       assert.equal(restored.fontRuntime?.registeredRuleCount, 0);
       assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), [other]);
+      assert.deepEqual(await chrome.userScripts.getScripts(), [otherUserScript]);
+    } finally { mock.restore(); }
+  });
+});
+
+test('启动读取失败且bootstrap撤销失败仍清理其他所属注册，保留原始原因和无关ID', async (t) => {
+  for (const fault of ['reject', 'no-op']) await t.test(fault, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    const other = { id: 'other-content-script', matches: ['*://other.test/*'], js: ['other.js'] };
+    const bootstrap = { id: 'vanishgeo-runtime-init', matches: ['*://example.test/*'], js: ['content/content.js'] };
+    const otherUserScript = { id: 'other-user-script', matches: ['*://other.test/*'], js: [{ code: 'void 0' }] };
+    const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+    const mock = installChromeMock(storage, {
+      initialScripts: [bootstrap, { ...other, id: 'vanishgeo-font-exposure-example.test' }, other],
+      initialUserScripts: [...compilePageScripts(config, 'function applyLanguageTimezoneRuntime() {}'),
+        ...compileGeolocationScripts(config, 'function applyGeolocationRuntime() {}'), otherUserScript]
+    });
+    const get = chrome.storage.local.get, unregister = chrome.scripting.unregisterContentScripts;
+    const readError = new Error('合成启动读取失败');
+    let failedRead = false;
+    chrome.storage.local.get = (async (...args: unknown[]) => {
+      if (args[0] == null && !failedRead) { failedRead = true; throw readError; }
+      return Reflect.apply(get, chrome.storage.local, args);
+    }) as typeof get;
+    chrome.scripting.unregisterContentScripts = (async (filter?: chrome.scripting.ContentScriptFilter) => {
+      if (filter?.ids?.includes(bootstrap.id)) {
+        if (fault === 'reject') throw new Error('合成bootstrap撤销失败');
+        return;
+      }
+      return unregister(filter);
+    }) as typeof unregister;
+    try {
+      await assert.rejects(createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}').initializeExtension(), error => {
+        const failure = error as Error & { code?: string; cause?: unknown };
+        assert.equal(failure.code, 'legacy-content-scripts-sync-failed');
+        assert.equal(failure.cause, readError);
+        assert.match(failure.message, /合成启动读取失败.*旧页面初始化.*清理未能确认/);
+        assert.match(failure.message, fault === 'reject' ? /browser-api-failed/ : /verification-failed/);
+        return true;
+      });
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), [bootstrap, other]);
+      assert.deepEqual(await chrome.userScripts.getScripts(), [otherUserScript]);
+      assert.deepEqual(storage[SITE_CONFIG_KEY], config);
+      assert.deepEqual(mock.reloadCalls, []); assert.deepEqual(mock.executeCalls, []);
     } finally { mock.restore(); }
   });
 });
@@ -1369,6 +1420,63 @@ test('旧 bootstrap 注销失败或虚假成功均阻止新注册；恢复后注
   } finally { mock.restore(); }
 });
 
+test('旧bootstrap撤销失败时关闭配置仍先预写并清理既有页面注册，恢复后保留iframe重载债', async (t) => {
+  for (const fault of ['reject', 'no-op']) await t.test(fault, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    config.globalProfile.language.enabled = false;
+    config.fontExposure.enabled = true;
+    const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
+    const tabs: chrome.tabs.Tab[] = [];
+    const mock = installChromeMock(storage, { tabs });
+    const unregister = chrome.scripting.unregisterContentScripts, unregisterPage = chrome.userScripts.unregister;
+    try {
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+      await services.initializeExtension();
+      const bootstrap = { id: 'vanishgeo-runtime-init', matches: ['*://example.test/*'], js: ['content/content.js'] };
+      const other = { id: 'other-content-script', matches: ['*://other.test/*'], js: ['other.js'] };
+      const otherUserScript = { id: 'other-user-script', matches: ['*://other.test/*'], js: [{ code: 'void 0' }] };
+      await chrome.scripting.registerContentScripts([...await chrome.scripting.getRegisteredContentScripts(), bootstrap, other]);
+      await chrome.userScripts.register([otherUserScript]);
+      tabs.push({ id: 75, url: 'https://other.test/with-example-test-iframe' } as chrome.tabs.Tab);
+      chrome.scripting.unregisterContentScripts = (async (filter?: chrome.scripting.ContentScriptFilter) => {
+        if (filter?.ids?.includes(bootstrap.id)) {
+          if (fault === 'reject') throw new Error('合成bootstrap撤销失败');
+          return;
+        }
+        return unregister(filter);
+      }) as typeof unregister;
+      let prewritten = false;
+      chrome.userScripts.unregister = (async (filter: { ids: string[] }) => {
+        if (filter.ids.some(id => id.startsWith(PAGE_SCRIPT_PREFIX))) {
+          prewritten = mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange === true;
+        }
+        return unregisterPage(filter);
+      }) as typeof unregisterPage;
+      const registrations = clone(mock.pageMutations), contentRegistrations = mock.registeredScripts.length;
+      const failed = await services.setExtensionEnabled(false);
+      assert.deepEqual(await chrome.userScripts.getScripts(), [otherUserScript]);
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), [bootstrap, other]);
+      assert.equal(prewritten, true);
+      assert.equal(failed.config.masterEnabled, false);
+      assert.equal(failed.syncReport.components.contentScripts.status, 'failed');
+      assert.ok(failed.syncReport.components.contentScripts.errors.some(error => error.code === (fault === 'reject' ? 'browser-api-failed' : 'verification-failed')));
+      assert.equal(failed.syncReport.pageRuntime?.state, 'sync-failed');
+      assert.equal(failed.syncReport.pageRuntime?.reloadRequired, false);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange, true);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.some((item: any) => item.tabId === 75 && item.surfaces.includes('page')), true);
+      assert.equal(mock.pageMutations.register, registrations.register);
+      assert.equal(mock.registeredScripts.length, contentRegistrations);
+      chrome.scripting.unregisterContentScripts = unregister;
+      const recovered = await createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}').initializeExtension();
+      assert.deepEqual(recovered.pageRuntime, { state: 'disabled', registeredRuleCount: 0, reloadRequired: true });
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), [other]);
+      assert.deepEqual(await chrome.userScripts.getScripts(), [otherUserScript]);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange, undefined);
+      assert.deepEqual(mock.reloadCalls, []); assert.deepEqual(mock.executeCalls, []);
+    } finally { mock.restore(); }
+  });
+});
+
 test('确认已保存后的候选清理失败返回 saved/partial，重试不重复创建档案并可恢复', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const storage = { [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true };
@@ -1843,7 +1951,7 @@ test('定位撤销窗口覆盖iframe与新开页面，故障和后台重启不�
   } finally { mock.restore(); }
 });
 
-test('启动配置读取失败撤销所属定位注册，保留其他namespace且原始错误可见', async () => {
+test('启动配置读取失败撤销所属页面和定位注册，保留其他namespace且原始错误可见', async () => {
   const config = createSingleRuleConfig('example.com', { automatic: false });
   const tabs: chrome.tabs.Tab[] = [];
   const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
@@ -1861,7 +1969,7 @@ test('启动配置读取失败撤销所属定位注册，保留其他namespace�
     });
     const actual = await chrome.userScripts.getScripts();
     assert.equal(actual.some(script => script.id.startsWith('vanishgeo-geolocation-')), false);
-    assert.equal(actual.some(script => script.id.startsWith('vanishgeo-language-timezone-')), true);
+    assert.equal(actual.some(script => script.id.startsWith('vanishgeo-language-timezone-')), false);
     assert.equal(actual.some(script => script.id === 'other-owner'), true);
     tabs.push({ id: 12, url: 'https://example.com/during-failure' } as chrome.tabs.Tab);
     chrome.storage.local.get = originalGet;
@@ -1869,6 +1977,133 @@ test('启动配置读取失败撤销所属定位注册，保留其他namespace�
     assert.equal(recovered.geolocationRuntime?.reloadRequired, true);
     assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]), [[12, ['page', 'geolocation']]]);
   } finally { mock.restore(); }
+});
+
+test('启动读取失败的页面清理拒绝或虚假成功均可见，并继续清理定位且保留其他namespace', async (t) => {
+  for (const fault of ['reject', 'no-op', 'multiple']) await t.test(fault, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    config.fontExposure.enabled = fault === 'multiple';
+    const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });
+    const get = chrome.storage.local.get, unregister = chrome.userScripts.unregister,
+      unregisterFont = chrome.scripting.unregisterContentScripts;
+    try {
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+      await services.initializeExtension();
+      const other = { id: 'other-user-script', matches: ['*://other.test/*'], js: [{ code: 'void 0' }] };
+      await chrome.userScripts.register([other]);
+      const readError = new Error('合成启动读取失败');
+      let failedRead = false;
+      chrome.storage.local.get = (async (...args: unknown[]) => {
+        if (args[0] == null && !failedRead) { failedRead = true; throw readError; }
+        return Reflect.apply(get, chrome.storage.local, args);
+      }) as typeof get;
+      chrome.userScripts.unregister = (async (filter: { ids: string[] }) => {
+        if (filter.ids.some(id => id.startsWith(PAGE_SCRIPT_PREFIX) || fault === 'multiple' && id.startsWith(GEOLOCATION_SCRIPT_PREFIX))) {
+          if (fault !== 'no-op') throw new Error('合成页面撤销失败');
+          return;
+        }
+        return unregister(filter);
+      }) as typeof unregister;
+      if (fault === 'multiple') chrome.scripting.unregisterContentScripts = async () => { throw new Error('合成字体撤销失败'); };
+      await assert.rejects(services.initializeExtension(), error => {
+        const failure = error as Error & { code?: string; cause?: unknown };
+        assert.equal(failure.code, 'page-scripts-sync-failed');
+        assert.equal(failure.cause, readError);
+        assert.match(failure.message, /合成启动读取失败.*页面语言\/时区.*清理.*未.*确认/);
+        assert.match(failure.message, fault === 'no-op' ? /userscripts-revoke-unconfirmed/ : /userscripts-revoke-failed/);
+        if (fault === 'multiple') assert.match(failure.message, /旧地理位置.*userscripts-revoke-failed.*旧字体.*font-scripts-sync-failed/);
+        return true;
+      });
+      const actual = await chrome.userScripts.getScripts();
+      assert.equal(actual.some(script => script.id.startsWith(PAGE_SCRIPT_PREFIX)), true);
+      assert.equal(actual.some(script => script.id.startsWith(GEOLOCATION_SCRIPT_PREFIX)), fault === 'multiple');
+      assert.deepEqual(actual.find(script => script.id === other.id), other);
+      chrome.storage.local.get = get; chrome.userScripts.unregister = unregister; chrome.scripting.unregisterContentScripts = unregisterFont;
+      assert.equal((await services.initializeExtension()).pageRuntime?.state, 'ready');
+    } finally { mock.restore(); }
+  });
+});
+
+test('仅时区或同配置模板升级也持久记录顶层不匹配iframe的页面重载债，稳态不重复写', async (t) => {
+  for (const change of ['timezone', 'template']) await t.test(change, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    config.globalProfile.geolocation.enabled = false;
+    const tabs: chrome.tabs.Tab[] = [];
+    const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
+    const source = 'function applyLanguageTimezoneRuntime() {}';
+    const update = chrome.userScripts.update, set = chrome.storage.session.set;
+    try {
+      const services = createBackgroundServices(source, 'function applyGeolocationRuntime() {}');
+      await services.initializeExtension();
+      const headerEvents = mock.dnr.events.slice();
+      tabs.push({ id: 51, url: 'https://other.test/with-example-test-iframe' } as chrome.tabs.Tab,
+        { id: 52, url: 'chrome://extensions/' } as chrome.tabs.Tab);
+      let prewritten = false;
+      chrome.userScripts.update = (async (...args: unknown[]) => {
+        prewritten = mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange === true;
+        return Reflect.apply(update, chrome.userScripts, args);
+      }) as typeof update;
+      const next = clone(config); next.globalProfile.timezone.timezone = 'UTC';
+      const restarted = createBackgroundServices(change === 'template' ? source.replace('{}', '{ void 0; }') : source,
+        'function applyGeolocationRuntime() {}');
+      const report = change === 'timezone' ? (await services.saveSiteConfig(next)).syncReport : await restarted.initializeExtension();
+      assert.equal(report.pageRuntime?.reloadRequired, true);
+      assert.equal(prewritten, true);
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]), [[51, ['page']]]);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange, undefined);
+      assert.deepEqual(mock.dnr.events, headerEvents);
+      let writes = 0;
+      chrome.storage.session.set = (async (...args: unknown[]) => { writes++; return Reflect.apply(set, chrome.storage.session, args); }) as typeof set;
+      const mutations = clone(mock.pageMutations);
+      await restarted.initializeExtension();
+      await restarted.reconcileRuntime();
+      assert.equal(writes, 0);
+      assert.deepEqual(mock.pageMutations, mutations);
+      assert.deepEqual(mock.reloadCalls, []); assert.deepEqual(mock.executeCalls, []);
+    } finally { mock.restore(); }
+  });
+});
+
+test('页面模板变化的预写、更新、查询或checkpoint故障跨worker恢复iframe窗口', async (t) => {
+  for (const fault of ['prewrite', 'update', 'query', 'checkpoint']) await t.test(fault, async () => {
+    const config = createSingleRuleConfig('example.test', { automatic: false });
+    config.globalProfile.language.enabled = false; config.globalProfile.geolocation.enabled = false;
+    const tabs: chrome.tabs.Tab[] = [];
+    const mock = installChromeMock({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true }, { tabs });
+    const source = 'function applyLanguageTimezoneRuntime() {}';
+    const set = chrome.storage.session.set, update = chrome.userScripts.update, query = chrome.tabs.query;
+    try {
+      await createBackgroundServices(source, 'function applyGeolocationRuntime() {}').initializeExtension();
+      const previous = await chrome.userScripts.getScripts();
+      if (fault === 'prewrite') chrome.storage.session.set = async () => { throw new Error('合成页面预写失败'); };
+      if (fault === 'update') chrome.userScripts.update = async () => { throw new Error('合成页面更新失败'); };
+      if (fault === 'query') chrome.tabs.query = async () => { throw new Error('合成页面查询失败'); };
+      if (fault === 'checkpoint') chrome.storage.session.set = (async (items: Record<string, any>) => {
+        if (items.runtimeSyncMetadata?.report.pageRuntime?.state === 'ready' && !items.runtimeSyncMetadata.pendingPageScopeChange) {
+          throw new Error('合成页面checkpoint失败');
+        }
+        return set(items);
+      }) as typeof set;
+      const nextSource = source.replace('{}', '{ void 0; }');
+      const failed = await createBackgroundServices(nextSource, 'function applyGeolocationRuntime() {}').initializeExtension();
+      assert.equal(failed.status, 'partial');
+      if (fault === 'prewrite') {
+        assert.equal(failed.pageRuntime?.state, 'sync-failed');
+        assert.ok(failed.components.contentScripts.errors.some(error => error.code === 'page-metadata-write-failed'));
+        assert.deepEqual(await chrome.userScripts.getScripts(), previous);
+      } else assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange, true);
+      if (fault === 'update') assert.equal(failed.pageRuntime?.state, 'sync-failed');
+      if (fault === 'query') assert.equal(failed.components.tabReload.status, 'failed');
+      if (fault === 'checkpoint') assert.equal(failed.metadataError?.code, 'metadata-write-failed');
+      tabs.push({ id: 61, url: 'https://other.test/iframe-during-recovery' } as chrome.tabs.Tab);
+      chrome.storage.session.set = set; chrome.userScripts.update = update; chrome.tabs.query = query;
+      const recovered = await createBackgroundServices(nextSource, 'function applyGeolocationRuntime() {}').initializeExtension();
+      assert.deepEqual(recovered.pageRuntime, { state: 'ready', registeredRuleCount: 1, reloadRequired: true });
+      assert.deepEqual(mock.sessionStorage.runtimeSyncMetadata.pendingReloads.map((item: any) => [item.tabId, item.surfaces]), [[61, ['page']]]);
+      assert.equal(mock.sessionStorage.runtimeSyncMetadata.pendingPageScopeChange, undefined);
+      assert.deepEqual(mock.reloadCalls, []); assert.deepEqual(mock.executeCalls, []);
+    } finally { mock.restore(); }
+  });
 });
 
 test('定位注册恢复预写窗口跨最终checkpoint失败和worker重启保留，预写失败不改定位注册', async () => {

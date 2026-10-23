@@ -77,6 +77,37 @@ test('对账先撤销失效范围，再更新保留注册，最后新增；重�
   } finally { mock.restore(); }
 });
 
+test('页面注册变化必须先写恢复记录，写入失败不改注册；稳态不重复预写', async () => {
+  const value = config();
+  const initial = compilePageScripts(value, source);
+  const mock = browser(structuredClone(initial));
+  const beforeChange = async () => { mock.events.push('checkpoint'); };
+  try {
+    await reconcilePageScripts(value, source, beforeChange);
+    assert.deepEqual(mock.events, []);
+    value.globalProfile.timezone.timezone = 'UTC';
+    const failed = await reconcilePageScripts(value, source, async () => { throw new Error('合成预写失败'); });
+    assert.equal(failed.component.status, 'failed');
+    assert.equal(failed.component.errors[0].code, 'page-metadata-write-failed');
+    assert.equal(failed.pageRuntime.reloadRequired, false);
+    assert.deepEqual(mock.events, []);
+    assert.deepEqual(mock.read(), initial);
+    assert.equal((await reconcilePageScripts(value, source, beforeChange)).component.status, 'ok');
+    assert.deepEqual(mock.events, ['checkpoint', 'update']);
+    mock.events.length = 0;
+    value.rules.push(createRule('sub.example.test'));
+    await reconcilePageScripts(value, source, beforeChange);
+    assert.deepEqual(mock.events, ['checkpoint', 'unregister', 'register']);
+    mock.events.length = 0;
+    value.masterEnabled = false;
+    await reconcilePageScripts(value, source, beforeChange);
+    assert.deepEqual(mock.events, ['checkpoint', 'unregister']);
+    mock.events.length = 0;
+    await reconcilePageScripts(value, source, beforeChange);
+    assert.deepEqual(mock.events, []);
+  } finally { mock.restore(); }
+});
+
 test('撤销失败停止更新新增；更新失败撤销旧值，清理失败也明确报告', async () => {
   const value = config();
   const mock = browser(compilePageScripts(value, source));
