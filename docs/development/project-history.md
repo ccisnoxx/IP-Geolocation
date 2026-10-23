@@ -116,4 +116,44 @@ Description：`Chromium MV3 扩展：按站点协调网页语言、时区与位�
 
 Topics：`vanishgeo`、`chromium-extension`、`manifest-v3`、`privacy`、`geolocation`、`timezone`、`webrtc`、`typescript`。
 
-只建议在当前仓库 Settings/About 中由维护者设置，不调用远端管理 API，不沿用原作品地址创建或关联仓库。原作品归属仅保留于 [NOTICE](../../NOTICE)。历史敏感值清理是另一项需人工批准的操作，见 [CONTRIBUTING](../../CONTRIBUTING.md)。
+只建议在当前仓库 Settings/About 中由维护者设置，不调用远端管理 API，不沿用原作品地址创建或关联仓库。原作品归属仅保留于 [NOTICE](../../NOTICE)。历史敏感值清理是另一项需单独批准的操作，见本页[历史清理方案](#历史敏感值清理方案待人工批准)。
+
+## 贡献指南中的内部流程摘录
+
+2026-10-23 将 CONTRIBUTING 整理为外部贡献指南；原始完整版本见 [整理前贡献指南](https://github.com/ccisnoxx/VanishGeo/blob/174ccae528996893ca33ba6eee8c6628e3c5f78e/CONTRIBUTING.md)。以下保留当时的仓库内部协作约定，不作为外部开发者上手流程。
+
+项目仓库为 [ccisnoxx/VanishGeo](https://github.com/ccisnoxx/VanishGeo)。维护源在 `src/`，TypeScript/Vite 输出到 `dist/`。开始前读取适用 AGENTS 与任务合同，保留用户及其他任务修改。稳定化范围、依赖、状态只读取 [manifest](../../docs/stabilization/task-manifest.yaml)，模板或历史记录不能授予后续任务实施权限。
+
+配置归一化、匹配解析、持久化迁移分别以 config-model/config-resolver/storage 为唯一所有者；不得添加平行匹配器、网页配置桥、全站静态注入或放宽 verified/权限校验。运行时行为变化需要对应任务授权。
+
+## 历史敏感值清理方案（待人工批准）
+
+以下从原贡献指南迁移，仅保留此前调查范围与人工审查方案。本次文档整理及测试产物检查没有执行历史重写、远端标签变更或已发布版本重建。
+
+VG-004 只读扫描了本地所有 refs 的 62 个提交中 CONFIG_GUIDE、RELEASE、README 和 INSTALL。已确认 CONFIG_GUIDE 历史含非文档公网 IP，RELEASE 历史含个人绝对路径；另确认 HEAD 中旧 Trellis Chrome smoke 记录含个人路径，当前记录已脱敏。当前文件修订不移除历史。此范围不代表所有历史对象、远端缓存、fork、日志或备份都完成审计。
+
+如维护者决定清理，需要**单独明确批准历史重写及远端更新**，可按以下方案准备并审阅，VG-004 不执行：
+
+1. 在受控位置保存可恢复备份，确认需处理的 refs、文件、敏感值类别和替换规则；不把原值写进公共 issue、文档或新提交。
+2. 在隔离副本只处理获批对象。使用历史过滤工具的具体方案需先核对工具版本、保留许可证与合法来源归属，并预览受影响的 commits/tags。
+3. 核对替换后的对象、提交映射、分支/tag、构建和授权范围，再由维护者决定是否更新远端。不可擅自 force-push、删 tag 或重建 Release。
+4. 如获准远端更新，协调协作者重新获取历史，并处理允许范围内的旧备份、fork 和托管缓存；历史重写不能保证所有外部副本消失。
+
+仓库元信息的历史建议保留在本页相应章节，现行发布流程见 [构建与发布](../../RELEASE.md)。文档整理、普通临时文件清理、历史重写和版本发布分别处理，不能互相推导授权。
+
+## 测试产物检查记录
+
+2026-10-23 检查仓库中的跟踪文件及忽略的本地产物，不含依赖、编辑器／代理工具目录和仓库外的系统临时目录。结果为：
+
+| 对象 | 判断与处理 |
+| --- | --- |
+| `tests/`、`fixtures/`、`scripts/` | 维护中的测试、测试资源和验证工具；没有发现待提交的无主输出文件。 |
+| `experiments/` | 两组已入库的实验实现和证据，并非一次性缓存；保留。 |
+| 已引用的稳定化 JSON、截图和任务资料 | 用于说明人工验收、失败观测与覆盖边界；保留。 |
+| `dist/` | 已忽略的可重建构建目录，可能被浏览器作为解压扩展加载；本次保留。 |
+| `release/vanishgeo-v2.1.1-candidate-vg037.zip` | 与验收记录中的 SHA-256 一致，且被候选资料引用；保留。 |
+| `release/vanishgeo-v2.1.0-vg014-candidate.zip` | 被跟踪记录引用的历史候选；保留。 |
+| `release/vanishgeo-v2.0.0.zip` 与发布说明 | 本地旧版本存档，没有查到该 ZIP 文件名的当前跟踪引用；可在确认已有可恢复副本后按需清理，本次保留。 |
+| `images/Thumbs.db` | 已忽略的操作系统缩略图缓存，不属于测试证据；可按需删除，本次保留。 |
+
+在上述仓库范围内没有发现普通 `.log`／`.tmp`／`.temp` 文件或 `coverage/`、`test-results/`、`playwright-report/` 报告堆积。上述保留项不能因文件名包含 evidence、experiment 或 test 就批量删除，也不能从“已忽略”推定其没有验收或恢复用途。
