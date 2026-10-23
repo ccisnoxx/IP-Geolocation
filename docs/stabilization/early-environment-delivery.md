@@ -74,7 +74,7 @@ VG-029于2026-10-22独立取得最小定位userScripts和Geolocation/Permissions
 
 定位解析由[config-resolver](../../src/shared/config-resolver.ts)拥有，仅交付latitude、longitude、accuracy、randomize、randomRadiusMeters、spoofPermission，不含IP/provider/档案标识。独立[定位入口](../../src/injected/runtime-modules/geolocation-entry.ts)和[注册实现](../../src/background/page-scripts.ts)不扩展语言/时区payload，不恢复完整runtime或页面桥。
 
-只在原生定位API存在、非opaque、安全上下文且Permissions-Policy允许的普通HTTP(S)文档工作。启用合成权限时，geolocation权限语义表示扩展提供合成坐标；关闭时保留原生query，仅原生granted才交付，prompt/denied拒绝，不主动获取真实位置。权限API异常不能转换成granted。当前合同详见[配置指南](../../CONFIG_GUIDE.md#vg-029-地理位置)；失败状态不代表能保证撤回所有旧注册或既有文档数据。
+只在原生定位API存在、非opaque、安全上下文且Permissions-Policy允许的普通HTTP(S)文档工作。启用合成权限时，geolocation权限语义表示扩展提供合成坐标；关闭时保留原生query，仅原生granted才交付，prompt/denied拒绝，不主动获取真实位置。权限API异常不能转换成granted。当前合同详见[配置指南](../../CONFIG_GUIDE.md#合成定位)；失败状态不代表能保证撤回所有旧注册或既有文档数据。
 
 ### 未验证项与收尾判定
 

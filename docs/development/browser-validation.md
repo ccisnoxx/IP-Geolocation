@@ -89,3 +89,5 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 ## 验收证据
 
 [稳定化记录](../../docs/stabilization/README.md) 说明证据与缺口；[证据索引](../../docs/stabilization/evidence-index.md) 汇总人工验收和原始记录。[任务清单](../../docs/stabilization/task-manifest.yaml) 是稳定化任务范围、依赖和状态的唯一来源。本地实现结束为 `review`，人工验收后才为 `done`。
+
+从根目录正式文档迁出的配置实现、存储字段、规则迁移和发布准备说明见 [项目实现与历史记录](project-history.md)。

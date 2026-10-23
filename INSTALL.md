@@ -1,14 +1,18 @@
 # VanishGeo 安装与更新
 
-当前本地候选为 **2.1.1**，最低 Chrome 138。语言／时区和合成定位通过 `userScripts` 在 MAIN / document_start 提前注册，需正常开启 **Allow User Scripts**。VG-032 已验收语言请求头同步，仅申请 `declarativeNetRequestWithHostAccess`；固定内置字体过滤和 WebRTC 按独立状态报告。当前验收与历史证据见 [证据索引](docs/stabilization/evidence-index.md)，任务完成不表示已发布。
+本文说明从源码或发行包加载 VanishGeo、更新扩展及排查常见问题。当前主分支版本为 **2.1.1，尚未发布**；已发布版本以本项目 [Releases](https://github.com/ccisnoxx/VanishGeo/releases) 为准。
 
-仅支持合同内的普通 HTTP(S) 文档，配置按每文档快照生效；注册成功后完整 reload 或关闭重开已有页面，BFCache 也保留旧值。本页及已同步Blob链内各realm安装后自身创建的Blob Dedicated Worker按VG-033／VG-034同步语言时区；HTTP(S) Worker、SharedWorker、自定义字体名单仍暂停，无热更新或 documentId 注入回退。
+## 环境要求
 
-Blob源核验失败时会在网页控制台或Chrome扩展“错误”页看到黄色警告“本次语言/时区未同步，保持原生加载”。它表示该次Worker没有同步，不是扩展安装失败；CSP拒绝读取或URL已撤销等路径均可能触发，不能凭该提示单独确认原因，也不能据此宣称Worker已清除中文／上海值。
+| 项目 | 要求 |
+| --- | --- |
+| 浏览器 | Chrome 138 或更高版本；其他 Chromium 浏览器需单独验证 API 和策略支持。 |
+| 用户脚本 | 在扩展详情页开启 **Allow User Scripts（允许用户脚本）**，用于网页语言、时区和合成定位。 |
+| 源码构建 | Node.js 20+、npm 和 Git；使用已有发行包时不需要构建环境。 |
 
-## 从源码加载
+站点功能主要覆盖普通 HTTP(S) 页面和 iframe，部分功能另受安全上下文或页面策略限制。完整能力边界见 [配置指南](CONFIG_GUIDE.md)。
 
-准备 Node.js 20+ 和 npm，首次获取源码并构建：
+## 从源码构建
 
 ```bash
 git clone https://github.com/ccisnoxx/VanishGeo.git
@@ -17,39 +21,58 @@ npm ci
 npm run build
 ```
 
-已有仓库副本可直接在仓库根目录安装依赖并构建。
+已有仓库副本可直接在仓库根目录执行安装依赖和构建命令。构建结果位于 `dist/`；不要直接加载仓库根目录或手工修改构建产物。
 
-1. 在 Chrome 打开 `chrome://extensions/`，启用“开发者模式”。manifest 声明最低 Chrome 138。
-2. 点击“加载已解压的扩展程序”，选择仓库里的 **dist 文件夹**，其根目录直接包含 `manifest.json`。
-3. 在 VanishGeo 的“详情”页正常开启 **Allow User Scripts（允许用户脚本）**，再打开 Popup 或 Options，点击“重试同步”；可在工具栏固定图标。
-4. 按 [CONFIG_GUIDE](CONFIG_GUIDE.md) 配置所需站点、信号与出口档案，查看WebRTC 的实际结果。确认页面语言/时区注册成功后，完整 reload 或关闭重开已有目标文档。定位及字体过滤分别核对其注册状态。
+## 从发行包准备
 
-不要加载仓库根目录：TypeScript 维护源不是可直接运行的扩展入口。Edge 可在 `edge://extensions/` 加载同一 dist；兼容性和 privacy API 控制状态须在对应浏览器验证，不能由 Chrome 结果推断。
+从本项目 [Releases](https://github.com/ccisnoxx/VanishGeo/releases) 下载维护者实际发布的 `vanishgeo-v<版本>.zip` 并解压。旧版发行包的功能可能与主分支不同，请阅读对应版本说明。
 
-全新安装默认关闭总开关、没有预配置站点，WebRTC 使用 browser default，不调用出口定位 provider。安装事件会打开 Options 配置引导：主动检测并确认出口、选择站点、明确启用。可以跳过或直接关闭页面，保护保持关闭；需要时从 Popup 打开配置引导。也可以在完整设置中使用手工配置或禁用信号；auto 必须显式绑定 verified 档案。没有内置地区整套快捷预设。
+保留整个解压目录，包括 `assets/`、页面、脚本、规则、图标、fixtures、LICENSE 和 NOTICE。用于加载的目录根部应直接包含 `manifest.json`，不能只复制几个 JavaScript 文件。打包规则见 [构建与发布](RELEASE.md)。
 
-## 从已有发行包加载
+## 加载到 Chrome
 
-仅使用本项目 [Releases](https://github.com/ccisnoxx/VanishGeo/releases) 中维护者实际发布的 `vanishgeo-v<版本>.zip`。解压后选择直接包含 manifest.json 的目录；保留整个目录，包括 `assets/` 共享 chunks、六个入口、静态资源与 LICENSE/NOTICE。不要从文档推断某个版本已经发布。现有打包流程见 [RELEASE](RELEASE.md)。
+1. 打开 `chrome://extensions/`，启用“开发者模式”。
+2. 点击“加载已解压的扩展程序”，选择源码构建的 **dist 文件夹**，或发行包解压后直接包含 `manifest.json` 的目录。
+3. 打开 VanishGeo 的“详情”，正常开启 **Allow User Scripts**。
+4. 打开扩展面板或设置页，点击“重试同步”；可按需在工具栏固定扩展图标。
+5. 按 [配置指南](CONFIG_GUIDE.md) 添加站点并启用所需信号，分别确认语言／时区、定位、字体、请求头和 WebRTC 的同步状态。
+6. 完整刷新或关闭重开目标网页，使新文档使用新配置。
 
-## 更新与开发
+全新安装默认关闭总开关，站点列表为空，WebRTC 使用浏览器默认策略。安装引导只有在用户主动检测、确认出口并明确保存启用后才应用配置；跳过或关闭引导不会自动开启保护。也可以使用手工配置，不必进行出口检测。
 
-修改源码后重新 `npm run build`，在扩展管理页点击 VanishGeo 的“重新加载”，再刷新目标网页。`npm run dev` 持续构建到 dist，但不会自动完成浏览器扩展重载。尽量保留同一加载路径，避免被浏览器识别为另一个扩展。
+## 更新扩展
 
-已有 v2 配置迁移至 v3，保留 masterEnabled、WebRTC、规则、环境方案和出口档案；升级/启动/后台唤醒不重新打开安装引导，也不应用安全新默认值。空规则或缺少旧初始化标记不视为首次安装。旧格式继续由原迁移边界转换。
+源码安装需重新构建；发行包安装需使用完整的新版本目录。在扩展管理页点击 VanishGeo 的“重新加载”，再完整刷新目标网页。尽量沿用同一加载路径，避免浏览器将其识别为另一个扩展。
 
-配置导出可以备份本地设置，但文件可能包含公网 IP、坐标和历史记录，需妥善保存。导入会将出口档案降级为 unverified 并清空规则的出口绑定，必须重新检测确认再绑定；参见 [PRIVACY](PRIVACY.md)。
+`npm run dev` 持续构建到 `dist/`，仍需手动重载扩展和网页；`npm run preview` 只提供静态预览。
 
-## 排查
+当前升级流程保留已有规则、环境方案、出口档案及有效设置。更新前可导出配置备份，但完整导出可能包含 IP、坐标和历史信息；导入后出口档案会失去已确认状态和规则绑定，需要重新检测确认。降级不能保证配置兼容或无损恢复。
 
-- 加载失败：确认 dist 根部存在 manifest.json，检查扩展管理页的具体错误；重新构建，不编辑 dist 来修复。
-- 页面语言/时区没有变化：先区分 API 不支持、权限缺失、Allow User Scripts 未开启或注册同步失败。注册成功后再完整 reload 或关闭重开；已有 BFCache 文档保留旧快照。about:blank/srcdoc/data/blob/特殊 sandbox 不支持。HTTP(S) Worker、SharedWorker和自定义字体名单仍暂停；Blob及限定嵌套Blob覆盖见README；定位分别报告同步状态；固定内置字体过滤按独立注册状态报告。
-- Accept-Language 没有变化：检查匹配规则的语言是否启用，以及页面注册和请求头同步状态。导航按目标域、子资源按发起域，关闭子规则排除父规则；其他请求头保持原生。旧规则迁移或范围外冲突应按实际错误处理，不能把失败显示当作已同步。
-- 可靠恢复原生：先关闭插件总开关，等待保存和同步成功，再完整 reload 或关闭重开页面；随后可按需关闭 Allow User Scripts。直接关闭 Chrome 的 Allow User Scripts 与 DNR 是独立操作，仍可能有首请求携带旧语言头的窗口，不承诺跨 API 原子同步。
-- WebRTC 状态不一致：在 Options 查看实际 policy 和控制权；其他扩展或浏览器策略可能控制该设置。
-- 类型或构建失败：执行 `npm run typecheck`，依据具体错误修复；依赖安装使用锁文件和 `npm ci`。
-- localhost 诊断：构建后执行 `npm run serve:leak-test`；端口冲突可用 `npm run serve:leak-test -- 8788`，报告页选择相同端口。用 Ctrl+C 停止服务。
+## 关闭保护与恢复原生值
+
+1. 关闭**插件总开关**并保存：扩展面板会自动保存，设置页需点击“保存当前配置”。
+2. 等待保存和同步成功；出现部分失败时，按具体错误处理并重试同步。
+3. 完整刷新或关闭重开目标网页，重建旧 Worker 和浏览器往返缓存（BFCache）中的文档。
+4. 如需关闭 Chrome 的 Allow User Scripts，在前述同步完成后操作。
+
+Allow User Scripts 与语言请求头规则由不同 API 管理。直接关闭 Chrome 开关可能暂时保留旧的 Accept-Language；页面已读取的数据也无法通过关闭保护撤回。
+
+## 常见问题
+
+| 现象 | 检查方法 |
+| --- | --- |
+| 扩展加载失败 | 确认所选目录根部存在 `manifest.json`，查看扩展管理页的具体错误；源码安装可重新构建。 |
+| 语言、时区或定位未生效 | 检查站点规则、信号开关、Allow User Scripts 和注册状态；同步成功后完整刷新。定位还需满足安全上下文及页面权限策略。 |
+| Accept-Language 未变化 | 检查站点语言和请求头同步状态；导航使用目标域规则，子资源使用发起域规则。迁移或冲突错误需单独处理。 |
+| 字体过滤未生效 | 检查总开关、固定内置字体模式和 HTTP(S) 站点规则。字体注册独立于 Allow User Scripts；自定义名单仍暂停。 |
+| Blob Worker 出现未同步警告 | 表示该次 Worker 保持原生加载。CSP 或 Blob URL 生命周期等情况可能触发，不能仅凭警告确定原因；覆盖范围见配置指南。 |
+| WebRTC 状态不一致 | 在设置页查看实际策略和控制权；其他扩展或浏览器策略可能控制该设置。 |
+| 本地诊断无法连接 | 构建后运行 `npm run serve:leak-test`；端口冲突时可用 `npm run serve:leak-test -- 8788`，报告页选择相同端口。 |
+
+Edge 可在 `edge://extensions/` 尝试加载同一构建，但 Chrome 的验收结果不能直接代表 Edge 或其他平台。
 
 ## 卸载与清理
 
-在扩展管理页找到 VanishGeo，点击“移除”。浏览器会清除该扩展的本地存储；下载的 JSON、截图、浏览器历史、外部站点记录和该站点 localStorage 不随扩展卸载删除。外部诊断页设备基线可用其清除按钮删除；更多数据生命周期见 [PRIVACY](PRIVACY.md)。
+在扩展管理页找到 VanishGeo 并点击“移除”。浏览器会清除扩展本地存储；下载的 JSON、截图、浏览器历史和外部站点数据需自行清理。外部诊断页保存的设备基线可通过其清除按钮删除。
+
+数据生命周期见 [隐私说明](PRIVACY.md)，权限用途见 [权限说明](PERMISSIONS.md)。发行包中的 [LICENSE](LICENSE) 和 [NOTICE](NOTICE) 保留许可条款与代码来源归属。
