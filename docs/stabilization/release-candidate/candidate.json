@@ -4,13 +4,13 @@
   "task": "VG-037",
   "version": "2.1.1",
   "baseCommit": "1a3962d62dce39e9f23199d27ce1b7920eaf4ddd",
-  "candidateCommit": null,
-  "candidateIdentity": "已人工验收的资料与ZIP快照；真实candidateCommit在本地主提交后补录，不构成发布批准",
+  "candidateCommit": "ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5",
+  "candidateIdentity": "已人工验收的本地候选主提交；后续仅证据补录提交不自动替代该候选，不构成发布批准",
   "productionSourceChanged": false,
-  "notesHistoryThroughCommit": "1a3962d62dce39e9f23199d27ce1b7920eaf4ddd",
-  "notesGenerator": "已验收 scripts/release-changelog.sh；预览历史截至notesHistoryThroughCommit",
+  "notesHistoryThroughCommit": "ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5",
+  "notesGenerator": "已验收主提交中的 scripts/release-changelog.sh；预览包含VG-037主提交",
   "previousTag": "v2.1.0",
-  "notesCommitCount": 28,
+  "notesCommitCount": 29,
   "zipPath": "release/vanishgeo-v2.1.1-candidate-vg037.zip",
   "zipSha256": "557d57ed07b80a0d0003e888db8a8cf746a460abfe8253aaa16a4ddd5b5dca74",
   "inventorySha256": "a9cc02b0f7d74fa9f78880419a59603b6e1a5ff26fed582c5a406dba329b66c4",
@@ -23,10 +23,10 @@
     "scripts/chrome-acceptance.mjs": "f5a481a776db9ed3e28d9de47d2f5204b5a017474dc491bcce91eb0544cec434",
     "tests/release-gates.test.ts": "0cbcea942d08242c88bc707b7c3864c31faed0a0d08f8fa25cbca808ef260396",
     "tests/release-artifact.test.ts": "6a35f27da0c32e647bc746986ff7ed973864017e46927f4f0a3ca6b79d925232",
-    "docs/stabilization/release-candidate/notes-preview.md": "0e53a9d79413d00673412c8c32785f796625f42dc6f84c058a0aeca5581caf7c",
+    "docs/stabilization/release-candidate/notes-preview.md": "d304178b081339e9da0240366a585f5f6618d76669e1fb1e518d90eca6e91725",
     "docs/stabilization/release-candidate/artifact-evidence.json": "d629d549908cbbc84c2764263cb7f7eb29c52d955a411db17f32064740510ca7",
-    "docs/stabilization/release-candidate/README.md": "e6deca7dcda6c13067d087fdcdc41832f5f05425f857b0b9f2e921f5615c4b68",
-    "docs/stabilization/evidence-index.md": "377097131cc711cf67a19088d08edbdae6e36bef1f1cd211a79e6e10326c3a57",
+    "docs/stabilization/release-candidate/README.md": "4d0d1be6d4c9567fafccd22e2f9da7cf0f878f9df9189e89d7bdd6c0f6bca5ff",
+    "docs/stabilization/evidence-index.md": "67909be39201a65656e1dc49d8cf310dd1713784f2c786ce2d3c1286fadcb8f7",
     ".trellis/tasks/10-23-vg-033-blob-worker/chrome-evidence.json": "66b5c5a4e0806d6cb37590ec98b05c20277c64522648e0a5c913026d014ed2f6",
     ".trellis/tasks/10-23-vg-034-nested-blob-worker/chrome-evidence.json": "6465782a4b5bd953e29cb9dbaa514834ae16a1b5ec9054e42a41002b362ac0e8",
     ".trellis/tasks/10-23-vg-036-chrome138-blob-worker/chrome-evidence.json": "4301c2c58fda23e0c85d7d9d0c412276ff3e19862aba4d2eeba4c56aede95b20",
@@ -40,11 +40,11 @@
     "INSTALL.md": "d69fa6ce6d9eab6f7f40de95fd4012868d507d4e4da538fa1d221267e3179b03",
     "RELEASE.md": "e730b8c49306fdb84116970f52a1db8ff6790254e3727cc3e21c5adba61192e2",
     "docs/stabilization/chrome138/README.md": "9a22b294007613482b32f434b031ea25bf4177a260e1af40b2833b00238bfe9f",
-    "docs/stabilization/release-calibration.md": "3c1ace80a3a4d77dbb6563be6d76033bce661a8a5758c0c2208bb5a4299ee619",
+    "docs/stabilization/release-calibration.md": "a43bf25f262b40bc4dc8dccf21ec8cddff7032c4f19a74b282838a8197fb8faa",
     "docs/stabilization/task-manifest.yaml": "475942d8c70e1da6d9a8ddb4018e1a63cf0a9b42884a79116634bfec0bbc7b0c",
     ".trellis/tasks/10-23-vg-037-release-candidate-alignment/task.json": "b1e204ad4fca6f805a29546c994818e6de9e4ee62237aaf7d00782540af9f963",
     ".trellis/tasks/10-23-vg-037-release-candidate-alignment/prd.md": "b26c0e9e2cb4b6c4f634120ef3d56926f4fdc3362979871a70cb843993f68df1",
-    ".trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md": "c3ce9e6936a82fbc4c98521d111e3c8425eaa1f4bc76bbcefe247eb11cb1650c"
+    ".trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md": "7d943ecea0749744549ac979a02aeb83de808e60933bf9965006811308ee9d29"
   },
   "checks": {
     "npmRunCheck": "PASS: typecheck, typecheck:tests, 295/295 tests, build",
@@ -71,5 +71,6 @@
     "HTTP(S) Dedicated Worker",
     "SharedWorker"
   ],
-  "historicalCandidate": "history/2026-10-22/candidate.json"
+  "historicalCandidate": "history/2026-10-22/candidate.json",
+  "notesCommand": "bash scripts/release-changelog.sh at candidateCommit"
 }

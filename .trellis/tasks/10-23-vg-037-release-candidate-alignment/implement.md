@@ -4,7 +4,7 @@
 
 ## 交付与候选身份
 
-[当前候选资料](../../../docs/stabilization/release-candidate/README.md)与[candidate.json](../../../docs/stabilization/release-candidate/candidate.json)绑定生产基线`1a3962d62dce39e9f23199d27ce1b7920eaf4ddd`及本轮未提交的资料、生成器、审查器与测试。没有编造新的candidateCommit。发布历史截至基线HEAD，当前未提交的VG-037正文由实际工作区生成器产生，28条提交预览不包含尚未提交的本任务条目。
+[当前候选资料](../../../docs/stabilization/release-candidate/README.md)与[candidate.json](../../../docs/stabilization/release-candidate/candidate.json)绑定生产基线`1a3962d62dce39e9f23199d27ce1b7920eaf4ddd`及本轮资料、生成器、审查器与测试。主提交为`ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5`；最初验收预览历史截至基线HEAD，共28条，提交后补录预览已增至29条并包含本任务主提交。候选JSON记录真实主提交，后续证据补录不自动替代该候选。
 
 补入VG-033页面Blob、VG-034限定嵌套Blob、VG-035 HTTP包装NO_GO及VG-036 Chrome138定向补验；验收前索引列35项已验收任务；本次签收后补入VG-037，共36项。同步RELEASE、INSTALL、Chrome人工清单与发布说明，明确CSP核验、外来Blob／未接管父级、每文档快照、可观察地址变化及未测范围。旧Chrome138核心证据不冒充当前全包验收。
 
@@ -46,3 +46,7 @@
 据此将task-manifest及task.json同步done，补充候选、索引与发布资料签收。验收限本轮资料、生成器／审查修正及本地ZIP核验，保留35项前置任务原范围、所有未覆盖项、7份历史附件缺口和现场Blob警告UNCONFIRMED，不授予新的Worker恢复或正式发行批准。
 
 本次收尾只更新状态、验收及候选身份记录。生成器、审查器及其测试、生产源码和ZIP未改变，复用已通过的295/295测试、类型检查、构建、dry-run、产物审查及独立复核；再次核对关键文件和ZIP摘要、版本、证据断言、链接与实际提交范围。提交后将真实主提交哈希及其发布预览补入候选记录，后续仅保存证据的提交不自动替代该候选，不将自引用哈希写成已存在。
+
+## 提交后候选身份补录
+
+主提交完成后重新生成并审阅预览，新增1条本轮主提交历史，正文不变。同步当前候选README、candidate.json、证据索引与发布校准中的当前身份，以及关键文件摘要。ZIP与产物报告、源码／权限／版本／workflow、生成器及其测试未变，复用已通过的检查。证据补录另存本地，不推送、打tag或发布；现场Blob警告继续UNCONFIRMED。

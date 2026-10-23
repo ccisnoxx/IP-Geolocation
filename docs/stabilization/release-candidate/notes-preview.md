@@ -1,5 +1,6 @@
 ## 更新日志（自 v2.1.0）
 
+- chore(VG-037): align Blob release candidate and evidence (ec79bfe)
 - test(VG-036): verify Blob workers on Chrome 138 (1a3962d)
 - docs(VG-035): archive HTTP Worker feasibility evidence (d0a695f)
 - fix(VG-034): inherit locale in nested Blob workers (2a04924)

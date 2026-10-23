@@ -2,7 +2,7 @@
 
 ## 2026-10-23 当前Blob候选资料对齐（VG-037，人工验收通过）
 
-当前已验收任务为36项，VG-037仅整理发布资料并重建核验ZIP，未改变版本2.1.1、生产功能、权限或workflow。[当前候选记录](release-candidate/README.md)绑定基线1a3962d及未提交的生成器／资料改动、产物与新ZIP；下文2026-10-22的31项、旧库存摘要和“全部Worker暂停”均为历史阶段，不能覆盖现行VG-033／VG-034的限定Blob支持。
+当前已验收任务为36项，VG-037仅整理发布资料并重建核验ZIP，未改变版本2.1.1、生产功能、权限或workflow。[当前候选记录](release-candidate/README.md)绑定生产基线1a3962d、已验收主提交`ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5`、产物与新ZIP；下文2026-10-22的31项、旧库存摘要和“全部Worker暂停”均为历史阶段，不能覆盖现行VG-033／VG-034的限定Blob支持。
 
 新增证据见[索引](evidence-index.md)：VG-035不等价实验维持HTTP(S) Worker和SharedWorker暂停；VG-036完成Chrome138现有Blob范围定向补验。HTTPS Blob、其他平台、完整冷启动／BFCache／全部升级故障及7份历史附件缺口仍保留。现场另观察到目标站Blob源核验警告，其原因未确认、对应Worker明确未同步，不以先前局部PASS消除该现场限制。
 

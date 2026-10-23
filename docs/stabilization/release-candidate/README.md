@@ -7,14 +7,14 @@
 | 对象 | 对应关系 |
 |---|---|
 | 源码基线 | `1a3962d62dce39e9f23199d27ce1b7920eaf4ddd`，包含已验收 VG-033～VG-036；本轮生产源码／权限／版本未改 |
-| 未提交工作区 | 更新资料、发布说明／dry-run提示、相关回归测试及产物审查器；当前资料不能声称已经属于某个新提交 |
-| 发布预览 | [notes-preview.md](notes-preview.md)，历史截至基线 HEAD，附加正文由本轮未提交生成器生成；不包含尚未提交的VG-037历史条目 |
+| 已验收主提交 | `ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5`，包含资料、发布说明／dry-run提示、回归测试及产物审查器修正；后续仅证据补录不自动替代该候选 |
+| 发布预览 | [notes-preview.md](notes-preview.md)，历史截至已验收主提交，正文使用该提交中的生成器；29条提交已包含VG-037主提交 |
 | 构建与ZIP | [artifact-evidence.json](artifact-evidence.json)，50文件、5个共享chunk；完整库存和ZIP SHA-256见报告 |
 | 本地交付包 | 仓库忽略目录 `release/vanishgeo-v2.1.1-candidate-vg037.zip`，全新创建，逐文件与最终交付快照一致，未发布 |
 | 浏览器身份 | Chrome runner指纹 `14ba8f5f2c49567a3aa44a9c8ae121b6f3674c070b929160bc06aa1607eee653`，与VG-036实测构建完全一致 |
 | 资料状态 | VG-033～VG-036分别已验收；本轮VG-037资料／生成器／审查修正已获用户验收，不构成正式RC批准 |
 
-[机器可读对应记录](candidate.json)绑定基线、工作区关键文件、发布预览、产物审查及浏览器原始证据摘要。本次签收时先按源码基线及文件摘要记录验收快照，获授权的本地主提交完成后补录真实 `candidateCommit`，不编造提交哈希。
+[机器可读对应记录](candidate.json)绑定源码基线、已验收主提交、关键文件、发布预览、产物审查及浏览器原始证据摘要。`candidateCommit`已记录为`ec79bfe8c2ffeda8fb51383e477bf071d2beb5d5`；保存本次证据刷新记录的后续提交不自动替代该候选。
 
 当前ZIP SHA-256：`557d57ed07b80a0d0003e888db8a8cf746a460abfe8253aaa16a4ddd5b5dca74`。库存摘要：`a9cc02b0f7d74fa9f78880419a59603b6e1a5ff26fed582c5a406dba329b66c4`。库存采用按相对路径localeCompare排序的[path,文件SHA-256] JSON再散列，与Chrome runner的路径＋原始字节算法不同，不能直接比较两个摘要。
 
@@ -62,3 +62,7 @@ HTTP(S) Dedicated Worker和SharedWorker继续暂停；外来／安装前Blob、�
 ## 2026-10-23 人工验收
 
 用户已明确确认本次发布资料对齐和候选ZIP核验通过，授权VG-037标记done及相关改动本地提交，先不推送、打tag或发布。详见[签收记录](../../../.trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md#2026-10-23-人工验收与本地提交授权)。版本2.1.1、HTTP(S) Worker／SharedWorker暂停和现场Blob警告UNCONFIRMED保持。此次资料签收不等于警告已修复或正式发行获批。
+
+## 提交后证据补录
+
+已在获授权的主提交后重新生成发布预览，历史条目由28增至29，新增本轮VG-037提交。正文与已验收生成器一致，ZIP、完整构建和浏览器原始证据均未改变。此次仅补录真实候选哈希、发布预览及文档／摘要，不重新构建或运行浏览器，也不推送、打tag或发布。
