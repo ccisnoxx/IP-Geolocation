@@ -4,6 +4,8 @@
 
 项目仓库为 [ccisnoxx/VanishGeo](https://github.com/ccisnoxx/VanishGeo)，构建结果见 [Actions](https://github.com/ccisnoxx/VanishGeo/actions)，已发布版本见 [Releases](https://github.com/ccisnoxx/VanishGeo/releases)。当前源码版本为 **2.1.1，尚未发布**；本地候选、通过检查与实际发布是不同状态。
 
+2026-10-24 [VG-041 最终候选门禁](docs/stabilization/release-candidate/vg041/README.md)结论为 **NO_GO**：精确 VG-040 提交的干净环境门禁、完整产物和所列 Chrome138 最小冒烟通过；VG-039 的 Chrome155 遗留验收及现场 Blob 警告最终发布风险处置未闭合。VG-041 的 NO_GO 报告已获用户人工验收，任务 done，仅授权本地提交，不构成发布授权。
+
 ## 版本一致性
 
 发布标签必须严格等于 `v` 加源码版本，以下版本字段必须一致：

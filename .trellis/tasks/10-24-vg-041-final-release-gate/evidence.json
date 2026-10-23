@@ -1,0 +1,226 @@
+{
+  "task": "VG-041",
+  "date": "2026-10-24",
+  "decision": "NO_GO",
+  "humanAcceptance": "passed_2026-10-24_NO_GO_report_only",
+  "candidate": {
+    "result": "PASS",
+    "commit": "4906aeee5f5154dc759d30bdbaa30b7162b963a0",
+    "tree": "9be897416594649710659a96205bbc64b1a6fec0",
+    "sourceInventorySha256": "007186058412421daac9ec1473c47f27a5a445ac4594926df3400a9289414cb4",
+    "sourceFiles": 171,
+    "zipSha256": "7c43c302ad427fb835d06ec25b5edc4974908b603be31364b776281cd4aa819d",
+    "reportSha256": "1ea50b2e00c7355cc710ac760a9e9486d88e2384c75d3c3cc0c26ae964684b34",
+    "review": "historical VG-040 independent review reported 0 findings; not rerun by this script"
+  },
+  "version": "2.1.1",
+  "baselineSourceUnchanged": true,
+  "inputCoverageComplete": true,
+  "checks": {
+    "npmCi": {
+      "execution": "EXECUTED",
+      "exitCode": 0
+    },
+    "npmRunCheck": {
+      "execution": "EXECUTED",
+      "exitCode": 0,
+      "sourceTypecheck": "PASS",
+      "testTypecheck": "PASS",
+      "testsPassed": 342,
+      "testsFailed": 0,
+      "build": "PASS"
+    },
+    "versionConsistency": {
+      "execution": "EXECUTED",
+      "result": "PASS",
+      "tagArgument": "v2.1.1",
+      "actualTagCreated": false
+    },
+    "artifactAudit": {
+      "execution": "EXECUTED",
+      "result": "PASS",
+      "files": 50,
+      "freshBuildMatchesExistingZip": true,
+      "browserLoadedFilesStillMatch": true
+    },
+    "chromeDryRun": {
+      "execution": "EXECUTED",
+      "result": "PASS",
+      "realBrowser": false
+    },
+    "realChrome": {
+      "execution": "EXECUTED",
+      "browser": "Chrome/138.0.7204.183",
+      "normalUiInstall": "PASS",
+      "allowUserScripts": "PASS",
+      "freshConfiguration": "PASS",
+      "font43AndPassthroughTopIframe": "PASS",
+      "masterOffRegistrationCleanup": "PASS",
+      "masterOffFullReloadNative": "PASS",
+      "scope": "macOS arm64 / isolated profile / HTTP loopback / same-origin ordinary iframe"
+    },
+    "realOldUpgrade": {
+      "execution": "EXECUTED",
+      "result": "PASS_FOR_RECORDED_SAMPLE",
+      "details": {
+        "result": "PASS",
+        "oldCommit": "5701b55f07b9921a4fe1f9c360f8bd0b6541feb3",
+        "oldVersion": "2.1.0",
+        "newVersion": "2.1.1",
+        "schemaBefore": 2,
+        "schemaAfter": 3,
+        "normalizationMatchesCurrentContract": true,
+        "preserved": [
+          "masterEnabled",
+          "webRtc",
+          "rules",
+          "exitLocationProfiles",
+          "profile"
+        ],
+        "zeroCoordinatesPreserved": true,
+        "verifiedBindingPreserved": true,
+        "oldContentScriptsRemoved": true,
+        "userScriptRegistrations": 2,
+        "strictWebRtcPolicyPreserved": true,
+        "limitations": [
+          "真实v2.1.0源码重建的解压扩展；通过同目录正常reload升级，未安装历史发布ZIP或商店更新包",
+          "本例旧语言关闭且旧dynamic/session为空，不能证明非空旧DNR范围迁移",
+          "未覆盖v1、全部自定义profile、故障中断或降级"
+        ]
+      }
+    },
+    "parentChildSiblingIsolation": {
+      "execution": "REUSED",
+      "result": "PASS_FOR_ORIGINAL_SCOPE",
+      "source": ".trellis/tasks/10-23-vg-040-product-contract/chrome-current-evidence.json",
+      "sha256": "7dccecdfeb9f8cec164473fba32114ec5bfa5ee6ccaf12e2d8a712157921fa81",
+      "identity": "same 171 inputs and same 50 artifact bytes; Chrome current-profile Popup path; not rerun on Chrome138"
+    },
+    "independentVG040Review": {
+      "execution": "REUSED_REPORTED_RESULT",
+      "scope": "historical review only; local final RC reports 0 findings",
+      "notFreshReview": true
+    },
+    "releaseNotesPreview": {
+      "execution": "EXECUTED",
+      "result": "PASS",
+      "sourceCommit": "4906aeee5f5154dc759d30bdbaa30b7162b963a0",
+      "sha256": "15a1d931c3d30ff3b1caef073852f8df17409433328adeff5b8b67175b947778",
+      "lines": 63,
+      "containsCandidateCommit": true,
+      "location": "release/vg041/notes-preview.md"
+    },
+    "diffCheck": {
+      "execution": "EXECUTED",
+      "result": "PASS",
+      "scope": "tracked diff and task-owned untracked files"
+    },
+    "independentVG041Review": {
+      "execution": "EXECUTED_READ_ONLY",
+      "reviewer": "review_vg041",
+      "result": "NO_BLOCKING_FINDINGS",
+      "independentlyHashedSourceFiles": 171,
+      "independentlyComparedArtifactFiles": 50,
+      "independentlyHashedLogs": 7,
+      "browserOrTestsRerun": false,
+      "report": ".trellis/tasks/10-24-vg-041-final-release-gate/review.md"
+    }
+  },
+  "unknown": [
+    {
+      "id": "VG039-close-and-iframe",
+      "status": "UNKNOWN",
+      "detail": "Chrome155 closing-phase registration cleanup and iframe configuration-change notice remain incomplete; Chrome138 result does not close them"
+    },
+    {
+      "id": "VG039-restoration",
+      "status": "UNKNOWN",
+      "detail": "VG039 final restoration lacked independent full-config hash proof; isolated disposable profile has no bearing on personal-profile restoration"
+    },
+    {
+      "id": "blob-warning",
+      "status": "UNCONFIRMED",
+      "detail": "VG040 site did not reproduce warning, but source/CSP/URL/synchronous-XHR cause unresolved and specific affected Worker had not synchronized"
+    }
+  ],
+  "notRun": [
+    "Chrome155 remaining VG039 scenarios",
+    "nonempty old DNR ranges in real old-version upgrade",
+    "Chrome Web Store / CRX update, v1 and complete legacy configurations",
+    "cross-origin nested iframes and context-menu disable in this gate",
+    "full BFCache, crash, cold-restart, multiwindow, all platforms or HTTPS earliest-inline matrix",
+    "fresh Blob Worker regression; historical scoped evidence only, not promoted to current whole-artifact PASS",
+    "CI / remote Actions / push / merge / tag / Release / deployment"
+  ],
+  "blockers": [
+    "VG039 Chrome155 closure assertions still incomplete; no final release acceptance or explicit scoped risk disposition",
+    "Blob warning root cause remains unconfirmed and target-scene risk has not received final release disposition"
+  ],
+  "logs": {
+    "npm-ci.log": {
+      "sha256": "ff2ba49ff45557fc45695fa503671d11b29e04b5c5bfaacd5d84b06fd7136fff",
+      "bytes": 90,
+      "location": "release/vg041/npm-ci.log"
+    },
+    "version.log": {
+      "sha256": "2e0513d4ccd0168285cb38d1737411a5750f7937cf915d8f1951931695760ea8",
+      "bytes": 37,
+      "location": "release/vg041/version.log"
+    },
+    "chrome-dry-run.log": {
+      "sha256": "1379fec778fc488c8e43634c210091b57592718d387725cd5449b0b6ba6f6dc0",
+      "bytes": 2885,
+      "location": "release/vg041/chrome-dry-run.log"
+    },
+    "artifact-audit.log": {
+      "sha256": "9510c35b2dc9c400e377b9d795ec92621986af60fb8213c4a0cb78b95111b16b",
+      "bytes": 205,
+      "location": "release/vg041/artifact-audit.log"
+    },
+    "check.log": {
+      "sha256": "9418f48c523f438869b9eb52cb1302cf9013f7d3be76e8b56203bf0fe9d069d1",
+      "bytes": 37034,
+      "location": "release/vg041/check.log"
+    },
+    "old-build.log": {
+      "sha256": "8ba81ffab3aa49b82bb5371a75eed5c1e2395b0dce22d23b72788ca1b72b72c6",
+      "bytes": 1122,
+      "location": "release/vg041/old-build.log"
+    },
+    "old-npm-ci.log": {
+      "sha256": "bb18d99e185407f4a0970aa0840c80bed2f48a6ef692bddefce0d380f4d2d7f3",
+      "bytes": 93,
+      "location": "release/vg041/old-npm-ci.log"
+    },
+    "notes-preview.md": {
+      "sha256": "15a1d931c3d30ff3b1caef073852f8df17409433328adeff5b8b67175b947778",
+      "bytes": 5971,
+      "location": "release/vg041/notes-preview.md"
+    }
+  },
+  "cleanup": {
+    "temporaryBrowserAndServerStopped": true,
+    "temporaryProfileRemoved": true,
+    "existingUserProfileModified": false,
+    "existingZipReplaced": false
+  },
+  "authorization": {
+    "localCommit": true,
+    "push": false,
+    "merge": false,
+    "tag": false,
+    "publish": false,
+    "deploy": false
+  },
+  "acceptanceRecord": {
+    "acceptedBy": "用户",
+    "date": "2026-10-24",
+    "scope": "验收NO_GO报告，标记任务done并授权本地提交",
+    "preserved": [
+      "VG-039未完成项",
+      "Blob警告未确认",
+      "NO_GO发布决策"
+    ],
+    "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#人工验收与本地提交授权"
+  }
+}

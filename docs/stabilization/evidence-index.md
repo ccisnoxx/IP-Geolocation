@@ -1,5 +1,7 @@
 # 稳定化验收证据索引
 
+> 2026-10-24：[VG-041 最终候选门禁](release-candidate/vg041/README.md)记录干净安装、342项检查、50文件产物复核和 Chrome138 最小冒烟；结论 **NO_GO**，报告已获人工验收，VG-041 为 done，仅授权本地提交。VG-039 保持 review，Blob 警告未确认，不因本轮其他场景通过改变。
+
 > 最新已验收工作（2026-10-24）：[VG-040记录](../../.trellis/tasks/10-23-vg-040-product-contract/implement.md)及[本地候选](release-candidate/vg040/README.md)。下文36项计数对应VG-037整理时点，当前跨任务状态只以manifest为准。
 
 跨任务状态以 [task-manifest.yaml](task-manifest.yaml) 为准；已验收的36项（含VG-033～VG-037）均为done，保留各自限定验收范围。历史研究处置的 done 不表示实验成功。

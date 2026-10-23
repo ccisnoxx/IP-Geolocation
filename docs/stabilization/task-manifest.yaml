@@ -886,3 +886,30 @@ tasks:
     acceptance:
       - 定向回归、完整本地门禁与独立复核有证据
       - 2026-10-24用户人工验收通过；最终提交级RC报告位于release/vg040-final-commit-rc.json，保留Blob未复现与VG-039独立边界
+
+  - id: VG-041
+    title: v2.1.1 最终发布候选门禁
+    phase: R7
+    dependencies: [VG-040]
+    status: done
+    trellis_task: .trellis/tasks/10-24-vg-041-final-release-gate
+    authorization:
+      date: '2026-10-24'
+      scope: 最终候选身份核对、干净环境门禁、适用真实Chrome最小冒烟及发布决策；2026-10-24用户验收NO_GO报告并授权本地提交，不推送合并打tag发布部署
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-24'
+      scope: 验收NO_GO报告及任务完成，不构成发布批准；VG-039未完成项和Blob警告未确认状态保留
+      evidence: .trellis/tasks/10-24-vg-041-final-release-gate/implement.md#人工验收与本地提交授权
+    result:
+      decision: NO_GO
+      evidence: docs/stabilization/release-candidate/vg041/README.md
+    scope:
+      - 以已验收VG-040精确提交为基线，不新增Hook、指纹面、Worker、权限或schema
+      - 分开记录实际运行、复用、UNKNOWN和未运行，保留VG-039与Blob警告边界
+      - 形成GO或NO_GO、已知限制、风险和回滚说明
+    acceptance:
+      - 候选提交、构建输入、版本、ZIP和审查报告相互一致
+      - 干净环境完整门禁、产物审查及适用Chrome冒烟有可复核证据
+      - 2026-10-24用户验收NO_GO报告通过，任务done并授权本地提交；发布仍需另行明确授权

@@ -435,3 +435,13 @@ Thumbs.db
 !.trellis/tasks/10-23-vg-040-product-contract/chrome-fixture.mjs
 !.trellis/tasks/10-23-vg-040-product-contract/chrome-current-evidence.json
 !.trellis/tasks/10-23-vg-040-product-contract/chrome-sibling-preserved.png
+
+# VG-041 最终候选门禁记录
+!.trellis/tasks/10-24-vg-041-final-release-gate/
+.trellis/tasks/10-24-vg-041-final-release-gate/*
+!.trellis/tasks/10-24-vg-041-final-release-gate/task.json
+!.trellis/tasks/10-24-vg-041-final-release-gate/prd.md
+!.trellis/tasks/10-24-vg-041-final-release-gate/implement.md
+!.trellis/tasks/10-24-vg-041-final-release-gate/evidence.json
+!.trellis/tasks/10-24-vg-041-final-release-gate/chrome-observations.json
+!.trellis/tasks/10-24-vg-041-final-release-gate/review.md

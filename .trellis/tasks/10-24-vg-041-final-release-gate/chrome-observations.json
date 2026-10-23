@@ -1,0 +1,1227 @@
+{
+  "browser": "Chrome/138.0.7204.183",
+  "environment": "macOS arm64, headed Chrome for Testing, isolated temporary profile",
+  "installation": "normal native UI",
+  "allowUserScripts": "normal native UI toggle, observed UNAVAILABLE -> 2 registrations",
+  "provider": "two explicit UI detection requests fulfilled with synthetic response before external transmission",
+  "providerRequests": 2,
+  "automaticProviderRequestsObserved": 0,
+  "snapshots": {
+    "fresh": {
+      "version": "2.1.1",
+      "config": {
+        "debugMode": false,
+        "exitLocationProfiles": [],
+        "fontExposure": {
+          "blockedFamilies": [
+            "MiSans",
+            "MIUI",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans",
+            "HONOR Sans",
+            "OPPO Sans",
+            "vivo Sans",
+            "Alibaba PuHuiTi",
+            "Alibaba Sans",
+            "DingTalk JinBuTi",
+            "Douyin Sans",
+            "HYQiHei",
+            "FZShuSong-Z01S",
+            "FZKai-Z03S",
+            "FZHei-B01S",
+            "FZFangSong-Z02S",
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ],
+          "enabled": false,
+          "mode": "vendor-software"
+        },
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "preset"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "intlMode": "strict",
+        "masterEnabled": false,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [],
+        "schemaVersion": 3,
+        "webRtc": {
+          "globalMode": "default"
+        }
+      },
+      "setup": "unconfigured",
+      "sync": "partial",
+      "profileSelection": "",
+      "confirmed": false,
+      "userScripts": "UNAVAILABLE",
+      "contentScripts": [],
+      "dynamic": [],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controllable_by_this_extension",
+        "value": "default"
+      }
+    },
+    "confirmed": {
+      "version": "2.1.1",
+      "config": {
+        "debugMode": false,
+        "exitLocationProfiles": [
+          {
+            "country": "United States",
+            "countryCode": "US",
+            "id": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+            "latitude": 0,
+            "longitude": 0,
+            "name": "VG041 合成出口",
+            "provider": "https://ipwho.is/",
+            "publicIp": "203.0.113.41",
+            "timezone": "America/Los_Angeles",
+            "verification": "verified",
+            "verifiedAt": 1792779301013
+          }
+        ],
+        "fontExposure": {
+          "blockedFamilies": [
+            "MiSans",
+            "MIUI",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans",
+            "HONOR Sans",
+            "OPPO Sans",
+            "vivo Sans",
+            "Alibaba PuHuiTi",
+            "Alibaba Sans",
+            "DingTalk JinBuTi",
+            "Douyin Sans",
+            "HYQiHei",
+            "FZShuSong-Z01S",
+            "FZKai-Z03S",
+            "FZHei-B01S",
+            "FZFangSong-Z02S",
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ],
+          "enabled": false,
+          "mode": "vendor-software"
+        },
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "preset"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "intlMode": "strict",
+        "masterEnabled": false,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [],
+        "schemaVersion": 3,
+        "webRtc": {
+          "globalMode": "default"
+        }
+      },
+      "setup": "partial",
+      "sync": "ok",
+      "profileSelection": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+      "confirmed": false,
+      "userScripts": [],
+      "contentScripts": [],
+      "dynamic": [],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controllable_by_this_extension",
+        "value": "default"
+      }
+    },
+    "enabled": {
+      "version": "2.1.1",
+      "config": {
+        "debugMode": false,
+        "exitLocationProfiles": [
+          {
+            "country": "United States",
+            "countryCode": "US",
+            "id": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+            "latitude": 0,
+            "longitude": 0,
+            "name": "VG041 合成出口",
+            "provider": "https://ipwho.is/",
+            "publicIp": "203.0.113.41",
+            "timezone": "America/Los_Angeles",
+            "verification": "verified",
+            "verifiedAt": 1792779301013
+          }
+        ],
+        "fontExposure": {
+          "blockedFamilies": [
+            "MiSans",
+            "MIUI",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans",
+            "HONOR Sans",
+            "OPPO Sans",
+            "vivo Sans",
+            "Alibaba PuHuiTi",
+            "Alibaba Sans",
+            "DingTalk JinBuTi",
+            "Douyin Sans",
+            "HYQiHei",
+            "FZShuSong-Z01S",
+            "FZKai-Z03S",
+            "FZHei-B01S",
+            "FZFangSong-Z02S",
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ],
+          "enabled": true,
+          "mode": "vendor-software"
+        },
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "preset"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "intlMode": "strict",
+        "masterEnabled": true,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [
+          {
+            "domain": "localhost",
+            "enabled": true,
+            "exitLocationProfileId": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+            "id": "rule-localhost",
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          }
+        ],
+        "schemaVersion": 3,
+        "webRtc": {
+          "globalMode": "default"
+        }
+      },
+      "setup": "enabled",
+      "sync": "ok",
+      "profileSelection": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+      "confirmed": false,
+      "userScripts": [
+        {
+          "allFrames": true,
+          "id": "vanishgeo-language-timezone-localhost",
+          "js": [
+            {
+              "codeSha256": "079c5e869797ed552eb23886400a7c8caab76b8e03d776b8674609158568f5aa"
+            }
+          ],
+          "matches": [
+            "*://*.localhost/*",
+            "*://localhost/*"
+          ],
+          "runAt": "document_start",
+          "world": "MAIN"
+        },
+        {
+          "allFrames": true,
+          "id": "vanishgeo-geolocation-localhost",
+          "js": [
+            {
+              "codeSha256": "21074b2b8a6e5099d0a1df635163c61c69c0f3ff45aab527c8424620ef883d1d"
+            }
+          ],
+          "matches": [
+            "*://*.localhost/*",
+            "*://localhost/*"
+          ],
+          "runAt": "document_start",
+          "world": "MAIN"
+        }
+      ],
+      "contentScripts": [
+        {
+          "allFrames": true,
+          "id": "vanishgeo-font-exposure-localhost",
+          "js": [
+            "font-exposure/filter.js"
+          ],
+          "matchOriginAsFallback": false,
+          "matches": [
+            "*://*.localhost/*",
+            "*://localhost/*"
+          ],
+          "persistAcrossSessions": true,
+          "runAt": "document_start",
+          "world": "MAIN"
+        }
+      ],
+      "dynamic": [
+        {
+          "action": {
+            "requestHeaders": [
+              {
+                "header": "accept-language",
+                "operation": "set",
+                "value": "en-US,en;q=0.9"
+              }
+            ],
+            "type": "modifyHeaders"
+          },
+          "condition": {
+            "regexFilter": "^https?://",
+            "requestDomains": [
+              "localhost"
+            ],
+            "resourceTypes": [
+              "main_frame",
+              "sub_frame"
+            ]
+          },
+          "id": 40000,
+          "priority": 10
+        },
+        {
+          "action": {
+            "requestHeaders": [
+              {
+                "header": "accept-language",
+                "operation": "set",
+                "value": "en-US,en;q=0.9"
+              }
+            ],
+            "type": "modifyHeaders"
+          },
+          "condition": {
+            "excludedResourceTypes": [
+              "main_frame",
+              "sub_frame"
+            ],
+            "initiatorDomains": [
+              "localhost"
+            ],
+            "regexFilter": "^https?://"
+          },
+          "id": 40001,
+          "priority": 10
+        }
+      ],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controllable_by_this_extension",
+        "value": "default"
+      }
+    },
+    "disabled": {
+      "version": "2.1.1",
+      "config": {
+        "debugMode": false,
+        "exitLocationProfiles": [
+          {
+            "country": "United States",
+            "countryCode": "US",
+            "id": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+            "latitude": 0,
+            "longitude": 0,
+            "name": "VG041 合成出口",
+            "provider": "https://ipwho.is/",
+            "publicIp": "203.0.113.41",
+            "timezone": "America/Los_Angeles",
+            "verification": "verified",
+            "verifiedAt": 1792779301013
+          }
+        ],
+        "fontExposure": {
+          "blockedFamilies": [
+            "MiSans",
+            "MIUI",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans",
+            "HONOR Sans",
+            "OPPO Sans",
+            "vivo Sans",
+            "Alibaba PuHuiTi",
+            "Alibaba Sans",
+            "DingTalk JinBuTi",
+            "Douyin Sans",
+            "HYQiHei",
+            "FZShuSong-Z01S",
+            "FZKai-Z03S",
+            "FZHei-B01S",
+            "FZFangSong-Z02S",
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ],
+          "enabled": true,
+          "mode": "vendor-software"
+        },
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "custom"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "intlMode": "strict",
+        "masterEnabled": false,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [
+          {
+            "domain": "localhost",
+            "enabled": true,
+            "exitLocationProfileId": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+            "id": "rule-localhost",
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "language": "en-US",
+                  "languages": [
+                    "en-US",
+                    "en"
+                  ],
+                  "mode": "custom"
+                }
+              },
+              "timezone": {
+                "mode": "override",
+                "value": {
+                  "enabled": true,
+                  "mode": "auto",
+                  "timezone": ""
+                }
+              }
+            }
+          }
+        ],
+        "schemaVersion": 3,
+        "webRtc": {
+          "globalMode": "default"
+        }
+      },
+      "setup": "ready",
+      "sync": "ok",
+      "profileSelection": "exit-336e31a6-eb79-4b4c-8465-c9eaedecc431",
+      "confirmed": false,
+      "userScripts": [],
+      "contentScripts": [],
+      "dynamic": [],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controllable_by_this_extension",
+        "value": "default"
+      }
+    },
+    "old-before": {
+      "version": "2.1.0",
+      "config": {
+        "canvas": {
+          "enabled": false,
+          "spoofFonts": true,
+          "targetFonts": [
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ]
+        },
+        "debugMode": false,
+        "exitLocationProfiles": [
+          {
+            "country": "United States",
+            "id": "exit-85f40136-798a-485c-a6f2-73a85f775d3a",
+            "latitude": 0,
+            "longitude": 0,
+            "name": "VG041 旧版合成出口",
+            "provider": "https://ipwho.is/",
+            "publicIp": "203.0.113.41",
+            "timezone": "America/Los_Angeles",
+            "verification": "verified",
+            "verifiedAt": 1792779488368
+          }
+        ],
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "acceptLanguage": "en-US,en;q=0.9",
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "custom"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "masterEnabled": true,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [
+          {
+            "domain": "legacy.example",
+            "enabled": true,
+            "exitLocationProfileId": "exit-85f40136-798a-485c-a6f2-73a85f775d3a",
+            "id": "rule-1792779478766-6315d3c203d958",
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "inherit",
+                "value": null
+              },
+              "timezone": {
+                "mode": "inherit",
+                "value": null
+              }
+            }
+          }
+        ],
+        "schemaVersion": 2,
+        "webRtc": {
+          "globalMode": "strict"
+        }
+      },
+      "userScripts": "UNAVAILABLE",
+      "contentScripts": [
+        {
+          "allFrames": true,
+          "id": "vanishgeo-runtime-init",
+          "js": [
+            "content/content.js"
+          ],
+          "matchOriginAsFallback": true,
+          "matches": [
+            "*://*.legacy.example/*",
+            "*://legacy.example/*"
+          ],
+          "persistAcrossSessions": true,
+          "runAt": "document_start",
+          "world": "ISOLATED"
+        }
+      ],
+      "dynamic": [],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controlled_by_this_extension",
+        "value": "disable_non_proxied_udp"
+      }
+    },
+    "upgrade-after": {
+      "version": "2.1.1",
+      "config": {
+        "debugMode": false,
+        "exitLocationProfiles": [
+          {
+            "country": "United States",
+            "id": "exit-85f40136-798a-485c-a6f2-73a85f775d3a",
+            "latitude": 0,
+            "longitude": 0,
+            "name": "VG041 旧版合成出口",
+            "provider": "https://ipwho.is/",
+            "publicIp": "203.0.113.41",
+            "timezone": "America/Los_Angeles",
+            "verification": "verified",
+            "verifiedAt": 1792779488368
+          }
+        ],
+        "fontExposure": {
+          "blockedFamilies": [
+            "MiSans",
+            "MIUI",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans",
+            "HONOR Sans",
+            "OPPO Sans",
+            "vivo Sans",
+            "Alibaba PuHuiTi",
+            "Alibaba Sans",
+            "DingTalk JinBuTi",
+            "Douyin Sans",
+            "HYQiHei",
+            "FZShuSong-Z01S",
+            "FZKai-Z03S",
+            "FZHei-B01S",
+            "FZFangSong-Z02S",
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ],
+          "enabled": false,
+          "mode": "vendor-software"
+        },
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "custom"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "intlMode": "strict",
+        "masterEnabled": true,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [
+          {
+            "domain": "legacy.example",
+            "enabled": true,
+            "exitLocationProfileId": "exit-85f40136-798a-485c-a6f2-73a85f775d3a",
+            "id": "rule-1792779478766-6315d3c203d958",
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "inherit",
+                "value": null
+              },
+              "timezone": {
+                "mode": "inherit",
+                "value": null
+              }
+            }
+          }
+        ],
+        "schemaVersion": 3,
+        "webRtc": {
+          "globalMode": "strict"
+        }
+      },
+      "setup": "enabled",
+      "sync": "partial",
+      "profileSelection": "",
+      "confirmed": false,
+      "userScripts": "UNAVAILABLE",
+      "contentScripts": [],
+      "dynamic": [],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controlled_by_this_extension",
+        "value": "disable_non_proxied_udp"
+      }
+    },
+    "upgrade-synced": {
+      "version": "2.1.1",
+      "config": {
+        "debugMode": false,
+        "exitLocationProfiles": [
+          {
+            "country": "United States",
+            "id": "exit-85f40136-798a-485c-a6f2-73a85f775d3a",
+            "latitude": 0,
+            "longitude": 0,
+            "name": "VG041 旧版合成出口",
+            "provider": "https://ipwho.is/",
+            "publicIp": "203.0.113.41",
+            "timezone": "America/Los_Angeles",
+            "verification": "verified",
+            "verifiedAt": 1792779488368
+          }
+        ],
+        "fontExposure": {
+          "blockedFamilies": [
+            "MiSans",
+            "MIUI",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans",
+            "HONOR Sans",
+            "OPPO Sans",
+            "vivo Sans",
+            "Alibaba PuHuiTi",
+            "Alibaba Sans",
+            "DingTalk JinBuTi",
+            "Douyin Sans",
+            "HYQiHei",
+            "FZShuSong-Z01S",
+            "FZKai-Z03S",
+            "FZHei-B01S",
+            "FZFangSong-Z02S",
+            "Microsoft YaHei",
+            "Microsoft YaHei UI",
+            "SimSun",
+            "NSimSun",
+            "SimHei",
+            "KaiTi",
+            "FangSong",
+            "DengXian",
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "STHeiti",
+            "STSong",
+            "Songti SC",
+            "Source Han Sans CN",
+            "Source Han Sans SC",
+            "Noto Sans CJK SC",
+            "Noto Serif CJK SC",
+            "WenQuanYi Micro Hei",
+            "WenQuanYi Zen Hei",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+            "DFKai-SB",
+            "PingFang TC",
+            "PingFang HK",
+            "Source Han Sans TW",
+            "Noto Sans CJK TC"
+          ],
+          "enabled": false,
+          "mode": "vendor-software"
+        },
+        "globalProfile": {
+          "geolocation": {
+            "accuracy": 50,
+            "country": "",
+            "enabled": true,
+            "history": [],
+            "latitude": null,
+            "longitude": null,
+            "mode": "auto",
+            "randomRadiusMeters": 1000,
+            "randomize": false,
+            "spoofPermission": true
+          },
+          "language": {
+            "enabled": false,
+            "language": "en-US",
+            "languages": [
+              "en-US",
+              "en"
+            ],
+            "mode": "custom"
+          },
+          "timezone": {
+            "enabled": true,
+            "mode": "auto",
+            "timezone": ""
+          }
+        },
+        "intlMode": "strict",
+        "masterEnabled": true,
+        "profile": {
+          "activeProfileId": null,
+          "profiles": []
+        },
+        "rules": [
+          {
+            "domain": "legacy.example",
+            "enabled": true,
+            "exitLocationProfileId": "exit-85f40136-798a-485c-a6f2-73a85f775d3a",
+            "id": "rule-1792779478766-6315d3c203d958",
+            "overrides": {
+              "geolocation": {
+                "mode": "inherit",
+                "value": null
+              },
+              "language": {
+                "mode": "inherit",
+                "value": null
+              },
+              "timezone": {
+                "mode": "inherit",
+                "value": null
+              }
+            }
+          }
+        ],
+        "schemaVersion": 3,
+        "webRtc": {
+          "globalMode": "strict"
+        }
+      },
+      "setup": "enabled",
+      "sync": "ok",
+      "profileSelection": "",
+      "confirmed": false,
+      "userScripts": [
+        {
+          "allFrames": true,
+          "id": "vanishgeo-language-timezone-legacy.example",
+          "js": [
+            {
+              "codeSha256": "fb0772d31fec1ff91d9b1b94cf051ce3be3175bc6efccec1bbb7cf774fa0fbd6"
+            }
+          ],
+          "matches": [
+            "*://*.legacy.example/*",
+            "*://legacy.example/*"
+          ],
+          "runAt": "document_start",
+          "world": "MAIN"
+        },
+        {
+          "allFrames": true,
+          "id": "vanishgeo-geolocation-legacy.example",
+          "js": [
+            {
+              "codeSha256": "21074b2b8a6e5099d0a1df635163c61c69c0f3ff45aab527c8424620ef883d1d"
+            }
+          ],
+          "matches": [
+            "*://*.legacy.example/*",
+            "*://legacy.example/*"
+          ],
+          "runAt": "document_start",
+          "world": "MAIN"
+        }
+      ],
+      "contentScripts": [],
+      "dynamic": [],
+      "session": [],
+      "guard": [],
+      "privacy": {
+        "levelOfControl": "controlled_by_this_extension",
+        "value": "disable_non_proxied_udp"
+      }
+    }
+  },
+  "pageSamples": {
+    "native": {
+      "top": {
+        "first": {
+          "language": "zh-CN",
+          "timeZone": "Asia/Shanghai"
+        },
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 0,
+        "blockedWidths": 0,
+        "nativeTargetWidths": 43,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "zh-CN",
+          "timeZone": "Asia/Shanghai"
+        },
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 0,
+        "blockedWidths": 0,
+        "nativeTargetWidths": 43,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "zh-CN,zh;q=0.9"
+      }
+    },
+    "enabled": {
+      "top": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "en-US",
+          "timeZone": "America/Los_Angeles"
+        },
+        "language": "en-US",
+        "timeZone": "America/Los_Angeles",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 43,
+        "blockedWidths": 43,
+        "nativeTargetWidths": 0,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "en-US,en;q=0.9"
+      }
+    },
+    "disabledReloaded": {
+      "top": {
+        "first": {
+          "language": "zh-CN",
+          "timeZone": "Asia/Shanghai"
+        },
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 0,
+        "blockedWidths": 0,
+        "nativeTargetWidths": 43,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "frame": {
+        "first": {
+          "language": "zh-CN",
+          "timeZone": "Asia/Shanghai"
+        },
+        "language": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "loaded": true,
+        "positiveWidthControl": true,
+        "blockedChecks": 0,
+        "blockedWidths": 0,
+        "nativeTargetWidths": 43,
+        "ordinaryChecks": true,
+        "ordinaryWidths": true,
+        "restored": true,
+        "nativeMetrics": true
+      },
+      "headers": {
+        "acceptLanguage": "zh-CN,zh;q=0.9"
+      }
+    }
+  },
+  "cleanup": "browser, fixture and profile removed",
+  "limitations": [
+    "HTTP loopback + same-origin ordinary iframe only",
+    "FontFace local monospace aliases are positive controls; not all installed-font layout",
+    "Old document DOM rereads before reload omitted: not fresh API sampling",
+    "Old upgrade language disabled and old dynamic/session empty; no nonempty legacy DNR migration proof",
+    "Chrome background traffic not fully monitored; no real provider accuracy test"
+  ]
+}
