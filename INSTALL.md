@@ -8,12 +8,16 @@ Blob源核验失败时会在网页控制台或Chrome扩展“错误”页看到�
 
 ## 从源码加载
 
-准备 Node.js 20+ 和 npm，在仓库根目录运行：
+准备 Node.js 20+ 和 npm，首次获取源码并构建：
 
 ```bash
+git clone https://github.com/ccisnoxx/VanishGeo.git
+cd VanishGeo
 npm ci
 npm run build
 ```
+
+已有仓库副本可直接在仓库根目录安装依赖并构建。
 
 1. 在 Chrome 打开 `chrome://extensions/`，启用“开发者模式”。manifest 声明最低 Chrome 138。
 2. 点击“加载已解压的扩展程序”，选择仓库里的 **dist 文件夹**，其根目录直接包含 `manifest.json`。
@@ -26,7 +30,7 @@ npm run build
 
 ## 从已有发行包加载
 
-仅使用仓库维护者实际发布的 `vanishgeo-v<版本>.zip`。解压后选择直接包含 manifest.json 的目录；保留整个目录，包括 `assets/` 共享 chunks、六个入口、静态资源与 LICENSE/NOTICE。不要从文档推断某个版本已经发布。现有打包流程见 [RELEASE](RELEASE.md)。
+仅使用本项目 [Releases](https://github.com/ccisnoxx/VanishGeo/releases) 中维护者实际发布的 `vanishgeo-v<版本>.zip`。解压后选择直接包含 manifest.json 的目录；保留整个目录，包括 `assets/` 共享 chunks、六个入口、静态资源与 LICENSE/NOTICE。不要从文档推断某个版本已经发布。现有打包流程见 [RELEASE](RELEASE.md)。
 
 ## 更新与开发
 

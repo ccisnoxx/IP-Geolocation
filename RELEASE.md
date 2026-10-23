@@ -1,5 +1,7 @@
 # VanishGeo 构建与发布说明
 
+项目仓库：[ccisnoxx/VanishGeo](https://github.com/ccisnoxx/VanishGeo)；构建结果见 [Actions](https://github.com/ccisnoxx/VanishGeo/actions)，已发布版本见 [Releases](https://github.com/ccisnoxx/VanishGeo/releases)。
+
 当前交付合同以本文、[安装说明](INSTALL.md)、[权限说明](PERMISSIONS.md)和 [稳定化清单](docs/stabilization/task-manifest.yaml) 为准。36 项任务（含 VG-033～VG-037）均已人工验收为 done；VG-037仅批准发布资料对齐和本地候选ZIP核验；完整索引见 [验收证据](docs/stabilization/evidence-index.md)。[VG-014 报告](docs/stabilization/release-readiness.md)保留历史候选事实，不能作为当前构建的发布批准。
 
 [CI](.github/workflows/ci.yml) 检查 push/pull_request；[release](.github/workflows/release.yml) 在 v*.*.* tag push 后检查并直接发布。任务完成不授予提交、push、tag、Release、托管部署或远端设置权限，需对应明确授权。
