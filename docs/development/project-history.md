@@ -143,7 +143,7 @@ VG-004 只读扫描了本地所有 refs 的 62 个提交中 CONFIG_GUIDE、RELEA
 
 ## 测试产物检查记录
 
-2026-10-23 检查仓库中的跟踪文件及忽略的本地产物，不含依赖、编辑器／代理工具目录和仓库外的系统临时目录。结果为：
+2026-10-23 检查仓库中的跟踪文件及忽略的本地产物，不含依赖、编辑器／代理工具目录和仓库外的系统临时目录。同日经用户授权清理两个指定文件后，结果更新如下：
 
 | 对象 | 判断与处理 |
 | --- | --- |
@@ -153,7 +153,12 @@ VG-004 只读扫描了本地所有 refs 的 62 个提交中 CONFIG_GUIDE、RELEA
 | `dist/` | 已忽略的可重建构建目录，可能被浏览器作为解压扩展加载；本次保留。 |
 | `release/vanishgeo-v2.1.1-candidate-vg037.zip` | 与验收记录中的 SHA-256 一致，且被候选资料引用；保留。 |
 | `release/vanishgeo-v2.1.0-vg014-candidate.zip` | 被跟踪记录引用的历史候选；保留。 |
-| `release/vanishgeo-v2.0.0.zip` 与发布说明 | 本地旧版本存档，没有查到该 ZIP 文件名的当前跟踪引用；可在确认已有可恢复副本后按需清理，本次保留。 |
-| `images/Thumbs.db` | 已忽略的操作系统缩略图缓存，不属于测试证据；可按需删除，本次保留。 |
+| `release/vanishgeo-v2.0.0.zip` | 已清理本地副本；可从 [GitHub Release 下载恢复](https://github.com/ccisnoxx/VanishGeo/releases/download/v2.0.0/vanishgeo-v2.0.0.zip)。 |
+| `release/v2.0.0-notes.md` | 本地历史发布说明仍保留。 |
+| `images/Thumbs.db` | 已清理；属于 Git 忽略的操作系统缩略图缓存，不是测试证据。 |
+
+旧 ZIP 删除前已从 [v2.0.0 Release](https://github.com/ccisnoxx/VanishGeo/releases/tag/v2.0.0) 实际下载核验：大小为 68,118 字节，SHA-256 为 `b34dbd7dcc3227046dca6c275e37e264b1b1ecfb856d685af7d68f42ec948d2b`，与原本地文件一致。
+
+本次文件清理共删除 81,430 字节。清理前后，`dist/`、保留的 `release/` 文件、验收资料及实验目录中共 367 个受保护文件的内容一致；候选包、验收证据和当前 `dist/` 均保留。文件清理本身只涉及两个 Git 忽略项，未改变提交历史或 Git 引用。
 
 在上述仓库范围内没有发现普通 `.log`／`.tmp`／`.temp` 文件或 `coverage/`、`test-results/`、`playwright-report/` 报告堆积。上述保留项不能因文件名包含 evidence、experiment 或 test 就批量删除，也不能从“已忽略”推定其没有验收或恢复用途。
