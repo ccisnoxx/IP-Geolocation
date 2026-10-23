@@ -1,0 +1,13 @@
+{
+  "id": "VG-039",
+  "name": "Chrome155真实浏览器回归补验",
+  "status": "review",
+  "dependencies": ["VG-038"],
+  "acceptance": {
+    "status": "pending",
+    "remaining_browser_regression_stopped_by_user": true,
+    "temporary_rule_cleanup_confirmed_by_user": true,
+    "local_commit_authorized": true,
+    "push_authorized": false
+  }
+}

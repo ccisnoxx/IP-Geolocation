@@ -1,0 +1,92 @@
+{
+  "task": "VG-039",
+  "status": "STOPPED_BY_USER",
+  "scope": ["关闭注册清理", "iframe重载提示", "原始配置恢复核验"],
+  "activeProtocol": [],
+  "stopReason": "用户认可指定网站当前结果并明确停止剩余回归；未执行关闭阶段，不重标为通过",
+  "independentTimezoneChangeScenarioTested": false,
+  "browser": "用户已打开的个人Chrome155",
+  "baseline": {
+    "configHashFromUser": "9b91892532a67c2fc2e356c733bc712eb4bd84757d11055475f726f91e558c17",
+    "configUnchangedConfirmedByUser": true,
+    "pageObservationSource": "代理通过真实iframe正常Scan again按钮运行网站检测，再读取可见结果DOM",
+    "parent": {
+      "documentToken": "78459e80-0396-4b97-8ba9-f3641fc8a687",
+      "language": "zh-CN",
+      "languages": ["zh-CN", "zh"],
+      "locale": "zh-CN",
+      "timeZone": "Asia/Shanghai",
+      "winter": -480,
+      "summer": -480
+    },
+    "generation": 2,
+    "iframeSignals": {
+      "timeZone": "America/Los_Angeles",
+      "languages": "en-us, en",
+      "chineseFonts": "none detected",
+      "vendorFonts": "none detected",
+      "webRtcNoLeak": true,
+      "locale": "en-US",
+      "offset": "UTC-7"
+    },
+    "liveRegistrations": null,
+    "limitation": "网站可见结果不替代独立Intl构造语义、Blob Worker或所属注册读回；未匹配父页仅为对照"
+  },
+  "currentConfigConfirmation": {
+    "source": "用户在选项页执行独立只读命令后提供的JSON",
+    "configHash": "9b91892532a67c2fc2e356c733bc712eb4bd84757d11055475f726f91e558c17",
+    "pageTimezone": {"enabled": true, "mode": "auto", "timezone": ""},
+    "ruleTimezoneModes": ["inherit", "inherit", "inherit", "inherit"],
+    "exactDifferencesKnown": true,
+    "differencesFromOriginal": ["rules：新增1条临时localhost规则"],
+    "changedSections": ["rules"],
+    "exitProfilesUnchanged": true,
+    "originalRulesPreservedExceptLocalhost": true,
+    "verified": 2,
+    "bound": 3,
+    "masterEnabled": true,
+    "webRtcMode": "strict",
+    "interpretation": "自动时区从已绑定verified出口档案解析；现存iframe洛杉矶读数符合本次确认配置，不能因先前未经证实的UTC预期认定产品故障",
+    "restorationProvenLocally": "只移除临时localhost规则可精确得到原始a489摘要；真实Chrome尚未执行恢复"
+  },
+  "stages": [
+    {
+      "phase": "utc-precheck",
+      "status": "PRECONDITION_MISMATCH",
+      "userReportedSavedAndSynchronized": true,
+      "liveConfigAndRegistrationSummary": null,
+      "expectedTimezone": "UTC",
+      "observationSource": "同一Chrome新建任务容器；子页通过正常语言链接进入同域英文页，运行Start scan并读取完成结果",
+      "parent": {
+        "documentToken": "c8ea00f1-477f-4191-97ec-6bf8f5cd086f",
+        "language": "zh-CN",
+        "languages": ["zh-CN", "zh"],
+        "locale": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "winter": -480,
+        "summer": -480
+      },
+      "generation": 1,
+      "iframeSignals": {
+        "timeZone": "America/Los_Angeles",
+        "languages": "en-us, en",
+        "chineseFonts": "none detected",
+        "vendorFonts": "none detected",
+        "webRtcNoLeak": true,
+        "locale": "en-US",
+        "offset": "UTC-7"
+      },
+      "limitation": "尚缺本次UTC命令的before／after JSON；不能确定持久配置和所属注册实际状态，未认定产品故障，未进入LA阶段"
+    }
+  ],
+  "cleanup": {"serverStopped": true, "taskTabClosed": true, "controlFileRemoved": true},
+  "restoration": {
+    "verifiedInRealChrome": false,
+    "status": "USER_CONFIRMED_CLEANUP_NOT_REMEASURED",
+    "lastMeasuredConfigHashBeforeUserCleanup": "9b91892532a67c2fc2e356c733bc712eb4bd84757d11055475f726f91e558c17",
+    "expectedOriginalConfigHash": "a489d3c7cc1600d5ca6e4386e1859287178aa823fca233ea78e14787241e0aca",
+    "userConfirmedLocalhostRemovedAndSaved": true,
+    "manualCleanupPending": false,
+    "limitation": "用户确认已删除保存唯一已知差异；按用户要求不再测试，未独立重读删除后的完整配置、注册或RTC"
+  }
+}

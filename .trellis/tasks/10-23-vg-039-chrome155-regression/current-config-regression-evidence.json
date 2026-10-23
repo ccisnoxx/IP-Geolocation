@@ -1,0 +1,18 @@
+{
+  "task": "VG-039",
+  "status": "INCOMPLETE",
+  "scope": "当前普通导入后的基线；关闭所属注册与 iframe 提示",
+  "baselineHash": "a00f30eeb1d3a85a6c73c12ae9a6f463276074f62cdf8fc26ea42cd23f27542b",
+  "records": [],
+  "cleanup": {
+    "serverClosed": true,
+    "controlRemoved": true
+  },
+  "limitations": [
+    "扩展配置及注册摘要由用户在正常控制台手工只读采集；网页不访问扩展API",
+    "重载提示可见性由用户确认，不能冒充自动读取扩展DOM",
+    "没有恢复旧文件中的verified身份，只核验当前普通导入后的基线",
+    "不调用定位、ICE或外部provider；没有其他扩展或Chrome设置操作"
+  ],
+  "recorderSha256": "39410cd8d26a98ed76ef9f2d1011157c185123dade777c81e48b16097cf4417e"
+}

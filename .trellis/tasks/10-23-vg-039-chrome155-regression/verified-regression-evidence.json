@@ -1,0 +1,18 @@
+{
+  "task": "VG-039",
+  "status": "IN_PROGRESS",
+  "scope": "当前原始备份；保留可信档案的普通保存恢复；关闭注册与iframe提示",
+  "baselineHash": "a489d3c7cc1600d5ca6e4386e1859287178aa823fca233ea78e14787241e0aca",
+  "baselineProfileHash": "44c6c2a8e10ad8888bc9b606b85acfda9950fc4ddea6fdec56ef74d35e2993bd",
+  "baselineVerifiedCount": 2,
+  "baselineBoundCount": 3,
+  "records": [],
+  "cleanup": null,
+  "limitations": [
+    "扩展配置及注册摘要由用户在正常控制台手工只读采集；网页不访问扩展API",
+    "重载提示可见性由用户确认，不能冒充自动读取扩展DOM",
+    "恢复仅走现有普通保存接口，后台保留当前可信档案，不使用文件导入或建立verified身份",
+    "不调用定位、ICE或外部provider；没有其他扩展或Chrome设置操作"
+  ],
+  "recorderSha256": "31a59693f4cde6058819b37fc6f5b12c262f7fe26dddfcf42be02e93f384727e"
+}

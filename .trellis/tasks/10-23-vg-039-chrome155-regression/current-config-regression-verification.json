@@ -1,0 +1,39 @@
+{
+  "task": "VG-039",
+  "status": "INCOMPLETE",
+  "sourceSha256": "50ee9a795dcc87fe5db349cba1e6476cb063c80f3a77aa747ff169e352328aa4",
+  "checks": [
+    {
+      "phase": "structure",
+      "name": "阶段唯一且顺序正确",
+      "pass": true
+    },
+    {
+      "phase": "structure",
+      "name": "预期配置摘要格式有效",
+      "pass": true
+    }
+  ],
+  "passed": 2,
+  "failed": 0,
+  "pending": [
+    "baseline",
+    "utc",
+    "la-old",
+    "la-new",
+    "off-old",
+    "off-new",
+    "restored"
+  ],
+  "collectionComplete": false,
+  "limitations": [
+    "扩展配置及注册摘要由用户在正常控制台手工只读采集；网页不访问扩展API",
+    "重载提示可见性由用户确认，不能冒充自动读取扩展DOM",
+    "没有恢复旧文件中的verified身份，只核验当前普通导入后的基线",
+    "不调用定位、ICE或外部provider；没有其他扩展或Chrome设置操作"
+  ],
+  "cleanup": {
+    "serverClosed": true,
+    "controlRemoved": true
+  }
+}

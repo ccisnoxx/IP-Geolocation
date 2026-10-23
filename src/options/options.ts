@@ -678,9 +678,16 @@ function downloadJson(filename: string, value: unknown): void {
   URL.revokeObjectURL(url);
 }
 
-function exportConfiguration(): void {
-  currentConfig = readForm();
-  downloadJson(`vanishgeo-config-${Date.now()}.json`, currentConfig);
+async function exportConfiguration(): Promise<void> {
+  if (pendingConfigSaves || exportConfigBtn.disabled) return;
+  exportConfigBtn.disabled = true;
+  try {
+    // 导出后台已保存配置，不用表单重建或提交未保存的修改。
+    const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
+    downloadJson(`vanishgeo-config-${Date.now()}.json`, response.config);
+  } finally {
+    exportConfigBtn.disabled = false;
+  }
 }
 
 function importConfiguration(): void {
@@ -747,7 +754,7 @@ cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
 detectExitLocationBtn.addEventListener('click', () => { runUiTask(detectNewExitLocation()); });
 fontExposureModeEl.addEventListener('change', updateFontExposureMode);
 resetFontsBtn.addEventListener('click', () => { runUiTask(handleResetFonts()); });
-exportConfigBtn.addEventListener('click', exportConfiguration);
+exportConfigBtn.addEventListener('click', () => { runUiTask(exportConfiguration()); });
 importConfigBtn.addEventListener('click', importConfiguration);
 importFileEl.addEventListener('change', (event) => { runUiTask(handleImportFile(event)); });
 resetAllBtn.addEventListener('click', () => { runUiTask(resetAllData()); });

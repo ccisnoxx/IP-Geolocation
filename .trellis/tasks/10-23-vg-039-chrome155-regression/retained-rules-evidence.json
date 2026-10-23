@@ -1,0 +1,164 @@
+{
+  "task": "VG-039",
+  "status": "INCOMPLETE",
+  "scope": "当前原始备份；保留可信档案的普通保存恢复；关闭注册与iframe提示",
+  "baselineHash": "a489d3c7cc1600d5ca6e4386e1859287178aa823fca233ea78e14787241e0aca",
+  "baselineProfileHash": "44c6c2a8e10ad8888bc9b606b85acfda9950fc4ddea6fdec56ef74d35e2993bd",
+  "baselineVerifiedCount": 2,
+  "baselineBoundCount": 3,
+  "records": [
+    {
+      "phase": "baseline",
+      "source": "user-copied-read-only-counts",
+      "privileged": {
+        "configHash": "a489d3c7cc1600d5ca6e4386e1859287178aa823fca233ea78e14787241e0aca",
+        "profileHash": "44c6c2a8e10ad8888bc9b606b85acfda9950fc4ddea6fdec56ef74d35e2993bd",
+        "masterEnabled": true,
+        "webRtcMode": "strict",
+        "rtcPolicy": "disable_non_proxied_udp",
+        "rtcControl": "controlled_by_this_extension",
+        "verified": 2,
+        "bound": 3,
+        "probeTabs": 1,
+        "probePageDebt": 0,
+        "page": 3,
+        "geo": 3,
+        "font": 3,
+        "legacy": 0,
+        "dynamic": 6,
+        "session": 0,
+        "headerHash": "06f1f37c69f71c01ac01db328b2a2a505effe4260245b5bbb4066a1ebeabfa4e",
+        "pageState": "ready",
+        "geoState": "ready",
+        "fontState": "ready",
+        "pageCount": 3,
+        "geoCount": 3,
+        "fontCount": 3,
+        "pageReload": true,
+        "status": "ok",
+        "headers": "ok",
+        "content": "ok",
+        "webrtc": "ok"
+      },
+      "sawHint": false,
+      "observation": {
+        "parent": {
+          "token": "c4fb576b-1c5b-41a1-b805-da8966e947f1",
+          "first": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN",
+              "zh"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          },
+          "live": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN",
+              "zh"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          }
+        },
+        "child": {
+          "id": "9765cce2-c5fb-4ada-8d76-f8595951bebb",
+          "token": "7273c850-8f18-4119-a501-fe215e1a750b",
+          "first": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN",
+              "zh"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          },
+          "live": {
+            "language": "zh-CN",
+            "languages": [
+              "zh-CN",
+              "zh"
+            ],
+            "locale": "zh-CN",
+            "timeZone": "Asia/Shanghai",
+            "winter": -480,
+            "summer": -480
+          },
+          "header": "zh-CN,zh;q=0.9",
+          "workers": [
+            {
+              "type": "classic",
+              "signal": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "locale": "zh-CN",
+                "timeZone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            },
+            {
+              "type": "module",
+              "signal": {
+                "language": "zh-CN",
+                "languages": [
+                  "zh-CN",
+                  "zh"
+                ],
+                "locale": "zh-CN",
+                "timeZone": "Asia/Shanghai",
+                "winter": -480,
+                "summer": -480
+              }
+            }
+          ]
+        },
+        "browser": [
+          {
+            "brand": "Google Chrome",
+            "version": "155.0.8059.85"
+          },
+          {
+            "brand": "Chromium",
+            "version": "155.0.8059.85"
+          },
+          {
+            "brand": "Not(A:Brand",
+            "version": "24.0.0.0"
+          }
+        ]
+      },
+      "recordedAt": "2026-10-23T08:56:23.230Z"
+    }
+  ],
+  "cleanup": {
+    "serverClosed": true,
+    "controlRemoved": true
+  },
+  "limitations": [
+    "扩展配置及注册摘要由用户在正常控制台手工只读采集；网页不访问扩展API",
+    "重载提示可见性由用户确认，不能冒充自动读取扩展DOM",
+    "恢复仅走现有普通保存接口，后台保留当前可信档案，不使用文件导入或建立verified身份",
+    "不调用定位、ICE或外部provider；没有其他扩展或Chrome设置操作"
+  ],
+  "baselineChecks": {
+    "configMatches": true,
+    "profilesMatch": true,
+    "realmsComparable": true,
+    "probeIdentified": true,
+    "chrome155": true
+  },
+  "resumedFromSha256": "d2088c4504f4179668d196b904f6a32b9526c4fd5471f69f9149939ed0c9543d",
+  "recorderSha256": "0ec4f86de3c09a275a5bb78ae942aae637a510fb98cb90740b961f68ee7915aa"
+}

@@ -48,6 +48,8 @@ function harness(page: 'popup' | 'options') {
   const saveFooterBtn = { disabled: false };
   const resetFontsBtn = { disabled: false };
   const cancelSaveProfileBtn = { disabled: false };
+  const exportConfigBtn = { disabled: false };
+  const requests: string[] = [];
   let modalCloses = 0;
   let now = '2026-01-15T12:00:00Z';
   const initialConfig = configModel.normalizeConfig({ rules: [], globalProfile: {
@@ -55,8 +57,9 @@ function harness(page: 'popup' | 'options') {
     geolocation: configModel.normalizeGeolocation({ mode: 'manual', latitude: 0, longitude: 0, accuracy: 50 }),
     timezone: configModel.normalizeTimezone({ mode: 'manual', timezone: 'UTC' })
   } });
+  let savedConfig = structuredClone(initialConfig);
   const context = vm.createContext({ ...configModel, ...elements, initialConfig, createCustomProfile, pendingConfigSaves: 0,
-    confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn,
+    confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn, exportConfigBtn,
     ruleListToText, rulesFromText,
     downloadJson: (filename: string, config: SiteSpoofConfig) => downloads.push({ filename, config: structuredClone(config) }),
     getTimezoneOffsetMinutes: (timezone: string) => configModel.getTimezoneOffsetMinutes(timezone, now),
@@ -64,12 +67,15 @@ function harness(page: 'popup' | 'options') {
     updateGlobalStatus() {}, updateExitLocationProfile() {}, renderProfiles() {}, renderExitLocationProfiles() {}, renderSiteRules() {}, renderOnboarding() {},
     showAutoSaveToast() {}, runtimeSyncMessage: () => '配置已保存', webRtcSelectValue: () => 'default',
     saveProfileModal: { classList: { remove() { modalCloses += 1; } } },
-    async sendRuntimeMessage(request: { action: string; config: SiteSpoofConfig }) {
+    async sendRuntimeMessage(request: { action: string; config?: SiteSpoofConfig }) {
+      requests.push(request.action);
       if (failure) throw new Error('合成存储失败');
       if (waitForSave) await waitForSave;
+      if (request.action === 'getSiteConfig') return { config: structuredClone(savedConfig) };
       const result = validateConfig(request.config);
       if (!result.ok) throw new Error(result.errors.join('; '));
       writes.push(structuredClone(result.config));
+      savedConfig = structuredClone(result.config);
       return { config: result.config };
     }
   });
@@ -77,14 +83,15 @@ function harness(page: 'popup' | 'options') {
     ${functions.map((node) => node.getText(parsed)).join('\n')}
     ${languageChangeListeners.map((node) => node.getText(parsed)).join('\n')}
     populateForm(currentConfig);`, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
-  return { elements, alerts, writes, downloads, context, confirmSaveProfileBtn,
+  return { elements, alerts, writes, downloads, context, confirmSaveProfileBtn, exportConfigBtn, requests,
     pendingButtons: [confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn],
     getModalCloses: () => modalCloses,
     call: (expression: string) => vm.runInContext(expression, context),
     changeLanguage: () => listeners['languageEl:change'](),
     setFailure(value: boolean) { failure = value; },
     setWaitForSave(value: Promise<void> | null) { waitForSave = value; },
-    setDate(value: string) { now = value; }
+    setDate(value: string) { now = value; },
+    setSavedConfig(value: SiteSpoofConfig) { savedConfig = structuredClone(value); }
   };
 }
 
@@ -250,11 +257,71 @@ test('Options 字体自定义和内置模式通过实际导入／导出保留 v3
     assert.equal(ui.elements.fontExposureModeEl.value, mode);
     assert.equal(ui.elements.fontExposureEnabledEl.checked, false);
     assert.equal(ui.elements.fontExposureBlockedFamiliesEl.value, config.fontExposure.blockedFamilies.join('\n'));
-    ui.call('exportConfiguration()');
+    await ui.call('exportConfiguration()');
     const exported = ui.downloads.at(-1)!;
     assert.match(exported.filename, /^vanishgeo-config-.*\.json$/);
     assert.equal(exported.config.schemaVersion, 3);
     assert.deepEqual(exported.config.fontExposure, config.fontExposure);
     assert.doesNotMatch(JSON.stringify(exported.config), /acceptLanguage|"canvas"/);
   }
+});
+
+test('Options 原始导出完整保留后台 preset/auto、verified 档案及规则绑定，不提交未保存表单', async () => {
+  const ui = harness('options');
+  const saved = configModel.normalizeConfig({
+    globalProfile: {
+      language: configModel.normalizeLanguage({ mode: 'preset', language: 'en-US', languages: ['en-US', 'en'] }),
+      timezone: configModel.normalizeTimezone({ mode: 'auto', timezone: 'America/Los_Angeles' }),
+      geolocation: configModel.normalizeGeolocation({ mode: 'auto', latitude: 0, longitude: 0,
+        history: [{ latitude: 1, longitude: 2, accuracy: 50, label: '合成历史', createdAt: 1 }] })
+    },
+    exitLocationProfiles: [{ id: 'synthetic-exit', name: '合成档案', verification: 'verified', publicIp: '203.0.113.10',
+      latitude: 0, longitude: 0, country: 'Synthetic', countryCode: 'JP', timezone: 'UTC', provider: 'synthetic', verifiedAt: 1 }],
+    rules: [
+      configModel.normalizeRule({ id: 'synthetic-enabled', domain: 'example.com', exitLocationProfileId: 'synthetic-exit' }),
+      configModel.normalizeRule({ id: 'synthetic-disabled', domain: 'child.example.com', enabled: false, exitLocationProfileId: 'synthetic-exit' })
+    ]
+  });
+  ui.setSavedConfig(saved);
+  const previous = ui.call('JSON.stringify(currentConfig)');
+  ui.elements.languageEl.value = 'ja-JP';
+  ui.elements.timezoneEl.value = 'UTC';
+  await ui.call('exportConfiguration()');
+  assert.deepEqual(ui.downloads[0].config, saved);
+  assert.equal(ui.downloads[0].config.globalProfile.language.mode, 'preset');
+  assert.equal(ui.downloads[0].config.globalProfile.timezone.mode, 'auto');
+  assert.equal(ui.downloads[0].config.exitLocationProfiles[0].verification, 'verified');
+  assert.equal(ui.downloads[0].config.rules[0].exitLocationProfileId, 'synthetic-exit');
+  assert.equal(ui.elements.languageEl.value, 'ja-JP');
+  assert.equal(ui.elements.timezoneEl.value, 'UTC');
+  assert.equal(ui.call('JSON.stringify(currentConfig)'), previous);
+  assert.deepEqual(ui.requests, ['getSiteConfig']);
+  assert.equal(ui.writes.length, 0);
+});
+
+test('Options 原始导出在途不重复读取，失败不下载且可重试；保存未完成时不启动导出', async () => {
+  const ui = harness('options');
+  let release!: () => void;
+  ui.setWaitForSave(new Promise<void>(done => { release = done; }));
+  const exporting = ui.call('exportConfiguration()');
+  assert.equal(ui.exportConfigBtn.disabled, true);
+  await ui.call('exportConfiguration()');
+  assert.equal(ui.requests.length, 1);
+  release();
+  await exporting;
+  assert.equal(ui.downloads.length, 1);
+  assert.equal(ui.exportConfigBtn.disabled, false);
+  ui.setWaitForSave(null);
+  ui.setFailure(true);
+  await assert.rejects(ui.call('exportConfiguration()'), /合成存储失败/);
+  assert.equal(ui.downloads.length, 1);
+  assert.equal(ui.exportConfigBtn.disabled, false);
+  ui.setFailure(false);
+  ui.call('pendingConfigSaves = 1');
+  await ui.call('exportConfiguration()');
+  assert.equal(ui.requests.length, 2);
+  ui.call('pendingConfigSaves = 0');
+  await ui.call('exportConfiguration()');
+  assert.equal(ui.downloads.length, 2);
+  assert.equal(ui.writes.length, 0);
 });

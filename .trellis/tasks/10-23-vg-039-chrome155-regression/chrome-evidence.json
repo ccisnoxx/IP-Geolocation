@@ -1,0 +1,365 @@
+{
+  "task": "VG-038",
+  "status": "BLOCKED",
+  "chrome": "Chrome/155.0.8059.86",
+  "completed": false,
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "realChrome": true,
+    "headed": true,
+    "temporaryProfile": true,
+    "personalProfileAccessed": false,
+    "installation": "normal UI",
+    "userScriptsSwitch": "normal UI",
+    "fixtureTraffic": "HTTP loopback only",
+    "browserBackgroundTraffic": "not fully monitored"
+  },
+  "checks": [
+    {
+      "name": "dist-unchanged-during-browser-validation",
+      "passed": true
+    }
+  ],
+  "observations": {
+    "native": {
+      "signal": {
+        "language": "zh-CN",
+        "languages": [
+          "zh-CN",
+          "zh"
+        ],
+        "locale": "zh-CN",
+        "timeZone": "Asia/Shanghai",
+        "winter": -480,
+        "summer": -480
+      },
+      "before": 1792731075903,
+      "after": 1792731075921,
+      "dates": [
+        {
+          "derived": true,
+          "prototype": true,
+          "time": 1792731075903,
+          "local": [
+            2026,
+            9,
+            23,
+            12,
+            51,
+            15,
+            903
+          ]
+        },
+        {
+          "derived": true,
+          "prototype": true,
+          "time": 1768478400123,
+          "local": [
+            2026,
+            0,
+            15,
+            20,
+            0,
+            0,
+            123
+          ]
+        },
+        {
+          "derived": true,
+          "prototype": true,
+          "time": 1705293296789,
+          "local": [
+            2024,
+            0,
+            15,
+            12,
+            34,
+            56,
+            789
+          ]
+        }
+      ],
+      "dateCalls": [
+        "string",
+        "string",
+        "string"
+      ],
+      "custom": {
+        "prototype": true,
+        "time": 0
+      },
+      "constructors": [
+        {
+          "name": "DateTimeFormat",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": "UTC",
+          "call": {
+            "locale": "en-US"
+          },
+          "legacy": {
+            "same": true,
+            "repeated": "TypeError"
+          }
+        },
+        {
+          "name": "NumberFormat",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": null,
+          "call": {
+            "locale": "en-US"
+          },
+          "legacy": {
+            "same": true,
+            "repeated": "TypeError"
+          }
+        },
+        {
+          "name": "Collator",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": null,
+          "call": {
+            "locale": "en-US"
+          },
+          "legacy": {
+            "same": false,
+            "repeated": "none"
+          }
+        },
+        {
+          "name": "RelativeTimeFormat",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": null,
+          "call": {
+            "error": "TypeError"
+          }
+        },
+        {
+          "name": "ListFormat",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": null,
+          "call": {
+            "error": "TypeError"
+          }
+        },
+        {
+          "name": "PluralRules",
+          "derived": true,
+          "prototype": true,
+          "locale": "en",
+          "timeZone": null,
+          "call": {
+            "error": "TypeError"
+          }
+        },
+        {
+          "name": "DisplayNames",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": null,
+          "call": {
+            "error": "TypeError"
+          }
+        },
+        {
+          "name": "Segmenter",
+          "derived": true,
+          "prototype": true,
+          "locale": "en-US",
+          "timeZone": null,
+          "call": {
+            "error": "TypeError"
+          }
+        }
+      ],
+      "years": [
+        {
+          "year": 0,
+          "iso": "0000-01-15T12:34:56.789Z",
+          "time": -62165964303211,
+          "offset": -485,
+          "local": [
+            0,
+            0,
+            15,
+            20,
+            40,
+            39,
+            789
+          ],
+          "dateString": "Sat Jan 15 0000",
+          "string": "Sat Jan 15 0000 20:40:39 GMT+0805 (中国标准时间)"
+        },
+        {
+          "year": 1,
+          "iso": "0001-01-15T12:34:56.789Z",
+          "time": -62134341903211,
+          "offset": -485,
+          "local": [
+            1,
+            0,
+            15,
+            20,
+            40,
+            39,
+            789
+          ],
+          "dateString": "Mon Jan 15 0001",
+          "string": "Mon Jan 15 0001 20:40:39 GMT+0805 (中国标准时间)"
+        },
+        {
+          "year": 9,
+          "iso": "0009-01-15T12:34:56.789Z",
+          "time": -61881881103211,
+          "offset": -485,
+          "local": [
+            9,
+            0,
+            15,
+            20,
+            40,
+            39,
+            789
+          ],
+          "dateString": "Thu Jan 15 0009",
+          "string": "Thu Jan 15 0009 20:40:39 GMT+0805 (中国标准时间)"
+        },
+        {
+          "year": 50,
+          "iso": "0050-01-15T12:34:56.789Z",
+          "time": -60588041103211,
+          "offset": -485,
+          "local": [
+            50,
+            0,
+            15,
+            20,
+            40,
+            39,
+            789
+          ],
+          "dateString": "Sat Jan 15 0050",
+          "string": "Sat Jan 15 0050 20:40:39 GMT+0805 (中国标准时间)"
+        },
+        {
+          "year": 99,
+          "iso": "0099-01-15T12:34:56.789Z",
+          "time": -59041740303211,
+          "offset": -485,
+          "local": [
+            99,
+            0,
+            15,
+            20,
+            40,
+            39,
+            789
+          ],
+          "dateString": "Thu Jan 15 0099",
+          "string": "Thu Jan 15 0099 20:40:39 GMT+0805 (中国标准时间)"
+        },
+        {
+          "year": 100,
+          "iso": "0100-01-15T12:34:56.789Z",
+          "time": -59010204303211,
+          "offset": -485,
+          "local": [
+            100,
+            0,
+            15,
+            20,
+            40,
+            39,
+            789
+          ],
+          "dateString": "Fri Jan 15 0100",
+          "string": "Fri Jan 15 0100 20:40:39 GMT+0805 (中国标准时间)"
+        }
+      ],
+      "numeric": [
+        [
+          0,
+          -2207808343000,
+          -2207779200000
+        ],
+        [
+          1,
+          -2176272000000,
+          -2176243200000
+        ],
+        [
+          50,
+          -629971200000,
+          -629942400000
+        ],
+        [
+          99,
+          916329600000,
+          916358400000
+        ]
+      ],
+      "explicit": {
+        "locale": "en-US",
+        "calendar": "gregory",
+        "numberingSystem": "latn",
+        "timeZone": "UTC",
+        "year": "numeric",
+        "month": "numeric",
+        "day": "numeric"
+      },
+      "sharedSource": "function SharedWorker() { [native code] }"
+    },
+    "nativeLocales": {
+      "en-US": {
+        "DateTimeFormat": "en-US",
+        "NumberFormat": "en-US",
+        "Collator": "en-US",
+        "RelativeTimeFormat": "en-US",
+        "ListFormat": "en-US",
+        "PluralRules": "en",
+        "DisplayNames": "en-US",
+        "Segmenter": "en-US"
+      },
+      "fr-FR": {
+        "DateTimeFormat": "fr-FR",
+        "NumberFormat": "fr-FR",
+        "Collator": "fr",
+        "RelativeTimeFormat": "fr-FR",
+        "ListFormat": "fr-FR",
+        "PluralRules": "fr",
+        "DisplayNames": "fr-FR",
+        "Segmenter": "fr-FR"
+      }
+    }
+  },
+  "errors": [],
+  "cleanup": {
+    "browserMainExited": true,
+    "temporaryProfileRemoved": true,
+    "serverClosed": true
+  },
+  "limitations": [
+    "不代表HTTPS、其他OS、完整重启/BFCache或任意故障注入矩阵",
+    "生产观测不手工注入运行时、不修改生产API；旧bootstrap及无关注册仅在临时profile中通过Chrome API建立无副作用夹具",
+    "旧文档和Worker保持快照，撤销注册只约束后续文档；HTTP(S)/SharedWorker未恢复"
+  ],
+  "distSha256": "8f52e5493bb991fd8760095b4b769b7d02c4baffba786b90c09d84f73ca88207",
+  "sourceCommit": "44e4539e614397edfe9351d0e86be5063caba637",
+  "sourceFiles": {
+    "src/background/services.ts": "3c5e67969827e08469a9b148a2a0e83260433d02971a8364d9b2a1ea5f0a95e1",
+    "src/background/page-scripts.ts": "7bfe26614ee6d9ea543c945d37d69aad86cbaaf2d16ecc214c3bc92679738113",
+    "src/injected/runtime-modules/surfaces/intl-date.ts": "6b6682de08f493d4da469d5299cc0dc262f436deb5f4fe68a975ccf80e85d885",
+    "src/injected/runtime-modules/worker/intl-date.ts": "00f23871776dbd3ac032c8434d896670a593a563f3898a76bd1e9f3186d435eb"
+  }
+}
