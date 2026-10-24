@@ -1,8 +1,8 @@
 {
   "task": "VG-041",
   "date": "2026-10-24",
-  "decision": "NO_GO",
-  "humanAcceptance": "passed_2026-10-24_NO_GO_report_only",
+  "decision": "GO",
+  "humanAcceptance": "passed_2026-10-24_GO_with_accepted_known_limitation",
   "candidate": {
     "result": "PASS",
     "commit": "4906aeee5f5154dc759d30bdbaa30b7162b963a0",
@@ -152,10 +152,7 @@
     "fresh Blob Worker regression; historical scoped evidence only, not promoted to current whole-artifact PASS",
     "CI / remote Actions / push / merge / tag / Release / deployment"
   ],
-  "blockers": [
-    "VG039 Chrome155 closure assertions still incomplete; no final release acceptance or explicit scoped risk disposition",
-    "Blob warning root cause remains unconfirmed and target-scene risk has not received final release disposition"
-  ],
+  "blockers": [],
   "logs": {
     "npm-ci.log": {
       "sha256": "ff2ba49ff45557fc45695fa503671d11b29e04b5c5bfaacd5d84b06fd7136fff",
@@ -215,12 +212,114 @@
   "acceptanceRecord": {
     "acceptedBy": "用户",
     "date": "2026-10-24",
-    "scope": "验收NO_GO报告，标记任务done并授权本地提交",
+    "scope": "用户验收GO决策通过并授权VG-039验收及VG-041 GO相关资料本地提交；保留Blob警告UNCONFIRMED的非阻断已知限制，不补测、不推送或发布",
     "preserved": [
-      "VG-039未完成项",
-      "Blob警告未确认",
-      "NO_GO发布决策"
+      "Blob警告UNCONFIRMED",
+      "Chrome155既有未运行及UNKNOWN记录",
+      "精确候选及原始测试、构建和Chrome证据"
     ],
-    "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#人工验收与本地提交授权"
+    "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#go验收与本地提交授权"
+  },
+  "postAcceptanceDisposition": {
+    "date": "2026-10-24",
+    "task": "VG-041",
+    "releaseDecision": "GO",
+    "basis": "VG-039已人工验收且剩余场景不再补验；用户接受Blob警告为非阻断已知限制",
+    "blobWarningStatus": "UNCONFIRMED",
+    "additionalBrowserExecution": "NOT_RUN_USER_DECISION",
+    "additionalTests": "NOT_RUN_USER_DECISION",
+    "executionSnapshotUnchanged": true,
+    "remainingActiveBlockers": [],
+    "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#已知限制接受与go决策",
+    "currentAuthorization": {
+      "featureChanges": false,
+      "commit": true,
+      "push": false,
+      "tag": false,
+      "publish": false,
+      "deploy": false
+    }
+  },
+  "historicalGateDecision": {
+    "date": "2026-10-24",
+    "decision": "NO_GO",
+    "humanAcceptance": "passed_2026-10-24_NO_GO_report_only",
+    "blockers": [
+      "VG039 Chrome155 closure assertions still incomplete; no final release acceptance or explicit scoped risk disposition",
+      "Blob warning root cause remains unconfirmed and target-scene risk has not received final release disposition"
+    ],
+    "acceptanceRecord": {
+      "acceptedBy": "用户",
+      "date": "2026-10-24",
+      "scope": "验收NO_GO报告，标记任务done并授权本地提交",
+      "preserved": [
+        "VG-039未完成项",
+        "Blob警告未确认",
+        "NO_GO发布决策"
+      ],
+      "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#人工验收与本地提交授权"
+    },
+    "authorization": {
+      "localCommit": true,
+      "push": false,
+      "merge": false,
+      "tag": false,
+      "publish": false,
+      "deploy": false
+    }
+  },
+  "postAcceptanceDispositionHistory": [
+    {
+      "date": "2026-10-24",
+      "task": "VG-039",
+      "taskStatus": "done",
+      "humanAcceptance": "passed",
+      "basis": "用户决定剩余Chrome155验收不再补验，直接人工验收成功",
+      "additionalBrowserExecution": "NOT_RUN_USER_DECISION",
+      "executionSnapshotUnchanged": true,
+      "historicalBlockers": true,
+      "resolvedHistoricalBlocker": "VG039 Chrome155 closure assertions still incomplete; no final release acceptance or explicit scoped risk disposition",
+      "remainingActiveBlockers": [
+        "Blob warning root cause remains unconfirmed and target-scene risk has not received final release disposition"
+      ],
+      "releaseDecision": "NO_GO",
+      "evidence": ".trellis/tasks/10-23-vg-039-chrome155-regression/implement.md#2026-10-24-人工验收通过",
+      "currentAuthorization": {
+        "featureChanges": false,
+        "commit": false,
+        "push": false,
+        "tag": false,
+        "publish": false,
+        "deploy": false
+      }
+    }
+  ],
+  "acceptedLimitations": [
+    {
+      "id": "blob-warning",
+      "status": "UNCONFIRMED",
+      "blocking": false,
+      "acceptedBy": "用户",
+      "date": "2026-10-24",
+      "scope": "Blob警告作为已知限制接受；原因和受影响现场仍未确认，不新增实测PASS",
+      "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#已知限制接受与go决策"
+    }
+  ],
+  "localCommitAuthorization": {
+    "date": "2026-10-24",
+    "authorizedBy": "用户",
+    "scope": "VG-039验收及VG-041 GO调整相关资料",
+    "goDecisionAccepted": true,
+    "knownLimitation": {
+      "id": "blob-warning",
+      "status": "UNCONFIRMED",
+      "blocking": false
+    },
+    "additionalTests": "NOT_RUN_USER_DECISION",
+    "push": false,
+    "tag": false,
+    "publish": false,
+    "deploy": false,
+    "evidence": ".trellis/tasks/10-24-vg-041-final-release-gate/implement.md#go验收与本地提交授权"
   }
 }

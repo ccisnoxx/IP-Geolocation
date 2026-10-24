@@ -840,12 +840,19 @@ tasks:
     title: Chrome155真实浏览器回归补验
     phase: R7
     dependencies: [VG-038]
-    status: review
+    status: done
     trellis_task: .trellis/tasks/10-23-vg-039-chrome155-regression
     authorization:
-      date: '2026-10-23'
-      scope: 用户停止剩余Chrome155回归，认可指定网站当前检测结果，并确认临时localhost规则已删除保存；最终明确授权本轮原始导出修复及收尾记录本地提交，不再测试、不推送，Chrome155未完成项和配置恢复未独立核验情况如实保留，不放宽verified身份边界，不改其他扩展和浏览器设置
+      date: '2026-10-24'
+      scope: 用户直接人工验收通过VG-039，剩余Chrome155场景不再补验；现授权VG-039验收及VG-041 GO相关资料本地提交，不补测、不推送、不打tag、不创建Release或部署
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-24'
+      scope: 人工验收通过并决定剩余Chrome155场景不再补验；既有原始观测和未执行记录保持，不新增实测PASS
+      evidence: .trellis/tasks/10-23-vg-039-chrome155-regression/implement.md#2026-10-24-人工验收通过
     scope:
+      - 2026-10-24用户决定无需补齐剩余Chrome155验收，直接人工验收通过；任务done，以下过程记录保留历史执行事实
       - 初次临时Chrome155仍为BLOCKED，实例、profile及服务已清理；保留原始证据
       - 用户现有Chrome配置导出在仓库外受限备份；未保证无损恢复前不写配置
       - 原始导出改读后台已保存配置，保留字段和绑定且不提交表单；普通导入仍降级清绑定
@@ -869,7 +876,7 @@ tasks:
       - 临时浏览器、profile与本地服务清理有记录；需要人工操作时提供准确步骤
       - 配置恢复须有真实证据；表单导出或旧版本通过结果不得冒充持久化快照或完整Chrome155验收
       - 仅保留原始导出修复，复用输入未变的338项、类型及构建既有门禁；取消功能的专属测试可撤回，已有有效测试与导入安全边界覆盖保留
-      - 本地保持review，等待人工验收；本次已授权本地提交，不追加测试，不推送
+      - 2026-10-24用户人工验收通过，剩余场景不再补验；现授权相关验收资料本地提交，不补测、不推送、不打tag、不创建Release或部署
 
   - id: VG-040
     title: 产品契约与单站点关闭修正及候选复核
@@ -895,15 +902,15 @@ tasks:
     trellis_task: .trellis/tasks/10-24-vg-041-final-release-gate
     authorization:
       date: '2026-10-24'
-      scope: 最终候选身份核对、干净环境门禁、适用真实Chrome最小冒烟及发布决策；2026-10-24用户验收NO_GO报告并授权本地提交，不推送合并打tag发布部署
+      scope: 2026-10-24用户验收GO决策通过并授权VG-039验收及VG-041 GO相关资料本地提交；Blob保持未确认的非阻断已知限制，不补测、不推送、不打tag、不创建Release或部署
     human_acceptance:
       status: accepted
       accepted_by: 用户
       accepted_at: '2026-10-24'
-      scope: 验收NO_GO报告及任务完成，不构成发布批准；VG-039未完成项和Blob警告未确认状态保留
-      evidence: .trellis/tasks/10-24-vg-041-final-release-gate/implement.md#人工验收与本地提交授权
+      scope: 用户人工验收通过，VG-039剩余场景不再补验；Blob警告UNCONFIRMED按非阻断已知限制接受，当前决策GO且已获用户验收，授权本地提交相关资料；不授权推送或发布操作
+      evidence: .trellis/tasks/10-24-vg-041-final-release-gate/implement.md#go验收与本地提交授权
     result:
-      decision: NO_GO
+      decision: GO
       evidence: docs/stabilization/release-candidate/vg041/README.md
     scope:
       - 以已验收VG-040精确提交为基线，不新增Hook、指纹面、Worker、权限或schema
@@ -912,4 +919,4 @@ tasks:
     acceptance:
       - 候选提交、构建输入、版本、ZIP和审查报告相互一致
       - 干净环境完整门禁、产物审查及适用Chrome冒烟有可复核证据
-      - 2026-10-24用户验收NO_GO报告通过，任务done并授权本地提交；发布仍需另行明确授权
+      - 2026-10-24用户接受Blob为未确认的已知限制，当前决策GO且任务done；GO决策已验收并授权相关资料本地提交，不补测或执行推送及发布操作

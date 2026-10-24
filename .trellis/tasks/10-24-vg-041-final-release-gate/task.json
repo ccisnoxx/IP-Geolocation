@@ -11,10 +11,11 @@
     "publication_authorized": false,
     "accepted_by": "用户",
     "date": "2026-10-24",
-    "scope": "NO_GO报告及任务完成，不构成发布批准",
+    "scope": "GO决策已获用户验收，授权VG-039验收及VG-041 GO相关资料本地提交；不补测、不推送、不打tag、不创建Release或部署",
     "local_commit_authorized": true,
     "tag_authorized": false,
-    "deployment_authorized": false
+    "deployment_authorized": false,
+    "basis": "用户接受Blob警告为非阻断已知限制，保留UNCONFIRMED；VG-039已人工验收且剩余场景不再补验"
   },
   "candidate_commit": "4906aeee5f5154dc759d30bdbaa30b7162b963a0",
   "verification": {
@@ -25,7 +26,16 @@
     "old_upgrade": "passed_v2_1_0_to_candidate_recorded_sample",
     "parent_child_isolation": "reused_byte_identical_vg040_accepted_evidence",
     "diff_check": "passed",
-    "decision": "NO_GO",
+    "decision": "GO",
     "independent_review": "passed_no_blocking_findings_read_only"
-  }
+  },
+  "accepted_limitations": [
+    {
+      "id": "blob-warning",
+      "status": "UNCONFIRMED",
+      "blocking": false,
+      "accepted_by": "用户",
+      "date": "2026-10-24"
+    }
+  ]
 }

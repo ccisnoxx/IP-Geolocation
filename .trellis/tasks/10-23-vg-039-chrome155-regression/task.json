@@ -1,13 +1,21 @@
 {
   "id": "VG-039",
   "name": "Chrome155真实浏览器回归补验",
-  "status": "review",
-  "dependencies": ["VG-038"],
+  "status": "completed",
+  "dependencies": [
+    "VG-038"
+  ],
   "acceptance": {
-    "status": "pending",
+    "status": "passed",
     "remaining_browser_regression_stopped_by_user": true,
     "temporary_rule_cleanup_confirmed_by_user": true,
     "local_commit_authorized": true,
-    "push_authorized": false
+    "push_authorized": false,
+    "accepted_by": "用户",
+    "date": "2026-10-24",
+    "basis": "user_manual_acceptance_without_remaining_browser_tests",
+    "remaining_browser_regression_required": false,
+    "remaining_browser_regression_execution": "NOT_RUN_USER_DECISION",
+    "publication_authorized": false
   }
 }

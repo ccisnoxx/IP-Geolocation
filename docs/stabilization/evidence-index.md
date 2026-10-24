@@ -1,6 +1,6 @@
 # 稳定化验收证据索引
 
-> 2026-10-24：[VG-041 最终候选门禁](release-candidate/vg041/README.md)记录干净安装、342项检查、50文件产物复核和 Chrome138 最小冒烟；结论 **NO_GO**，报告已获人工验收，VG-041 为 done，仅授权本地提交。VG-039 保持 review，Blob 警告未确认，不因本轮其他场景通过改变。
+> 2026-10-24：[VG-041 最终候选门禁](release-candidate/vg041/README.md)当前决策为 **GO（接受已知限制）**，任务done。既有干净安装、342项检查、50文件审查和Chrome138最小冒烟证据保持；VG-039已人工验收，剩余Chrome155场景不再补验；Blob警告仍UNCONFIRMED，用户接受其为非阻断已知限制。GO决策已获用户验收，现仅授权相关资料本地提交；不补测、不推送、不打tag、不创建Release或部署。
 
 > 最新已验收工作（2026-10-24）：[VG-040记录](../../.trellis/tasks/10-23-vg-040-product-contract/implement.md)及[本地候选](release-candidate/vg040/README.md)。下文36项计数对应VG-037整理时点，当前跨任务状态只以manifest为准。
 
@@ -46,6 +46,7 @@
 | VG-035 | [记录](../../.trellis/tasks/10-23-vg-035-http-worker-feasibility/implement.md#人工验收与本地提交授权) | 2026-10-23新增；HTTP module实验不等价，资料done不表示恢复生产 |
 | VG-036 | [记录](../../.trellis/tasks/10-23-vg-036-chrome138-blob-worker/implement.md#2026-10-23-人工验收与本地提交授权) | 2026-10-23新增；Chrome138限定Blob补验，66项生产断言、40组资格、7项reload |
 | VG-037 | [记录](../../.trellis/tasks/10-23-vg-037-release-candidate-alignment/implement.md#2026-10-23-人工验收与本地提交授权) | 2026-10-23新增；发布资料对齐与候选ZIP核验，本地提交授权，Blob警告未确认 |
+| VG-039 | [人工验收](../../.trellis/tasks/10-23-vg-039-chrome155-regression/implement.md#2026-10-24-人工验收通过) | 2026-10-24用户直接人工验收通过，剩余Chrome155场景不再补验；原始未运行／UNKNOWN记录保留，现仅授权相关资料本地提交；不补测、不推送或发布 |
 
 当前发布边界与剩余验证见 [发布校准记录](release-calibration.md)。VG-022 保留 P1 实测结论未建立、暂不继续实验；VG-027 按限定范围完成历史 NO_GO 与后续覆盖范围的文档处置，不把缺失的底层原生等价证据补成 PASS。
 
