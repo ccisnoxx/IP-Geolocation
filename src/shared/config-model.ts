@@ -206,15 +206,25 @@ export function normalizeGeolocation(config: Partial<GeolocationConfig> | null |
   };
 }
 
-export function normalizeWebRtc(config: Partial<WebRtcConfig> | { policy?: string; enabled?: boolean } | null | undefined): WebRtcConfig {
-  const input = (config || {}) as Partial<WebRtcConfig> & { policy?: string; enabled?: boolean };
-  const rawMode = 'globalMode' in input ? input.globalMode : ('policy' in input ? input.policy : undefined);
-  const globalMode: WebRtcMode = rawMode === 'default' || rawMode === 'off' || input.enabled === false
-    ? 'default'
-    : rawMode === 'compatible' || rawMode === 'default_public_interface_only'
-      ? 'compatible'
-      : 'strict';
-  return { globalMode };
+export function parseWebRtcMode(value: unknown): WebRtcMode {
+  if (value === 'default' || value === 'compatible' || value === 'strict') return value;
+  throw new Error('webRtc.globalMode：请选择 default / compatible / strict');
+}
+
+// 内部配置只使用领域模式；旧 policy 字段由迁移入口转换。
+export function normalizeWebRtc(config: WebRtcConfig): WebRtcConfig {
+  return { globalMode: parseWebRtcMode(config.globalMode) };
+}
+
+export function migrateLegacyWebRtc(config: { globalMode?: string; policy?: string; enabled?: boolean }): WebRtcConfig {
+  const raw = config.globalMode ?? config.policy;
+  if (raw !== undefined && !['default', 'off', 'compatible', 'default_public_interface_only', 'strict', 'disable_non_proxied_udp'].includes(raw)) {
+    throw new Error('旧 WebRTC 策略无效：请使用 default / compatible / strict');
+  }
+  if (config.enabled === false || raw === 'off' || raw === 'default') return { globalMode: 'default' };
+  if (raw === 'default_public_interface_only') return { globalMode: 'compatible' };
+  if (raw === undefined || raw === 'disable_non_proxied_udp') return { globalMode: 'strict' };
+  return { globalMode: parseWebRtcMode(raw) };
 }
 
 function fontFamilyKey(family: string): string {
@@ -494,6 +504,7 @@ export function normalizeExitLocationProfiles(value: unknown): ExitLocationProfi
     });
 }
 
+// 可信内部值的规范化／构造工具；外部导入和存储必须先经 validateConfig 或历史迁移入口。
 export function normalizeConfig(config: ConfigInput | null | undefined): SiteSpoofConfig {
   const input = config || {};
   const globalProfile = (input.globalProfile || {}) as Partial<SiteSpoofConfig['globalProfile']>;

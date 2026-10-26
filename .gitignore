@@ -445,3 +445,10 @@ Thumbs.db
 !.trellis/tasks/10-24-vg-041-final-release-gate/evidence.json
 !.trellis/tasks/10-24-vg-041-final-release-gate/chrome-observations.json
 !.trellis/tasks/10-24-vg-041-final-release-gate/review.md
+
+# VG-042 配置验证修复、验收记录及既有脱敏 Chrome 证据
+!.trellis/tasks/10-26-vg-042-config-validation/
+.trellis/tasks/10-26-vg-042-config-validation/*
+!.trellis/tasks/10-26-vg-042-config-validation/task.json
+!.trellis/tasks/10-26-vg-042-config-validation/implement.md
+!.trellis/tasks/10-26-vg-042-config-validation/chrome-evidence.json

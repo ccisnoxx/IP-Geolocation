@@ -31,6 +31,10 @@ npm run serve:leak-test
 
 ## 当前功能的定向验证
 
+### 配置与 WebRTC 往返
+
+构建后执行 `node scripts/chrome-onboarding-smoke.mjs --config-only --output <脱敏JSON>`。复用现有临时 Chrome profile 与 CDP runner，检查 Popup／Options 的三个领域选项、实际 Chrome policy、保存与重新打开回显、关闭总保护、非法导入保留原配置、导出再导入，以及损坏存储的错误显示和有效导入／重置恢复。不发起定位或 ICE 请求；Popup 作为扩展文档检查，不代替 action 气泡人工验收，也不覆盖完整升级或其他浏览器版本。
+
 ### 固定名单字体与定位
 
 VG-025 正式dist定向验证：`node --import tsx scripts/chrome-font-filter-smoke.mjs --production --output <脱敏JSON>`，使用实际worker/router/包内固定字体资产和临时profile；不读取用户配置、不修改Allow User Scripts开关。默认不带--production仍是隔离固定脚本资格验证，不替代生产接线或人工验收。VG-027位置资格见 [可信早期环境交付](../../docs/stabilization/early-environment-delivery.md)。

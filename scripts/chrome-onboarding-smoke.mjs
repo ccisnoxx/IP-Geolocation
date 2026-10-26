@@ -107,7 +107,93 @@ async function withChrome(work) {
   }
 }
 
+// VG-042：复用独立 Chrome/CDP 生命周期，仅检查配置与 WebRTC，不请求定位服务。
+async function configRoundTrip() {
+  return withChrome(async (c) => {
+    const extension = join(c.temp, 'extension');
+    await cp(dist, extension, { recursive: true });
+    const { id } = await c.send('Extensions.loadUnpacked', { path: extension });
+    // 使用原生扩展详情页正常开启开关；不修改偏好或伪造 API。
+    const details = await c.page(`chrome://extensions/?id=${id}`);
+    const toggle = `(() => { const find = root => { for (const el of root.querySelectorAll('*')) {
+      if (el.id === 'allow-user-scripts') return el.shadowRoot?.querySelector('cr-toggle');
+      if (el.shadowRoot) { const result = find(el.shadowRoot); if (result) return result; }
+    } }; const t = find(document); if (!t) return null; t.scrollIntoView({block:'center'});
+      const rect = t.getBoundingClientRect(); return { checked:t.checked, disabled:t.disabled, x:rect.x+rect.width/2, y:rect.y+rect.height/2 }; })()`;
+    const control = await until(() => c.evaluate(details, toggle));
+    assert.equal(control.disabled, false);
+    if (!control.checked) {
+      await c.send('Input.dispatchMouseEvent', { type:'mousePressed', x:control.x, y:control.y, button:'left', clickCount:1 }, details.sessionId);
+      await c.send('Input.dispatchMouseEvent', { type:'mouseReleased', x:control.x, y:control.y, button:'left', clickCount:1 }, details.sessionId);
+    }
+    await until(() => c.evaluate(details, toggle), value => value?.checked === true);
+    await c.send('Target.closeTarget', { targetId: details.targetId });
+    const controller = await c.page(`chrome-extension://${id}/diagnostic/report.html`);
+    const initial = (await c.message(controller, { action: 'getSiteConfig' })).config;
+    assert.equal(initial.masterEnabled, false);
+    assert.equal(initial.webRtc.globalMode, 'default');
+    assert.deepEqual(initial.rules, []);
+    const seed = { ...initial, masterEnabled: true };
+    assert.equal((await c.message(controller, { action: 'setSiteConfig', config: seed })).saved, true);
+    const policy = () => c.evaluate(controller, 'chrome.privacy.network.webRTCIPHandlingPolicy.get({})');
+    for (const surface of ['options', 'popup']) {
+      for (const [mode, actual] of [['default', 'default'], ['compatible', 'default_public_interface_only'], ['strict', 'disable_non_proxied_udp']]) {
+        const ui = await c.page(`chrome-extension://${id}/${surface}/${surface}.html`);
+        await until(() => c.evaluate(ui, `document.getElementById('runtimeSyncStatus').dataset.status`), value => value === 'ok');
+        const values = await c.evaluate(ui, `Array.from(document.getElementById('webrtcPolicy').options, o => o.value)`);
+        assert.deepEqual(values, ['default', 'compatible', 'strict']);
+        await c.evaluate(ui, `document.getElementById('webrtcPolicy').value=${JSON.stringify(mode)};
+          document.getElementById('webrtcPolicy').dispatchEvent(new Event('change'));
+          ${surface === 'options' ? "document.getElementById('save').click()" : "void 0"}`);
+        await until(async () => (await c.message(controller, { action: 'getSiteConfig' })).config.webRtc.globalMode, value => value === mode);
+        assert.equal((await policy()).value, actual);
+        await c.send('Target.closeTarget', { targetId: ui.targetId });
+        const reopened = await c.page(`chrome-extension://${id}/${surface}/${surface}.html`);
+        await until(() => c.evaluate(reopened, `document.getElementById('runtimeSyncStatus').dataset.status`), value => value === 'ok');
+        await until(() => c.evaluate(reopened, `document.getElementById('webrtcPolicy').value`), value => value === mode);
+        assert.equal(await c.evaluate(reopened, `document.getElementById('webrtcEnabled').checked`), mode !== 'default');
+        await c.send('Target.closeTarget', { targetId: reopened.targetId });
+      }
+    }
+    const saved = (await c.message(controller, { action: 'getSiteConfig' })).config;
+    for (const bad of [{}, { ...saved, masterEnabled: 'false' }, { ...saved, webRtc: { globalMode: 'bogus' } }]) {
+      const response = await c.message(controller, { action: 'importSiteConfig', config: bad });
+      assert.equal(response.status, 'error');
+      assert.deepEqual((await c.message(controller, { action: 'getSiteConfig' })).config, saved);
+    }
+    assert.equal((await c.message(controller, { action: 'importSiteConfig', config: saved })).saved, true);
+    assert.deepEqual((await c.message(controller, { action: 'getSiteConfig' })).config, saved);
+    await c.message(controller, { action: 'setExtensionEnabled', enabled: false });
+    assert.equal((await policy()).value, 'default');
+    const corrupt = { ...saved, masterEnabled: 'false' };
+    await c.evaluate(controller, `chrome.storage.local.set({siteSpoofConfig:${JSON.stringify(corrupt)}})`);
+    const response = await c.message(controller, { action: 'getSiteConfig' });
+    assert.equal(response.status, 'error'); assert.match(response.message, /本地配置无效/);
+    assert.deepEqual(await c.evaluate(controller, 'chrome.storage.local.get("siteSpoofConfig").then(d => d.siteSpoofConfig)'), corrupt);
+    assert.equal((await policy()).value, 'default');
+    const options = await c.page(`chrome-extension://${id}/options/options.html`);
+    await until(() => c.evaluate(options, `document.getElementById('runtimeSyncStatus').textContent`), value => value.includes('本地配置无效'));
+    assert.equal(await c.evaluate(options, `document.getElementById('runtimeSyncStatus').dataset.status`), 'failed');
+    assert.equal((await c.message(controller, { action: 'importSiteConfig', config: initial })).saved, true);
+    assert.deepEqual((await c.message(controller, { action: 'getSiteConfig' })).config, initial);
+    await c.evaluate(controller, `chrome.storage.local.set({siteSpoofConfig:{}})`);
+    assert.equal((await c.message(controller, { action: 'resetSiteConfig' })).saved, true);
+    assert.deepEqual((await c.message(controller, { action: 'getSiteConfig' })).config, initial);
+    assert.equal(c.providerRequests.length, 0);
+    return { task: 'VG-042', result: 'PASS', browser: c.browser, mode: 'real Chrome headless / isolated temporary profile',
+      webRtcUiRoundTrips: 6, actualPolicyReadback: true, masterOffReleasesPolicy: true, invalidImportPreservesConfig: true,
+      exportImportRoundTrip: true, corruptStoragePreserved: true, managementErrorVisible: true, importAndResetRecovery: true,
+      providerRequests: 0, limitations: ['Popup作为扩展文档检查，未做action气泡人工验收', '未检测ICE或网络泄漏，未覆盖其他Chrome版本及完整升级矩阵'] };
+  });
+}
+
 async function main() {
+  if (args.includes('--config-only')) {
+    const record = await configRoundTrip();
+    if (option('--output')) await writeFile(option('--output'), `${JSON.stringify(record, null, 2)}\n`);
+    console.log(`VG-042 ${record.browser} 配置/WebRTC真实浏览器往返：PASS（6项），损坏配置与恢复：PASS，provider请求=0。`);
+    return;
+  }
   const server = createLeakTestServer({ projectRoot: root });
   try {
     await new Promise((done, fail) => { server.once('error', fail); server.listen(0, 'localhost', done); });

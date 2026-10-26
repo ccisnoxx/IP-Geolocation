@@ -219,10 +219,12 @@ for (const worker of [false, true]) {
 test('模式缺省 strict、当前 schema 无损幂等归一化，compatible 进入 payload，非法显式模式拒绝', () => {
   const config = normalizeConfig({ rules: [normalizeRule({ domain: 'example.test' })] });
   const old = JSON.parse(JSON.stringify(config)); delete old.intlMode;
+  // Intl 模式加入前是 schema v2；缺失 v3 核心字段应由外部验证拒绝。
+  old.schemaVersion = 2;
   const migrated = migrateLegacyConfig({ siteSpoofConfig: old });
   assert.equal((migrated as any).intlMode, 'strict');
   assert.deepEqual(migrateLegacyConfig({ siteSpoofConfig: migrated }), migrated);
-  assert.deepEqual(migrated, { ...old, intlMode: 'strict' });
+  assert.deepEqual(migrated, { ...old, schemaVersion: 3, intlMode: 'strict' });
   const compatible = normalizeConfig({ ...config, intlMode: 'compatible', globalProfile: { ...config.globalProfile,
     timezone: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' }, geolocation: { ...config.globalProfile.geolocation, enabled: false } } } as any);
   assert.equal((getEffectiveProfile(compatible, 'example.test').payload as any).intlMode, 'compatible');

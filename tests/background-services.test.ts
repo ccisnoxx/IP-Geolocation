@@ -7,6 +7,7 @@ import ts from 'typescript';
 import * as configModel from '../src/shared/config-model';
 import { ruleListToText, rulesFromText } from '../src/shared/rule-list';
 import { createBackgroundServices, fetchGeoApiLocation, parseGeoApiResponse } from '../src/background/services';
+import { getWebRTCPolicyState } from '../src/background/webrtc';
 import { createBackgroundMessageRouter } from '../src/background/message-router';
 import {
   RULES_INITIALIZED_KEY,
@@ -2279,5 +2280,75 @@ test('关闭当前子域保留父域兄弟及出口覆盖，四种投影一致�
     assert.equal(restored.matched, true);
     assert.equal(restored.rule?.id, child.id);
     assert.equal(restored.rule?.exitLocationProfileId, beforeParent.exitLocationProfileId);
+  } finally { mock.restore(); }
+});
+
+test('损坏存储使后台读取可观察地失败、撤销已有策略且不覆盖；有效导入和重置可恢复', async () => {
+  for (const recovery of ['import', 'reset'] as const) {
+    const original = createSingleRuleConfig('example.test', { automatic: false });
+    const storage: Record<string, unknown> = { [SITE_CONFIG_KEY]: original, [RULES_INITIALIZED_KEY]: true };
+    const mock = installChromeMock(storage, { tabs: [{ id: 91, url: 'https://example.test/page' } as chrome.tabs.Tab] });
+    try {
+      const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+      assert.equal((await services.initializeExtension()).status, 'ok');
+      assert.equal((await services.getWebRtcPolicyState()).actualPolicy, 'disable_non_proxied_udp');
+      storage[SITE_CONFIG_KEY] = { ...original, masterEnabled: 'false' };
+      const before = structuredClone(storage[SITE_CONFIG_KEY]);
+      await assert.rejects(services.getConfigState(), /本地配置无效.*masterEnabled/);
+      assert.deepEqual(storage[SITE_CONFIG_KEY], before);
+      assert.deepEqual(await chrome.userScripts.getScripts(), []);
+      assert.deepEqual(await chrome.scripting.getRegisteredContentScripts(), []);
+      assert.deepEqual(await chrome.declarativeNetRequest.getDynamicRules(), []);
+      const policy = await getWebRTCPolicyState(createInitialConfig());
+      assert.equal(policy.actualPolicy, 'default');
+      assert.notEqual(policy.levelOfControl, 'controlled_by_this_extension');
+      await assert.rejects(services.initializeExtension(), /本地配置无效/);
+      await assert.rejects(services.saveSiteConfig(original), /本地配置无效/);
+      await assert.rejects(services.importSiteConfig({}), /schemaVersion/);
+      assert.deepEqual(storage[SITE_CONFIG_KEY], before);
+      const saved = recovery === 'import' ? await services.importSiteConfig(createInitialConfig()) : await services.resetSiteConfig();
+      assert.deepEqual(saved.config, createInitialConfig());
+      assert.equal(saved.syncReport.pageRuntime?.reloadRequired, true);
+      assert.equal(saved.syncReport.fontRuntime?.reloadRequired, true);
+      assert.equal(saved.syncReport.geolocationRuntime?.reloadRequired, true);
+      assert.deepEqual(mock.reloadCalls, [], '只提示完整重建，不自动刷新用户页面');
+      assert.deepEqual(storage[SITE_CONFIG_KEY], createInitialConfig(), '恢复到初始值也必须实际覆盖损坏数据');
+      assert.equal((await services.getConfigState()).syncReport.status, 'ok');
+    } finally { mock.restore(); }
+  }
+});
+
+test('损坏配置撤销失败可见，保留数据并继续清理其他组件', async () => {
+  const storage = { [SITE_CONFIG_KEY]: { masterEnabled: 'false' } };
+  const mock = installChromeMock(storage);
+  const before = structuredClone(storage[SITE_CONFIG_KEY]);
+  chrome.privacy.network.webRTCIPHandlingPolicy.clear = () => { throw new Error('合成清理失败'); };
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+    await assert.rejects(services.getConfigState(), /本地配置无效.*WebRTC 策略释放未确认/);
+    assert.deepEqual(storage[SITE_CONFIG_KEY], before);
+    assert.deepEqual(await chrome.userScripts.getScripts(), []);
+  } finally { mock.restore(); }
+});
+
+test('配置导出 JSON 再导入保留合法信号、规则、方案及模式；仅按合同清除出口验证', async () => {
+  const config = createSingleRuleConfig();
+  config.webRtc.globalMode = 'compatible'; config.intlMode = 'compatible';
+  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['Synthetic Font'] };
+  config.profile = { activeProfileId: 'saved', profiles: [{ id: 'saved', name: '合成方案', description: '保留说明',
+    geolocation: { latitude: 0, longitude: 0, accuracy: 50, country: 'Synthetic' },
+    language: { language: 'ja-JP', languages: ['ja-JP', 'ja'] }, timezone: { timezone: 'UTC' } }] };
+  const storage = { [SITE_CONFIG_KEY]: normalizeConfig(config), [RULES_INITIALIZED_KEY]: true };
+  const mock = installChromeMock(storage);
+  try {
+    const services = createBackgroundServices('function applyLanguageTimezoneRuntime() {}', 'function applyGeolocationRuntime() {}');
+    const exported = await services.getSiteConfig();
+    const imported = (await services.importSiteConfig(JSON.parse(JSON.stringify(exported)))).config;
+    const expected = { ...exported,
+      exitLocationProfiles: exported.exitLocationProfiles.map(profile => ({ ...profile, verification: 'unverified', publicIp: null, provider: null, verifiedAt: null })),
+      rules: exported.rules.map(rule => ({ ...rule, exitLocationProfileId: null })) };
+    assert.deepEqual(imported, expected);
+    await assert.rejects(services.setWebRtcGlobalMode('bogus'), /webRtc.globalMode/);
+    assert.deepEqual((await services.getSiteConfig()).webRtc, { globalMode: 'compatible' });
   } finally { mock.restore(); }
 });

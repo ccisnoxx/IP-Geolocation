@@ -17,7 +17,7 @@ test('Profile 校验与有效配置共用范围、accuracy、时区、名称和 
     const profile = validProfile();
     Object.assign(profile.geolocation, { latitude, longitude });
     assert.equal(validateProfile(profile), true);
-    assert.equal(validateConfig({ profile: { activeProfileId: profile.id, profiles: [profile] } }).ok, true);
+    assert.equal(validateConfig({ ...normalizeConfig({ rules: [] }), profile: { activeProfileId: profile.id, profiles: [profile] } }).ok, true);
     assert.equal(normalizeProfiles([profile]).length, 1);
   }
   const cases: Array<[string, (profile: Profile) => void]> = [
@@ -39,11 +39,10 @@ test('Profile 校验与有效配置共用范围、accuracy、时区、名称和 
     const profile = validProfile(); change(profile);
     assert.equal(validateProfile(profile), false, field);
     assert.deepEqual(normalizeProfiles([profile]), [], field);
-    const result = validateConfig({ profile: { activeProfileId: profile.id, profiles: [profile] } });
+    const result = validateConfig({ ...normalizeConfig({ rules: [] }), profile: { activeProfileId: profile.id, profiles: [profile] } });
     assert.equal(result.ok, false, field);
     assert.match(result.errors.join(' | '), new RegExp(field));
-    assert.deepEqual(result.config.profile.profiles, []);
-    assert.equal(result.config.profile.activeProfileId, null);
+    assert.equal(result.config, undefined);
   }
 });
 
@@ -69,14 +68,14 @@ test('中文、emoji 和同名方案创建唯一 UUID，缺失坐标或非法 ac
 test('Profile 名称可重复但 trim 后 ID 不可重复，非法列表条目明确拒绝', () => {
   const first = validProfile();
   const second = { ...validProfile(), id: 'another' };
-  assert.equal(validateConfig({ profile: { activeProfileId: null, profiles: [first, second] } }).ok, true);
+  assert.equal(validateConfig({ ...normalizeConfig({ rules: [] }), profile: { activeProfileId: null, profiles: [first, second] } }).ok, true);
   second.id = ' synthetic ';
-  const duplicate = validateConfig({ profile: { activeProfileId: first.id, profiles: [first, second] } });
+  const duplicate = validateConfig({ ...normalizeConfig({ rules: [] }), profile: { activeProfileId: first.id, profiles: [first, second] } });
   assert.equal(duplicate.ok, false);
   assert.match(duplicate.errors.join(' | '), /ID.*重复/);
-  assert.deepEqual(duplicate.config.profile.profiles.map((p) => p.id), ['synthetic']);
+  assert.equal(duplicate.config, undefined);
   for (const profiles of [[null], [42], [first, {}], {}, 'bad']) {
-    const input = { profile: { activeProfileId: null, profiles } } as any;
+    const input = { ...normalizeConfig({ rules: [] }), profile: { activeProfileId: null, profiles } };
     assert.equal(validateConfig(input).ok, false);
   }
 });

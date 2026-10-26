@@ -1,0 +1,24 @@
+{
+  "task": "VG-042",
+  "result": "PASS",
+  "browser": "Chrome/155.0.8059.86",
+  "mode": "real Chrome headless / isolated temporary profile",
+  "webRtcUiRoundTrips": 6,
+  "actualPolicyReadback": true,
+  "masterOffReleasesPolicy": true,
+  "invalidImportPreservesConfig": true,
+  "exportImportRoundTrip": true,
+  "corruptStoragePreserved": true,
+  "managementErrorVisible": true,
+  "importAndResetRecovery": true,
+  "providerRequests": 0,
+  "limitations": [
+    "Popup作为扩展文档检查，未做action气泡人工验收",
+    "未检测ICE或网络泄漏，未覆盖其他Chrome版本及完整升级矩阵"
+  ],
+  "platform": "Darwin arm64",
+  "baseline_head": "8a575ed30dfaded6d8337e31ffd15a37735a065c",
+  "build_artifact_file_count": 50,
+  "build_artifact_sha256": "68182cd57c4aa3c0209112a21053258beb24e698fd409c3f9d23de6be11f377c",
+  "digest_method": "SHA256 of sorted relative dist paths, NUL, file SHA256 and newline"
+}

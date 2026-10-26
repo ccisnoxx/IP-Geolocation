@@ -12,7 +12,8 @@ import {
   normalizeGeolocation,
   normalizeLanguage,
   normalizeTimezone,
-  normalizeWebRtc
+  normalizeWebRtc,
+  parseWebRtcMode
 } from '../shared/config-model';
 import { deriveCurrentSiteStatus } from '../shared/ui-state';
 import { ruleListToText, rulesFromText } from '../shared/rule-list';
@@ -141,12 +142,6 @@ function showAutoSaveToast(report?: RuntimeSyncReport): void {
   }, 2000);
 }
 
-function webRtcSelectValue(config: SiteSpoofConfig): string {
-  if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
-  if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
-  return 'default';
-}
-
 function updateGlobalStatus(): void {
   globalStatusEl.textContent = globalEnabledEl.checked ? '总开关已开启' : '总开关已关闭';
 }
@@ -237,7 +232,7 @@ function populateForm(config: SiteSpoofConfig): void {
   languagesEl.value = language.languages.join(', ');
 
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
-  webrtcPolicyEl.value = webRtcSelectValue(config);
+  webrtcPolicyEl.value = config.webRtc.globalMode;
   fontExposureEnabledEl.checked = config.fontExposure.enabled;
   fontExposureModeEl.value = config.fontExposure.mode;
   fontExposureVendorFamiliesEl.value = VENDOR_SOFTWARE_FONT_FAMILIES.join('\n');
@@ -282,7 +277,7 @@ function readForm(): SiteSpoofConfig {
         history: currentConfig.globalProfile.geolocation.history
       })
     },
-    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
+    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ globalMode: parseWebRtcMode(webrtcPolicyEl.value) }) : normalizeWebRtc({ globalMode: 'default' }),
     fontExposure: {
       enabled: fontExposureEnabledEl.checked,
       mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
@@ -374,8 +369,14 @@ languageEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); }
 languageEl.addEventListener('change', updateLanguageList);
 languageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languagesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
-webrtcEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
-webrtcPolicyEl.addEventListener('change', () => { runUiTask(saveChanges()); });
+webrtcEnabledEl.addEventListener('change', () => {
+  webrtcPolicyEl.value = webrtcEnabledEl.checked ? (webrtcPolicyEl.value === 'default' ? 'strict' : webrtcPolicyEl.value) : 'default';
+  runUiTask(saveChanges());
+});
+webrtcPolicyEl.addEventListener('change', () => {
+  webrtcEnabledEl.checked = webrtcPolicyEl.value !== 'default';
+  runUiTask(saveChanges());
+});
 fontExposureEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
 fontExposureModeEl.addEventListener('change', () => { updateFontExposureMode(); runUiTask(saveChanges()); });
 fontExposureBlockedFamiliesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });

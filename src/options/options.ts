@@ -11,7 +11,8 @@ import {
   normalizeGeolocation,
   normalizeLanguage,
   normalizeTimezone,
-  normalizeWebRtc
+  normalizeWebRtc,
+  parseWebRtcMode
 } from '../shared/config-model';
 import { formatCoordinate } from '../shared/last-location-display';
 import { createCustomProfile } from '../shared/profile';
@@ -139,12 +140,6 @@ async function retryRuntimeSync(): Promise<void> {
   finally { retryRuntimeSyncBtn.disabled = false; }
 }
 
-function webRtcSelectValue(config: SiteSpoofConfig): string {
-  if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
-  if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
-  return 'default';
-}
-
 function updateFontExposureMode(): void {
   const custom = fontExposureModeEl.value === 'custom';
   fontExposureVendorGroupEl.hidden = custom;
@@ -182,7 +177,7 @@ function populateForm(config: SiteSpoofConfig): void {
   languagesEl.value = language.languages.join(', ');
 
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
-  webrtcPolicyEl.value = webRtcSelectValue(config);
+  webrtcPolicyEl.value = config.webRtc.globalMode;
   fontExposureEnabledEl.checked = config.fontExposure.enabled;
   fontExposureModeEl.value = config.fontExposure.mode;
   fontExposureVendorFamiliesEl.value = VENDOR_SOFTWARE_FONT_FAMILIES.join('\n');
@@ -320,7 +315,7 @@ function readForm(): SiteSpoofConfig {
         history: currentConfig.globalProfile.geolocation.history
       })
     },
-    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
+    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ globalMode: parseWebRtcMode(webrtcPolicyEl.value) }) : normalizeWebRtc({ globalMode: 'default' }),
     fontExposure: {
       enabled: fontExposureEnabledEl.checked,
       mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
@@ -758,6 +753,10 @@ saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
 confirmSaveProfileBtn.addEventListener('click', () => { runUiTask(handleSaveAsCustom()); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
 detectExitLocationBtn.addEventListener('click', () => { runUiTask(detectNewExitLocation()); });
+webrtcEnabledEl.addEventListener('change', () => {
+  webrtcPolicyEl.value = webrtcEnabledEl.checked ? (webrtcPolicyEl.value === 'default' ? 'strict' : webrtcPolicyEl.value) : 'default';
+});
+webrtcPolicyEl.addEventListener('change', () => { webrtcEnabledEl.checked = webrtcPolicyEl.value !== 'default'; });
 fontExposureModeEl.addEventListener('change', updateFontExposureMode);
 resetFontsBtn.addEventListener('click', () => { runUiTask(handleResetFonts()); });
 exportConfigBtn.addEventListener('click', () => { runUiTask(exportConfiguration()); });

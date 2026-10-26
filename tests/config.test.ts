@@ -122,7 +122,7 @@ test('历史空规则修补仅用于v1，不覆盖已有v2/v3，即使缺少初�
 });
 
 test('validateConfig rejects duplicate domains', () => {
-  const result = validateConfig({
+  const result = validateConfig(normalizeConfig({
     masterEnabled: true,
     globalProfile: {
       language: DEFAULT_LANGUAGE,
@@ -134,7 +134,7 @@ test('validateConfig rejects duplicate domains', () => {
       { domain: 'example.com' },
       { domain: 'example.com' }
     ] as any
-  });
+  }));
 
   assert.equal(result.ok, false);
   assert.match(result.errors.join(' | '), /duplicate domain/);
@@ -543,10 +543,141 @@ test('v2迁移写入失败保留原配置与旧键并传播错误，重试后才
 });
 
 test('声明v3时不再消费遗留canvas，缺少fontExposure使用新默认', () => {
-  const mixed = { schemaVersion: 3, canvas: { enabled: true, targetFonts: ['Synthetic Font'] } };
+  const { fontExposure: _font, ...config } = normalizeConfig({ rules: [] });
+  const mixed = { ...config, canvas: { enabled: true, targetFonts: ['Synthetic Font'] } };
   const result = validateConfig(mixed);
   assert.equal(result.ok, true);
   assert.deepEqual(result.config.fontExposure, DEFAULT_FONT_EXPOSURE);
   assert.doesNotMatch(JSON.stringify(result.config), /"canvas"/);
   assert.deepEqual(normalizeConfig(result.config), result.config);
+});
+
+// 外部输入必须在补齐任何默认值之前拒绝。
+test('外部配置拒绝缺失结构、错误布尔值和未知枚举，不生成可用配置', () => {
+  const valid = normalizeConfig({ rules: [] });
+  const invalid: Array<[unknown, RegExp]> = [
+    [{}, /schemaVersion/],
+    ...['false', 0, 1, null].map((masterEnabled): [unknown, RegExp] => [{ ...valid, masterEnabled }, /masterEnabled/]),
+    [{ ...valid, webRtc: { globalMode: 'bogus' } }, /webRtc.globalMode/],
+    [{ ...valid, intlMode: 'bogus' }, /intlMode/],
+    [{ ...valid, schemaVersion: 4 }, /schemaVersion/],
+    [{ ...valid, globalProfile: null }, /globalProfile/],
+    [{ ...valid, rules: [{}] }, /rules/],
+    [{ ...valid, exitLocationProfiles: [null] }, /exitLocationProfiles/]
+  ];
+  for (const [input, field] of invalid) {
+    const result = validateConfig(input);
+    assert.equal(result.ok, false, JSON.stringify(input));
+    assert.match(result.errors.join('; '), field);
+    assert.equal(result.config, undefined, '失败结果不得携带补齐后可启用的配置');
+  }
+});
+
+test('损坏持久配置拒绝读取且保留原数据及旧键', async () => {
+  const original = globalThis.chrome;
+  for (const raw of [{}, null, { ...normalizeConfig({ rules: [] }), masterEnabled: 'false' }]) {
+    const data = { [SITE_CONFIG_KEY]: raw, lastLocation: { latitude: 0, longitude: 0 } };
+    const before = structuredClone(data);
+    let writes = 0;
+    globalThis.chrome = { storage: { local: {
+      get: async () => structuredClone(data),
+      set: async () => { writes++; }, remove: async () => { writes++; }
+    } } } as unknown as typeof chrome;
+    try {
+      await assert.rejects(getConfig(async () => { writes++; }), /配置.*无效/);
+      assert.equal(writes, 0);
+      assert.deepEqual(data, before);
+    } finally { globalThis.chrome = original; }
+  }
+});
+
+test('外部配置逐层拒绝错误字段类型和未知枚举，缺失核心字段不能补齐', () => {
+  const base = normalizeConfig({ rules: [] });
+  const cases: Array<[string, unknown]> = [
+    ['debugMode', 1], ['webRtc', null], ['globalProfile.language.enabled', 'false'],
+    ['globalProfile.language.mode', 'bogus'], ['globalProfile.language.languages', 'en-US'],
+    ['globalProfile.timezone.mode', 'bogus'], ['globalProfile.timezone.timezone', 0],
+    ['globalProfile.geolocation.randomRadiusMeters', -1], ['globalProfile.geolocation.mode', 'bogus'], ['globalProfile.geolocation.spoofPermission', 'false'],
+    ['globalProfile.geolocation.latitude', '0'], ['globalProfile.geolocation.history', [null]],
+    ['profile.activeProfileId', 1], ['profile.profiles', {}], ['exitLocationProfiles', {}], ['rules', {}]
+  ];
+  for (const [path, value] of cases) {
+    const candidate: Record<string, unknown> = { ...structuredClone(base) };
+    const keys = path.split('.');
+    let object = candidate;
+    for (const key of keys.slice(0, -1)) object = object[key] as Record<string, unknown>;
+    object[keys.at(-1)!] = value;
+    const result = validateConfig(candidate);
+    assert.equal(result.ok, false, path);
+    assert.ok(result.errors.some(error => error.includes(path)), result.errors.join('; '));
+  }
+  for (const key of ['schemaVersion', 'intlMode', 'masterEnabled', 'debugMode', 'globalProfile', 'webRtc', 'profile', 'exitLocationProfiles', 'rules']) {
+    const candidate: Record<string, unknown> = { ...structuredClone(base) };
+    delete candidate[key];
+    assert.equal(validateConfig(candidate).ok, false, key);
+  }
+  const result = validateConfig(JSON.parse(JSON.stringify(base)));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.config, base);
+});
+
+test('合法旧键 WebRTC 迁移保持关闭与各领域策略，错误旧布尔值和enum拒绝', () => {
+  for (const [policy, expected] of [['default', 'default'], ['default_public_interface_only', 'compatible'], ['disable_non_proxied_udp', 'strict']] as const) {
+    assert.equal(migrateLegacyConfig({ extensionEnabled: true, webRtcConfig: { enabled: true, policy } }).webRtc.globalMode, expected);
+    assert.equal(migrateLegacyConfig({ extensionEnabled: false, webRtcConfig: { enabled: false, policy } }).masterEnabled, false);
+    assert.equal(migrateLegacyConfig({ extensionEnabled: true, webRtcConfig: { enabled: false, policy } }).webRtc.globalMode, 'default');
+  }
+  for (const input of [{ extensionEnabled: 'false' }, { bpg_config: {} }, { bpg_config: { globalEnabled: 'false' } }, { webRtcConfig: { policy: 'bogus' } },
+    { extensionEnabled: true, languageConfig: { enabled: true, language: 'bad_locale', languages: ['bad_locale'] } },
+    { extensionEnabled: true, timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Mars/Base' } }]) {
+    assert.throws(() => migrateLegacyConfig(input), /本地配置无效/);
+  }
+});
+
+test('实际历史 v1/v2 shape 缺少后来引入字段仍合法迁移，未知枚举仍拒绝', () => {
+  const { fontExposure: _fonts, intlMode: _intl, ...v2 } = normalizeConfig({ rules: [] });
+  const oldV2 = { ...v2, schemaVersion: 2, canvas: { enabled: false, spoofFonts: false, targetFonts: [] } };
+  const result = validateConfig(oldV2);
+  assert.equal(result.ok, true);
+  assert.equal(result.config?.intlMode, 'strict');
+  const { exitLocationProfiles: _exit, ...v1 } = oldV2;
+  const oldRule = { id: 'historical', domain: 'example.com', enabled: true,
+    overrides: { language: { mode: 'inherit', value: null }, timezone: { mode: 'inherit', value: null }, geolocation: { mode: 'inherit', value: null } } };
+  const migrated = migrateLegacyConfig({ [SITE_CONFIG_KEY]: { ...v1, schemaVersion: 1, rules: [oldRule] } });
+  assert.equal(migrated.intlMode, 'strict');
+  assert.deepEqual(migrated.rules[0], { ...oldRule, exitLocationProfileId: null });
+  assert.equal(validateConfig({ ...oldV2, intlMode: 'bogus' }).ok, false);
+});
+
+test('旧迁移在归一化过滤前拒绝损坏方案，不能丢方案后当成功', () => {
+  const profile = { id: 'keep-me', name: '合成方案',
+    geolocation: { latitude: 0, longitude: 0, accuracy: 50 },
+    language: { language: 'en-US', languages: ['en-US'] }, timezone: { timezone: 'Mars/Base' } };
+  assert.throws(() => migrateLegacyConfig({ bpg_config: { globalEnabled: true, domainList: ['example.test'],
+    profile: { activeProfileId: profile.id, profiles: [profile] } } }), /本地配置无效.*timezone/);
+  assert.throws(() => migrateLegacyConfig({ [SITE_CONFIG_KEY]: { ...normalizeConfig({ rules: [] }), schemaVersion: 1,
+    profile: { activeProfileId: profile.id, profiles: [profile] } } }), /本地配置无效.*timezone/);
+});
+
+
+test('合法旧位置允许未知时区null，关闭状态和零坐标保持', () => {
+  const migrated = migrateLegacyConfig({ extensionEnabled: false,
+    lastLocation: { latitude: 0, longitude: 0, country: 'Synthetic', timezone: null } });
+  assert.equal(migrated.masterEnabled, false);
+  assert.equal(migrated.exitLocationProfiles[0].latitude, 0);
+  assert.equal(migrated.exitLocationProfiles[0].longitude, 0);
+  assert.equal(migrated.exitLocationProfiles[0].timezone, null);
+  assert.equal(migrated.exitLocationProfiles[0].verification, 'unverified');
+});
+
+test('保存方案中的错误语言标签在导入时拒绝，不等待应用方案才报错', () => {
+  const config = normalizeConfig({ rules: [] });
+  const candidate = { ...config, profile: { activeProfileId: 'invalid-locale', profiles: [{
+    id: 'invalid-locale', name: '合成方案', geolocation: { latitude: 0, longitude: 0, accuracy: 50 },
+    timezone: { timezone: 'UTC' }, language: { language: 'bad_locale', languages: ['bad_locale'] }
+  }] } };
+  const result = validateConfig(candidate);
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join('; '), /profile.profiles\[0\].language.*BCP 47/);
+  assert.equal(result.config, undefined);
 });

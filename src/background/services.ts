@@ -6,7 +6,8 @@ import {
   getPageRuntimeProfile,
   isUrlMatchedByEnabledRule,
   repairInvalidRuleDomains,
-  validateConfig
+  validateConfig,
+  StoredConfigError
 } from '../shared/config-resolver';
 import {
   OLD_EXTENSION_ENABLED_KEY,
@@ -22,6 +23,7 @@ import {
   normalizeRule,
   normalizeString,
   normalizeWebRtc,
+  parseWebRtcMode,
   validateTimezone
 } from '../shared/config-model';
 import { GEO_PROVIDER_TIMEOUT_MS } from '../shared/ip-location';
@@ -232,12 +234,12 @@ export interface BackgroundServices {
   getSiteConfig(): Promise<SiteSpoofConfig>;
   getConfigState(): Promise<ConfigSaveResult>;
   reconcileRuntime(): Promise<ConfigSaveResult>;
-  saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult>;
+  saveSiteConfig(config: unknown): Promise<ConfigSaveResult>;
   resetSiteConfig(): Promise<ConfigSaveResult>;
   completeOnboarding(domains: string, profileId: string, webRtcMode: string, recommendation?: ExitRecommendationSelection): Promise<ConfigSaveResult>;
   skipOnboarding(): Promise<ConfigSaveResult>;
   handleInstalled(reason: string): Promise<void>;
-  importSiteConfig(config: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult>;
+  importSiteConfig(config: unknown): Promise<ConfigSaveResult>;
   getExtensionState(): Promise<{ enabled: boolean; config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>;
   setExtensionEnabled(enabled: boolean): Promise<ConfigSaveResult>;
   getWebRtcPolicyState(): Promise<WebRtcPolicyState>;
@@ -277,8 +279,13 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
   // 所有可能迁移/修复配置的读取也占同一队列，避免写前guard被其他事务提前解除。
   function getSiteConfig(): Promise<SiteSpoofConfig> { return enqueue(readSiteConfig); }
 
-  async function readSiteConfig(): Promise<SiteSpoofConfig> {
-    const stored = await getStoredConfig(quarantineHeaderRules);
+  async function readSiteConfig(cleanupInvalid = true): Promise<SiteSpoofConfig> {
+    let stored: SiteSpoofConfig;
+    try { stored = await getStoredConfig(quarantineHeaderRules); }
+    catch (error) {
+      if (cleanupInvalid && error instanceof StoredConfigError) return rejectUnsafeRuntimeState(error);
+      throw error;
+    }
     const { config, repaired } = repairInvalidRuleDomains(stored);
     if (repaired) {
       await quarantineHeaderRules();
@@ -431,24 +438,26 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     return state.report;
   }
 
-  async function persistConfig(previous: SiteSpoofConfig, candidate: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult> {
+  async function persistConfig(previousConfig: SiteSpoofConfig | null, candidate: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult> {
+    const previous = previousConfig ?? createInitialConfig();
     const result = validateConfig(candidate);
     if (!result.ok) throw new Error(result.errors.join('; '));
     const tabs = await queryScriptableTabs();
     const oldMetadata = await getRuntimeSyncMetadata();
     const previousSignature = await runtimeConfigSignature(previous);
     const nextSignature = await runtimeConfigSignature(result.config);
-    if (nextSignature === previousSignature) return { config: result.config, syncReport: await reconcile(result.config) };
-    const oldPending = pendingForSignature(oldMetadata, previousSignature);
+    if (previousConfig && nextSignature === previousSignature) return { config: result.config, syncReport: await reconcile(result.config) };
+    // 损坏配置无法证明旧文档快照；恢复时保留既有欠账并提示所有普通页面重建。
+    const oldPending = previousConfig ? pendingForSignature(oldMetadata, previousSignature) : oldMetadata?.pendingReloads ?? [];
     const oldFontWindow = pendingFontWindow(oldMetadata, previousSignature);
-    const fontScopeChanged = hasFontScriptScopeChanged(previous, result.config);
+    const fontScopeChanged = !previousConfig || hasFontScriptScopeChanged(previous, result.config);
     const oldGeolocationWindow = pendingGeolocationWindow(oldMetadata, previousSignature);
-    const oldPageWindow = pendingPageWindow(oldMetadata, previousSignature);
-    const geolocationChanged = hasGeolocationScriptsChanged(previous, result.config);
+    const oldPageWindow = !previousConfig || pendingPageWindow(oldMetadata, previousSignature);
+    const geolocationChanged = !previousConfig || hasGeolocationScriptsChanged(previous, result.config);
     const pending = structuredClone(oldPending);
     for (const tab of tabs) {
       const surfaces: Array<'page' | 'font' | 'geolocation'> = [];
-      if (pagePayloadChanged(previous, result.config, tab.url)) surfaces.push('page');
+      if (!previousConfig || pagePayloadChanged(previous, result.config, tab.url)) surfaces.push('page');
       if (fontScopeChanged) surfaces.push('font');
       if (geolocationChanged) surfaces.push('geolocation');
       if (surfaces.length) {
@@ -478,11 +487,16 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
 
   function mutateConfig(
     mutator: (current: SiteSpoofConfig) => Partial<SiteSpoofConfig> | Promise<Partial<SiteSpoofConfig>>,
-    afterSave?: (saved: ConfigSaveResult) => Promise<ConfigSaveResult>
+    afterSave?: (saved: ConfigSaveResult) => Promise<ConfigSaveResult>,
+    recoverInvalid = false
   ): Promise<ConfigSaveResult> {
     return enqueue(async () => {
-      const current = await readSiteConfig();
-      const saved = await persistConfig(current, await mutator(normalizeConfig(current)));
+      const current = await readSiteConfig().catch((error: unknown) => {
+        // 只有明确导入或重置才能替换损坏数据；普通保存仍报告原错误。
+        if (recoverInvalid && error instanceof StoredConfigError) return null;
+        throw error;
+      });
+      const saved = await persistConfig(current, await mutator(normalizeConfig(current ?? createInitialConfig())));
       return afterSave ? afterSave(saved) : saved;
     });
   }
@@ -494,7 +508,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     });
   }
 
-  async function saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult> {
+  async function saveSiteConfig(config: unknown): Promise<ConfigSaveResult> {
     const validated = validateConfig(config);
     if (!validated.ok) throw new Error(validated.errors.join('; '));
     return mutateConfig((current) => ({
@@ -509,7 +523,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       detectionGeneration += 1;
       await chrome.storage.session.remove(PENDING_DETECTION_KEY);
       return createInitialConfig();
-    });
+    }, undefined, true);
   }
 
   function completeOnboarding(domains: string, profileId: string, webRtcMode: string, recommendation?: ExitRecommendationSelection): Promise<ConfigSaveResult> {
@@ -581,7 +595,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     }
   }
 
-  async function importSiteConfig(config: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult> {
+  async function importSiteConfig(config: unknown): Promise<ConfigSaveResult> {
     // 非法输入在读取旧存储前拒绝，不能由失败导入触发迁移写入或旧键清理。
     const validated = validateConfig(config);
     if (!validated.ok) throw new Error(validated.errors.join('; '));
@@ -598,7 +612,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
         })),
         rules: imported.rules.map((rule) => ({ ...rule, exitLocationProfileId: null }))
       };
-    });
+    }, undefined, true);
   }
 
   async function getExtensionState(): Promise<{ enabled: boolean; config: SiteSpoofConfig; syncReport: RuntimeSyncReport }> {
@@ -611,7 +625,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
   }
 
   async function setWebRtcGlobalMode(mode: string): Promise<ConfigSaveResult> {
-    return mutateConfig((config) => ({ ...config, webRtc: normalizeWebRtc({ globalMode: mode as any }) }));
+    return mutateConfig((config) => ({ ...config, webRtc: normalizeWebRtc({ globalMode: parseWebRtcMode(mode) }) }));
   }
 
   async function getWebRtcPolicyState(): Promise<WebRtcPolicyState> {
@@ -838,6 +852,31 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     return (await queryScriptableTabs()).map((tab) => ({ tabId: tab.id, origin: new URL(tab.url).origin }));
   }
 
+  async function rejectUnsafeRuntimeState(error: unknown): Promise<never> {
+    const headerCleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
+    // 启动状态不可确认时撤销各自命名空间；清理仍占用配置队列，不猜测或覆盖配置。
+    const legacyCleanup = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
+    const cleanup = await syncFontScriptRegistration([]);
+    const pageCleanup = await reconcilePageScripts(createInitialConfig(), pageRuntimeSource);
+    const geolocationCleanup = await reconcileGeolocationScripts(createInitialConfig(), geolocationRuntimeSource);
+    const webrtcCleanup = error instanceof StoredConfigError
+      ? await runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(createInitialConfig())) : null;
+    const failures = [
+      { code: 'legacy-content-scripts-sync-failed', message: '旧页面初始化注册清理未能确认', component: legacyCleanup },
+      { code: 'page-scripts-sync-failed', message: '旧页面语言/时区注册清理未能确认', component: pageCleanup.component },
+      { code: 'geolocation-scripts-sync-failed', message: '旧地理位置注册清理未能确认', component: geolocationCleanup.component },
+      { code: 'font-scripts-sync-failed', message: '旧字体注册清理未能确认', component: cleanup },
+      ...(webrtcCleanup ? [{ code: 'webrtc-cleanup-failed', message: 'WebRTC 策略释放未确认，请检查浏览器控制权', component: webrtcCleanup }] : []),
+      { code: 'header-cleanup-failed', message: '请求头隔离或撤销未确认，请关闭扩展并检查权限', component: headerCleanup }
+    ].filter(item => item.component.status !== 'ok');
+    if (failures.length) {
+      const details = failures.map(item => `${item.message}（${item.component.errors.map(entry => `${entry.code}：${entry.message}`).join('；')}）`).join('；');
+      throw Object.assign(new RuntimeSyncOperationError(failures[0].code,
+        `启动初始化失败：${formatError(error)}；${details}。`), { cause: error });
+    }
+    throw error;
+  }
+
   function initializeExtension(): Promise<RuntimeSyncReport> {
     return enqueue(async () => {
       try {
@@ -850,7 +889,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
           || Boolean(before[LEGACY_VANISHME_CONFIG_KEY]) || Boolean(before[LAST_LOCATION_KEY])
           || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
             .some((key) => Object.prototype.hasOwnProperty.call(before, key));
-        const config = await readSiteConfig();
+        const config = await readSiteConfig(false);
         if (hadLegacyConfig || migratedHeaders) {
           const signature = await runtimeConfigSignature(config);
           const old = await getRuntimeSyncMetadata();
@@ -866,25 +905,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
         }
         return await reconcile(config);
       } catch (error) {
-        const headerCleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
-        // 启动状态不可确认时撤销各自命名空间；清理仍占用配置队列，不猜测或覆盖配置。
-        const legacyCleanup = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
-        const cleanup = await syncFontScriptRegistration([]);
-        const pageCleanup = await reconcilePageScripts(createInitialConfig(), pageRuntimeSource);
-        const geolocationCleanup = await reconcileGeolocationScripts(createInitialConfig(), geolocationRuntimeSource);
-        const failures = [
-          { code: 'legacy-content-scripts-sync-failed', message: '旧页面初始化注册清理未能确认', component: legacyCleanup },
-          { code: 'page-scripts-sync-failed', message: '旧页面语言/时区注册清理未能确认', component: pageCleanup.component },
-          { code: 'geolocation-scripts-sync-failed', message: '旧地理位置注册清理未能确认', component: geolocationCleanup.component },
-          { code: 'font-scripts-sync-failed', message: '旧字体注册清理未能确认', component: cleanup },
-          { code: 'header-cleanup-failed', message: '请求头隔离或撤销未确认，请关闭扩展并检查权限', component: headerCleanup }
-        ].filter(item => item.component.status !== 'ok');
-        if (failures.length) {
-          const details = failures.map(item => `${item.message}（${item.component.errors.map(entry => `${entry.code}：${entry.message}`).join('；')}）`).join('；');
-          throw Object.assign(new RuntimeSyncOperationError(failures[0].code,
-            `启动初始化失败：${formatError(error)}；${details}。`), { cause: error });
-        }
-        throw error;
+        return rejectUnsafeRuntimeState(error);
       }
     });
   }

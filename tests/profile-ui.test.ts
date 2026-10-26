@@ -31,13 +31,14 @@ function harness(page: 'popup' | 'options') {
     const name = match[1];
     elements[name] = { value: '', checked: false, addEventListener(event, listener) { listeners[`${name}:${event}`] = listener; } };
   }
-  const languageChangeListeners = parsed.statements.filter((node) => {
+  const formChangeListeners = parsed.statements.filter((node) => {
     if (!ts.isExpressionStatement(node) || !ts.isCallExpression(node.expression)) return false;
     const call = node.expression;
-    return ts.isPropertyAccessExpression(call.expression) && call.expression.expression.getText(parsed) === 'languageEl'
+    return ts.isPropertyAccessExpression(call.expression) && ['languageEl', 'webrtcEnabledEl', 'webrtcPolicyEl'].includes(call.expression.expression.getText(parsed))
       && call.expression.name.text === 'addEventListener'
       && ts.isStringLiteral(call.arguments[0]) && call.arguments[0].text === 'change';
   });
+  const uiTasks: Promise<unknown>[] = [];
   const alerts: string[] = [];
   const writes: SiteSpoofConfig[] = [];
   const downloads: Array<{ filename: string; config: SiteSpoofConfig }> = [];
@@ -62,10 +63,11 @@ function harness(page: 'popup' | 'options') {
     confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn, exportConfigBtn,
     ruleListToText, rulesFromText,
     downloadJson: (filename: string, config: SiteSpoofConfig) => downloads.push({ filename, config: structuredClone(config) }),
+    runUiTask: (task: Promise<unknown>) => { uiTasks.push(task); },
     getTimezoneOffsetMinutes: (timezone: string) => configModel.getTimezoneOffsetMinutes(timezone, now),
     alert: (message: string) => alerts.push(message),
     updateGlobalStatus() {}, updateExitLocationProfile() {}, renderProfiles() {}, renderExitLocationProfiles() {}, renderSiteRules() {}, renderOnboarding() {},
-    showAutoSaveToast() {}, runtimeSyncMessage: () => '配置已保存', webRtcSelectValue: () => 'default',
+    showAutoSaveToast() {}, runtimeSyncMessage: () => '配置已保存',
     saveProfileModal: { classList: { remove() { modalCloses += 1; } } },
     async sendRuntimeMessage(request: { action: string; config?: SiteSpoofConfig }) {
       requests.push(request.action);
@@ -81,13 +83,17 @@ function harness(page: 'popup' | 'options') {
   });
   vm.runInContext(ts.transpileModule(`let currentConfig = normalizeConfig(initialConfig);
     ${functions.map((node) => node.getText(parsed)).join('\n')}
-    ${languageChangeListeners.map((node) => node.getText(parsed)).join('\n')}
+    ${formChangeListeners.map((node) => node.getText(parsed)).join('\n')}
     populateForm(currentConfig);`, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None } }).outputText, context);
   return { elements, alerts, writes, downloads, context, confirmSaveProfileBtn, exportConfigBtn, requests,
     pendingButtons: [confirmSaveProfileBtn, saveBtn, saveFooterBtn, resetFontsBtn, cancelSaveProfileBtn],
     getModalCloses: () => modalCloses,
     call: (expression: string) => vm.runInContext(expression, context),
     changeLanguage: () => listeners['languageEl:change'](),
+    changeWebRtc: async (control: 'webrtcEnabledEl' | 'webrtcPolicyEl') => {
+      listeners[`${control}:change`]();
+      await Promise.all(uiTasks.splice(0));
+    },
     setFailure(value: boolean) { failure = value; },
     setWaitForSave(value: Promise<void> | null) { waitForSave = value; },
     setDate(value: string) { now = value; },
@@ -325,3 +331,36 @@ test('Options 原始导出在途不重复读取，失败不下载且可重试；
   assert.equal(ui.downloads.length, 2);
   assert.equal(ui.writes.length, 0);
 });
+
+for (const page of ['popup', 'options'] as const) {
+  test(`${page} WebRTC可见选项仅使用领域模式且表单保存回显一致`, async () => {
+    const html = readFileSync(`src/${page}/${page}.html`, 'utf8');
+    const select = html.match(/<select id="webrtcPolicy"[^>]*>([\s\S]*?)<\/select>/)![1];
+    const modes = [...select.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(modes, ['default', 'compatible', 'strict']);
+    const ui = harness(page);
+    for (const mode of modes) {
+      ui.elements.webrtcPolicyEl.value = mode;
+      await ui.changeWebRtc('webrtcPolicyEl');
+      if (page === 'options') await ui.call('saveSettings()');
+      assert.equal(ui.writes.at(-1)!.webRtc.globalMode, mode);
+      ui.call('populateForm(currentConfig)');
+      assert.equal(ui.elements.webrtcPolicyEl.value, mode);
+      assert.equal(ui.elements.webrtcEnabledEl.checked, mode !== 'default');
+    }
+  });
+}
+
+for (const page of ['popup', 'options'] as const) {
+  test(`${page} WebRTC开关从default启用选择strict，关闭后保存default`, async () => {
+    const ui = harness(page);
+    ui.elements.webrtcPolicyEl.value = 'default';
+    for (const enabled of [true, false]) {
+      ui.elements.webrtcEnabledEl.checked = enabled;
+      await ui.changeWebRtc('webrtcEnabledEl');
+      if (page === 'options') await ui.call('saveSettings()');
+      assert.equal(ui.writes.at(-1)!.webRtc.globalMode, enabled ? 'strict' : 'default');
+      assert.equal(ui.elements.webrtcPolicyEl.value, enabled ? 'strict' : 'default');
+    }
+  });
+}

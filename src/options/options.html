@@ -231,10 +231,9 @@
           <div class="input-group">
             <label for="webrtcPolicy">策略</label>
             <select id="webrtcPolicy" class="input">
-              <option value="default">默认</option>
-              <option value="default_public_interface_only">仅公网接口</option>
-              <option value="default_public_and_private_interfaces">公网和私网</option>
-              <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
+              <option value="default">默认（交回浏览器）</option>
+              <option value="compatible">兼容：仅公网接口</option>
+              <option value="strict">严格：禁用非代理 UDP（推荐）</option>
             </select>
           </div>
         </div>

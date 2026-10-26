@@ -1,0 +1,36 @@
+{
+  "id": "VG-042",
+  "name": "配置输入验证与 WebRTC 领域模式一致性修复",
+  "status": "completed",
+  "dependencies": [
+    "VG-041"
+  ],
+  "baseline_head": "8a575ed30dfaded6d8337e31ffd15a37735a065c",
+  "review_reference": "4906aeee5f5154dc759d30bdbaa30b7162b963a0",
+  "authorization": {
+    "date": "2026-10-26",
+    "scope": "用户明确授权修复两个发布阻断问题及直接相关测试、文档与UI，运行完整本地门禁和可用真实Chrome验证；不修改版本、权限或发布状态"
+  },
+  "verification": {
+    "npm_ci": "passed",
+    "npm_run_check": "passed_361_tests_types_build",
+    "targeted_tests": "passed_192",
+    "chrome_dry_run": "passed_not_browser_acceptance",
+    "real_chrome": "passed_155.0.8059.86_six_ui_round_trips_and_recovery",
+    "diff_check": "passed",
+    "independent_review": "passed_no_remaining_blocker",
+    "before_fix": "four_regression_tests_failed"
+  },
+  "acceptance": {
+    "status": "passed",
+    "accepted_by": "用户",
+    "date": "2026-10-26",
+    "scope": "本次修复验收通过，标记 VG-042 为 done，将相关代码、测试和文档做一次本地提交；不推送、不打 tag、不发布、不重复测试",
+    "local_commit_authorized": true,
+    "push_authorized": false,
+    "tag_authorized": false,
+    "publication_authorized": false,
+    "additional_tests_authorized": false,
+    "evidence": ".trellis/tasks/10-26-vg-042-config-validation/implement.md#人工验收与本地提交授权"
+  }
+}

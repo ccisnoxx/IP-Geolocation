@@ -920,3 +920,27 @@ tasks:
       - 候选提交、构建输入、版本、ZIP和审查报告相互一致
       - 干净环境完整门禁、产物审查及适用Chrome冒烟有可复核证据
       - 2026-10-24用户接受Blob为未确认的已知限制，当前决策GO且任务done；GO决策已验收并授权相关资料本地提交，不补测或执行推送及发布操作
+
+  - id: VG-042
+    title: 配置输入验证与 WebRTC 领域模式一致性修复
+    phase: R7
+    dependencies: [VG-041]
+    status: done
+    trellis_task: .trellis/tasks/10-26-vg-042-config-validation
+    authorization:
+      date: '2026-10-26'
+      scope: 用户已验收本次修复，授权标记done并一次本地提交相关代码测试文档；不修改版本权限、不推送、不打tag、不发布、不重复测试
+    human_acceptance:
+      status: accepted
+      accepted_by: 用户
+      accepted_at: '2026-10-26'
+      scope: 本次修复验收通过，授权一次本地提交；不推送、不打tag、不发布、不重复测试
+      evidence: .trellis/tasks/10-26-vg-042-config-validation/implement.md#人工验收与本地提交授权
+    scope:
+      - WebRTC UI及持久配置统一default/compatible/strict，未知enum拒绝
+      - 外部输入先验证再迁移归一化，保留合法历史迁移
+      - 损坏存储不覆盖、不启用，管理页可观察并经有效导入或明确重置恢复
+    acceptance:
+      - 回归用例在修复前暴露问题，修复后与完整npm run check通过
+      - 定向Chrome策略与UI往返记录实际结果，dry-run不作为真实浏览器证据
+      - 2026-10-26用户人工验收通过，任务done；仅授权一次本地提交，不推送、不打tag、不发布、不重复测试

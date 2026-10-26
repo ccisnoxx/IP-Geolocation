@@ -1,3 +1,4 @@
+import { getConfigInputErrors, getLegacyConfigErrors } from './config-validation';
 import {
   DEFAULT_GEOLOCATION,
   DEFAULT_LANGUAGE,
@@ -17,6 +18,7 @@ import {
   createRule,
   isIpv4Address,
   isValidDomain,
+  isValidIpAddress,
   normalizeFontExposure,
   normalizeConfig,
   normalizeDomain,
@@ -25,7 +27,7 @@ import {
   normalizeLanguage,
   normalizeString,
   normalizeTimezone,
-  normalizeWebRtc,
+  migrateLegacyWebRtc,
   parseHostname,
   validateTimezone
 } from './config-model';
@@ -67,41 +69,37 @@ function validateGeolocation(geolocation: GeolocationConfig, path: string, error
   }
 }
 
-export function validateConfig(config: unknown): { ok: boolean; errors: string[]; config: SiteSpoofConfig } {
-  const isConfigObject = config !== null && typeof config === 'object' && !Array.isArray(config);
-  const input = isConfigObject ? config as Record<string, any> : {};
-  // 保留原始方案的错误；归一化后的过滤结果不能证明导入成功。
-  const errors = getProfilesValidationErrors(input.profile?.profiles);
-  if (!isConfigObject) errors.push('配置：请提供配置对象');
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 2 && input.schemaVersion !== 3) {
-    errors.push('schemaVersion：仅支持 v2 或 v3 配置');
-  }
-  if (input.intlMode !== undefined && input.intlMode !== 'strict' && input.intlMode !== 'compatible') {
-    errors.push('intlMode：请选择 strict 或 compatible');
-  }
-  for (const [path, familiesKey] of [['fontExposure', 'blockedFamilies'], ['canvas', 'targetFonts']] as const) {
-    const fontConfig = input[path];
-    if (fontConfig === undefined) continue;
-    if (!fontConfig || typeof fontConfig !== 'object' || Array.isArray(fontConfig)) {
-      errors.push(`${path}：请提供字体配置对象`);
-      continue;
-    }
-    if (fontConfig.enabled !== undefined && typeof fontConfig.enabled !== 'boolean') {
-      errors.push(`${path}.enabled：请提供布尔值`);
-    }
-    if (path === 'fontExposure' && fontConfig.mode !== undefined
-      && fontConfig.mode !== 'vendor-software' && fontConfig.mode !== 'custom') {
-      errors.push('fontExposure.mode：请选择 vendor-software 或 custom');
-    }
-    const families = fontConfig[familiesKey];
-    if (families !== undefined && (!Array.isArray(families) || families.some((family) => typeof family !== 'string'))) {
-      errors.push(`${path}.${familiesKey}：请提供字体名称字符串数组`);
+export type ConfigValidationResult = { ok: true; errors: string[]; config: SiteSpoofConfig }
+  | { ok: false; errors: string[]; config?: never };
+
+export function validateConfig(config: unknown): ConfigValidationResult {
+  const errors = getConfigInputErrors(config);
+  if (errors.length) return { ok: false, errors };
+  const input = config as Parameters<typeof normalizeConfig>[0];
+  errors.push(...getProfilesValidationErrors(input?.profile?.profiles));
+  const source = config as SiteSpoofConfig;
+  validateLanguage(source.globalProfile.language, 'global language', errors);
+  source.profile.profiles.forEach((profile, index) => validateLanguage(
+    { ...profile.language, enabled: true, mode: 'preset' }, `profile.profiles[${index}].language`, errors));
+  const exitIds = new Set<string>();
+  for (const [index, profile] of source.exitLocationProfiles.entries()) {
+    const path = `exitLocationProfiles[${index}]`;
+    if (!profile.id.trim() || exitIds.has(profile.id.trim())) errors.push(`${path}.id：不能为空或重复`);
+    exitIds.add(profile.id.trim());
+    if (!profile.name.trim()) errors.push(`${path}.name：不能为空`);
+    if (profile.verification === 'verified' && (!isValidIpAddress(profile.publicIp) || !profile.country.trim()
+      || !profile.timezone || !validateTimezone(profile.timezone) || !profile.provider?.trim() || !profile.verifiedAt)) {
+      errors.push(`${path}：verified 档案缺少有效的 IP、国家、时区、来源或验证时间`);
     }
   }
+  const ruleIds = new Set<string>();
+  source.rules.forEach((rule, index) => {
+    if (!rule.id.trim() || ruleIds.has(rule.id.trim())) errors.push(`rules[${index}].id：不能为空或重复`);
+    ruleIds.add(rule.id.trim());
+  });
   const normalized = normalizeConfig(input);
   const seen = new Set<string>();
 
-  validateLanguage(normalized.globalProfile.language, 'global language', errors);
   if (normalized.globalProfile.timezone.mode === 'manual' && !validateTimezone(normalized.globalProfile.timezone.timezone)) {
     errors.push('global timezone: custom timezone must be a valid IANA timezone');
   }
@@ -131,11 +129,7 @@ export function validateConfig(config: unknown): { ok: boolean; errors: string[]
     }
   });
 
-  return {
-    ok: errors.length === 0,
-    errors,
-    config: normalized
-  };
+  return errors.length ? { ok: false, errors } : { ok: true, errors, config: normalized };
 }
 
 export function domainMatches(hostname: string, domain: string): boolean {
@@ -441,7 +435,7 @@ function convertVanishMeConfig(input: Record<string, any>): SiteSpoofConfig {
         mode: Number.isFinite(input.geolocation?.latitude) && Number.isFinite(input.geolocation?.longitude) ? 'manual' : 'auto'
       })
     },
-    webRtc: normalizeWebRtc(input.webrtc || DEFAULT_WEBRTC),
+    webRtc: migrateLegacyWebRtc(input.webrtc || DEFAULT_WEBRTC),
     canvas: input.canvas,
     profile: {
       activeProfileId: input.profile?.activeProfileId || null,
@@ -473,6 +467,14 @@ function shouldRepairUninitializedRules(storageData: Record<string, any>, config
     && config.profile.profiles.length === 0;
 }
 
+export class StoredConfigError extends Error {
+  readonly code = 'invalid-stored-config';
+  constructor(errors: string[]) {
+    super(`本地配置无效：${errors.join('; ')}。已拒绝使用该配置并保留原数据；请导入有效备份或明确重置配置。已有页面需完整重载。`);
+    this.name = 'StoredConfigError';
+  }
+}
+
 export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoofConfig {
   const input = storageData || {};
   // 用数据存在性区分升级；关闭开关、空规则或缺少初始化标记均不代表首次安装。
@@ -480,23 +482,47 @@ export function migrateLegacyConfig(storageData: Record<string, any>): SiteSpoof
     LAST_LOCATION_KEY, OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
     .some((key) => Object.prototype.hasOwnProperty.call(input, key));
   if (!hasConfiguration) return createInitialConfig();
-  if (input[SITE_CONFIG_KEY]) {
-    const config = normalizeConfig(input[SITE_CONFIG_KEY]);
+  if (Object.prototype.hasOwnProperty.call(input, SITE_CONFIG_KEY)) {
+    const raw = input[SITE_CONFIG_KEY];
+    let candidate = raw;
+    if (raw?.schemaVersion === 1) {
+      const errors = getLegacyConfigErrors(raw, 'v1');
+      if (errors.length) throw new StoredConfigError(errors);
+      // v1 没有出口绑定和 Intl 模式；先补明确的历史字段，再走同一语义校验。
+      candidate = { ...raw, schemaVersion: 2, exitLocationProfiles: raw.exitLocationProfiles ?? [],
+        rules: raw.rules.map((rule: SiteRule) => ({ ...rule, exitLocationProfileId: rule.exitLocationProfileId ?? null })) };
+    }
+    const result = validateConfig(candidate);
+    if (!result.ok) throw new StoredConfigError(result.errors);
+    const config = result.config;
     const repaired = shouldRepairUninitializedRules(input, config) ? withDefaultRules(config) : config;
     return migrateLegacyLastLocation(repaired, input);
   }
-  if (input[LEGACY_VANISHME_CONFIG_KEY]) {
-    return migrateLegacyLastLocation(convertVanishMeConfig(input[LEGACY_VANISHME_CONFIG_KEY]), input);
+  if (Object.prototype.hasOwnProperty.call(input, LEGACY_VANISHME_CONFIG_KEY)) {
+    const raw = input[LEGACY_VANISHME_CONFIG_KEY];
+    const errors = getLegacyConfigErrors(raw, 'vanishme');
+    if (errors.length) throw new StoredConfigError(errors);
+    errors.push(...getProfilesValidationErrors(raw.profile?.profiles));
+    if (errors.length) throw new StoredConfigError(errors);
+    const result = validateConfig(convertVanishMeConfig(raw));
+    if (!result.ok) throw new StoredConfigError(result.errors);
+    return migrateLegacyLastLocation(result.config, input);
   }
-  return migrateLegacyLastLocation(normalizeConfig({
+  const errors = getLegacyConfigErrors(input, 'keys');
+  if (errors.length) throw new StoredConfigError(errors);
+  if (![LAST_LOCATION_KEY, OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
+    .some(key => Object.prototype.hasOwnProperty.call(input, key))) return createInitialConfig();
+  const result = validateConfig(normalizeConfig({
     masterEnabled: input[OLD_EXTENSION_ENABLED_KEY] !== false,
     globalProfile: {
       language: normalizeLanguage(input[OLD_LANGUAGE_KEY] || DEFAULT_LANGUAGE),
       timezone: normalizeTimezone(input[OLD_TIMEZONE_KEY] || DEFAULT_TIMEZONE),
       geolocation: clone(DEFAULT_GEOLOCATION)
     },
-    webRtc: normalizeWebRtc(input[OLD_WEBRTC_KEY] || DEFAULT_WEBRTC)
-  }), input);
+    webRtc: migrateLegacyWebRtc(input[OLD_WEBRTC_KEY] || DEFAULT_WEBRTC)
+  }));
+  if (!result.ok) throw new StoredConfigError(result.errors);
+  return migrateLegacyLastLocation(result.config, input);
 }
 
 export {

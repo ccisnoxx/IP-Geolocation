@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { validateConfig } from '../src/shared/config-resolver';
 import { applyWebRTCPolicy, getWebRTCPolicyState } from '../src/background/webrtc';
-import { normalizeConfig } from '../src/shared/config-model';
+import { normalizeConfig, normalizeWebRtc, parseWebRtcMode } from '../src/shared/config-model';
 
 function installChromePolicyMock(initialValue = 'default') {
   const originalChrome = (globalThis as any).chrome;
@@ -182,4 +183,27 @@ test('default/禁用释放被其他控制者遮蔽的 own 策略，clear 失败�
       assert.equal((await getWebRTCPolicyState(desired)).actualPolicy, 'default');
     }
   } finally { (globalThis as any).chrome = original; }
+});
+
+for (const [mode, policy] of [['default', null], ['compatible', 'default_public_interface_only'], ['strict', 'disable_non_proxied_udp']] as const) {
+  test(`领域模式 ${mode} 保存、验证与 Chrome 策略完整对应`, async () => {
+    const mock = installChromePolicyMock();
+    try {
+      const validated = validateConfig(JSON.parse(JSON.stringify(normalizeConfig({ masterEnabled: true, webRtc: { globalMode: mode } }))));
+      assert.equal(validated.ok, true);
+      if (!validated.ok) return;
+      const state = await applyWebRTCPolicy(validated.config);
+      assert.equal(validated.config.webRtc.globalMode, mode);
+      assert.equal(state.requestedPolicy, policy);
+      assert.equal(state.actualPolicy, policy ?? 'default');
+      assert.deepEqual(mock.calls, policy ? [{ method: 'set', value: policy, scope: 'regular' }] : [{ method: 'clear', scope: 'regular' }]);
+    } finally { mock.restore(); }
+  });
+}
+
+test('未知领域模式和遗留原始值不能进入内部 WebRTC 归一化', () => {
+  for (const mode of ['bogus', 'default_public_and_private_interfaces', 'disable_non_proxied_udp', '', null]) {
+    assert.throws(() => normalizeWebRtc({ globalMode: parseWebRtcMode(mode) }), /webRtc.globalMode/);
+    assert.equal(validateConfig({ ...normalizeConfig({}), webRtc: { globalMode: mode } }).ok, false);
+  }
 });

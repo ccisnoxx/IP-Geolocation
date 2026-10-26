@@ -69,9 +69,11 @@ test('合并不修改输入，相同输入和重复编辑结果幂等，新规�
 });
 
 test('无效域名继续交给权威配置校验，不静默丢弃或放宽校验', () => {
-  const result = validateConfig(normalizeConfig({ rules: rulesFromText('bad_domain', [disabled]) }));
+  const candidate = normalizeConfig({ rules: rulesFromText('bad_domain', [disabled]) });
+  const result = validateConfig(candidate);
   assert.equal(result.ok, false);
   assert.match(result.errors.join(' | '), /domain is invalid/);
-  assert.ok(result.config.rules.some((rule) => rule.domain === 'bad_domain'));
-  assert.deepEqual(result.config.rules.find((rule) => rule.id === disabled.id), disabled);
+  assert.equal(result.config, undefined);
+  assert.ok(candidate.rules.some((rule) => rule.domain === 'bad_domain'));
+  assert.deepEqual(candidate.rules.find((rule) => rule.id === disabled.id), disabled);
 });
