@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>iframe top fixture</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    iframe {
+      width: 100%;
+      min-height: 220px;
+      border: 1px solid #bbb;
+      background: #fff;
+    }
+
+    code {
+      background: #f5f5f5;
+      padding: 2px 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>iframe / subframe fixture</h1>
+  <p>Use this page with the extension diagnostic page to compare top-level and child frame values.</p>
+  <ul>
+    <li>Whitelist <code>localhost</code> and <code>child.localhost</code></li>
+    <li>Do not whitelist <code>nonmatch.localhost</code></li>
+  </ul>
+
+  <section>
+    <h2>top-level values</h2>
+    <dl>
+      <dt>URL</dt><dd id="top-url">-</dd>
+      <dt>Title</dt><dd id="top-title">-</dd>
+      <dt>Name</dt><dd id="top-name">-</dd>
+      <dt>language</dt><dd id="top-language">-</dd>
+      <dt>languages</dt><dd id="top-languages">-</dd>
+      <dt>timezone</dt><dd id="top-timezone">-</dd>
+      <dt>offset</dt><dd id="top-offset">-</dd>
+      <dt>date</dt><dd id="top-date">-</dd>
+    </dl>
+  </section>
+
+  <div class="grid">
+    <div>
+      <h2>same-origin child</h2>
+      <iframe
+        id="same-origin-frame"
+        name="same-origin-child"
+        title="same-origin child"
+        data-scenario="same-origin-child"
+        src="/fixtures/iframe/child-same-origin.html"></iframe>
+    </div>
+
+    <div>
+      <h2>allowlisted child</h2>
+      <iframe
+        id="allowlisted-frame"
+        name="allowlisted-child"
+        title="allowlisted child"
+        data-scenario="allowlisted-child"
+        src="http://child.localhost:8765/fixtures/iframe/child-allowlisted.html"></iframe>
+    </div>
+
+    <div>
+      <h2>non-matching child</h2>
+      <iframe
+        id="nonmatch-frame"
+        name="nonmatch-child"
+        title="non-matching child"
+        data-scenario="nonmatch-child"
+        src="http://nonmatch.localhost:8765/fixtures/iframe/child-nonmatch.html"></iframe>
+    </div>
+
+    <div>
+      <h2>srcdoc child</h2>
+      <iframe
+        id="srcdoc-frame"
+        name="srcdoc-child"
+        title="srcdoc child"
+        data-scenario="srcdoc-child"
+        srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>srcdoc child</title><style>body{font-family:sans-serif;margin:16px}</style></head><body><h1>srcdoc child</h1><dl><dt>URL</dt><dd id="frame-url">-</dd><dt>Title</dt><dd id="frame-title">-</dd><dt>Name</dt><dd id="frame-name">-</dd><dt>language</dt><dd id="frame-language">-</dd><dt>languages</dt><dd id="frame-languages">-</dd><dt>timezone</dt><dd id="frame-timezone">-</dd><dt>offset</dt><dd id="frame-offset">-</dd><dt>date</dt><dd id="frame-date">-</dd></dl><script src="/fixtures/iframe/frame-info.js"></script></body></html>'></iframe>
+    </div>
+
+    <div>
+      <h2>about:blank child</h2>
+      <iframe
+        id="aboutblank-frame"
+        name="aboutblank-child"
+        title="about:blank child"
+        data-scenario="aboutblank-child"
+        src="about:blank"></iframe>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var frame = document.getElementById('aboutblank-frame');
+      var doc = frame.contentDocument;
+      doc.open();
+      doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>about:blank child</title><style>body{font-family:sans-serif;margin:16px}</style></head><body data-info-prefix="frame"><h1>about:blank child</h1><dl><dt>URL</dt><dd id="frame-url">-</dd><dt>Title</dt><dd id="frame-title">-</dd><dt>Name</dt><dd id="frame-name">-</dd><dt>language</dt><dd id="frame-language">-</dd><dt>languages</dt><dd id="frame-languages">-</dd><dt>timezone</dt><dd id="frame-timezone">-</dd><dt>offset</dt><dd id="frame-offset">-</dd><dt>date</dt><dd id="frame-date">-</dd></dl><script src=\"/fixtures/iframe/frame-info.js\"><' + '/script></body></html>');
+      doc.close();
+    })();
+  </script>
+  <script>
+    document.body.dataset.infoPrefix = 'top';
+  </script>
+  <script src="/fixtures/iframe/frame-info.js"></script>
+</body>
+</html>

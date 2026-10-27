@@ -1,0 +1,32 @@
+{
+  "config": {
+    "masterEnabled": true,
+    "debugMode": false,
+    "globalProfile": {
+      "language": {
+        "enabled": true,
+        "mode": "preset",
+        "language": "en-US",
+        "languages": ["en-US", "en"],
+        "acceptLanguage": "en-US,en;q=0.9"
+      },
+      "timezone": { "enabled": true, "mode": "manual", "timezone": "America/Los_Angeles" },
+      "geolocation": { "enabled": false, "mode": "auto", "latitude": null, "longitude": null }
+    },
+    "webRtc": { "globalMode": "strict" },
+    "canvas": { "enabled": false, "spoofFonts": false, "targetFonts": [] },
+    "rules": [
+      {
+        "id": "probe",
+        "domain": "127.0.0.1",
+        "enabled": true,
+        "overrides": {
+          "language": { "mode": "inherit", "value": null },
+          "timezone": { "mode": "inherit", "value": null },
+          "geolocation": { "mode": "inherit", "value": null }
+        }
+      }
+    ]
+  },
+  "lastLocation": null
+}

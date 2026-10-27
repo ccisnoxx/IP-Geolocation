@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>fp-probe</title>
+  <style>body{font:12px/1.5 ui-monospace,Menlo,monospace;margin:16px;background:#111;color:#ddd}pre{white-space:pre-wrap}iframe{border:1px solid #333;width:320px;height:120px}</style>
+</head>
+<body>
+<pre id="out">running...</pre>
+<iframe id="xframe" src="__FRAME_ORIGIN__/frame.html"></iframe>
+<script>
+// 首屏内联脚本：模拟站点在解析阶段立刻读指纹
+window.__early = {
+  tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return null; } })(),
+  lang: navigator.language,
+  offset: new Date().getTimezoneOffset(),
+  ctorOk: Date.prototype.constructor === Date
+};
+</script>
+<script src="probe.js"></script>
+<script>
+(async () => {
+  const label = new URLSearchParams(location.search).get('label') || 'top';
+  const frameReport = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 6000);
+    window.addEventListener('message', (event) => {
+      if (!event.data || !event.data.__probeResult) return;
+      clearTimeout(timer);
+      resolve(event.data.__probeResult);
+    });
+  });
+  const report = await window.__runProbe(label);
+  report.frame = await frameReport;
+  window.__probeResult = report;
+  if (new URLSearchParams(location.search).get('beacon')) {
+    try {
+      await fetch('/api/beacon', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(report)
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+  document.getElementById('out').textContent = JSON.stringify(report, null, 2);
+  document.title = 'probe-done';
+})();
+</script>
+</body>
+</html>

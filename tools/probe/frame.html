@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>fp-probe-frame</title></head>
+<body>
+<script src="probe.js"></script>
+<script>
+(async () => {
+  const report = await window.__runProbe('frame');
+  parent.postMessage({ __probeResult: report }, '*');
+  document.title = 'probe-frame-done';
+})();
+</script>
+</body>
+</html>

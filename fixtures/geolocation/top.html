@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>geolocation top fixture</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 24px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    button {
+      min-height: 36px;
+      padding: 8px 12px;
+      font: inherit;
+    }
+
+    section {
+      border: 1px solid #bbb;
+      padding: 14px;
+      margin-top: 16px;
+      background: #fafafa;
+    }
+
+    dt {
+      font-weight: 700;
+    }
+
+    dd {
+      margin: 0 0 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <h1>Geolocation fixture</h1>
+  <p>Use this page to trigger the current geolocation behavior model in a controlled way.</p>
+
+  <div class="actions">
+    <button id="run-success" type="button">Run success</button>
+    <button id="run-watch" type="button">Run watch</button>
+    <button id="run-clear-watch" type="button">Run clearWatch</button>
+    <button id="run-error" type="button">Run forced error</button>
+  </div>
+
+  <section>
+    <h2>Result</h2>
+    <dl>
+      <dt>last action</dt><dd id="geo-action">-</dd>
+      <dt>success</dt><dd id="geo-success">-</dd>
+      <dt>watch</dt><dd id="geo-watch">-</dd>
+      <dt>clearWatch</dt><dd id="geo-clear-watch">-</dd>
+      <dt>error</dt><dd id="geo-error">-</dd>
+    </dl>
+  </section>
+
+  <script>
+    (function() {
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value == null || value === '' ? '-' : String(value);
+      }
+
+      function getGeoController() {
+        return window.__ipGeoGeolocationController || null;
+      }
+
+      function snapshotSuccessPayload(payload) {
+        return JSON.stringify({
+          latitude: payload.coords.latitude,
+          longitude: payload.coords.longitude,
+          accuracy: payload.coords.accuracy,
+          timestamp: payload.timestamp
+        });
+      }
+
+      function runSuccess() {
+        setText('geo-action', 'success');
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            setText('geo-success', snapshotSuccessPayload(position));
+            setText('geo-error', '');
+          },
+          function(error) {
+            setText('geo-error', JSON.stringify({ code: error.code, message: error.message }));
+          }
+        );
+      }
+
+      function runWatch() {
+        setText('geo-action', 'watch');
+        var watchId = navigator.geolocation.watchPosition(
+          function(position) {
+            setText('geo-watch', JSON.stringify({
+              watchId: watchId,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            }));
+          },
+          function(error) {
+            setText('geo-error', JSON.stringify({ code: error.code, message: error.message }));
+          }
+        );
+        setText('geo-watch', JSON.stringify({ watchId: watchId, status: 'started' }));
+      }
+
+      function runClearWatch() {
+        setText('geo-action', 'clearWatch');
+        var current = document.getElementById('geo-watch').textContent;
+        var watchId = null;
+        try {
+          watchId = JSON.parse(current).watchId;
+        } catch (error) {}
+        var result = typeof navigator.geolocation.clearWatch === 'function'
+          ? navigator.geolocation.clearWatch(watchId)
+          : false;
+        setText('geo-clear-watch', JSON.stringify({ watchId: watchId, cleared: result }));
+      }
+
+      function runForcedError() {
+        setText('geo-action', 'forced-error');
+        var controller = getGeoController();
+        if (!controller) {
+          setText('geo-error', JSON.stringify({ code: 0, message: 'missing geolocation controller' }));
+          return;
+        }
+        controller.setForcedError({ code: 1, message: 'Permission denied (fixture)' });
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            setText('geo-success', snapshotSuccessPayload(position));
+          },
+          function(error) {
+            setText('geo-error', JSON.stringify({ code: error.code, message: error.message }));
+          }
+        );
+        controller.clearForcedError();
+      }
+
+      async function runGeolocationDiagnostics() {
+        runSuccess();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        runWatch();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        runClearWatch();
+        runForcedError();
+        return {
+          successResult: document.getElementById('geo-success').textContent,
+          watchResult: document.getElementById('geo-watch').textContent,
+          clearWatchResult: document.getElementById('geo-clear-watch').textContent,
+          errorResult: document.getElementById('geo-error').textContent
+        };
+      }
+
+      window.runGeolocationDiagnostics = runGeolocationDiagnostics;
+      document.getElementById('run-success').addEventListener('click', runSuccess);
+      document.getElementById('run-watch').addEventListener('click', runWatch);
+      document.getElementById('run-clear-watch').addEventListener('click', runClearWatch);
+      document.getElementById('run-error').addEventListener('click', runForcedError);
+    })();
+  </script>
+</body>
+</html>
