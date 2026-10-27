@@ -253,21 +253,6 @@ async function renderConfig(): Promise<void> {
       : 'off（页面按原生字表判定）');
     setText('configFontTargets', canvas.enabled ? '正在查询页面实际上报…' : '（未启用字体伪装）');
 
-    // 平台层：声称了什么、真正改了什么、以及和字体层是否自洽
-    const platform = config.platform;
-    const fontPlatform = canvas.platform;
-    if (!platform.enabled) {
-      const mismatch = canvas.enabled && (fontPlatform === 'mac' || fontPlatform === 'windows' || fontPlatform === 'linux')
-        ? `（字体层按 ${fontPlatform} 判定，但 UA 仍是真实平台 —— 交叉校验会看到矛盾，打开上面的开关即可消除）`
-        : '';
-      setText('configPlatform', `未声称（UA / UA-CH 保持原生）${mismatch}`);
-    } else {
-      setText('configPlatform',
-        `${platform.claimed} · UA / UA-CH / Sec-CH-UA-* 同步改写`
-        + (platform.version ? ` · 版本 ${platform.version}` : '')
-        + (platform.architecture ? ` · 架构 ${platform.architecture}` : ''));
-    }
-
     const enabled = config.rules.filter((rule) => rule.enabled).map((rule) => rule.domain);
     const excluded = config.rules.filter((rule) => !rule.enabled).map((rule) => `!${rule.domain}`);
     setText('configRules', [...enabled, ...excluded].join('、') || '（空）');
@@ -332,21 +317,6 @@ async function pageProbe() {
     push('Date.toString()', new Date().toString());
   } catch (error) {
     push('时区', `读取失败：${error}`);
-  }
-
-  // 平台：UA / UA-CH 必须互相说得通
-  const uaData: any = (navigator as any).userAgentData;
-  if (uaData) {
-    push('userAgentData.platform', uaData.platform);
-    rows.push({
-      label: 'UA-CH 与 UA 是否一致',
-      value: uaData.platform && String(navigator.userAgent).toLowerCase().includes(String(uaData.platform).toLowerCase())
-        ? '一致'
-        : `不一致（UA-CH=${uaData.platform}）`,
-      ok: Boolean(uaData.platform) && String(navigator.userAgent).toLowerCase().includes(
-        uaData.platform === 'Windows' ? 'windows' : (uaData.platform === 'macOS' ? 'macintosh' : 'linux')
-      )
-    });
   }
 
   // 语言

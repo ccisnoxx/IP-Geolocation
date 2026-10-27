@@ -59,20 +59,23 @@ test('只有 canvas 时也要产出 payload', () => {
   assert.equal(resolved.payload!.timezone, null);
 });
 
-test('payload 的字体字段跟着 platform 变，而不是只有一张固定表', () => {
-  const windowsClaim = build({ canvas: { enabled: true, platform: 'windows', hideCjkFonts: false } });
-  const macClaim = build({ canvas: { enabled: true, platform: 'mac', hideCjkFonts: false } });
+test('payload 的字体字段跟着 platform 走，且只认 auto / none', () => {
+  const autoLayer = build({ canvas: { enabled: true, platform: 'auto', hideCjkFonts: false } });
+  const offLayer = build({ canvas: { enabled: true, platform: 'none', hideCjkFonts: false } });
 
-  assert.equal(getEffectiveProfile(windowsClaim, 'example.com', null).payload!.canvasConfig!.platform, 'windows');
-  assert.equal(getEffectiveProfile(macClaim, 'example.com', null).payload!.canvasConfig!.platform, 'mac');
+  assert.equal(getEffectiveProfile(autoLayer, 'example.com', null).payload!.canvasConfig!.platform, 'auto');
+  assert.equal(getEffectiveProfile(offLayer, 'example.com', null).payload!.canvasConfig!.platform, 'none');
 
-  // 注入层按这个字段展开成不同的隐藏列表
-  const windowsFonts = resolveCanvasTargetFonts({ platform: 'windows', hideCjkFonts: false }, 'mac');
-  const macFonts = resolveCanvasTargetFonts({ platform: 'mac', hideCjkFonts: false }, 'mac');
-  assert.ok(windowsFonts.includes('PingFang SC'));
-  assert.ok(!windowsFonts.includes('Microsoft YaHei'));
-  assert.ok(macFonts.includes('Microsoft YaHei'));
-  assert.ok(!macFonts.includes('PingFang SC'));
+  // auto：注入层按**真实平台**展开隐藏列表 —— 真 Mac 藏 Windows 字体，真 Windows 藏 mac 字体
+  const onMac = resolveCanvasTargetFonts({ platform: 'auto', hideCjkFonts: false }, 'mac');
+  const onWindows = resolveCanvasTargetFonts({ platform: 'auto', hideCjkFonts: false }, 'windows');
+  assert.ok(onMac.includes('Microsoft YaHei'), '真 Mac 上 Windows 字体要按不存在处理');
+  assert.ok(!onMac.includes('PingFang SC'), '真 Mac 自带的苹方不能藏');
+  assert.ok(onWindows.includes('PingFang SC'));
+  assert.ok(!onWindows.includes('Microsoft YaHei'));
+
+  // none：这一层不参与，交给中文层与手动层
+  assert.deepEqual(resolveCanvasTargetFonts({ platform: 'none', hideCjkFonts: false }, 'mac'), []);
 });
 
 test('只有语言时照旧产出 payload', () => {

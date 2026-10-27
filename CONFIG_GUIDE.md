@@ -73,18 +73,25 @@
 
 ### 平台层
 
-`canvas.platform` 的取值：
+`canvas.platform` 只有两个值：
 
-- `auto`（默认）：按本机真实平台（`navigator.userAgentData.platform`），隐藏**另外两个**
-  平台的字体。装在哪台机器上，"别的平台的字体不存在"这条都自动成立
-- `mac` / `windows` / `linux`：明确声称某个平台，隐藏另外两个平台的自带字体
-- `none`：关掉平台层
+- `auto`（默认）：按**本机真实平台**（`navigator.userAgentData.platform`），隐藏**另外两个**
+  平台的字体。真 Mac 就藏 Windows / Linux 字体，真 Windows 就藏 mac / Linux 字体 ——
+  装在哪台机器上，"别的平台的字体不存在"这条都自动成立
+- `none`：关掉平台层，只留中文层与手动层
 
-| 声称 | 隐藏 | 保留 |
+| 真实平台 | 隐藏 | 保留 |
 | --- | --- | --- |
 | `mac` | 微软雅黑 / 宋体 / Segoe UI / Ubuntu / DejaVu… | 苹方 / Hiragino / Songti / Helvetica Neue / Menlo |
 | `windows` | 苹方 / Hiragino / Songti / Menlo / Ubuntu / DejaVu… | 微软雅黑 / 宋体 / Segoe UI / Consolas |
 | `linux` | 苹方 / 微软雅黑 / Segoe UI / Helvetica Neue… | Ubuntu / DejaVu / Liberation / Cantarell |
+
+这一层**不撒谎**：真 Mac 上量 `"SimSun"` 会回落到默认字体，naive 的检测脚本容易误判成
+"装了宋体"，按等宽处理反而是在纠正误报。它只说清一件事——这台机器没有别的平台的字体。
+
+> 早先版本允许手动选 `mac` / `windows` / `linux`，语义是"让这台机器看起来像另一台"。
+> 那件事在 JS 层做不成（WebGL 渲染器、GPU、色深仍是真硬件），做了只会制造矛盾，
+> 所以 v4 收窄成 `auto` / `none`；旧配置里的手动值一律按 `auto` 处理。
 
 判据是"默认安装"：只收装系统就带着、别的系统默认没有的字体。Arial / Times New Roman /
 Verdana 这类跨平台常见的不收 —— 把它们藏起来会让正常的机器看起来缺字体，反而更像被动过。
@@ -97,7 +104,7 @@ MiSans / MIUI / 鸿蒙黑体 / HONOR Sans / OPPO Sans / vivo Sans / 阿里巴巴
 
 ### 两个开关怎么组合
 
-- **"一台没有中文字体的 mac"**：`platform=mac` + `hideCjkFonts=on`。
+- **"一台没有中文字体的 mac"**：真 Mac 上 `platform=auto` + `hideCjkFonts=on`。
   苹方也被藏掉，检测方的中文行全部落空。代价是自相矛盾 —— 真 mac 有苹方，
   `document.fonts.check` 和实际渲染字形仍能看出中文能力（见下面"做不到的事"）
 - **"一台自洽的 mac"**：`platform=mac` + `hideCjkFonts=off`。
@@ -157,43 +164,7 @@ google.com          ← 启用：google.com 及其所有子域
 | 坐标与 IP 城市差几千公里 | 手动坐标没跟着出口改 | 用「从 IP 自动配置」重新推一次 |
 | 某些站点没有伪装 | 该域名不在规则里，或被更长的排除规则命中 | 弹窗「站点白名单」检查 |
 
-## 九、平台声称：一套声称，两个消费者
-
-`platform` 这一层打开之后，同一个声称会同时落到**四个地方**，缺一处就自相矛盾：
-
-| 落点 | 例子（声称 windows） |
-|---|---|
-| `navigator.userAgent` / `appVersion` | `… (Windows NT 10.0; Win64; x64) …`，Chrome 版本段保持真话 |
-| `navigator.platform` | `Win32` |
-| `navigator.userAgentData`（含高熵值） | `platform: "Windows"`、`platformVersion: "15.0.0"`、`architecture: "x86"` |
-| 请求头 | `User-Agent`、`Sec-CH-UA-Platform`、`Sec-CH-UA-Platform-Version`、`Sec-CH-UA-Arch`、`Sec-CH-UA-Bitness`、`Sec-CH-UA-Model`、`Sec-CH-UA-WoW64` |
-| **字体层** | 平台层改按同样的声称判定：声称 windows ⇒ 隐藏 mac / Linux 字体，保留 Windows 自带 |
-
-最后一行是关键：payload 里的 `canvasConfig.platform` 会被声称覆盖，所以不存在
-「UA 说 Windows、字体却说这台机器没有 mac 字体」这种自己造出来的矛盾。
-反过来，只开字体层不开平台层时，字体层按自己的设置走，**诊断页会直接标出这个矛盾**
-（`平台声称: 未声称（…交叉校验会看到矛盾…）`）。
-
-### 能用与不能用的边界
-
-会被改写的：UA、`navigator.platform`、UA-CH 低熵与高熵值、上述请求头、Worker 里的同名值。
-
-不会被改写的：**WebGL 渲染器字符串 / GPU 型号 / 屏幕色深**。它们来自真实硬件，
-声称 Windows 而 WebGL 报 `Apple M2` 依然穿帮。这一层解决的是"跨字段互相打架"，
-不是"让整机看起来像另一台机器"。
-
-验证：
-
-```bash
-npm run smoke:platform -- --claim=windows   # 8/8 通过
-npm run smoke:platform -- --claim=mac
-npm run smoke:platform -- --claim=linux
-```
-
-工具会同时打印**首屏时刻**与**稳定后**两组值 —— 开发构建里首屏那组还是原生值
-（见下一节的窗口），断言用的是稳定后那组。
-
-## 十、首屏窗口：为什么开发构建有、烘焙构建没有
+## 九、首屏窗口：为什么开发构建有、烘焙构建没有
 
 配置进到页面有两条路，区别只在**什么时候**生效：
 
@@ -232,7 +203,7 @@ npm run build:persona -- --config=~/Downloads/vanishgeo-bake.json --out=dist-bak
 检测脚本通常在 `DOMContentLoaded` 之后才跑，那时 payload 早已落地，开发构建也一致。
 只有"在 `<head>` 里同步读 `Intl` / `new Date()` 并把结果立刻上报"的站点才能看到差异。
 
-## 十一、验证
+## 十、验证
 
 1. 右键扩展图标 →「Open diagnostic page」
 2. 「当前配置」区域对照期望值

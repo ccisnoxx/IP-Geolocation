@@ -1,6 +1,6 @@
 {
   "name": "vanishgeo",
-  "version": "1.3.0",
+  "version": "1.2.0",
   "description": "VanishGeo - Browser privacy leak protection and environment consistency management tool",
   "type": "module",
   "scripts": {
@@ -18,8 +18,7 @@
     "smoke:real-site": "node tools/smoke-real-site.mjs",
     "audit": "node tools/audit.mjs",
     "smoke:ipchange": "node tools/smoke-ip-change.mjs",
-    "smoke:fingerprint": "node tools/smoke-fingerprint.mjs",
-    "smoke:platform": "node tools/smoke-platform.mjs"
+    "smoke:fingerprint": "node tools/smoke-fingerprint.mjs"
   },
   "keywords": [
     "privacy",

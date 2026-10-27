@@ -227,8 +227,8 @@ const hides = (canvas: CanvasConfig, family: string, platform: FontPlatform): bo
   return isTargetFontFamily(family, keys);
 };
 
-test('声称 mac：隐藏 Windows / Linux 字体，保留 mac 自带', () => {
-  const canvas = canvasOf({ platform: 'mac', hideCjkFonts: false });
+test('auto：按真实平台判定，真 Mac 藏 Windows / Linux 字体、保留 mac 自带', () => {
+  const canvas = canvasOf({ platform: 'auto', hideCjkFonts: false });
   assert.equal(hides(canvas, 'Microsoft YaHei', 'mac'), true);
   assert.equal(hides(canvas, '微软雅黑', 'mac'), true, '中文别名同样命中');
   assert.equal(hides(canvas, 'Segoe UI', 'mac'), true);
@@ -237,22 +237,31 @@ test('声称 mac：隐藏 Windows / Linux 字体，保留 mac 自带', () => {
   assert.equal(hides(canvas, 'Helvetica Neue', 'mac'), false);
 });
 
-test('声称 windows：隐藏 mac / Linux 字体，保留 Windows 自带', () => {
-  const canvas = canvasOf({ platform: 'windows', hideCjkFonts: false });
+test('auto：同一个配置在真 Windows 上结论相反（不是写死的表）', () => {
+  const canvas = canvasOf({ platform: 'auto', hideCjkFonts: false });
   assert.equal(hides(canvas, 'PingFang SC', 'windows'), true);
   assert.equal(hides(canvas, '苹方-简', 'windows'), true);
   assert.equal(hides(canvas, 'Menlo', 'windows'), true);
-  assert.equal(hides(canvas, 'Ubuntu', 'windows'), true);
   assert.equal(hides(canvas, 'Microsoft YaHei', 'windows'), false);
   assert.equal(hides(canvas, 'Segoe UI', 'windows'), false);
 });
 
-test('声称 linux：mac 与 Windows 字体都隐藏，Linux 自带保留', () => {
-  const canvas = canvasOf({ platform: 'linux', hideCjkFonts: false });
+test('auto：真实平台是 Linux 时，mac 与 Windows 字体都藏', () => {
+  const canvas = canvasOf({ platform: 'auto', hideCjkFonts: false });
   assert.equal(hides(canvas, 'PingFang SC', 'linux'), true);
   assert.equal(hides(canvas, 'Microsoft YaHei', 'linux'), true);
   assert.equal(hides(canvas, 'Ubuntu', 'linux'), false);
   assert.equal(hides(canvas, 'DejaVu Sans', 'linux'), false);
+});
+
+test('旧配置里的手动平台值收敛成 auto（不再假装另一个平台）', () => {
+  for (const legacy of ['mac', 'windows', 'linux']) {
+    assert.equal(canvasOf({ platform: legacy as any }).platform, 'auto', `${legacy} 应该收敛成 auto`);
+  }
+  // 收敛后按真实平台判定，而不是按旧值
+  const canvas = canvasOf({ platform: 'windows' as any, hideCjkFonts: false });
+  assert.equal(hides(canvas, 'Microsoft YaHei', 'mac'), true, '真 Mac 上照样藏 Windows 字体');
+  assert.equal(hides(canvas, 'PingFang SC', 'mac'), false);
 });
 
 test('platform=none：平台层完全关掉，只剩中文层和手动层', () => {
@@ -262,16 +271,8 @@ test('platform=none：平台层完全关掉，只剩中文层和手动层', () =
   assert.equal(hides(canvas, 'MyCustomFont', 'mac'), true);
 });
 
-test('platform=auto：按传入的真实平台解析', () => {
-  const canvas = canvasOf({ platform: 'auto', hideCjkFonts: false });
-  assert.equal(hides(canvas, 'Microsoft YaHei', 'mac'), true);
-  assert.equal(hides(canvas, 'PingFang SC', 'mac'), false);
-  assert.equal(hides(canvas, 'Microsoft YaHei', 'windows'), false);
-  assert.equal(hides(canvas, 'PingFang SC', 'windows'), true);
-});
-
-test('中文层与平台层叠加：声称 mac + 隐藏中文 = 连苹方也藏', () => {
-  const canvas = canvasOf({ platform: 'mac', hideCjkFonts: true });
+test('中文层与平台层叠加：真 Mac + 隐藏中文 = 连苹方也藏', () => {
+  const canvas = canvasOf({ platform: 'auto', hideCjkFonts: true });
   assert.equal(hides(canvas, 'Microsoft YaHei', 'mac'), true);
   assert.equal(hides(canvas, 'PingFang SC', 'mac'), true);
   assert.equal(hides(canvas, '苹方-简', 'mac'), true);
@@ -282,7 +283,7 @@ test('中文层与平台层叠加：声称 mac + 隐藏中文 = 连苹方也藏'
 });
 
 test('最终列表去重（同名字体不会重复出现）', () => {
-  const canvas = canvasOf({ platform: 'mac', hideCjkFonts: true, targetFonts: ['SimSun', 'simsun', 'Comic Sans MS'] });
+  const canvas = canvasOf({ platform: 'auto', hideCjkFonts: true, targetFonts: ['SimSun', 'simsun', 'Comic Sans MS'] });
   const list = resolveCanvasTargetFonts(canvas, 'mac');
   const lowered = list.map((font) => font.toLowerCase());
   assert.equal(new Set(lowered).size, lowered.length, `有重复项：${list.join(', ')}`);

@@ -26,8 +26,7 @@ persona 在进程环境、请求头、页面 JS 三层同时成立，改不到�
 - 🕐 **时区** - `getTimezoneOffset` / `get*` / `set*` / `toString` / `Intl` 全套跟着走，`new Date(str)` 的本地时间语义一并处理
 - 🌐 **语言** - `navigator.language` / `languages`（冻结数组）/ `Intl` 默认 locale，请求头 `Accept-Language` 由 DNR 在首个请求前改写
 - 🌍 **定位** - 坐标、精度、可选随机偏移（会话内固定，不会每 3 秒瞬移）；`Position` / `Coordinates` 按 WebIDL 形状重建
-- 🏷 **平台声称** - 一个开关把同一个声称落到四处：`navigator.userAgent` / `platform` / `appVersion`、`userAgentData`（含高熵 `platformVersion` / `architecture`）、请求头 `Sec-CH-UA-*` 与 `User-Agent`、以及字体的平台层。只改字体不改 UA 会被诊断页标成矛盾
-- 🖋 **canvas 字体** - 三层结构：**平台层**（跟着平台声称走，隐藏另外两个平台的字体）、**中文层**（中文与国产厂商字体）、**手动层**；覆盖 `<canvas>` 与 `OffscreenCanvas`，名字匹配含本地化别名（`苹方-简`、`微软雅黑`）
+- 🖋 **canvas 字体** - 三层结构：**平台层**（按本机真实平台判定，隐藏另外两个平台的字体）、**中文层**（中文与国产厂商字体）、**手动层**；覆盖 `<canvas>` 与 `OffscreenCanvas`，名字匹配含本地化别名（`苹方-简`、`微软雅黑`）
 - 🔒 **WebRTC** - `strict` / `compatible` / `default` 三档，对应不同的 `contentSettings` 策略
 - 🛡 **反检测** - 原生函数签名、原型 getter、零自有属性、零 `window` 全局；改不到的地方（原生值已经正确）一个对象都不动
 

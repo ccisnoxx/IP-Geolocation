@@ -273,12 +273,12 @@ test('内存快照跟着存储走：保存后立刻读到新值，lastLocation �
   // 第一次读会填充快照，之后必须靠写入路径打掉，不能读到陈旧值
   const saved = await harness.services.saveSiteConfig({
     ...initial,
-    canvas: { ...initial.canvas, enabled: true, platform: 'windows' }
+    canvas: { ...initial.canvas, enabled: true, platform: 'none' }
   });
-  assert.equal(saved.canvas.platform, 'windows');
+  assert.equal(saved.canvas.platform, 'none');
 
   const reread = await harness.services.getSiteConfig();
-  assert.equal(reread.canvas.platform, 'windows', '保存后必须读到新值，不能命中旧快照');
+  assert.equal(reread.canvas.platform, 'none', '保存后必须读到新值，不能命中旧快照');
 
   // 定位写入同样要反映到缓存（否则首屏 payload 会拿上一次的坐标）
   await harness.services.updateGeolocation(true);

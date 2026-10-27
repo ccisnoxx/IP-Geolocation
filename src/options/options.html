@@ -52,7 +52,6 @@
         <button class="tab-btn" data-tab="timezone">时区</button>
         <button class="tab-btn" data-tab="language">语言</button>
         <button class="tab-btn" data-tab="webrtc">WebRTC</button>
-        <button class="tab-btn" data-tab="platform">平台</button>
       </div>
 
       <div class="tab-content active" data-tab="geolocation">
@@ -137,40 +136,6 @@
             <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
           </select>
         </div>
-      </div>
-
-      <div class="tab-content" data-tab="platform">
-        <label class="checkbox-label">
-          <input type="checkbox" id="platformEnabled">
-          <span>让浏览器声称是另一个平台（改写 UA / UA-CH / 请求头）</span>
-        </label>
-        <div class="input-group">
-          <label>声称平台:</label>
-          <select id="platformClaimed" class="input">
-            <option value="auto">不声称（保持真实平台）</option>
-            <option value="mac">macOS</option>
-            <option value="windows">Windows</option>
-            <option value="linux">Linux</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label>平台版本（可空）:</label>
-          <input type="text" id="platformVersion" class="input" placeholder="如 14.6.0 / 15.0.0">
-        </div>
-        <div class="input-group">
-          <label>CPU 架构（可空）:</label>
-          <input type="text" id="platformArch" class="input" placeholder="arm / x86">
-        </div>
-        <p class="hint">
-          一套声称，两个消费者：<code>navigator.userAgent</code>、<code>navigator.platform</code>、
-          <code>userAgentData</code>（含高熵值 <code>platformVersion</code> / <code>architecture</code>）、
-          请求头 <code>Sec-CH-UA-*</code>，以及字体的平台层 —— 全都跟着这个声称走。
-          只改字体不改 UA 的配置会被诊断页标成矛盾。
-        </p>
-        <p class="hint">
-          <strong>这一层的边界</strong>：WebGL 渲染器字符串、屏幕色深、GPU 型号仍来自真实硬件，
-          不在改写范围内。声称 Windows 而 WebGL 报 Apple GPU，更细的指纹库依然能看出来。
-        </p>
       </div>
     </section>
 

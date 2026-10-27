@@ -54,22 +54,6 @@ test('Worker 补丁自包含：裸上下文里能直接执行', () => {
   assert.equal(evaluate(context, 'typeof Date'), 'function');
 });
 
-test('Worker 里的平台声称：UA / platform 与主线程同源，且实例上零自有属性', () => {
-  const context = createWorkerContext({
-    ...TOKYO,
-    platform: { uaToken: 'Windows NT 10.0; Win64; x64', platform: 'Win32' }
-  });
-  const ua = evaluate<string>(context, 'navigator.userAgent');
-  assert.match(ua, /Windows NT 10\.0; Win64; x64/);
-  assert.doesNotMatch(ua, /Macintosh/, 'UA 里的 mac 段必须换掉');
-  assert.match(ua, /Chrome\/155\.0\.0\.0/, 'Chrome 版本不能动，否则和 brands 打架');
-  assert.equal(evaluate(context, 'navigator.platform'), 'Win32');
-  assert.equal(evaluate(context, 'navigator.appVersion'), ua.replace(/^Mozilla\//, ''));
-  // 属性必须落在 WorkerNavigator.prototype 上
-  assert.equal(evaluate(context, 'Object.getOwnPropertyDescriptor(navigator, "userAgent")'), undefined);
-  assert.equal(evaluate(context, 'Object.getOwnPropertyDescriptor(navigator, "platform")'), undefined);
-});
-
 test('Worker 里的 navigator 跟着 payload 走', () => {
   const context = createWorkerContext(TOKYO);
   assert.equal(evaluate(context, 'navigator.language'), 'ja-JP');
