@@ -1,7 +1,6 @@
 import { normalizeLanguage } from '../shared/config-model';
 import {
   getEffectiveLanguage,
-  getEffectiveProfile,
   getExcludedDomainsFor,
   getExcludedRuleDomains
 } from '../shared/config-resolver';
@@ -51,6 +50,7 @@ export function buildAcceptLanguageRules(
   config: SiteSpoofConfig,
   lastLocation: LastLocation | null = null
 ): chrome.declarativeNetRequest.Rule[] {
+  void lastLocation;
   if (!config.masterEnabled) return [];
   const rules: chrome.declarativeNetRequest.Rule[] = [];
   // 被显式禁用的域名要在父域规则里挖掉，否则「google.com 启用 + mail.google.com 排除」

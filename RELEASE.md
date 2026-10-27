@@ -22,6 +22,7 @@ git remote set-url origin https://github.com/XiNian-dada/VanishGeo.git
 | 步骤 | 命令 | 失败含义 |
 | --- | --- | --- |
 | Typecheck | `npm run typecheck` | 类型不干净，不会进包 |
+| Lint | `npm run lint` | 静态规则 / 未使用变量回归 |
 | Unit tests | `npm test` | 行为回归 |
 | Build | `npm run build` | 构建失败 |
 | Verify output | `test -f dist/...` | 产物缺文件 / manifest 不是 V3 |
@@ -39,7 +40,7 @@ permissions:
 
 流程：
 
-1. `npm ci` → **typecheck** → **单测** → `npm run build`
+1. `npm ci` → **typecheck** → **lint** → **单测** → `npm run build`
 2. 从 tag 提取版本号，**校验与 `dist/manifest.json` 的 `version` 一致**（不一致直接失败）
 3. 打包成 `vanishgeo-v<version>.zip`（**开发构建**：配置经异步 IPC 进页面，
    页面的第一个内联脚本可能读到原生值 —— 也就是"首屏窗口"）
@@ -52,6 +53,10 @@ permissions:
 三个 zip 之间不是重复：开发构建是"装一次就跟着你走"的通用包（选项页改动实时生效），
 烘焙包是"这条机器就长这样"的定制品。用户要哪个取决于他会不会在第一帧被看穿。
 
+烘焙包默认保留运行时桥：排除站点、关总开关、改语言仍会实时生效（注入层逐项还原）。
+只有 `--no-bridge` / `--frozen` 才把规则彻底冻结进包；这种包的后台也读烘焙配置，
+保存配置不会改 DNR / 权限，改配置必须重新构建。
+
 > 版本号只有一个来源：`manifest.json`（`package.json` 跟着同步）。tag 只是触发器，
 > 对不上就红，不会发出一个版本号自相矛盾的包。
 
@@ -60,7 +65,9 @@ permissions:
 ```bash
 # 1) 本地先跑一遍与 CI 相同的检查
 npm run typecheck
+npm run lint
 npm test
+npm run test:coverage:core
 npm run build
 
 # 2) 同步版本号（manifest.json 与 package.json 必须一致）
@@ -84,7 +91,7 @@ git push origin v1.1.1
 
 ## 4. 发布前检查清单
 
-- [ ] `npm run typecheck` / `npm test` / `npm run build` 全绿
+- [ ] `npm run typecheck` / `npm run lint` / `npm test` / `npm run build` 全绿
 - [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag
 - [ ] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）
 - [ ] `npm run release -- --all-presets` 出得了包，`npm run verify:release -- --zip=…`
@@ -108,8 +115,10 @@ git push origin :refs/tags/v1.1.1
 
 ```bash
 npm run release          # 烘焙 → 校验 → 打包 → 记账，见 CONFIG_GUIDE §十
+node scripts/release.mjs --all-presets  # 五个内置 preset 全量构建
+for z in release/*.zip; do node scripts/release.mjs --check="$z"; done  # 逐个校验
 npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
-npm run audit            # 静态检查 + 双引擎 E2E，输出通过率表格
+npm run audit            # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium）
 npm run smoke:options    # 选项页写入路径的端到端冒烟
 npm run smoke:failclosed # fail-closed 行为
 npm run smoke:fingerprint# 主线程 / iframe / Worker 跨上下文一致性

@@ -1,4 +1,8 @@
-export type Disguise = (impl: any, name: string, length: number) => any;
+export interface Disguise {
+  (impl: any, name: string, length: number): any;
+  /** 还原 Function.prototype.toString；clear 时调用，之后可以再次 disguise 重新安装 */
+  uninstall(): void;
+}
 
 /**
  * 把任意实现伪装成原生函数。
@@ -20,6 +24,21 @@ export function createDisguise(): Disguise {
   const nativeToString = Function.prototype.toString;
   const signatureOf = (name: string) => `function ${name}() { [native code] }`;
 
+  let installed = false;
+
+  const install = (): void => {
+    if (installed) return;
+    installed = true;
+    try {
+      Object.defineProperty(Function.prototype, 'toString', {
+        value: toStringImpl,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      });
+    } catch { /* ignore */ }
+  };
+
   const toStringImpl = function toString(this: any) {
     if (typeof this === 'function') {
       const signature = signatures.get(this);
@@ -30,16 +49,11 @@ export function createDisguise(): Disguise {
   // 这个补丁自己的 toString 也要像原生（否则页面拿它一测就露）
   signatures.set(toStringImpl, signatureOf('toString'));
 
-  try {
-    Object.defineProperty(Function.prototype, 'toString', {
-      value: toStringImpl,
-      writable: true,
-      enumerable: false,
-      configurable: true
-    });
-  } catch { /* ignore */ }
+  install();
 
-  return (impl: any, name: string, length: number) => {
+  const disguise = ((impl: any, name: string, length: number) => {
+    // clear 之后可能已经还原过；再次伪装时把 toString 补回来
+    install();
     try {
       Object.defineProperty(impl, 'name', { value: name, configurable: true });
     } catch { /* ignore */ }
@@ -50,5 +64,20 @@ export function createDisguise(): Disguise {
       signatures.set(impl, signatureOf(name));
     } catch { /* ignore */ }
     return impl;
+  }) as Disguise;
+
+  disguise.uninstall = () => {
+    if (!installed) return;
+    installed = false;
+    try {
+      Object.defineProperty(Function.prototype, 'toString', {
+        value: nativeToString,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      });
+    } catch { /* ignore */ }
   };
+
+  return disguise;
 }

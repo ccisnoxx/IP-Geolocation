@@ -138,11 +138,18 @@ export interface EffectivePayload {
   debugMode: boolean;
   ruleId: string;
   domain: string;
+  /** 这份 payload 是按哪个 hostname 解析出来的；桥用它拒绝父页 payload 串到独立子域 iframe */
+  hostname: string;
   geolocation: (GeolocationConfig & {
     latitude: number;
     longitude: number;
     timezone?: string | null;
   }) | null;
+  /**
+   * 定位已启用但坐标解析不出来：页面必须 fail-closed（POSITION_UNAVAILABLE），
+   * 而不是落回原生定位。此时 `geolocation` 为 null。
+   */
+  geolocationDenied: boolean;
   latitude: number | null;
   longitude: number | null;
   timezone: string | null;

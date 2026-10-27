@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installGeolocation } from '../src/injected/geolocation';
-import type { GeolocationPayload } from '../src/injected/geolocation';
+import type { GeolocationConfigPayload, GeolocationPayload } from '../src/injected/geolocation';
 
 /**
  * 定位层的三条约束都只能在"跑起来"之后验证，所以这里在宿主 realm 里搭一套
@@ -16,7 +16,7 @@ const positionSlots = new WeakMap<object, any>();
 const errorSlots = new WeakMap<object, any>();
 const nativeCalls: string[] = [];
 
-let permissionState: 'granted' | 'prompt' | 'denied' = 'prompt';
+const permissionState: 'granted' | 'prompt' | 'denied' = 'prompt';
 let permissionQueries = 0;
 // 假原生实现的行为：成功（返回真实坐标 99/99）/ 被拒 / 永不回调
 let nativeBehavior: 'success' | 'denied' | 'silent' = 'success';
@@ -149,7 +149,7 @@ let payload: GeolocationPayload | null = null;
 
 bootstrap();
 
-function setPayload(overrides: Partial<GeolocationPayload> = {}): void {
+function setPayload(overrides: Partial<GeolocationConfigPayload> = {}): void {
   payload = {
     latitude: 35.6762,
     longitude: 139.6503,
@@ -188,7 +188,7 @@ test('Position / Coordinates 是 WebIDL 形状：属性在原型上、实例零�
 
   // 旧实现是普通对象 + setPrototypeOf：Object.keys 会列出全部字段
   assert.deepEqual(Object.keys(coords), [], '实例不该有任何自有属性');
-  assert.equal(Object.hasOwn(coords, 'latitude'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(coords, 'latitude'), false);
   assert.equal(Object.getOwnPropertyDescriptor(coords, 'latitude'), undefined);
   assert.equal('latitude' in coords, true, '属性必须能从原型上读到');
 
@@ -329,4 +329,31 @@ test('watchPosition 的每次回调都落在同一个点上，clearWatch 能停�
     assert.equal(coords.latitude, seen[0].latitude);
     assert.equal(coords.longitude, seen[0].longitude);
   }
+});
+test('坐标未解析时 deny：不调用原生，直接返回 POSITION_UNAVAILABLE', async () => {
+  payload = { deny: true };
+  const before = nativeCalls.length;
+  const { position, error } = await request();
+  assert.equal(position, null);
+  assert.equal(error.code, 2);
+  assert.equal(error.message, 'Position unavailable');
+  assert.equal(nativeCalls.length, before, 'deny 不能把请求交给原生实现');
+});
+
+test('坐标未解析时 watchPosition 也返回 POSITION_UNAVAILABLE', async () => {
+  payload = { deny: true };
+  const before = nativeCalls.filter((call) => call.startsWith('clearWatch')).length;
+  let watchId = 0;
+  const error = await new Promise<any>((resolve) => {
+    watchId = (navigator.geolocation as any).watchPosition(() => resolve(null), (value: any) => resolve(value));
+    assert.equal(typeof watchId, 'number');
+  });
+  assert.equal(error.code, 2);
+  assert.equal(error.message, 'Position unavailable');
+  (navigator.geolocation as any).clearWatch(watchId);
+  assert.equal(
+    nativeCalls.filter((call) => call.startsWith('clearWatch')).length,
+    before,
+    'deny 自己发出的 watch id 不能转交给原生 clearWatch'
+  );
 });

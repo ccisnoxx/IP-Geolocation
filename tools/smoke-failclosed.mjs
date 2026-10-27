@@ -19,6 +19,7 @@ import { mkdtempSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CDP, evaluate, launchChrome, sleep , killChrome } from './lib/cdp.mjs';
+import { loadExtension } from './lib/extension.mjs';
 import { ensureCerts } from './lib/certs.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,7 @@ const extensionPath = argv.extension
   ? String(argv.extension)
   : join(homedir(), '.vanishgeo', 'profiles', persona, 'ext');
 const domain = String(argv.domain || 'claude.ai');
+if (process.env.VANISHGEO_LEGACY_EXTENSION === '1') process.env.VANISHGEO_EXTENSION = extensionPath;
 
 const results = [];
 function check(name, ok, detail) {
@@ -63,7 +65,7 @@ const chrome = await launchChrome({
 });
 const cdp = await CDP.connect(chrome.websocketUrl);
 // Chrome 155 已忽略 --load-extension，统一用 CDP 装一次（Helium 也可用）
-await cdp.send('Extensions.loadUnpacked', { path: extensionPath });
+await loadExtension(cdp, extensionPath);
 
 async function findServiceWorker(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;

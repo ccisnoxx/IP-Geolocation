@@ -10,6 +10,9 @@ tools/out/
 dist-probe*/
 tools/.certs/
 
+# c8 / Node coverage 输出
+coverage/
+
 # 本地打包产物（CI 在 runner 上生成，不进仓库）
 release/
 *.zip

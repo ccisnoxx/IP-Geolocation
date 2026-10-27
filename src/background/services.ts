@@ -7,7 +7,6 @@ import {
   getEnabledRuleDomains,
   getContentScriptRegistration,
   getExcludedRuleDomains,
-  isUrlMatchedByEnabledRule,
   migrateLegacyConfig,
   validateConfig
 } from '../shared/config-resolver';
@@ -21,11 +20,13 @@ const GEO_API_URLS = [
   'https://ipinfo.io/json'
 ];
 
+const GEO_FETCH_TIMEOUT_MS = 5000;
 const ALARM_NAME = 'vanishgeo-update-location';
 const MAIN_RUNTIME_SCRIPT_ID = 'vanishgeo-main-runtime';
 const BRIDGE_SCRIPT_ID = 'vanishgeo-bridge';
 const CONTENT_SCRIPT_IDS = [MAIN_RUNTIME_SCRIPT_ID, BRIDGE_SCRIPT_ID];
 const GEO_PERMISSION_KEY = 'geoPermissionDomains';
+const GEO_DENIED_KEY = 'geoDeniedDomains';
 /** 构建期烘焙进 manifest 的域名（普通构建为空数组） */
 function bakedScriptDomains(): string[] {
   if (typeof __VANISHGEO_STATIC_SCRIPT_DOMAINS__ === 'undefined') return [];
@@ -33,14 +34,24 @@ function bakedScriptDomains(): string[] {
   return Array.isArray(domains) ? domains : [];
 }
 
+/**
+ * frozen 烘焙包：`--no-bridge` 且配置真的被烘焙。
+ *
+ * 这类包没有 ISOLATED 桥，页面里的 runtime 永远拿不到 clear；如果后台还按
+ * storage 改 DNR / 权限，就会出现"页面是烘焙值、请求头却是原生值"的撕裂。
+ * 所以后台也读烘焙配置，彻底忽略后续保存 —— 想改只能重新构建。
+ */
+function frozenBakedConfig(): SiteSpoofConfig | null {
+  if (typeof __VANISHGEO_BRIDGE__ !== 'boolean' || __VANISHGEO_BRIDGE__) return null;
+  const baked = typeof __VANISHGEO_BAKED__ === 'object' && __VANISHGEO_BAKED__
+    ? (__VANISHGEO_BAKED__ as { config?: Partial<SiteSpoofConfig> })
+    : null;
+  if (!baked || !baked.config) return null;
+  return migrateLegacyConfig({ siteSpoofConfig: baked.config });
+}
+
 const MAIN_RUNTIME_FILES = ['injected/runtime.js'];
 const BRIDGE_FILES = ['content/content.js'];
-
-const FALLBACK_LOCATION: LastLocation = {
-  latitude: 0,
-  longitude: 0,
-  country: 'Privacy fallback'
-};
 
 /**
  * 去重账本的持久化位置与容量上限。账本本身在 `createBackgroundServices` 的闭包里
@@ -67,53 +78,110 @@ async function currentDocumentId(tabId: number): Promise<string> {
   }
 }
 
+/**
+ * 带超时的 JSON 请求。
+ *
+ * 三个 IP 接口是串行尝试的；任何一个挂住（TCP 半开、CDN 卡住）都会让
+ * `updateGeolocation` 永远不返回，alarm 回调堆着、角标也不刷新。
+ * 5 秒足够正常响应，失败就换下一家。
+ */
+export async function fetchJson(url: string, timeoutMs = GEO_FETCH_TIMEOUT_MS): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function isScriptableUrl(url: string | undefined): boolean {
   return /^https?:\/\//i.test(String(url || ''));
+}
+
+/**
+ * 把接口里的坐标转成数字。
+ *
+ * 两个坑：
+ * 1. `data.latitude && data.longitude` 会把**合法的 0** 当成缺失（赤道 / 本初子午线）；
+ * 2. `Number(null)` / `Number('')` 都是 0，缺字段反而会被当成"坐标在几内亚湾"。
+ * 所以先显式排除 null / undefined / 空串，再校验范围。
+ */
+function toCoordinate(value: unknown, limit: number): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric) || Math.abs(numeric) > limit) return null;
+  return numeric;
+}
+
+function toCountry(data: any): string | null {
+  const value = data && data.country;
+  if (typeof value === 'string' && value) return value;
+  if (value && typeof value === 'object') return value.name || value.code || null;
+  return (data && (data.country_name || data.country_code)) || null;
+}
+
+function toTimezone(value: any): string | null {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && typeof value.id === 'string') return value.id;
+  return null;
 }
 
 export function parseGeoApiResponse(data: any): Omit<LastLocation, 'updateTime'> | null {
   if (!data || typeof data !== 'object') return null;
 
-  if (data.success !== false && data.latitude && data.longitude) {
-    const timezoneOffset = data.timezone && Number.isFinite(Number(data.timezone.offset))
-      ? -Number(data.timezone.offset) / 60
-      : null;
-    return {
-      latitude: Number(data.latitude),
-      longitude: Number(data.longitude),
-      country: data.country || data.country_name || data.country_code || 'N/A',
-      timezone: data.timezone && data.timezone.id ? data.timezone.id : data.timezone || null,
-      timezoneOffset
-    };
-  }
-
-  if (data.country && data.country.code === 'CN') {
-    return FALLBACK_LOCATION;
-  }
-
-  if (data.location && data.location.latitude && data.location.longitude) {
-    return {
-      latitude: Number(data.location.latitude),
-      longitude: Number(data.location.longitude),
-      country: data.country && data.country.name ? data.country.name : 'N/A',
-      timezone: data.timezone || null,
-      timezoneOffset: null
-    };
-  }
-
-  if (typeof data.loc === 'string' && data.loc.includes(',')) {
-    const [latitude, longitude] = data.loc.split(',').map(Number);
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  if (data.success !== false) {
+    const latitude = toCoordinate(data.latitude, 90);
+    const longitude = toCoordinate(data.longitude, 180);
+    if (latitude !== null && longitude !== null) {
+      const timezoneOffset = data.timezone && Number.isFinite(Number(data.timezone.offset))
+        ? -Number(data.timezone.offset) / 60
+        : null;
       return {
         latitude,
         longitude,
-        country: data.country || data.region || data.city || 'N/A',
-        timezone: data.timezone || null,
+        country: toCountry(data) || 'N/A',
+        timezone: toTimezone(data.timezone),
+        timezoneOffset
+      };
+    }
+  }
+
+  if (data.location && typeof data.location === 'object') {
+    const latitude = toCoordinate(data.location.latitude, 90);
+    const longitude = toCoordinate(data.location.longitude, 180);
+    if (latitude !== null && longitude !== null) {
+      return {
+        latitude,
+        longitude,
+        country: data.country && data.country.name ? data.country.name : (toCountry(data) || 'N/A'),
+        timezone: toTimezone(data.timezone),
         timezoneOffset: null
       };
     }
   }
 
+  if (typeof data.loc === 'string' && data.loc.includes(',')) {
+    const [rawLatitude, rawLongitude] = data.loc.split(',');
+    const latitude = toCoordinate(rawLatitude, 90);
+    const longitude = toCoordinate(rawLongitude, 180);
+    if (latitude !== null && longitude !== null) {
+      return {
+        latitude,
+        longitude,
+        country: toCountry(data) || data.region || data.city || 'N/A',
+        timezone: toTimezone(data.timezone),
+        timezoneOffset: null
+      };
+    }
+  }
+
+  // 只有国家、没有坐标的响应（例如 CN 分支）不再伪造 0,0：
+  // 那是一个真实存在的地点（几内亚湾），会和任何时区/坐标对不上。
+  // 返回 null 让调用方继续试下一个接口，全部失败就按 fail-closed 处理。
   return null;
 }
 
@@ -150,7 +218,12 @@ export interface BackgroundServices {
   setExtensionEnabled(enabled: boolean): Promise<SiteSpoofConfig>;
   updateGeolocation(forceUpdate?: boolean): Promise<{ ok: boolean; location?: LastLocation; unchanged?: boolean; disabled?: boolean; error?: string }>;
   /** 单条注入路径：确保文档里有 runtime，然后投递 payload（两者都幂等） */
-  syncTab(tabId: number, url: string, options?: { config?: SiteSpoofConfig; lastLocation?: LastLocation | null }): Promise<void>;
+  syncTab(tabId: number, url: string, options?: {
+    config?: SiteSpoofConfig;
+    lastLocation?: LastLocation | null;
+    /** 兼容字段；现在按 frame 决策，未命中的 frame 一律 clear（清掉烘焙残留） */
+    clearUnmatched?: boolean;
+  }): Promise<void>;
   /** 内容脚本上报自己的 documentId：说明该文档已经由注册的内容脚本装过 runtime */
   noteDocumentInjected(documentId?: string): Promise<void>;
   getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
@@ -244,6 +317,9 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   async function getSiteConfig(): Promise<SiteSpoofConfig> {
+    const frozen = frozenBakedConfig();
+    if (frozen) return frozen;
+
     const data = await getStorageSnapshot();
     if (data.siteSpoofConfig) return migrateLegacyConfig(data);
 
@@ -375,18 +451,28 @@ export function createBackgroundServices(): BackgroundServices {
 
     const lastLocation = await getLastLocation();
     const wanted: string[] = [];
+    const denied: string[] = [];
     for (const domain of getEnabledRuleDomains(config)) {
       const resolved = getEffectiveProfile(config, domain, lastLocation);
+      if (resolved.payload && resolved.payload.geolocationDenied) {
+        // 坐标解析不出来：权限层也置为 block，getCurrentPosition 返回
+        // POSITION_UNAVAILABLE，permissions.query 说 denied，三层说的是同一件事。
+        denied.push(domain);
+        continue;
+      }
       const geolocation = resolved.payload ? resolved.payload.geolocation : null;
       if (!geolocation || geolocation.spoofPermission === false) continue;
       wanted.push(domain);
     }
 
-    const stored = await chrome.storage.local.get(GEO_PERMISSION_KEY);
+    const stored = await chrome.storage.local.get([GEO_PERMISSION_KEY, GEO_DENIED_KEY]);
     const previous: string[] = Array.isArray(stored[GEO_PERMISSION_KEY]) ? stored[GEO_PERMISSION_KEY] : [];
+    const previousDenied: string[] = Array.isArray(stored[GEO_DENIED_KEY]) ? stored[GEO_DENIED_KEY] : [];
 
-    for (const domain of previous) {
-      if (wanted.indexOf(domain) !== -1) continue;
+    // 从 allow / block 两个集合里退出、且不再属于任何一侧的域名：清掉设置
+    const stale = [...new Set([...previous, ...previousDenied])]
+      .filter((domain) => wanted.indexOf(domain) === -1 && denied.indexOf(domain) === -1);
+    for (const domain of stale) {
       for (const pattern of [`*://${domain}/*`, `*://*.${domain}/*`]) {
         try {
           await settings.clear({ scope: 'regular', primaryPattern: pattern });
@@ -402,6 +488,14 @@ export function createBackgroundServices(): BackgroundServices {
       }
     }
 
+    for (const domain of denied) {
+      for (const pattern of [`*://${domain}/*`, `*://*.${domain}/*`]) {
+        try {
+          await settings.set({ primaryPattern: pattern, setting: 'block', scope: 'regular' });
+        } catch { /* ignore */ }
+      }
+    }
+
     // 被显式排除的子域会被父域的 `*://*.parent/*` 通配授权覆盖到。退回 ask，
     // 让"排除"在权限层面也成立 —— 否则站点拿到的是真实定位而不是没有定位。
     for (const domain of getExcludedRuleDomains(config)) {
@@ -412,8 +506,8 @@ export function createBackgroundServices(): BackgroundServices {
       }
     }
 
-    if (previous.join(',') !== wanted.join(',')) {
-      await chrome.storage.local.set({ [GEO_PERMISSION_KEY]: wanted });
+    if (previous.join(',') !== wanted.join(',') || previousDenied.join(',') !== denied.join(',')) {
+      await chrome.storage.local.set({ [GEO_PERMISSION_KEY]: wanted, [GEO_DENIED_KEY]: denied });
       invalidateStorageCache();
     }
   }
@@ -429,6 +523,10 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   async function saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
+    // frozen 包没有桥；写 storage 只会让后台和页面各说各话，直接忽略保存。
+    const frozen = frozenBakedConfig();
+    if (frozen) return frozen;
+
     const result = validateConfig(config);
     if (!result.ok) {
       throw new Error(result.errors.join('; '));
@@ -540,41 +638,133 @@ export function createBackgroundServices(): BackgroundServices {
    * `executeScript` 往页面里 `window.postMessage`：那条消息页面的监听器也收得到，
    * nonce 和 payload 一起泄露。
    */
-  async function pushPayload(tabId: number, payload: unknown): Promise<void> {
+  async function pushPayload(tabId: number, payload: unknown | null, frameId?: number): Promise<void> {
     try {
-      await chrome.tabs.sendMessage(tabId, { action: 'applyPayload', payload });
+      const message = payload === null
+        ? { action: 'applyPayload', clear: true }
+        : { action: 'applyPayload', payload };
+      if (frameId === undefined) {
+        await chrome.tabs.sendMessage(tabId, message);
+      } else {
+        await chrome.tabs.sendMessage(tabId, message, { frameId });
+      }
     } catch (error) {
-      console.warn(`VanishGeo could not deliver payload to tab ${tabId}:`, error instanceof Error ? error.message : String(error));
+      // 清除指令是广播式的（配置一变就发给所有标签页），没有桥的页面收不到是常态，
+      // 不要为它刷一条 warning；真正该关心的 payload 投递失败照旧记录。
+      if (payload !== null) {
+        console.warn(`VanishGeo could not deliver payload to tab ${tabId}:`, error instanceof Error ? error.message : String(error));
+      }
     }
   }
 
-  /** 单标签页同步：装（幂等）+ 推 payload（幂等） */
-  async function syncTab(tabId: number, url: string, options?: { config?: SiteSpoofConfig; lastLocation?: LastLocation | null }): Promise<void> {
+  /**
+   * 每个 frame 用自己的 URL 解析 payload。
+   *
+   * about:blank / srcdoc / blob: 没有 hostname，用最近的 http(s) 父 frame 的 URL；
+   * 跨域子域用自己的 URL。返回的 frameId 直接交给 tabs.sendMessage，避免父页
+   * payload 被广播到独立规则的 iframe。
+   */
+  async function getFrameTargets(tabId: number, topUrl: string): Promise<Array<{ frameId?: number; url: string }>> {
+    const webNavigation = (chrome as any).webNavigation;
+    if (!webNavigation || typeof webNavigation.getAllFrames !== 'function') {
+      // 没有 webNavigation 权限（或测试替身）时退回不带 frameId 的广播；
+      // 桥的 hostname 校验仍会拒绝父页 payload，并自己重拉正确的那一份。
+      return [{ url: topUrl }];
+    }
+    const frames: chrome.webNavigation.GetAllFrameResultDetails[] = (await webNavigation
+      .getAllFrames({ tabId })
+      .catch(() => [] as chrome.webNavigation.GetAllFrameResultDetails[])) || [];
+    if (!frames.length) return [{ url: topUrl }];
+
+    const byId = new Map<number, chrome.webNavigation.GetAllFrameResultDetails>();
+    for (const frame of frames) byId.set(frame.frameId, frame);
+
+    const resolveUrl = (frame: chrome.webNavigation.GetAllFrameResultDetails, depth = 0): string => {
+      if (isScriptableUrl(frame.url)) return frame.url;
+      if (depth < 10 && frame.parentFrameId >= 0) {
+        const parent = byId.get(frame.parentFrameId);
+        if (parent) return resolveUrl(parent, depth + 1);
+      }
+      return topUrl;
+    };
+
+    return frames.map((frame) => ({ frameId: frame.frameId, url: resolveUrl(frame) }));
+  }
+
+  /** 每个标签页最多同时发多少个 frame 消息；IPC 并发太高反而会拖慢浏览器。 */
+  const FRAME_SEND_CONCURRENCY = 8;
+
+  async function runWithConcurrency<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<void> {
+    if (!tasks.length) return;
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(Math.max(1, limit), tasks.length) }, async () => {
+      while (true) {
+        const index = cursor;
+        cursor += 1;
+        if (index >= tasks.length) return;
+        await tasks[index]();
+      }
+    });
+    await Promise.all(workers);
+  }
+
+  /** 单标签页同步：装（幂等）+ 按 frame 推 payload（幂等） */
+  async function syncTab(tabId: number, url: string, options?: {
+    config?: SiteSpoofConfig;
+    lastLocation?: LastLocation | null;
+    clearUnmatched?: boolean;
+  }): Promise<void> {
     // persona 构建：配置已烘焙进 runtime.js，运行时不推 payload
     if (typeof __VANISHGEO_BRIDGE__ === 'boolean' && !__VANISHGEO_BRIDGE__) return;
+    if (!isScriptableUrl(url)) return;
     const config = options?.config || await getSiteConfig();
-    if (!isScriptableUrl(url) || !isUrlMatchedByEnabledRule(config, url)) return;
-
     const lastLocation = Object.prototype.hasOwnProperty.call(options || {}, 'lastLocation')
       ? options?.lastLocation || null
       : await getLastLocation();
-    const resolved = await buildPayloadForUrl(url, config, lastLocation);
-    if (!resolved.matched || !resolved.payload) return;
 
     await ensureRuntimeInDocument(tabId, url);
-    await pushPayload(tabId, resolved.payload);
+    const targets = await getFrameTargets(tabId, url);
+
+    // 多个 frame 的解析结果可以复用（about:blank / srcdoc / 同源 iframe 常常
+    // 最终落到同一个父 URL），而 tabs.sendMessage 是逐 frame 的 IPC。串行发
+    // 在几十个 iframe 的页面上会把配置生效拖到秒级；这里按 URL 去重解析，
+    // 再把投递限制在固定并发内。顺序不再重要：每个 frame 只有一条自己的消息。
+    const resolvedByUrl = new Map<string, Promise<EffectiveProfileResult>>();
+    const jobs = targets.map((target) => async () => {
+      let pending = resolvedByUrl.get(target.url);
+      if (!pending) {
+        pending = buildPayloadForUrl(target.url, config, lastLocation);
+        resolvedByUrl.set(target.url, pending);
+      }
+      const resolved = await pending;
+      if (resolved.matched && resolved.payload) {
+        await pushPayload(tabId, resolved.payload, target.frameId);
+      } else {
+        await pushPayload(tabId, null, target.frameId);
+      }
+    });
+    await runWithConcurrency(jobs, FRAME_SEND_CONCURRENCY);
   }
 
-  async function updateAllTabs(configOverride?: SiteSpoofConfig, lastLocationOverride?: LastLocation | null): Promise<void> {
+  async function updateAllTabs(
+    configOverride?: SiteSpoofConfig,
+    lastLocationOverride?: LastLocation | null,
+    options?: { clearUnmatched?: boolean }
+  ): Promise<void> {
     const config = configOverride || await getSiteConfig();
     const lastLocation = lastLocationOverride !== undefined ? lastLocationOverride : await getLastLocation();
-    if (!getContentScriptRegistration(config).matches.length) return;
 
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
-      if (tab.id && tab.url && isScriptableUrl(tab.url) && isUrlMatchedByEnabledRule(config, tab.url)) {
-        await syncTab(tab.id, tab.url, { config, lastLocation });
-      }
+      if (!tab.id || !tab.url || !isScriptableUrl(tab.url)) continue;
+      // 顶层 URL 未命中也要走 syncTab：它会给所有 frame 发 clear，子域 iframe
+      // 的桥再按自己的 URL 重拉。否则「父页不在规则里、iframe 在规则里」的
+      // 标签页在定位刷新 / 配置变更时永远收不到更新。
+      await syncTab(tab.id, tab.url, {
+        config,
+        lastLocation,
+        clearUnmatched: options?.clearUnmatched
+      });
     }
   }
 
@@ -597,12 +787,7 @@ export function createBackgroundServices(): BackgroundServices {
 
       for (const apiUrl of GEO_API_URLS) {
         try {
-          const response = await fetch(apiUrl, { cache: 'no-store' });
-          if (!response.ok) {
-            errors.push(`${apiUrl} HTTP ${response.status}`);
-            continue;
-          }
-          locationToSet = parseGeoApiResponse(await response.json());
+          locationToSet = parseGeoApiResponse(await fetchJson(apiUrl));
           if (locationToSet) break;
           errors.push(`${apiUrl} no valid location`);
         } catch (error) {
@@ -623,6 +808,10 @@ export function createBackgroundServices(): BackgroundServices {
       const nextLocation: LastLocation = { ...locationToSet, updateTime: new Date().toLocaleString() };
       await chrome.storage.local.set({ [LAST_LOCATION_KEY]: nextLocation, lastGeoError: '' });
       invalidateStorageCache();
+      // 坐标从"未解析"变成"已解析"时，权限层要从 block 切回 allow；
+      // auto 时区也可能跟着变，请求头一起重算。只调 updateAllTabs 会漏掉这两层。
+      await applyGeolocationPermissions(config);
+      await updateAcceptLanguageRules(config, nextLocation);
       await updateAllTabs(config, nextLocation);
       return { ok: true, location: nextLocation };
     } catch (error) {
@@ -717,6 +906,9 @@ export function createBackgroundServices(): BackgroundServices {
    * 排除还得能凭空建出"google.com 底下排除 mail.google.com"这种规则。
    */
   async function upsertDomainRule(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
+    // frozen 包没有桥，也没有可写的运行时配置；改规则只会白重载页面。
+    const frozen = frozenBakedConfig();
+    if (frozen) return frozen;
     const config = await getSiteConfig();
     const normalizedDomain = normalizeDomain(domain);
     if (!normalizedDomain) throw new Error('domain is required');
@@ -743,6 +935,8 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   async function deleteDomainRule(domain: string): Promise<SiteSpoofConfig> {
+    const frozen = frozenBakedConfig();
+    if (frozen) return frozen;
     const config = await getSiteConfig();
     const normalizedDomain = normalizeDomain(domain);
     config.rules = config.rules.filter((rule) => rule.domain !== normalizedDomain);
@@ -777,12 +971,13 @@ export function createBackgroundServices(): BackgroundServices {
    * 靠签名去重保证一次写入只应用一次。
    */
   async function applyConfig(configOverride?: SiteSpoofConfig): Promise<void> {
-    const config = normalizeConfig(configOverride || await getSiteConfig());
+    const config = frozenBakedConfig() || normalizeConfig(configOverride || await getSiteConfig());
     const signature = JSON.stringify(config);
     if (signature === lastAppliedSignature) return;
 
     await applyRuntimeSideEffects(config);
-    await updateAllTabs(config);
+    // clearUnmatched：排除站点、关总开关都要主动清掉已开页面上的烘焙值
+    await updateAllTabs(config, undefined, { clearUnmatched: true });
     // 只在成功之后记账：中途失败（DNR / 权限被策略锁住）时下一次还能重试，
     // 不会因为"记成已应用"而永久停在半应用状态。
     lastAppliedSignature = signature;

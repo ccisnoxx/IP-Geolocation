@@ -15,6 +15,7 @@ import { mkdtempSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { CDP, evaluate, launchChrome, sleep , killChrome } from './lib/cdp.mjs';
+import { loadExtension } from './lib/extension.mjs';
 
 const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
   const [key, value] = arg.replace(/^--/, '').split('=');
@@ -24,6 +25,7 @@ const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
 const persona = String(argv.persona || 'us-la-1');
 const defaultExt = join(homedir(), '.vanishgeo', 'profiles', persona, 'ext');
 const extensionPath = argv.extension ? resolve(String(argv.extension)) : defaultExt;
+if (process.env.VANISHGEO_LEGACY_EXTENSION === '1') process.env.VANISHGEO_EXTENSION = extensionPath;
 if (!existsSync(join(extensionPath, 'manifest.json'))) {
   console.error(`找不到构建产物: ${extensionPath}`);
   process.exit(2);
@@ -44,7 +46,7 @@ const chrome = await launchChrome({
 
 const cdp = await CDP.connect(chrome.websocketUrl);
 // Chrome 155 已忽略 --load-extension，Helium 还认；统一走 CDP 装一次，两边行为一致
-await cdp.send('Extensions.loadUnpacked', { path: extensionPath });
+await loadExtension(cdp, extensionPath);
 
 async function findServiceWorker(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;

@@ -13,6 +13,7 @@ export interface NativeSnapshot {
   timeZone: string;
   locale: string;
   language: string;
+  languages: string[];
 }
 
 export interface SignalSpoof {
@@ -22,6 +23,8 @@ export interface SignalSpoof {
   installDateMethods(): void;
   installDateConstructor(): void;
   installIntl(): void;
+  /** 还原所有已安装的替换；之后可以再次 install（配置重新命中时要用） */
+  uninstall(): void;
 }
 
 /**
@@ -63,9 +66,26 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
   const NativeDisplayNames = IntlRef.DisplayNames;
   const NativeSegmenter = IntlRef.Segmenter;
 
+  // 每个补丁在动手之前记下原描述符；uninstall 按相反顺序放回去。
+  // 这是"烘焙包排除站点 / 关总开关后能恢复原生"的基础。
+  const restores: Array<() => void> = [];
+
+  function remember(target: any, key: string): void {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(target, key);
+    } catch { /* ignore */ }
+    restores.push(() => {
+      try {
+        if (descriptor) Object.defineProperty(target, key, descriptor);
+        else delete target[key];
+      } catch { /* ignore */ }
+    });
+  }
+
   const disguise = deps.disguise;
 
-  const native: NativeSnapshot = { timeZone: '', locale: '', language: '' };
+  const native: NativeSnapshot = { timeZone: '', locale: '', language: '', languages: [] };
   try {
     const resolved = new NativeDateTimeFormat().resolvedOptions();
     native.timeZone = resolved.timeZone || '';
@@ -73,6 +93,11 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
   } catch { /* ignore */ }
   try {
     native.language = scope.navigator ? (scope.navigator.language || '') : '';
+  } catch { /* ignore */ }
+  try {
+    native.languages = scope.navigator && scope.navigator.languages
+      ? Array.from(scope.navigator.languages as ArrayLike<string>)
+      : [];
   } catch { /* ignore */ }
 
   let installedLanguage = false;
@@ -237,6 +262,7 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     installedDateMethods = true;
 
     const define = (key: string, value: any) => {
+      remember(dateProto, key);
       try {
         Object.defineProperty(dateProto, key, { value, writable: true, enumerable: false, configurable: true });
       } catch { /* ignore */ }
@@ -388,11 +414,13 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
       } catch { /* ignore */ }
     }
 
+    remember(dateProto, 'constructor');
     try {
       Object.defineProperty(dateProto, 'constructor', {
         value: Spoofed, writable: true, enumerable: false, configurable: true
       });
     } catch { /* ignore */ }
+    remember(scope, 'Date');
     try {
       scope.Date = Spoofed;
     } catch { /* ignore */ }
@@ -445,11 +473,13 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
           if (descriptor) Object.defineProperty(spoofed, key, descriptor);
         } catch { /* ignore */ }
       }
+      remember(Native.prototype, 'constructor');
       try {
         Object.defineProperty(Native.prototype, 'constructor', {
           value: spoofed, writable: true, enumerable: false, configurable: true
         });
       } catch { /* ignore */ }
+      remember(IntlRef, name);
       try {
         IntlRef[name] = spoofed;
       } catch { /* ignore */ }
@@ -466,21 +496,52 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     const languageDesc = Object.getOwnPropertyDescriptor(navProto, 'language');
     const languagesDesc = Object.getOwnPropertyDescriptor(navProto, 'languages');
 
+    // 关闭伪装时要回退到**安装瞬间**的原生值，而不是空串。配置被清空（切站点、
+    // 关开关）后 getter 仍然生效，返回 '' / [] 等于当场造出一个真机不存在的状态。
+    let nativeLanguage = native.language;
+    let nativeLanguages = native.languages.slice();
+    try {
+      if (scope.navigator) {
+        nativeLanguage = String(scope.navigator.language || nativeLanguage);
+        nativeLanguages = scope.navigator.languages
+          ? Array.from(scope.navigator.languages as ArrayLike<string>)
+          : nativeLanguages;
+      }
+    } catch { /* ignore */ }
+    const frozenNativeLanguages = Object.freeze(nativeLanguages.slice());
+
+    // WebIDL 是 `readonly attribute FrozenArray<DOMString> languages`：除了冻结，
+    // 还必须**每次返回同一个引用**。原生上 `navigator.languages === navigator.languages`
+    // 恒为 true；每次 new 一个数组，一行恒等比较就能看出被动过。
+    let cachedKey = '';
+    let cachedLanguages: readonly string[] = frozenNativeLanguages;
+    const currentLanguages = (): readonly string[] => {
+      const target = deps.languages();
+      if (!target || target.length === 0) return frozenNativeLanguages;
+      const key = target.join('\u0001');
+      if (key !== cachedKey) {
+        cachedKey = key;
+        cachedLanguages = Object.freeze(target.slice());
+      }
+      return cachedLanguages;
+    };
+
+    remember(navProto, 'language');
     try {
       Object.defineProperty(navProto, 'language', {
-        get: disguise(function () { return deps.language() || ''; }, 'get language', 0),
+        get: disguise(function () {
+          return deps.language() || nativeLanguage;
+        }, 'get language', 0),
         enumerable: languageDesc ? languageDesc.enumerable : true,
         configurable: true
       });
     } catch { /* ignore */ }
 
+    remember(navProto, 'languages');
     try {
-      // WebIDL 是 `readonly attribute FrozenArray<DOMString> languages`：
-      // 返回的数组必须冻结，否则 `navigator.languages.push(...)` 能改掉它 ——
-      // 而真机上这一步是抛错的。
       Object.defineProperty(navProto, 'languages', {
         get: disguise(function () {
-          return Object.freeze((deps.languages() || []).slice());
+          return currentLanguages();
         }, 'get languages', 0),
         enumerable: languagesDesc ? languagesDesc.enumerable : true,
         configurable: true
@@ -488,11 +549,26 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     } catch { /* ignore */ }
   }
 
+  function uninstall(): void {
+    while (restores.length) {
+      const restore = restores.pop();
+      try { restore?.(); } catch { /* ignore */ }
+    }
+    installedLanguage = false;
+    installedDateMethods = false;
+    installedDateConstructor = false;
+    installedIntl = false;
+    formatterCache = null;
+    offsetCacheZone = '';
+    offsetCache = new Map();
+  }
+
   return {
     native,
     installLanguage,
     installDateMethods,
     installDateConstructor,
-    installIntl
+    installIntl,
+    uninstall
   };
 }

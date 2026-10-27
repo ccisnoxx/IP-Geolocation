@@ -22,6 +22,7 @@ test('manifest uses dynamic injection instead of static all-url content scripts'
   assert.deepEqual(manifest.web_accessible_resources, []);
   assert.ok(manifest.permissions.includes('alarms'));
   assert.ok(manifest.permissions.includes('tabs'));
+  assert.ok(manifest.permissions.includes('webNavigation'), '按 frame 投递需要 webNavigation.getAllFrames');
 });
 
 test('vite builds the single injected runtime entry', () => {
@@ -119,7 +120,10 @@ test('payload 通道是私有 MessagePort，不再经 window.postMessage 广播'
   assert.match(runtime, /__vanishGeo !== NONCE/);
 
   // 后台推 payload 走 tabs.sendMessage → ISOLATED 桥 → 端口
-  assert.match(services, /chrome\.tabs\.sendMessage\(tabId, \{ action: 'applyPayload', payload \}\)/);
+  assert.match(services, /chrome\.tabs\.sendMessage\(tabId, message\)/);
+  assert.match(services, /payload === null[\s\S]{0,80}clear: true/);
+  // 排除站点 / 关总开关时桥必须收到 clear，否则烘焙值会一直留在页面上
+  assert.match(services, /clearUnmatched: true/);
 });
 
 test('不透明来源的 iframe 也注入（否则 srcdoc 里能读到原生对象）', () => {
@@ -216,4 +220,22 @@ test('发布流水线接得上：npm 脚本、校验工具、三道闸都在', (
   const verify = read('tools/verify-release.mjs');
   assert.match(verify, /__first/, '首屏校验必须在 document_start 抓快照');
   assert.match(verify, /host-resolver-rules/, '要把包里的域名指到本地');
+});
+
+test('不透明框架（about:blank / srcdoc）用 referrer 解析 payload', () => {
+  const content = read('src/content/content-bridge.ts');
+  assert.match(content, /resolvePayloadUrl\(environment\.window\.location\.href, environment\.document\.referrer\)/);
+  assert.match(content, /url: payloadUrl\(\)/);
+  assert.doesNotMatch(content, /url: environment\.window\.location\.href/);
+
+  // runtime 与 content 同时 import shared/frame-url 会抽出共享 chunk，
+  // 而 MAIN world 的经典脚本不能有 import —— 所以 runtime 保持自包含。
+  const runtime = read('src/injected/runtime.ts');
+  assert.match(runtime, /new URL\(document\.referrer\)\.hostname/);
+  assert.doesNotMatch(runtime, /from '\.\.\/shared\/frame-url'/);
+});
+
+test('manifest 声明最低 Chrome 版本（world: MAIN / matchOriginAsFallback 需要 119+）', () => {
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.equal(manifest.minimum_chrome_version, '119');
 });

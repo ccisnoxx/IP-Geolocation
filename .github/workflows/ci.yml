@@ -29,8 +29,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests
         run: npm test
+
+      - name: Core branch coverage
+        run: npm run test:coverage:core
 
       # 横幅是渲染产物：PNG 与 SVG 尺寸对不上就说明改了源文件没重新渲染
       - name: Verify banner renders

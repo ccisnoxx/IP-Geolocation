@@ -31,8 +31,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests
         run: npm test
+
+      - name: Core branch coverage
+        run: npm run test:coverage:core
 
       - name: Build extension
         run: npm run build

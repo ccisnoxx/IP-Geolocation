@@ -215,6 +215,7 @@ export function normalizeGeolocation(config: Partial<GeolocationConfig> | null |
     spoofPermission: input.spoofPermission !== false,
     history: Array.isArray(input.history)
       ? input.history
+          .filter((item) => item != null)
           .map((item) => ({
             latitude: Number(item.latitude),
             longitude: Number(item.longitude),

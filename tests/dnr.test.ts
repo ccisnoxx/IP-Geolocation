@@ -10,7 +10,7 @@ const LOCATION = {
   country: 'United States',
   timezone: 'America/Los_Angeles',
   timezoneOffset: -7,
-  updateTime: 0
+  updateTime: '2026-01-01 00:00:00'
 };
 
 
@@ -166,7 +166,7 @@ test('auto 时区拿不到定位时，Accept-Language 照样发（语言不依�
       geolocation: { enabled: false }
     },
     rules: [{ domain: 'claude.ai', enabled: true }]
-  });
+  } as any);
 
   // 定位还没回来：时区解析不出来，但语言是确定的 —— 头必须发，否则就会出现
   // 「请求头 zh-CN、页面 en-US」这种一眼可查的矛盾（真机实测踩过）
@@ -197,7 +197,7 @@ test('auto 时区拿不到定位时，Accept-Language 照样发（语言不依�
     country: 'United States',
     timezone: 'America/Los_Angeles',
     timezoneOffset: -7,
-    updateTime: 0
+    updateTime: '2026-01-01 00:00:00'
   });
   assert.equal(located.length, 1);
   assert.equal(located[0].action.requestHeaders?.[0].value, 'en-US,en;q=0.9');
@@ -211,6 +211,68 @@ test('auto 时区拿不到定位时，Accept-Language 照样发（语言不依�
       geolocation: { enabled: false }
     },
     rules: [{ domain: 'claude.ai', enabled: true }]
-  });
+  } as any);
   assert.equal(buildAcceptLanguageRules(manual, null).length, 1);
+});
+
+test('语言规则覆盖显式排除域，超过 ID 上限时抛错', () => {
+  const excluded = normalizeConfig({
+    masterEnabled: true,
+    globalProfile: { language: { enabled: true, language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' } },
+    rules: [
+      { domain: 'example.com', enabled: true },
+      { domain: 'mail.example.com', enabled: false }
+    ]
+  } as any);
+  const rules = buildAcceptLanguageRules(excluded, null);
+  assert.equal(rules.length, 1);
+  assert.deepEqual(rules[0].condition.excludedRequestDomains, ['mail.example.com']);
+
+  const tooMany = normalizeConfig({
+    masterEnabled: true,
+    globalProfile: { language: { enabled: true, language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' } },
+    rules: Array.from({ length: 1001 }, (_, index) => ({ domain: `d${index}.example`, enabled: true }))
+  } as any);
+  assert.throws(() => buildAcceptLanguageRules(tooMany, null), /Too many Accept-Language rules/);
+});
+
+test('updateAcceptLanguageRules：静态规则一致但还有遗留动态规则时清掉', async () => {
+  const config = staticRulesetConfig();
+  (globalThis as any).__VANISHGEO_STATIC_RULES__ = buildStaticAcceptLanguageRules(config, LOCATION);
+  const calls: string[] = [];
+  const chrome = fakeChrome(calls);
+  chrome.declarativeNetRequest.getDynamicRules = async () => [{ id: 1100 }];
+  chrome.declarativeNetRequest.updateDynamicRules = async (details: any) => { calls.push(`remove:${details.removeRuleIds.length}`); };
+  (globalThis as any).chrome = chrome;
+
+  await updateAcceptLanguageRules(config, LOCATION);
+  assert.deepEqual(calls, ['remove:1000']);
+  delete (globalThis as any).__VANISHGEO_STATIC_RULES__;
+});
+
+test('updateAcceptLanguageRules：动态规则已经一致时不重复写', async () => {
+  const config = staticRulesetConfig();
+  const dynamic = buildAcceptLanguageRules(config, LOCATION);
+  const calls: string[] = [];
+  const chrome = fakeChrome(calls, dynamic);
+  chrome.declarativeNetRequest.getEnabledRulesets = async () => [];
+  (globalThis as any).chrome = chrome;
+
+  await updateAcceptLanguageRules(config, LOCATION);
+  assert.deepEqual(calls, []);
+});
+
+test('updateAcceptLanguageRules：没有 API 或 ruleset 查询失败时安全退化', async () => {
+  const config = staticRulesetConfig();
+  (globalThis as any).chrome = {};
+  await updateAcceptLanguageRules(config, LOCATION);
+
+  const calls: string[] = [];
+  const chrome = fakeChrome(calls);
+  chrome.declarativeNetRequest.getEnabledRulesets = async () => { throw new Error('not ready'); };
+  (globalThis as any).chrome = chrome;
+  (globalThis as any).__VANISHGEO_STATIC_RULES__ = buildStaticAcceptLanguageRules(config, LOCATION);
+  await updateAcceptLanguageRules(config, LOCATION);
+  assert.deepEqual(calls, ['updateDynamicRules']);
+  delete (globalThis as any).__VANISHGEO_STATIC_RULES__;
 });

@@ -15,6 +15,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CDP, evaluate, launchChrome, sleep , killChrome } from './lib/cdp.mjs';
+import { loadExtension } from './lib/extension.mjs';
 import { lookupExit as lookupExitShared } from './lib/exit.mjs';
 
 const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -29,6 +30,7 @@ const extensionPath = argv.extension
   ? String(argv.extension)
   : join(homedir(), '.vanishgeo', 'profiles', persona, 'ext');
 const url = String(argv.url || 'https://claude.ai/signup');
+if (process.env.VANISHGEO_LEGACY_EXTENSION === '1') process.env.VANISHGEO_EXTENSION = extensionPath;
 
 const results = [];
 function check(name, ok, detail) {
@@ -59,7 +61,7 @@ const chrome = await launchChrome({
 });
 const cdp = await CDP.connect(chrome.websocketUrl);
 // 统一用 CDP 装载（Chrome 155 已忽略 --load-extension，Helium 两者都行），并等它真的起来
-await cdp.send('Extensions.loadUnpacked', { path: extensionPath });
+await loadExtension(cdp, extensionPath);
 for (let index = 0; index < 40; index += 1) {
   const { targetInfos } = await cdp.send('Target.getTargets');
   if (targetInfos.some((item) => item.url.includes('/background/service-worker.js'))) break;
@@ -71,16 +73,22 @@ await cdp.send('Page.enable', {}, sessionId);
 await cdp.send('Runtime.enable', {}, sessionId);
 await cdp.send('Network.enable', {}, sessionId);
 
-// 抓主文档真实发出的请求头（扩展的 DNR 规则是在网络层生效的，这里能看到最终值）
+// 抓主文档真实发出的请求头（扩展的 DNR 规则是在网络层生效的，这里能看到最终值）。
+// 只认 type=Document 的 requestId：页面里的 favicon / 预加载请求也带 Accept-Language，
+// 取“最后一个”会偶发拿到浏览器的默认 zh-CN，制造假失败。
+const documentRequestIds = new Set();
 const documentHeaders = [];
 cdp.on((message) => {
   if (message.method === 'Page.javascriptDialogOpening') {
     cdp.send('Page.handleJavaScriptDialog', { accept: true }, message.sessionId).catch(() => {});
   }
+  if (message.method === 'Network.requestWillBeSent' && message.params.type === 'Document') {
+    documentRequestIds.add(message.params.requestId);
+  }
   if (message.method === 'Network.requestWillBeSentExtraInfo') {
+    if (!documentRequestIds.has(message.params.requestId)) return;
     const headers = message.params.headers || {};
     const lower = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
-    if (lower['accept-language'] && lower['user-agent'] && !lower['sec-fetch-dest']) return;
     if (lower['accept-language']) documentHeaders.push(lower);
   }
 });

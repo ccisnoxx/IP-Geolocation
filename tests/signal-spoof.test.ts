@@ -191,6 +191,22 @@ test('navigator.languages 是冻结数组（FrozenArray 语义）', () => {
   // V8 对原生访问器输出的是 "function get x() { [native code] }"，带 get 前缀
   assert.equal(desc.get!.toString(), 'function get languages() { [native code] }');
   assert.equal(desc.get!.name, 'get languages');
+
+  // 恒等性：原生 FrozenArray 每次访问返回同一个引用，不能每次都 new 一个
+  const stable = navigator.languages;
+  assert.equal(navigator.languages, stable, 'navigator.languages 必须是稳定引用');
+
+  // 关闭语言伪装后必须回退到安装瞬间的原生值，而不是 '' / []
+  current.language = null;
+  current.languages = null;
+  assert.equal(navigator.language, 'en-US', '关闭后不能返回空串');
+  assert.deepEqual([...navigator.languages], ['en-US'], '关闭后不能返回空数组');
+  assert.equal(Object.isFrozen(navigator.languages), true);
+  assert.equal(navigator.languages, navigator.languages);
+
+  // 恢复，避免影响后面的用例
+  current.language = 'ja-JP';
+  current.languages = ['ja-JP', 'ja'];
 });
 
 test('原生快照可用，且"要不要打补丁"由调用方按快照决定', () => {

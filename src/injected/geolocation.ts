@@ -1,4 +1,4 @@
-export interface GeolocationPayload {
+export interface GeolocationConfigPayload {
   latitude: number;
   longitude: number;
   accuracy: number;
@@ -6,6 +6,13 @@ export interface GeolocationPayload {
   randomRadiusMeters: number;
   spoofPermission: boolean;
 }
+
+/** 坐标解析不出来时的 fail-closed 模式：不碰原生权限，直接返回 POSITION_UNAVAILABLE */
+export interface GeolocationDenyPayload {
+  deny: true;
+}
+
+export type GeolocationPayload = GeolocationConfigPayload | GeolocationDenyPayload;
 
 export interface GeolocationInstallerDeps {
   /** 当前 payload 的定位数据。必须是实时读取：配置可能在安装之后才到。 */
@@ -46,12 +53,40 @@ interface CoordinateSlots {
  */
 let installed = false;
 
-export function installGeolocation(deps: GeolocationInstallerDeps): void {
+// 安装前记下原描述符，uninstall 时按相反顺序放回去。模块级是因为
+// Geolocation 的原型链是全局单例，一个 realm 只可能有一份补丁。
+const restores: Array<() => void> = [];
+
+function remember(target: any, key: string): void {
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(target, key);
+  } catch { /* ignore */ }
+  restores.push(() => {
+    try {
+      if (descriptor) Object.defineProperty(target, key, descriptor);
+      else delete target[key];
+    } catch { /* ignore */ }
+  });
+}
+
+/** 还原所有已安装的定位补丁；正在跑的 watchPosition 定时器一并停掉。 */
+export function uninstallGeolocation(): void {
+  while (restores.length) {
+    const restore = restores.pop();
+    try { restore?.(); } catch { /* ignore */ }
+  }
+  installed = false;
+}
+
+export function installGeolocation(deps: GeolocationInstallerDeps): boolean {
   const scope: any = typeof globalThis !== 'undefined' ? globalThis : {};
   const proto = scope.Geolocation && scope.Geolocation.prototype;
   // 安装标记留在模块作用域：在 Geolocation.prototype 上挂个自有属性，
   // getOwnPropertyNames 一眼就能看见，等于给页面留了个"已注入"的记号。
-  if (!proto || installed) return;
+  if (!proto) return false;
+  // 已经装过时返回 true：调用方用返回值同步安装状态，不能让它误以为没装上。
+  if (installed) return true;
   installed = true;
 
   const disguise = deps.disguise;
@@ -63,11 +98,18 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
   const positionSlots = new WeakMap<object, { coords: any; timestamp: number }>();
   const errorSlots = new WeakMap<object, { code: number; message: string }>();
 
+  // value 为 null 表示 deny 模式发出的 id：没有定时器，但不能让 clearWatch 把它
+  // 当成"不是我们的 id"转交给原生 —— 原生 id 是小的自增值，很容易撞上。
   const watches = new Map<number, any>();
   let nextWatchId = 1;
+  restores.push(() => {
+    watches.forEach((handle) => { if (handle !== null) clearInterval(handle); });
+    watches.clear();
+  });
 
   /** WebIDL 的 attribute / operation 都是 enumerable + configurable */
   const defineMember = (target: any, key: string, value: any): void => {
+    remember(target, key);
     try {
       Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true });
     } catch { /* ignore */ }
@@ -83,6 +125,7 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
     if (!target) return;
     const descriptor = Object.getOwnPropertyDescriptor(target, key);
     const nativeGetter = descriptor && typeof descriptor.get === 'function' ? descriptor.get : null;
+    remember(target, key);
     try {
       Object.defineProperty(target, key, {
         get: disguise(function (this: any) {
@@ -172,7 +215,7 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
     };
   };
 
-  const sessionPointFor = (geo: GeolocationPayload): { latitude: number; longitude: number } => {
+  const sessionPointFor = (geo: GeolocationConfigPayload): { latitude: number; longitude: number } => {
     const radius = geo.randomize ? Math.max(0, Number(geo.randomRadiusMeters) || 0) : 0;
     const key = `${geo.latitude},${geo.longitude},${radius}`;
     if (sessionPoint && sessionKey === key) return sessionPoint;
@@ -184,7 +227,7 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
 
   // ---------- 实例构造 ----------
 
-  const buildCoordinates = (geo: GeolocationPayload): any => {
+  const buildCoordinates = (geo: GeolocationConfigPayload): any => {
     const point = sessionPointFor(geo);
     const target = scope.GeolocationCoordinates && scope.GeolocationCoordinates.prototype;
     const coords = target ? Object.create(target) : {};
@@ -200,7 +243,7 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
     return coords;
   };
 
-  const buildPosition = (geo: GeolocationPayload): any => {
+  const buildPosition = (geo: GeolocationConfigPayload): any => {
     const target = scope.GeolocationPosition && scope.GeolocationPosition.prototype;
     const position = target ? Object.create(target) : {};
     positionSlots.set(position, { coords: buildCoordinates(geo), timestamp: deps.now() });
@@ -235,7 +278,7 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
     }, 1);
   };
 
-  const deliver = (geo: GeolocationPayload, success?: any): void => {
+  const deliver = (geo: GeolocationConfigPayload, success?: any): void => {
     const position = buildPosition(geo);
     // 原生实现走任务队列，这里同样走宏任务（不能用 microtask）
     setTimeout(() => {
@@ -247,7 +290,9 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
 
   defineMember(proto, 'getCurrentPosition', disguise(function (this: any, success?: any, error?: any, options?: any) {
     const geo = deps.get();
-    if (!geo) { reportUnavailable(error); return; }
+    // deny：坐标解析不出来时 fail-closed。即使 spoofPermission=false 也不交给原生，
+    // 否则站点拿到的是真实定位 —— 这正是这条路径要避免的。
+    if (!geo || 'deny' in geo) { reportUnavailable(error); return; }
 
     if (geo.spoofPermission === false && typeof nativeGetCurrentPosition === 'function') {
       // 权限、提示、错误码、超时全部走真实实现，只替换成功回调里的坐标
@@ -262,18 +307,22 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
 
   defineMember(proto, 'watchPosition', disguise(function (this: any, success?: any, error?: any, options?: any) {
     const geo = deps.get();
+    const id = nextWatchId;
+    nextWatchId += 1;
+    // deny 优先于权限委托：坐标解析不出来时，原生 watch 也不能把真实位置交出去。
+    if (!geo || 'deny' in geo) {
+      watches.set(id, null);
+      reportUnavailable(error);
+      return id;
+    }
 
     // 把请求交给原生 watch：权限与错误由浏览器负责，回调里的坐标换成伪装值。
     // 回调节奏也跟着真实设备走，比自造一个 3 秒定时器更像真机。
-    if (geo && geo.spoofPermission === false && typeof nativeWatchPosition === 'function') {
+    if (geo.spoofPermission === false && typeof nativeWatchPosition === 'function') {
       return nativeWatchPosition.call(this, function () {
         try { success?.(buildPosition(geo)); } catch { /* ignore */ }
       }, error, options);
     }
-
-    const id = nextWatchId;
-    nextWatchId += 1;
-    if (!geo) { reportUnavailable(error); return id; }
 
     const emit = () => {
       try { success?.(buildPosition(geo)); } catch { /* ignore */ }
@@ -291,7 +340,10 @@ export function installGeolocation(deps: GeolocationInstallerDeps): void {
       if (typeof nativeClearWatch === 'function') nativeClearWatch.call(this, id);
       return;
     }
-    clearInterval(handle);
     watches.delete(id);
+    if (handle === null) return;
+    clearInterval(handle);
   }, 'clearWatch', 1));
+
+  return true;
 }

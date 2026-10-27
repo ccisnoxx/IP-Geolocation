@@ -284,11 +284,11 @@ function renderAudit(config: SiteSpoofConfig): void {
   }
 
   for (const finding of findings) {
-    container.appendChild(renderFinding(finding, config));
+    container.appendChild(renderFinding(finding));
   }
 }
 
-function renderFinding(finding: AuditFinding, config: SiteSpoofConfig): HTMLElement {
+function renderFinding(finding: AuditFinding): HTMLElement {
   const item = document.createElement('div');
   item.className = `audit-item ${finding.severity}`;
 

@@ -67,14 +67,37 @@ export function workerPatch(config: WorkerPatchConfig): void {
     try { signatures.set(impl, `function ${name}() { [native code] }`); } catch { /* ignore */ }
     return impl;
   };
+  /**
+   * 替换成员时保留原描述符的 enumerable。
+   *
+   * WebIDL 的 operation（`measureText`）在原型上是可枚举的，ES class 的方法不是；
+   * 全局属性（`window.Worker`）同样可枚举。一律写成 false 会留下一个纯描述符指纹，
+   * 比函数内容本身好查得多。
+   */
+  const enumerableOf = (target: any, key: string, fallback: boolean): boolean => {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(target, key);
+      if (descriptor && typeof descriptor.enumerable === 'boolean') return descriptor.enumerable;
+    } catch { /* ignore */ }
+    return fallback;
+  };
   const putGetter = (target: any, key: string, getter: any): void => {
     try {
-      Object.defineProperty(target, key, { get: wrap(getter, `get ${key}`), enumerable: true, configurable: true });
+      Object.defineProperty(target, key, {
+        get: wrap(getter, `get ${key}`),
+        enumerable: enumerableOf(target, key, true),
+        configurable: true
+      });
     } catch { /* ignore */ }
   };
   const putValue = (target: any, key: string, value: any, writable: boolean): void => {
     try {
-      Object.defineProperty(target, key, { value, writable, enumerable: false, configurable: true });
+      Object.defineProperty(target, key, {
+        value,
+        writable,
+        enumerable: enumerableOf(target, key, false),
+        configurable: true
+      });
     } catch { /* ignore */ }
   };
 
@@ -103,10 +126,15 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
   if (language) {
     const nav = scope.navigator;
-    if (nav) {
-      putGetter(nav, 'language', function () { return language; });
-      // WebIDL: readonly attribute FrozenArray<DOMString> —— 必须冻结
-      putGetter(nav, 'languages', function () { return Object.freeze(languageList.slice()); });
+    // 补在**原型**上，不是 navigator 实例上：原生 WorkerNavigator 的实例零自有属性，
+    // `Object.getOwnPropertyNames(navigator)` 里出现 language / languages 就是一行检测。
+    const navProto = nav ? Object.getPrototypeOf(nav) : null;
+    if (navProto) {
+      // WebIDL: readonly attribute FrozenArray<DOMString> —— 冻结之外还必须是稳定引用，
+      // 否则 `navigator.languages === navigator.languages` 直接是 false。
+      const frozenLanguages = Object.freeze(languageList.slice());
+      putGetter(navProto, 'language', function () { return language; });
+      putGetter(navProto, 'languages', function () { return frozenLanguages; });
     }
   }
 
@@ -325,7 +353,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
           ? new NativeDate(parseDateString(args[0]))
           : new NativeDate(args[0]);
       }
-      const base = NativeDate.UTC.apply(NativeDate, args.map(Number));
+      const base = NativeDate.UTC(...args.map(Number));
       return new NativeDate(resolveWall(base));
     };
     const Spoofed: any = wrap(SpoofedDate, 'Date', 7);

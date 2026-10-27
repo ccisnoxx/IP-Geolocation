@@ -273,6 +273,13 @@ function resolveManualGeolocation(geolocationConfig: GeolocationConfig): Geoloca
   };
 }
 
+function lastCoordinate(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function resolveGeolocationValue(
   geolocationConfig: GeolocationConfig | null,
   lastLocation: LastLocation | null
@@ -282,13 +289,16 @@ function resolveGeolocationValue(
     const manual = resolveManualGeolocation(geolocationConfig);
     return manual as (GeolocationConfig & { latitude: number; longitude: number }) | null;
   }
-  if (!lastLocation || !Number.isFinite(Number(lastLocation.latitude)) || !Number.isFinite(Number(lastLocation.longitude))) {
+  // Number(null) === 0：旧缓存里缺字段时不能把它当成几内亚湾的合法坐标。
+  const latitude = lastCoordinate(lastLocation?.latitude);
+  const longitude = lastCoordinate(lastLocation?.longitude);
+  if (!lastLocation || latitude === null || longitude === null) {
     return null;
   }
   return {
     ...geolocationConfig,
-    latitude: Number(lastLocation.latitude),
-    longitude: Number(lastLocation.longitude),
+    latitude,
+    longitude,
     country: lastLocation.country || '',
     timezone: lastLocation.timezone || null
   };
@@ -331,7 +341,11 @@ export function getEffectiveProfile(
   const language = resolveSignal(normalized.globalProfile.language, rule.overrides.language, normalizeLanguage);
   const timezoneConfig = resolveSignal(normalized.globalProfile.timezone, rule.overrides.timezone, normalizeTimezone);
   const geolocationConfig = resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
-  const geolocation = resolveGeolocationValue(geolocationConfig, lastLocation);
+  // override 的 custom 值可能带 enabled:false；先按开关收口，再解析坐标。
+  const geolocationEnabled = Boolean(geolocationConfig && geolocationConfig.enabled !== false);
+  const geolocation = geolocationEnabled ? resolveGeolocationValue(geolocationConfig, lastLocation) : null;
+  // 启用但解析不出来 → deny，而不是退回原生。后者会把真实位置交给站点。
+  const geolocationDenied = geolocationEnabled && !geolocation;
   const timezone = resolveTimezoneValue(timezoneConfig, geolocation, lastLocation);
   const canvas = normalizeCanvas(normalized.canvas);
   // payload 携带三层原始字段，**不在这里展开**成字体列表。
@@ -343,7 +357,7 @@ export function getEffectiveProfile(
   const canvasConfig = canvas;
   const errors: string[] = [];
 
-  if (geolocationConfig && !geolocation) {
+  if (geolocationEnabled && !geolocation) {
     errors.push('geolocation is enabled but no valid coordinates are available');
   }
   if (timezoneConfig && !timezone.timezone) {
@@ -358,7 +372,7 @@ export function getEffectiveProfile(
   // 定位和 canvas 同样是独立的改写层，必须各自能把 payload 拉起来。
   // 旧实现只认语言/时区，于是 geo-only、canvas-only 的配置拿到 payload=null：
   // 扩展装上了、站点也在白名单里，页面却什么都没变。
-  const geolocationUsable = Boolean(geolocation);
+  const geolocationUsable = Boolean(geolocation) || geolocationDenied;
   const canvasUsable = Boolean(canvas.enabled);
   if (!languageUsable && !timezoneUsable && !geolocationUsable && !canvasUsable) {
     return { matched: true, rule, payload: null, errors };
@@ -372,7 +386,9 @@ export function getEffectiveProfile(
       debugMode: normalized.debugMode,
       ruleId: rule.id,
       domain: rule.domain,
+      hostname: normalizeDomain(hostname),
       geolocation,
+      geolocationDenied,
       latitude: geolocation ? geolocation.latitude : null,
       longitude: geolocation ? geolocation.longitude : null,
       timezone: timezone.timezone || null,
