@@ -40,6 +40,8 @@ interface RuntimeState {
   debug: boolean;
   installedCanvas: boolean;
   canvasTargetFonts: string[] | null;
+  /** 诊断回报用：当前生效的字体层配置（不含字表本身） */
+  canvasConfig: { platform?: string; hideCjkFonts?: boolean } | null;
   installedWorker: boolean;
 }
 
@@ -61,6 +63,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     debug: false,
     installedCanvas: false,
     canvasTargetFonts: null,
+    canvasConfig: null,
     installedWorker: false
   };
 
@@ -292,6 +295,9 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       : [];
     // 字体目标要跟着当前 payload 走：canvas 被关掉以后 Worker 里不该继续按老列表伪造
     state.canvasTargetFonts = canvasConfig && canvasConfig.spoofFonts ? canvasTargets.slice() : [];
+    state.canvasConfig = canvasConfig
+      ? { platform: canvasConfig.platform, hideCjkFonts: canvasConfig.hideCjkFonts }
+      : null;
     if (canvasConfig) installCanvas(canvasConfig, canvasTargets);
     const needCanvas = Boolean(canvasConfig && canvasConfig.spoofFonts && canvasTargets.length);
     if (needTimezone || needLanguage || needLocale || needCanvas) installWorker();
@@ -330,11 +336,28 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       const port = event.ports && event.ports[0];
       if (!port) return;
       window.removeEventListener('message', onHandshake);
+      // 回报通道：诊断页要显示"页面实际生效的字体层"。三张字表只存在于这个文件里
+      // （注入层必须自包含），所以数字只能由这里给，不能在诊断页另算一份。
+      // 端口是私有的，页面看不到这条消息。
+      const report = () => {
+        try {
+          port.postMessage({
+            __vanishGeo: NONCE,
+            kind: 'fontLayers',
+            layers: {
+              count: state.canvasTargetFonts ? state.canvasTargetFonts.length : 0,
+              platform: (state.canvasConfig && state.canvasConfig.platform) || 'auto',
+              hideCjkFonts: Boolean(state.canvasConfig && state.canvasConfig.hideCjkFonts)
+            }
+          });
+        } catch { /* 端口已关闭 */ }
+      };
       port.onmessage = (message: MessageEvent) => {
         const payload: any = message.data;
         if (!payload || typeof payload !== 'object' || payload.__vanishGeo !== NONCE) return;
         try {
           applySpoof(payload.payload);
+          report();
         } catch { /* ignore */ }
       };
       port.start();

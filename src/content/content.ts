@@ -84,8 +84,18 @@
     const channel = new MessageChannel();
     const inbox = channel.port1;
     inbox.onmessage = (event) => {
-      if (port) return;
       const data: any = event.data;
+      // runtime 报上来的"实际生效字体层"：转给后台存一份，诊断页要用。
+      // 数字只有 runtime 知道（字表就编在它里面），这里只做搬运。
+      //
+      // 这一支必须排在 `if (port) return` 前面 —— 握手完成后这个端口就常开了，
+      // 回报是在 payload 应用之后才来的，被那句提前返回挡掉过一次。
+      if (data && data.__vanishGeo === NONCE && data.kind === 'fontLayers') {
+        chrome.runtime.sendMessage({ action: 'reportFontLayers', url: window.location.href, layers: data.layers })
+          ?.catch(() => undefined);
+        return;
+      }
+      if (port) return;
       // ack 里带 nonce：确认对面真的是那个 runtime，而不是页面伪造的端口
       if (!data || data.__vanishGeo !== 'ack' || data.nonce !== NONCE) return;
       onPortReady(inbox);
