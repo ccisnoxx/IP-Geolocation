@@ -1,10 +1,10 @@
 import { resolveBakedPayload, type BakedRuntimePayload } from './baked-resolver';
 import { installCanvasFontPatches } from './canvas-patch';
 import { createDisguise } from './disguise';
+import { rewriteFontString } from './font-mask';
 import {
   buildTargetFontKeys,
   isTargetFontFamily,
-  normalizeFontFamily,
   resolveCanvasTargetFonts
 } from '../shared/font-aliases';
 import { installGeolocation } from './geolocation';
@@ -86,46 +86,13 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
 
   // ---------- canvas / fonts ----------
 
-  // 归一化必须与别名表（shared/font-aliases）完全一致，否则 "苹方-简" 这种
-  // 本地化名字会和 "PingFang SC" 对不上，只按拉丁名匹配会漏掉一整类探测。
-  const fontFamilyKey = normalizeFontFamily;
-
-  function splitFontFamilies(familyList: string): string[] {
-    const families: string[] = [];
-    let current = '';
-    let quote: '"' | "'" | null = null;
-    let escaped = false;
-    for (const char of familyList) {
-      if (escaped) { current += char; escaped = false; continue; }
-      if (char === '\\') { current += char; escaped = true; continue; }
-      if ((char === '"' || char === "'") && !quote) { quote = char; current += char; continue; }
-      if (quote && char === quote) { quote = null; current += char; continue; }
-      if (char === ',' && !quote) {
-        if (current.trim()) families.push(current.trim());
-        current = '';
-        continue;
-      }
-      current += char;
-    }
-    if (current.trim()) families.push(current.trim());
-    return families;
-  }
-
-  const FONT_SIZE_PATTERN = /(?:^|\s)(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|larger|smaller|(?:\d*\.)?\d+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%))(?:\/(?:normal|[\d.]+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%)?))?(?=\s|$)/i;
-
   let targetFontKeys = new Set<string>();
 
+  // 摘掉命中族名这件事的细节（尤其是"摘掉之后填什么"）见 font-mask.ts。
   function fallbackFont(font: string): string | null {
-    if (!font || targetFontKeys.size === 0) return null;
-    const sizeMatch = font.match(FONT_SIZE_PATTERN);
-    if (!sizeMatch || sizeMatch.index === undefined) return null;
-    const familyStart = sizeMatch.index + sizeMatch[0].length;
-    const prefix = font.slice(0, familyStart).trim();
-    const families = splitFontFamilies(font.slice(familyStart).trim());
-    if (!families.length) return null;
-    const kept = families.filter((family) => !isTargetFontFamily(family, targetFontKeys));
-    if (kept.length === families.length) return null;
-    return `${prefix} ${kept.length ? kept.join(', ') : 'monospace'}`;
+    // 没有目标字体时直接跳过：每个 measureText 都会走这里，热路径上别做正则
+    if (targetFontKeys.size === 0) return null;
+    return rewriteFontString(font, (family) => isTargetFontFamily(family, targetFontKeys));
   }
 
   function installCanvas(config: BakedRuntimePayload['canvasConfig'], targetFonts: string[]): void {
