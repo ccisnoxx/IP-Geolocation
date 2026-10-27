@@ -271,8 +271,8 @@ npm run release -- --preset=singapore --domains=claude.ai,anthropic.com
 产物在 `release/`：
 
 ```
-vanishgeo-1.2.1-singapore.zip        93 KB   Asia/Singapore en-SG   13 条静态规则
-vanishgeo-1.2.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 域名 / 构建时间
+vanishgeo-1.3.0-singapore.zip        93 KB   Asia/Singapore en-SG   13 条静态规则
+vanishgeo-1.3.0-singapore.json       同名清单：sha256 / git sha / 坐标 / 域名 / 构建时间
 ```
 
 三道闸，任一不过就不出包（**检查的是产物内容，不是退出码**）：
@@ -289,7 +289,7 @@ vanishgeo-1.2.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 
 这两件事在开发构建里恰好会分叉，所以要单独量：
 
 ```bash
-npm run verify:release -- --zip=release/vanishgeo-1.2.1-united-states.zip
+npm run verify:release -- --zip=release/vanishgeo-1.3.0-united-states.zip
 ```
 
 ```

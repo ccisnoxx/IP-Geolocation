@@ -55,6 +55,18 @@ jobs:
           zip -r ../vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip .
           cd ..
 
+      # 上面那个 zip 是开发构建：配置要经一次异步 IPC 才进页面，页面的第一个内联
+      # 脚本可能先跑。这一步额外产出烘焙构建（每个 preset 一份），首屏零窗口。
+      # 三道闸（产物里有目标时区 / 经典脚本 / 静态规则非空）不过就不出包。
+      - name: Bake per-preset builds
+        run: npm run release -- --all-presets --out=release
+
+      - name: Verify baked builds
+        run: |
+          for zip in release/*.zip; do
+            node scripts/release.mjs --check="$zip"
+          done
+
       - name: Generate changelog
         id: changelog
         run: |
@@ -73,7 +85,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip
+          files: |
+            vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip
+            release/*.zip
           body: |
             ## VanishGeo v${{ steps.get_version.outputs.VERSION }}
 
@@ -86,6 +100,22 @@ jobs:
 
             首次安装会自动启用内置的 13 个域名规则（`src/shared/default-domains.json`）。
             The built-in allowlist of 13 domains is enabled on first install.
+
+            ### 零首屏窗口（可选）/ Zero first-paint window
+
+            `vanishgeo-v…zip` 是开发构建：配置经异步 IPC 进页面，页面的**第一个内联脚本**
+            可能读到原生值。要彻底关掉这个窗口，用按城市烘焙好的包：
+
+            ```
+            vanishgeo-${{ steps.get_version.outputs.VERSION }}-singapore.zip    Asia/Singapore   en-SG
+            vanishgeo-${{ steps.get_version.outputs.VERSION }}-japan.zip        Asia/Tokyo       ja-JP
+            vanishgeo-${{ steps.get_version.outputs.VERSION }}-germany.zip      Europe/Berlin    de-DE
+            vanishgeo-${{ steps.get_version.outputs.VERSION }}-united-states.zip America/New_York en-US
+            vanishgeo-${{ steps.get_version.outputs.VERSION }}-china.zip        Asia/Shanghai    zh-CN
+            ```
+
+            配置已编译进 `injected/runtime.js`，`document_start` 同步生效。安装方式同上。
+            其余城市/地区可本地构建：`npm run release -- --preset=<id>`（见 CONFIG_GUIDE §十）。
 
             ### 更新日志 / Changelog
 
