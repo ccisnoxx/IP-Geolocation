@@ -191,7 +191,7 @@ test('旧配置里那张中文表会被搬进 hideCjkFonts，行为不变', () =
   } as any;
 
   const migrated = normalizeConfig(legacy);
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
   assert.equal(migrated.canvas.hideCjkFonts, true, '旧的中文表必须继续生效');
   // 旧条目原样保留在手动层（解析时去重），一条都不能丢
   assert.deepEqual(migrated.canvas.targetFonts, ['Microsoft YaHei', 'PingFang SC', 'SimSun', 'MiSans']);

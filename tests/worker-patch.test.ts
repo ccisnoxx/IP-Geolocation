@@ -13,7 +13,20 @@ import type { WorkerPatchConfig } from '../src/injected/worker-patch';
 function createWorkerContext(config: WorkerPatchConfig): vm.Context {
   const context = vm.createContext({ console });
   vm.runInContext('globalThis.self = globalThis;', context);
-  vm.runInContext('globalThis.navigator = { language: "zh-CN", languages: ["zh-CN"] };', context);
+  // 真实 WorkerNavigator：值全在原型上，实例零自有属性。用字面量会被自己的
+  // 自有属性遮住原型 getter，测出来的是"补丁没生效"这种假失败。
+  vm.runInContext(`
+    globalThis.WorkerNavigator = function WorkerNavigator() {};
+    const define = (key, value) => Object.defineProperty(WorkerNavigator.prototype, key, {
+      get() { return value; }, enumerable: true, configurable: true
+    });
+    define('language', 'zh-CN');
+    define('languages', ['zh-CN', 'zh']);
+    define('userAgent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36');
+    define('appVersion', '5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36');
+    define('platform', 'MacIntel');
+    globalThis.navigator = new WorkerNavigator();
+  `, context);
   // tsx 会用 esbuild 的 keepNames 把每个函数包成 __name(fn, "fn")，那个 helper 在模块
   // 作用域里。生产构建（vite）不开 keepNames，dist 里没有它（见下面的产物守卫）。
   // 这里按 esbuild 原样补一个，才能在测试环境里跑到和线上一致的等价代码。
@@ -39,6 +52,22 @@ const TOKYO: WorkerPatchConfig = {
 test('Worker 补丁自包含：裸上下文里能直接执行', () => {
   const context = createWorkerContext(TOKYO);
   assert.equal(evaluate(context, 'typeof Date'), 'function');
+});
+
+test('Worker 里的平台声称：UA / platform 与主线程同源，且实例上零自有属性', () => {
+  const context = createWorkerContext({
+    ...TOKYO,
+    platform: { uaToken: 'Windows NT 10.0; Win64; x64', platform: 'Win32' }
+  });
+  const ua = evaluate<string>(context, 'navigator.userAgent');
+  assert.match(ua, /Windows NT 10\.0; Win64; x64/);
+  assert.doesNotMatch(ua, /Macintosh/, 'UA 里的 mac 段必须换掉');
+  assert.match(ua, /Chrome\/155\.0\.0\.0/, 'Chrome 版本不能动，否则和 brands 打架');
+  assert.equal(evaluate(context, 'navigator.platform'), 'Win32');
+  assert.equal(evaluate(context, 'navigator.appVersion'), ua.replace(/^Mozilla\//, ''));
+  // 属性必须落在 WorkerNavigator.prototype 上
+  assert.equal(evaluate(context, 'Object.getOwnPropertyDescriptor(navigator, "userAgent")'), undefined);
+  assert.equal(evaluate(context, 'Object.getOwnPropertyDescriptor(navigator, "platform")'), undefined);
 });
 
 test('Worker 里的 navigator 跟着 payload 走', () => {
