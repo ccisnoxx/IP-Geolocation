@@ -421,7 +421,14 @@ export function workerPatch(config: WorkerPatchConfig): void {
       if (current.trim()) out.push(current.trim());
       return out;
     };
-    /** 命中被伪装字体时返回"换成等宽字体"的 font 串，否则 null */
+    /**
+     * 命中被伪装字体时返回改写后的 font 串，否则 null。
+     *
+     * 一个都不剩时填 `"__vg_absent__"` —— 必须与 font-mask.ts 里的
+     * MISSING_FONT_FAMILY 一致（这个函数会被 toString() 塞进 blob，无法 import）。
+     * 填 monospace 会让隐藏项量出等宽宽度，而真机上的"缺失"是默认回落宽度，
+     * 两者差一截，一个对照组就能把"藏起来了"和"真没有"分开。
+     */
     const replacement = (font: string) => {
       if (!font) return null;
       const sizeMatch = font.match(FONT_SIZE);
@@ -432,7 +439,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
       if (!families.length) return null;
       const kept = families.filter((family) => !targets.has(key(family)));
       if (kept.length === families.length) return null;
-      return `${prefix} ${kept.length ? kept.join(', ') : 'monospace'}`;
+      return `${prefix} ${kept.length ? kept.join(', ') : '"__vg_absent__"'}`;
     };
     const patchMeasure = (proto: any) => {
       const native = proto && proto.measureText;
