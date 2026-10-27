@@ -1,0 +1,166 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function read(relativePath: string): string {
+  return fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
+}
+
+function exists(relativePath: string): boolean {
+  return fs.existsSync(path.join(projectRoot, relativePath));
+}
+
+test('manifest uses dynamic injection instead of static all-url content scripts', () => {
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.equal(manifest.background.service_worker, 'background/service-worker.js');
+  assert.equal(manifest.name, 'VanishGeo');
+  assert.equal(manifest.content_scripts, undefined);
+  assert.deepEqual(manifest.web_accessible_resources, []);
+  assert.ok(manifest.permissions.includes('alarms'));
+  assert.ok(manifest.permissions.includes('tabs'));
+});
+
+test('vite builds the single injected runtime entry', () => {
+  const vite = read('vite.config.ts');
+  assert.match(vite, /injected\/runtime/);
+  assert.doesNotMatch(vite, /injected\/injected/);
+  assert.equal(exists('src/injected/runtime.ts'), true);
+  assert.equal(exists('src/injected/injected.ts'), false);
+});
+
+test('background registers only dynamic runtime and bridge scripts', () => {
+  const services = read('src/background/services.ts');
+  assert.match(services, /const MAIN_RUNTIME_FILES = \['injected\/runtime\.js'\]/);
+  assert.match(services, /const BRIDGE_FILES = \['content\/content\.js'\]/);
+  assert.doesNotMatch(services, /matches: \['<all_urls>'\]/);
+});
+
+test('runtime 只有一条注入路径：导航不再由 tabs.onUpdated 注入脚本', () => {
+  const worker = read('src/background/service-worker.ts');
+  // 注入只发生在 updateAllTabs 的 ensureRuntimeInDocument 里，且按 documentId 去重
+  assert.doesNotMatch(worker, /injectScript|syncTab/);
+  assert.match(worker, /services\.bootstrap\(\)/);
+  assert.match(worker, /services\.applyConfig\(\)/);
+  // 配置变化不再走 initializeExtension（那会连带强制拉一次 IP 定位）
+  assert.doesNotMatch(read('src/background/services.ts'), /initializeExtension/);
+});
+
+test('legacy VanishMe storage key is confined to migration code', () => {
+  const files = [
+    'src/shared/config-model.ts',
+    'src/shared/config-resolver.ts',
+    'src/shared/storage.ts',
+    'src/content/content.ts',
+    'src/popup/popup.ts',
+    'src/options/options.ts',
+    'src/background/services.ts'
+  ];
+  const offenders = files
+    .filter((file) => !file.includes('config-') && file !== 'src/shared/storage.ts')
+    .filter((file) => read(file).includes('bpg_config'));
+  assert.deepEqual(offenders, []);
+});
+
+test('manifest 版本与 package.json 保持一致', () => {
+  const root = path.resolve(import.meta.dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.version, pkg.version);
+  assert.notEqual(pkg.version, '1.0.0');
+});
+
+test('Worker 补丁在每次创建时按当前状态生成，而不是冻结在装载瞬间', () => {
+  const runtime = read('src/injected/runtime.ts');
+  const install = runtime.slice(runtime.indexOf('function installWorker'));
+
+  // 补丁源码必须现算：makeWorkerUrl 里调用 currentWorkerPatchSource()
+  assert.match(install, /const patchSource = currentWorkerPatchSource\(\)/);
+  assert.doesNotMatch(install, /const patchSource = buildWorkerPatch\(/);
+  // 没有可补丁目标时要回落到原生构造，不能造一个空补丁的 blob
+  assert.match(install, /if \(!patchedUrl\) return new NativeWorker\(scriptURL, options\)/);
+  // 自包含的补丁实现已经搬到独立模块，runtime 只负责调用
+  assert.match(runtime, /import \{ workerPatch \} from '\.\/worker-patch'/);
+  assert.equal(exists('src/injected/worker-patch.ts'), true);
+});
+
+test('注入层补丁必须自包含：产物里不能出现打包器注入的模块级 helper', () => {
+  if (!exists('dist/injected/runtime.js')) return;
+  const bundle = read('dist/injected/runtime.js');
+
+  // workerPatch.toString() 是运行时执行的，任何模块作用域引用都会在 Worker 里
+  // 变成 ReferenceError —— 这个 Worker 会直接死掉，页面拿到的是"Worker 加载失败"。
+  assert.doesNotMatch(bundle, /\b__name\s*\(/, 'esbuild keepNames 打开的瞬间 Worker 补丁就会失效');
+  assert.match(bundle, /importScripts\(/, 'Worker 入口靠 importScripts 加载原脚本');
+  assert.doesNotMatch(bundle, /^\s*import\s/m, 'injected/runtime.js 必须是经典脚本');
+});
+
+test('payload 通道是私有 MessagePort，不再经 window.postMessage 广播', () => {
+  const runtime = read('dist/injected/runtime.js');
+  const content = read('dist/content/content.js');
+  const services = read('src/background/services.ts');
+
+  // 旧模型：nonce 和 payload 一起 postMessage 出去，页面的 message 监听器能读到两者
+  assert.doesNotMatch(runtime, /postMessage\(\s*\{[^}]*__vanishGeo[^}]*payload/s);
+  // 广播里只允许出现握手，payload 永远只能走端口
+  assert.doesNotMatch(content, /window\.postMessage\(\s*\{[^}]*payload/);
+  assert.match(content, /window\.postMessage\(\{ __vanishGeo: "handshake" \}, "\*", \[channel\.port2\]\)/);
+  assert.match(content, /new MessageChannel\(\)/);
+  assert.match(content, /postMessage\([^)]*\[[^\]]*port2[^\]]*\]/);
+  // 握手同步发出：document_start 时页面还没有监听器
+  assert.doesNotMatch(content, /setTimeout\(\s*handshake\s*,/);
+
+  // runtime 收下端口后立刻摘掉 window 监听器，之后没有可观测的握手
+  assert.match(runtime, /removeEventListener\(["']message["'], onHandshake\)/);
+  // 端口消息仍要校验 nonce
+  assert.match(runtime, /__vanishGeo !== NONCE/);
+
+  // 后台推 payload 走 tabs.sendMessage → ISOLATED 桥 → 端口
+  assert.match(services, /chrome\.tabs\.sendMessage\(tabId, \{ action: 'applyPayload', payload \}\)/);
+});
+
+test('不透明来源的 iframe 也注入（否则 srcdoc 里能读到原生对象）', () => {
+  const services = read('src/background/services.ts');
+  assert.equal((services.match(/matchOriginAsFallback: true/g) || []).length, 2);
+
+  const vite = read('vite.config.ts');
+  assert.equal((vite.match(/match_about_blank: true/g) || []).length, 2);
+});
+
+test('字体伪装三层的开关必须真的接到界面上', () => {
+  const popup = read('src/popup/popup.html');
+  const popupTs = read('src/popup/popup.ts');
+
+  // 平台选择器与中文层开关
+  assert.match(popup, /id="canvasPlatform"/);
+  for (const value of ['auto', 'mac', 'windows', 'linux', 'none']) {
+    assert.match(popup, new RegExp(`<option value="${value}"`), `缺少 platform 选项 ${value}`);
+  }
+  assert.match(popup, /id="canvasHideCjk"/);
+
+  // 读了、写了、监听了
+  assert.match(popupTs, /getElementById\('canvasPlatform'\)/);
+  assert.match(popupTs, /getElementById\('canvasHideCjk'\)/);
+  assert.match(popupTs, /canvasPlatformEl\.value = config\.canvas\.platform/);
+  assert.match(popupTs, /canvasHideCjkEl\.checked = config\.canvas\.hideCjkFonts/);
+  assert.match(popupTs, /platform: canvasPlatformEl\.value/);
+  assert.match(popupTs, /hideCjkFonts: canvasHideCjkEl\.checked/);
+  assert.match(popupTs, /canvasPlatformEl\.addEventListener\('change'/);
+  assert.match(popupTs, /canvasHideCjkEl\.addEventListener\('change'/);
+});
+
+test('注入层自己解析三层字体：background 不得引用 font-aliases', () => {
+  const runtime = read('src/injected/runtime.ts');
+  // 解析放在注入层，否则 Rollup 会把 font-aliases 抽成共享 chunk，
+  // runtime.js 里出现 import，MAIN world 的经典脚本直接语法错误。
+  assert.match(runtime, /resolveCanvasTargetFonts\(/);
+
+  for (const path of ['src/shared/config-model.ts', 'src/shared/config-resolver.ts', 'src/background/services.ts']) {
+    if (!exists(path)) continue;
+    assert.doesNotMatch(read(path), /from '\.\.?\/[^']*font-aliases'/,
+      `${path} 引用 font-aliases 会把注入脚本打成 chunk`);
+  }
+});

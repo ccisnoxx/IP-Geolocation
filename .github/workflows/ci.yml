@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# 只读权限：跑校验不需要写任何东西
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # 横幅是渲染产物：PNG 与 SVG 尺寸对不上就说明改了源文件没重新渲染
+      - name: Verify banner renders
+        run: node scripts/render-banner.mjs --check
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/manifest.json
+          test -f dist/injected/runtime.js
+          test -f dist/content/content.js
+          test -f dist/background/service-worker.js
+          node -e "const m=require('./dist/manifest.json'); if(m.manifest_version!==3) process.exit(1);"

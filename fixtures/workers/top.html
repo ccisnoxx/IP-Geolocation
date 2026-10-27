@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>worker top fixture</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 24px;
+    }
+
+    button {
+      min-height: 36px;
+      padding: 8px 12px;
+      font: inherit;
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid #bbb;
+      padding: 14px;
+      background: #fafafa;
+    }
+
+    dt {
+      font-weight: 700;
+    }
+
+    dd {
+      margin: 0 0 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <h1>Worker / SharedWorker fixture</h1>
+  <p>Use this page with the extension diagnostic page to compare top-level and worker values.</p>
+  <button id="run-workers" type="button">Run worker diagnostics</button>
+
+  <section class="card">
+    <h2>Top-level values</h2>
+    <dl>
+      <dt>URL</dt><dd id="top-url">-</dd>
+      <dt>Title</dt><dd id="top-title">-</dd>
+      <dt>language</dt><dd id="top-language">-</dd>
+      <dt>languages</dt><dd id="top-languages">-</dd>
+      <dt>timezone</dt><dd id="top-timezone">-</dd>
+      <dt>offset</dt><dd id="top-offset">-</dd>
+      <dt>date</dt><dd id="top-date">-</dd>
+    </dl>
+  </section>
+
+  <div id="worker-results" class="grid"></div>
+
+  <script>
+    (function() {
+      var rootUrl = new URL('.', location.href).href;
+
+      function topSnapshot() {
+        document.getElementById('top-url').textContent = location.href;
+        document.getElementById('top-title').textContent = document.title || '-';
+        document.getElementById('top-language').textContent = navigator.language || '-';
+        document.getElementById('top-languages').textContent = Array.isArray(navigator.languages) ? JSON.stringify(navigator.languages) : '-';
+        document.getElementById('top-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || '-';
+        document.getElementById('top-offset').textContent = String(new Date().getTimezoneOffset());
+        document.getElementById('top-date').textContent = new Date().toString();
+      }
+
+      function createResultCard(label, entry) {
+        var card = document.createElement('section');
+        card.className = 'card';
+        var title = document.createElement('h2');
+        title.textContent = label;
+        card.appendChild(title);
+        var dl = document.createElement('dl');
+        function row(name, value) {
+          var dt = document.createElement('dt');
+          dt.textContent = name;
+          var dd = document.createElement('dd');
+          dd.textContent = value == null || value === '' ? '-' : String(value);
+          dl.appendChild(dt);
+          dl.appendChild(dd);
+        }
+        row('status', entry.status);
+        if (entry.result) {
+          row('language', entry.result.language);
+          row('languages', JSON.stringify(entry.result.languages || []));
+          row('DateTimeFormat locale', entry.result.dateTimeFormatLocale);
+          row('NumberFormat locale', entry.result.numberFormatLocale);
+          row('timezone', entry.result.timezone);
+          row('offset', entry.result.offsetMinutes);
+          row('date', entry.result.dateString);
+        }
+        row('error', entry.error || '');
+        row('note', entry.note || '');
+        card.appendChild(dl);
+        return card;
+      }
+
+      function createWorker(scriptUrl, options) {
+        return new Promise(function(resolve) {
+          try {
+            var worker = new Worker(scriptUrl, options);
+            var timer = setTimeout(function() {
+              worker.terminate();
+              resolve({ status: 'error', error: 'timeout' });
+            }, 3000);
+            worker.onmessage = function(event) {
+              clearTimeout(timer);
+              worker.terminate();
+              resolve({ status: 'ok', result: event.data, error: '', note: '' });
+            };
+            worker.onerror = function(event) {
+              clearTimeout(timer);
+              worker.terminate();
+              resolve({
+                status: 'error',
+                error: event && event.message ? event.message : 'worker failed',
+                note: ''
+              });
+            };
+          } catch (error) {
+            resolve({ status: 'error', error: error && error.message ? error.message : String(error), note: '' });
+          }
+        });
+      }
+
+      function createSharedWorker(scriptUrl) {
+        if (typeof SharedWorker !== 'function') {
+          return Promise.resolve({ status: 'unsupported', error: '', note: '当前环境不支持 SharedWorker。' });
+        }
+        return new Promise(function(resolve) {
+          try {
+            var worker = new SharedWorker(scriptUrl);
+            var port = worker.port;
+            if (typeof port.start === 'function') port.start();
+            var timer = setTimeout(function() {
+              try { port.close(); } catch (error) {}
+              resolve({ status: 'error', error: 'timeout', note: '' });
+            }, 3000);
+            port.onmessage = function(event) {
+              clearTimeout(timer);
+              try { port.close(); } catch (error) {}
+              resolve({ status: 'ok', result: event.data, error: '', note: '' });
+            };
+            port.onerror = function(event) {
+              clearTimeout(timer);
+              try { port.close(); } catch (error) {}
+              resolve({
+                status: 'error',
+                error: event && event.message ? event.message : 'shared worker failed',
+                note: ''
+              });
+            };
+          } catch (error) {
+            resolve({ status: 'error', error: error && error.message ? error.message : String(error), note: '' });
+          }
+        });
+      }
+
+      function createNestedWorker(scriptUrl, childUrl) {
+        return new Promise(function(resolve) {
+          try {
+            var worker = new Worker(scriptUrl);
+            var timer = setTimeout(function() {
+              worker.terminate();
+              resolve({ status: 'error', error: 'timeout', note: 'nested worker 未在时限内返回。' });
+            }, 3000);
+            worker.onmessage = function(event) {
+              clearTimeout(timer);
+              worker.terminate();
+              var payload = event.data || {};
+              resolve({
+                status: payload.status || 'error',
+                result: payload.result || null,
+                error: payload.error || '',
+                note: '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+              });
+            };
+            worker.onerror = function(event) {
+              clearTimeout(timer);
+              worker.terminate();
+              resolve({
+                status: 'error',
+                error: event && event.message ? event.message : 'nested parent worker failed',
+                note: '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+              });
+            };
+            worker.postMessage({ childUrl: childUrl });
+          } catch (error) {
+            resolve({
+              status: 'error',
+              error: error && error.message ? error.message : String(error),
+              note: '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+            });
+          }
+        });
+      }
+
+      async function runWorkerDiagnostics() {
+        return {
+          classicWorker: await createWorker(new URL('worker-classic.js', rootUrl).href),
+          moduleWorker: await createWorker(new URL('worker-module.js', rootUrl).href, { type: 'module' }),
+          sharedWorker: await createSharedWorker(new URL('shared-worker.js', rootUrl).href),
+          nestedWorker: await createNestedWorker(
+            new URL('nested-parent.js', rootUrl).href,
+            new URL('nested-child.js', rootUrl).href
+          ),
+          serviceWorker: {
+            status: 'not_attempted',
+            error: '',
+            note: '当前未 hook navigator.serviceWorker.register；第一轮只记录 service worker 边界。'
+          }
+        };
+      }
+
+      async function renderWorkerDiagnostics() {
+        topSnapshot();
+        var container = document.getElementById('worker-results');
+        container.replaceChildren();
+        var result = await runWorkerDiagnostics();
+        var labels = {
+          classicWorker: 'classic Worker',
+          moduleWorker: 'module Worker',
+          sharedWorker: 'SharedWorker',
+          nestedWorker: 'nested worker',
+          serviceWorker: 'service worker'
+        };
+        Object.keys(labels).forEach(function(key) {
+          container.appendChild(createResultCard(labels[key], result[key]));
+        });
+        return result;
+      }
+
+      window.runWorkerDiagnostics = renderWorkerDiagnostics;
+      topSnapshot();
+      document.getElementById('run-workers').addEventListener('click', function() {
+        renderWorkerDiagnostics();
+      });
+      setTimeout(function() {
+        renderWorkerDiagnostics();
+      }, 150);
+    })();
+  </script>
+</body>
+</html>
