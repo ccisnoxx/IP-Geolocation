@@ -1,30 +1,58 @@
-import { getConfig } from '../shared/storage';
-import { applyWebRTCPolicy } from './webrtc';
-import { updateAcceptLanguageRule } from './dnr';
 import { createContextMenus, handleContextMenuClick } from './context-menu';
+import { createBackgroundMessageRouter } from './message-router';
+import { createBackgroundServices } from './services';
 
-chrome.runtime.onInstalled.addListener(async () => {
-  console.log('VanishMe installed');
+const services = createBackgroundServices();
+const router = createBackgroundMessageRouter(services);
 
-  const config = await getConfig();
-  await applyWebRTCPolicy(config);
-  await updateAcceptLanguageRule(config);
+/** 出口坐标的刷新周期。改太短只会把 IP 归属地接口打到限流，而失败就是 fail-closed。 */
+const LOCATION_ALARM_MINUTES = 5;
 
-  createContextMenus();
-});
-
-chrome.runtime.onStartup.addListener(async () => {
-  const config = await getConfig();
-  await applyWebRTCPolicy(config);
-  await updateAcceptLanguageRule(config);
-});
-
-chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'local' && changes.bpg_config) {
-    const config = await getConfig();
-    await applyWebRTCPolicy(config);
-    await updateAcceptLanguageRule(config);
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  // runtime 由注册的内容脚本在 document_start 装上，这里不再注入任何脚本，
+  // 只负责刷新角标与标题。
+  if (changeInfo.status === 'complete') {
+    void services.refreshActionBadge();
   }
 });
 
-chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
+chrome.tabs.onActivated.addListener(() => {
+  void services.refreshActionBadge();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === services.alarmName) {
+    void services.updateGeolocation();
+  }
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  router.respond(request, sender)
+    .then(sendResponse)
+    .catch((error) => sendResponse({ status: 'error', message: error instanceof Error ? error.message : String(error) }));
+  return true;
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create(services.alarmName, { periodInMinutes: LOCATION_ALARM_MINUTES });
+  createContextMenus();
+  void services.bootstrap();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  chrome.alarms.create(services.alarmName, { periodInMinutes: LOCATION_ALARM_MINUTES });
+  createContextMenus();
+  void services.bootstrap();
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  // 保存路径自己会应用一次；这里兜住其它写入方（导入、迁移、旧版本残留），
+  // 同一份配置靠签名去重，且绝不触发 IP 定位。
+  if (areaName === 'local' && changes.siteSpoofConfig) {
+    void services.applyConfig();
+  }
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  handleContextMenuClick(services, info, tab);
+});

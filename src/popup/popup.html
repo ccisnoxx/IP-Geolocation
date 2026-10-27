@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VanishMe</title>
+  <title>VanishGeo</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <div id="autoSaveToast" class="auto-save-toast">已自动保存</div>
     <header>
       <div class="header-content">
-        <h1>VanishMe</h1>
+        <h1>VanishGeo</h1>
         <button id="openOptionsHeader" class="icon-btn" title="打开完整配置">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M10 12.5C11.3807 12.5 12.5 11.3807 12.5 10C12.5 8.61929 11.3807 7.5 10 7.5C8.61929 7.5 7.5 8.61929 7.5 10C7.5 11.3807 8.61929 12.5 10 12.5Z" stroke="currentColor" stroke-width="1.5"/>
@@ -36,16 +36,11 @@
     </header>
 
     <section class="match-mode-section">
-      <h2>匹配模式</h2>
-      <select id="matchMode" class="input">
-        <option value="global">全局模式 - 对所有网站启用</option>
-        <option value="whitelist">白名单模式 - 仅对列表中的网站启用</option>
-        <option value="blacklist">黑名单模式 - 对除列表外的网站启用</option>
-      </select>
+      <h2>站点白名单</h2>
       <div class="input-group" style="margin-top: 10px;">
-        <label>域名列表（每行一个，支持通配符 *）：</label>
-        <textarea id="domainList" class="input" rows="6" placeholder="例如：&#10;chatgpt.com&#10;*.google.com&#10;*openai*"></textarea>
-        <div class="hint">提示：使用 * 作为通配符，例如 *.example.com 匹配所有子域名</div>
+        <label>域名列表（每行一个，自动包含子域名）：</label>
+        <textarea id="ruleList" class="input" rows="6" placeholder="例如：&#10;chatgpt.com&#10;openai.com&#10;!mail.google.com"></textarea>
+        <div class="hint">提示：不要写通配符；example.com 会匹配 example.com 及其子域名。行首加 <code>!</code> 表示排除该域名（优先于父域）。</div>
       </div>
     </section>
 
@@ -55,9 +50,15 @@
         <span id="currentSite">-</span>
       </div>
       <div class="site-actions">
-        <button id="disableSite" class="btn-secondary">不启用</button>
-        <button id="enableSite" class="btn-secondary">启用</button>
+        <button id="disableSite" class="btn-secondary" title="保留这条规则并排除该站点，优先于父域白名单">排除本站</button>
+        <button id="enableSite" class="btn-secondary" title="为该站点启用改写（父域已启用时也会覆盖）">启用本站</button>
       </div>
+      <div id="siteWarning" class="site-warning" hidden>
+        <div class="site-warning-title" id="siteWarningText"></div>
+        <div class="site-warning-hint" id="siteWarningHint"></div>
+        <button id="retryLocation" class="btn-secondary">重试定位</button>
+      </div>
+      <div id="siteOk" class="site-ok" hidden>已生效</div>
     </section>
 
     <section class="profile-section">
@@ -190,8 +191,23 @@
             <input type="checkbox" id="canvasEnabled">
             <span>启用字体反检测</span>
           </label>
-          <div class="hint">隐藏已安装的中文字体，防止被 Canvas 指纹检测识别</div>
-          <button id="resetFonts" class="btn-secondary btn-sm" style="margin-top: 8px;">更新到最新字体列表</button>
+
+          <label for="canvasPlatform" style="margin-top: 10px; display: block; font-size: 12px; color: #999;">声称的平台</label>
+          <select id="canvasPlatform" class="input">
+            <option value="auto">自动（按本机真实平台，隐藏另外两个平台的字体）</option>
+            <option value="mac">macOS（隐藏 Windows / Linux 字体）</option>
+            <option value="windows">Windows（隐藏 macOS / Linux 字体）</option>
+            <option value="linux">Linux（隐藏 macOS / Windows 字体）</option>
+            <option value="none">不按平台隐藏</option>
+          </select>
+
+          <label class="checkbox-label" style="margin-top: 8px;">
+            <input type="checkbox" id="canvasHideCjk">
+            <span>同时隐藏中文与国产厂商字体</span>
+          </label>
+
+          <div class="hint">两层独立生效：平台层让"这台机器没有别的平台的字体"成立，中文层让"这台机器没有中文环境"成立。声称 macOS 且打开中文层 = 连苹方一起藏（更彻底，代价是真 mac 本来有苹方）。名字匹配含本地化别名（「苹方-简」「微软雅黑」），覆盖 canvas 与 OffscreenCanvas，不改变实际渲染。</div>
+          <button id="resetFonts" class="btn-secondary btn-sm" style="margin-top: 8px;">恢复默认字体表</button>
         </div>
       </details>
     </section>

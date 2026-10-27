@@ -135,3 +135,44 @@ footer {
   color: #888;
   line-height: 1.5;
 }
+
+/* 探测结果表：这里要能一眼看出哪一行不达标，所以只用颜色标出失败项 */
+.probe-result {
+  margin-top: 12px;
+}
+
+.probe-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.probe-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  vertical-align: top;
+  word-break: break-all;
+}
+
+.probe-table td:first-child {
+  width: 45%;
+  opacity: 0.75;
+}
+
+.probe-ok {
+  color: #4caf50;
+}
+
+.probe-bad {
+  color: #d93025;
+  font-weight: 600;
+}
+
+.probe-select {
+  max-width: 100%;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}

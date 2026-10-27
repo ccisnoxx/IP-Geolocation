@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VanishMe 配置</title>
+  <title>VanishGeo 配置</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>VanishMe 配置</h1>
+      <h1>VanishGeo 配置</h1>
     </header>
 
     <section class="section">
@@ -27,20 +27,12 @@
     </section>
 
     <section class="section">
-      <h2>匹配模式</h2>
+      <h2>站点白名单</h2>
       <div class="match-mode-container">
         <div class="input-group">
-          <label>模式:</label>
-          <select id="matchMode" class="input">
-            <option value="global">全局模式 - 对所有网站启用</option>
-            <option value="whitelist">白名单模式 - 仅对列表中的网站启用</option>
-            <option value="blacklist">黑名单模式 - 对除列表外的网站启用</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label>域名列表（每行一个，支持通配符 *）:</label>
-          <textarea id="domainList" class="input domain-textarea" rows="15" placeholder="例如：&#10;chatgpt.com&#10;*.google.com&#10;*openai*&#10;&#10;通配符说明：&#10;- chatgpt.com (精确匹配)&#10;- *.openai.com (匹配所有子域名)&#10;- *openai* (匹配包含 openai 的域名)"></textarea>
-          <div class="hint">提示：使用 * 作为通配符。例如 *.example.com 匹配所有子域名，*keyword* 匹配包含关键词的域名</div>
+          <label>域名列表（每行一个，自动包含子域名）:</label>
+          <textarea id="ruleList" class="input domain-textarea" rows="15" placeholder="例如：&#10;google.com&#10;!mail.google.com&#10;chatgpt.com&#10;&#10;不要写通配符；example.com 会匹配 example.com 及其子域名。&#10;行首加 ! 表示显式排除：保留规则，但该域名及其子域不做任何改写（优先级高于父域白名单）。"></textarea>
+          <div class="hint">提示：最长匹配优先。写 <code>google.com</code> 再加一行 <code>!mail.google.com</code>，就能在整体白名单里单独把 Gmail 摘出去。</div>
         </div>
       </div>
     </section>

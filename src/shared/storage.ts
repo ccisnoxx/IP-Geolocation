@@ -1,117 +1,58 @@
-import type { PrivacyConfig, InjectedConfig } from './types';
-import { DEFAULT_CONFIG } from './defaults';
+import {
+  LAST_LOCATION_KEY,
+  LEGACY_VANISHME_CONFIG_KEY,
+  SITE_CONFIG_KEY,
+  migrateLegacyConfig,
+  validateConfig
+} from './config-resolver';
+import { DEFAULT_CONFIG, clone, normalizeConfig } from './config-model';
 import { applyProfileToConfig } from './profile';
-import { shouldEnableSpoofing } from './domain-matcher';
+import type { LastLocation, SiteSpoofConfig } from './types';
 
-const STORAGE_KEY = 'bpg_config';
-
-export async function getConfig(): Promise<PrivacyConfig> {
-  try {
-    const result = await chrome.storage.local.get(STORAGE_KEY);
-    if (result[STORAGE_KEY]) {
-      const stored = result[STORAGE_KEY];
-      // 深度合并，确保所有新字段都有默认值
-      return {
-        ...DEFAULT_CONFIG,
-        ...stored,
-        geolocation: {
-          ...DEFAULT_CONFIG.geolocation,
-          ...(stored.geolocation || {})
-        },
-        webrtc: {
-          ...DEFAULT_CONFIG.webrtc,
-          ...(stored.webrtc || {})
-        },
-        language: {
-          ...DEFAULT_CONFIG.language,
-          ...(stored.language || {})
-        },
-        timezone: {
-          ...DEFAULT_CONFIG.timezone,
-          ...(stored.timezone || {})
-        },
-        canvas: {
-          ...DEFAULT_CONFIG.canvas,
-          ...(stored.canvas || {})
-        },
-        profile: {
-          ...DEFAULT_CONFIG.profile,
-          ...(stored.profile || {})
-        }
-      };
+export async function getConfig(): Promise<SiteSpoofConfig> {
+  const data = await chrome.storage.local.get(null);
+  const config = migrateLegacyConfig(data);
+  if (!data[SITE_CONFIG_KEY] || data[LEGACY_VANISHME_CONFIG_KEY]) {
+    await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config });
+    if (data[LEGACY_VANISHME_CONFIG_KEY]) {
+      await chrome.storage.local.remove(LEGACY_VANISHME_CONFIG_KEY);
     }
-    return DEFAULT_CONFIG;
-  } catch (error) {
-    console.error('Failed to get config:', error);
-    return DEFAULT_CONFIG;
   }
+  return config;
 }
 
-export async function setConfig(config: PrivacyConfig): Promise<void> {
-  try {
-    await chrome.storage.local.set({ [STORAGE_KEY]: config });
-  } catch (error) {
-    console.error('Failed to set config:', error);
+export async function setConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
+  const result = validateConfig(config);
+  if (!result.ok) {
+    throw new Error(result.errors.join('; '));
   }
+  await chrome.storage.local.set({ [SITE_CONFIG_KEY]: result.config });
+  return result.config;
 }
 
-export async function updateConfig(updates: Partial<PrivacyConfig>): Promise<PrivacyConfig> {
+export async function updateConfig(updates: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig> {
   const config = await getConfig();
-  const newConfig = { ...config, ...updates };
-  await setConfig(newConfig);
-  return newConfig;
+  return setConfig(normalizeConfig({ ...config, ...updates }));
 }
 
-export async function resetConfig(): Promise<void> {
-  await setConfig(DEFAULT_CONFIG);
+export async function resetConfig(): Promise<SiteSpoofConfig> {
+  const config = clone(DEFAULT_CONFIG);
+  await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config });
+  return config;
 }
 
-export async function getEffectiveConfigForUrl(url: string): Promise<InjectedConfig> {
+export async function getLastLocation(): Promise<LastLocation | null> {
+  const data = await chrome.storage.local.get(LAST_LOCATION_KEY);
+  return data[LAST_LOCATION_KEY] || null;
+}
+
+export async function setLastLocation(location: LastLocation): Promise<void> {
+  await chrome.storage.local.set({ [LAST_LOCATION_KEY]: location });
+}
+
+export async function applyProfile(profileId: string): Promise<SiteSpoofConfig> {
   const config = await getConfig();
-
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    hostname = '';
-  }
-
-  // 检查全局开关
-  if (!config.globalEnabled) {
-    return {
-      enabled: false,
-      debugMode: config.debugMode || false,
-      geolocation: config.geolocation,
-      language: config.language,
-      timezone: config.timezone,
-      canvas: config.canvas
-    };
-  }
-
-  // 根据匹配模式和域名列表判断是否启用
-  const matchEnabled = shouldEnableSpoofing(
-    hostname,
-    config.matchMode,
-    config.domainList
-  );
-
-  // 检查站点特定规则（优先级最高）
-  const siteRule = config.siteRules[hostname];
-  const enabled = siteRule ? siteRule.enabled : matchEnabled;
-
-  return {
-    enabled,
-    debugMode: config.debugMode || false,
-    geolocation: config.geolocation,
-    language: config.language,
-    timezone: config.timezone,
-    canvas: config.canvas
-  };
+  return setConfig(applyProfileToConfig(config, profileId));
 }
 
-export async function applyProfile(profileId: string): Promise<PrivacyConfig> {
-  const config = await getConfig();
-  const newConfig = applyProfileToConfig(config, profileId);
-  await setConfig(newConfig);
-  return newConfig;
-}
+export { LAST_LOCATION_KEY, SITE_CONFIG_KEY };

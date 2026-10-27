@@ -1,17 +1,23 @@
 import './options.css';
-import { getConfig, setConfig, resetConfig, applyProfile } from '../shared/storage';
-import { DEFAULT_PROFILES } from '../shared/defaults';
-import type { PrivacyConfig, Profile } from '../shared/types';
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_PROFILES,
+  getTimezoneOffsetMinutes,
+  normalizeConfig,
+  normalizeGeolocation,
+  normalizeLanguage,
+  normalizeTimezone,
+  normalizeWebRtc
+} from '../shared/config-model';
+import { ruleLines, rulesFromText } from '../shared/rule-text';
+import { validateProfile } from '../shared/profile';
+import type { Profile, SiteSpoofConfig } from '../shared/types';
 
-let currentConfig: PrivacyConfig;
+let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
 
-// DOM elements
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
-const matchModeEl = document.getElementById('matchMode') as HTMLSelectElement;
-const domainListEl = document.getElementById('domainList') as HTMLTextAreaElement;
-
-// Current config elements
+const ruleListEl = document.getElementById('ruleList') as HTMLTextAreaElement;
 const geolocationEnabledEl = document.getElementById('geolocationEnabled') as HTMLInputElement;
 const latitudeEl = document.getElementById('latitude') as HTMLInputElement;
 const longitudeEl = document.getElementById('longitude') as HTMLInputElement;
@@ -20,548 +26,405 @@ const randomizeEl = document.getElementById('randomize') as HTMLInputElement;
 const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HTMLInputElement;
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
 const getFromIPBtn = document.getElementById('getFromIP') as HTMLButtonElement;
-
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
-
 const languageEnabledEl = document.getElementById('languageEnabled') as HTMLInputElement;
 const languageEl = document.getElementById('language') as HTMLInputElement;
 const languagesEl = document.getElementById('languages') as HTMLInputElement;
 const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputElement;
-
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
-
 const defaultProfilesEl = document.getElementById('defaultProfiles') as HTMLElement;
 const customProfilesEl = document.getElementById('customProfiles') as HTMLElement;
-
 const siteRulesEl = document.getElementById('siteRules') as HTMLElement;
-
 const exportConfigBtn = document.getElementById('exportConfig') as HTMLButtonElement;
 const importConfigBtn = document.getElementById('importConfig') as HTMLButtonElement;
 const importFileEl = document.getElementById('importFile') as HTMLInputElement;
 const resetAllBtn = document.getElementById('resetAll') as HTMLButtonElement;
-
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const saveAsCustomBtn = document.getElementById('saveAsCustom') as HTMLButtonElement;
-
-// Modal elements
 const saveProfileModal = document.getElementById('saveProfileModal') as HTMLElement;
 const newProfileNameEl = document.getElementById('newProfileName') as HTMLInputElement;
 const newProfileDescriptionEl = document.getElementById('newProfileDescription') as HTMLInputElement;
 const confirmSaveProfileBtn = document.getElementById('confirmSaveProfile') as HTMLButtonElement;
 const cancelSaveProfileBtn = document.getElementById('cancelSaveProfile') as HTMLButtonElement;
 
-async function loadConfig() {
-  currentConfig = await getConfig();
+function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response || response.status === 'error') {
+        reject(new Error(response?.message || 'Unknown runtime error'));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
 
-  // Global settings
-  globalEnabledEl.checked = currentConfig.globalEnabled;
-  debugModeEl.checked = currentConfig.debugMode || false;
+function webRtcSelectValue(config: SiteSpoofConfig): string {
+  if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
+  if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
+  return 'default';
+}
 
-  // Match mode
-  matchModeEl.value = currentConfig.matchMode || 'global';
-  domainListEl.value = (currentConfig.domainList || []).join('\n');
+function populateForm(config: SiteSpoofConfig): void {
+  globalEnabledEl.checked = config.masterEnabled;
+  debugModeEl.checked = config.debugMode;
+  ruleListEl.value = ruleLines(config.rules);
 
-  // Geolocation
-  geolocationEnabledEl.checked = currentConfig.geolocation.enabled;
-  latitudeEl.value = currentConfig.geolocation.latitude.toString();
-  longitudeEl.value = currentConfig.geolocation.longitude.toString();
-  accuracyEl.value = currentConfig.geolocation.accuracy.toString();
-  randomizeEl.checked = currentConfig.geolocation.randomize;
-  randomRadiusMetersEl.value = currentConfig.geolocation.randomRadiusMeters.toString();
-  spoofPermissionEl.checked = currentConfig.geolocation.spoofPermission;
+  const geo = config.globalProfile.geolocation;
+  geolocationEnabledEl.checked = geo.enabled;
+  latitudeEl.value = geo.latitude === null ? '' : String(geo.latitude);
+  longitudeEl.value = geo.longitude === null ? '' : String(geo.longitude);
+  accuracyEl.value = String(geo.accuracy);
+  randomizeEl.checked = geo.randomize;
+  randomRadiusMetersEl.value = String(geo.randomRadiusMeters);
+  spoofPermissionEl.checked = geo.spoofPermission;
 
-  // Timezone
-  timezoneEnabledEl.checked = currentConfig.timezone.enabled;
-  timezoneEl.value = currentConfig.timezone.timezone;
-  const utcOffsetHours = -currentConfig.timezone.offsetMinutes / 60;
-  utcOffsetEl.value = utcOffsetHours.toString();
+  const timezone = config.globalProfile.timezone;
+  timezoneEnabledEl.checked = timezone.enabled;
+  timezoneEl.value = timezone.timezone;
+  const offset = timezone.timezone ? getTimezoneOffsetMinutes(timezone.timezone) : null;
+  utcOffsetEl.value = offset === null ? '' : String(-offset / 60);
 
-  // Language
-  languageEnabledEl.checked = currentConfig.language.enabled;
-  languageEl.value = currentConfig.language.language;
-  languagesEl.value = currentConfig.language.languages.join(', ');
-  acceptLanguageEl.value = currentConfig.language.acceptLanguage;
+  const language = config.globalProfile.language;
+  languageEnabledEl.checked = language.enabled;
+  languageEl.value = language.language;
+  languagesEl.value = language.languages.join(', ');
+  acceptLanguageEl.value = language.acceptLanguage;
 
-  // WebRTC
-  webrtcEnabledEl.checked = currentConfig.webrtc.enabled;
-  webrtcPolicyEl.value = currentConfig.webrtc.policy;
+  webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
+  webrtcPolicyEl.value = webRtcSelectValue(config);
 
   renderProfiles();
   renderSiteRules();
 }
 
-function renderProfiles() {
-  // Default profiles (presets)
-  defaultProfilesEl.innerHTML = '';
-  DEFAULT_PROFILES.forEach(profile => {
-    const card = createPresetProfileCard(profile);
-    defaultProfilesEl.appendChild(card);
+function readForm(): SiteSpoofConfig {
+  return normalizeConfig({
+    ...currentConfig,
+    masterEnabled: globalEnabledEl.checked,
+    debugMode: debugModeEl.checked,
+    rules: rulesFromText(ruleListEl.value, currentConfig.rules),
+    globalProfile: {
+      language: normalizeLanguage({
+        enabled: languageEnabledEl.checked,
+        mode: 'custom',
+        language: languageEl.value,
+        languages: languagesEl.value.split(',').map((item) => item.trim()).filter(Boolean),
+        acceptLanguage: acceptLanguageEl.value
+      }),
+      timezone: normalizeTimezone({
+        enabled: timezoneEnabledEl.checked,
+        mode: timezoneEl.value ? 'manual' : 'auto',
+        timezone: timezoneEl.value
+      }),
+      geolocation: normalizeGeolocation({
+        enabled: geolocationEnabledEl.checked,
+        mode: latitudeEl.value && longitudeEl.value ? 'manual' : 'auto',
+        latitude: latitudeEl.value === '' ? null : Number(latitudeEl.value),
+        longitude: longitudeEl.value === '' ? null : Number(longitudeEl.value),
+        accuracy: Number(accuracyEl.value),
+        randomize: randomizeEl.checked,
+        randomRadiusMeters: Number(randomRadiusMetersEl.value),
+        spoofPermission: spoofPermissionEl.checked,
+        history: currentConfig.globalProfile.geolocation.history
+      })
+    },
+    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' })
   });
+}
 
-  // Custom profiles
-  customProfilesEl.innerHTML = '';
-  const customProfiles = currentConfig.profile.profiles.filter(p =>
-    !DEFAULT_PROFILES.some(dp => dp.id === p.id)
-  );
+async function loadConfig(): Promise<void> {
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
+  currentConfig = normalizeConfig(response.config);
+  populateForm(currentConfig);
+}
 
-  if (customProfiles.length === 0) {
-    customProfilesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无自定义配置文件</p>';
-  } else {
-    customProfiles.forEach(profile => {
-      const card = createCustomProfileCard(profile);
-      customProfilesEl.appendChild(card);
-    });
-  }
+async function saveSettings(options: { announce?: boolean } = {}): Promise<void> {
+  currentConfig = readForm();
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'setSiteConfig', config: currentConfig });
+  currentConfig = normalizeConfig(response.config);
+  populateForm(currentConfig);
+  if (options.announce) alert('设置已保存');
+}
+
+async function applyProfile(profileId: string): Promise<void> {
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'applyProfile', profileId });
+  currentConfig = normalizeConfig(response.config);
+  populateForm(currentConfig);
 }
 
 function createPresetProfileCard(profile: Profile): HTMLElement {
   const card = document.createElement('div');
   card.className = 'profile-card';
-
-  const header = document.createElement('div');
-  header.className = 'profile-header';
-
-  const info = document.createElement('div');
-  info.className = 'profile-info';
-
-  const name = document.createElement('div');
-  name.className = 'profile-name';
-  name.textContent = profile.name;
-
-  const desc = document.createElement('div');
-  desc.className = 'profile-desc';
-  desc.textContent = `${profile.geolocation.latitude}, ${profile.geolocation.longitude} | ${profile.timezone.timezone}`;
-
-  info.appendChild(name);
-  info.appendChild(desc);
-  header.appendChild(info);
-
-  const actions = document.createElement('div');
-  actions.className = 'profile-actions';
-
+  card.innerHTML = `
+    <div class="profile-header">
+      <div class="profile-info">
+        <div class="profile-name"></div>
+        <div class="profile-desc"></div>
+      </div>
+      <div class="profile-actions"></div>
+    </div>
+  `;
+  card.querySelector('.profile-name')!.textContent = profile.name;
+  card.querySelector('.profile-desc')!.textContent = `${profile.geolocation.latitude}, ${profile.geolocation.longitude} | ${profile.timezone.timezone}`;
   const applyBtn = document.createElement('button');
   applyBtn.className = 'btn-primary btn-sm';
   applyBtn.textContent = '应用';
-  applyBtn.onclick = () => handleApplyProfile(profile.id);
-
-  actions.appendChild(applyBtn);
-
-  card.appendChild(header);
-  card.appendChild(actions);
-
+  applyBtn.onclick = () => { void applyProfile(profile.id); };
+  card.querySelector('.profile-actions')!.appendChild(applyBtn);
   return card;
 }
 
 function createCustomProfileCard(profile: Profile): HTMLElement {
-  const card = document.createElement('div');
-  card.className = 'profile-card';
-
-  const header = document.createElement('div');
-  header.className = 'profile-header';
-
-  const info = document.createElement('div');
-  info.className = 'profile-info';
-
-  const name = document.createElement('div');
-  name.className = 'profile-name';
-  name.textContent = profile.name;
-
-  const desc = document.createElement('div');
-  desc.className = 'profile-desc';
-  desc.textContent = profile.description || `${profile.geolocation.latitude}, ${profile.geolocation.longitude} | ${profile.timezone.timezone}`;
-
-  info.appendChild(name);
-  info.appendChild(desc);
-  header.appendChild(info);
-
-  const actions = document.createElement('div');
-  actions.className = 'profile-actions';
-
-  const applyBtn = document.createElement('button');
-  applyBtn.className = 'btn-primary btn-sm';
-  applyBtn.textContent = '应用';
-  applyBtn.onclick = () => handleApplyProfile(profile.id);
-
+  const card = createPresetProfileCard(profile);
+  const actions = card.querySelector('.profile-actions')!;
   const exportBtn = document.createElement('button');
   exportBtn.className = 'btn-secondary btn-sm';
   exportBtn.textContent = '导出';
   exportBtn.onclick = () => exportProfile(profile);
-
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'btn-danger btn-sm';
   deleteBtn.textContent = '删除';
   deleteBtn.onclick = () => deleteProfile(profile.id);
-
-  actions.appendChild(applyBtn);
-  actions.appendChild(exportBtn);
-  actions.appendChild(deleteBtn);
-
-  card.appendChild(header);
-  card.appendChild(actions);
-
+  actions.append(exportBtn, deleteBtn);
   return card;
 }
 
-function renderSiteRules() {
-  siteRulesEl.innerHTML = '';
+function renderProfiles(): void {
+  defaultProfilesEl.innerHTML = '';
+  DEFAULT_PROFILES.forEach((profile) => defaultProfilesEl.appendChild(createPresetProfileCard(profile)));
 
-  const hostnames = Object.keys(currentConfig.siteRules);
-  if (hostnames.length === 0) {
-    siteRulesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无站点特定规则</p>';
+  customProfilesEl.innerHTML = '';
+  const defaultIds = new Set(DEFAULT_PROFILES.map((profile) => profile.id));
+  const customProfiles = currentConfig.profile.profiles.filter((profile) => !defaultIds.has(profile.id));
+  if (!customProfiles.length) {
+    customProfilesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无自定义配置文件</p>';
+    return;
+  }
+  customProfiles.forEach((profile) => customProfilesEl.appendChild(createCustomProfileCard(profile)));
+}
+
+/**
+ * 规则列表只是文本框的视图：所有改动先写回文本框，再走正常保存路径。
+ * 这样"在列表里点禁用"和"在文本框里写 !"是同一条数据通路，不会互相覆盖。
+ */
+function updateRuleLine(domain: string, change: { enabled?: boolean; remove?: boolean }): void {
+  const rules = rulesFromText(ruleListEl.value, currentConfig.rules);
+  const index = rules.findIndex((rule) => rule.domain === domain);
+  if (index === -1) return;
+
+  if (change.remove) {
+    rules.splice(index, 1);
+  } else {
+    rules[index] = { ...rules[index], enabled: change.enabled !== false };
+  }
+  ruleListEl.value = ruleLines(rules);
+}
+
+async function reloadRulesFromBackground(): Promise<void> {
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
+  currentConfig = normalizeConfig(response.config);
+  renderSiteRules();
+}
+
+async function handleToggleRule(domain: string, enabled: boolean): Promise<void> {
+  updateRuleLine(domain, { enabled });
+  await saveSettings();
+  // 背景侧的重载在保存之后执行，页面重新加载时拿到的就是新配置
+  await sendRuntimeMessage({ action: 'reloadAffectedTabs', domain });
+  await reloadRulesFromBackground();
+}
+
+async function handleDeleteRule(domain: string): Promise<void> {
+  updateRuleLine(domain, { remove: true });
+  await saveSettings();
+  await sendRuntimeMessage({ action: 'reloadAffectedTabs', domain });
+  await reloadRulesFromBackground();
+}
+
+function renderSiteRules(): void {
+  siteRulesEl.innerHTML = '';
+  if (!currentConfig.rules.length) {
+    siteRulesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无站点规则</p>';
     return;
   }
 
-  hostnames.forEach(hostname => {
-    const rule = currentConfig.siteRules[hostname];
+  currentConfig.rules.forEach((rule) => {
     const ruleEl = document.createElement('div');
     ruleEl.className = 'site-rule';
 
     const info = document.createElement('div');
     const hostnameEl = document.createElement('span');
     hostnameEl.className = 'site-hostname';
-    hostnameEl.textContent = hostname;
-
+    hostnameEl.textContent = rule.domain;
     const statusEl = document.createElement('span');
     statusEl.className = `site-status ${rule.enabled ? 'enabled' : 'disabled'}`;
-    statusEl.textContent = rule.enabled ? '已启用' : '已禁用';
+    statusEl.textContent = rule.enabled ? '已启用' : '已排除';
+    info.append(hostnameEl, statusEl);
 
-    info.appendChild(hostnameEl);
-    info.appendChild(statusEl);
+    const actions = document.createElement('div');
+    actions.className = 'site-rule-actions';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'btn-secondary btn-sm';
+    toggleBtn.textContent = rule.enabled ? '禁用' : '启用';
+    toggleBtn.title = rule.enabled
+      ? '禁用后保留这条规则，并覆盖父域白名单'
+      : '启用这条规则（覆盖父域的排除）';
+    toggleBtn.onclick = () => { void handleToggleRule(rule.domain, !rule.enabled); };
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-danger btn-sm';
     deleteBtn.textContent = '删除';
-    deleteBtn.onclick = () => deleteSiteRule(hostname);
+    deleteBtn.title = '删掉这条规则：子域回到「继承父域」的状态';
+    deleteBtn.onclick = () => { void handleDeleteRule(rule.domain); };
 
-    ruleEl.appendChild(info);
-    ruleEl.appendChild(deleteBtn);
-
+    actions.append(toggleBtn, deleteBtn);
+    ruleEl.append(info, actions);
     siteRulesEl.appendChild(ruleEl);
   });
 }
 
-async function handleApplyProfile(profileId: string) {
-  try {
-    await applyProfile(profileId);
-    await loadConfig();
-    alert('配置已应用');
-  } catch (error) {
-    console.error('Failed to apply profile:', error);
-    alert('应用配置失败');
-  }
-}
-
-function openSaveAsCustomModal() {
+function openSaveAsCustomModal(): void {
   newProfileNameEl.value = '';
   newProfileDescriptionEl.value = '';
   saveProfileModal.classList.add('active');
 }
 
-function closeSaveAsCustomModal() {
+function closeSaveAsCustomModal(): void {
   saveProfileModal.classList.remove('active');
 }
 
-function handleSaveAsCustom() {
+async function handleSaveAsCustom(): Promise<void> {
   const name = newProfileNameEl.value.trim();
   if (!name) {
     alert('请输入配置名称');
     return;
   }
-
+  currentConfig = readForm();
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const description = newProfileDescriptionEl.value.trim();
-
-  // Check if ID already exists
-  const exists = currentConfig.profile.profiles.some(p => p.id === id);
-  if (exists) {
-    alert('配置名称已存在，请使用其他名称');
-    return;
-  }
-
-  // Create new profile from current config
-  const newProfile: Profile = {
+  const profile: Profile = {
     id,
     name,
-    description: description || undefined,
+    description: newProfileDescriptionEl.value.trim() || undefined,
     geolocation: {
-      latitude: currentConfig.geolocation.latitude,
-      longitude: currentConfig.geolocation.longitude,
-      accuracy: currentConfig.geolocation.accuracy
+      latitude: Number(currentConfig.globalProfile.geolocation.latitude),
+      longitude: Number(currentConfig.globalProfile.geolocation.longitude),
+      accuracy: currentConfig.globalProfile.geolocation.accuracy,
+      country: currentConfig.globalProfile.geolocation.country
     },
     language: {
-      language: currentConfig.language.language,
-      languages: [...currentConfig.language.languages],
-      acceptLanguage: currentConfig.language.acceptLanguage
+      language: currentConfig.globalProfile.language.language,
+      languages: currentConfig.globalProfile.language.languages.slice(),
+      acceptLanguage: currentConfig.globalProfile.language.acceptLanguage
     },
     timezone: {
-      timezone: currentConfig.timezone.timezone,
-      offsetMinutes: currentConfig.timezone.offsetMinutes
+      timezone: currentConfig.globalProfile.timezone.timezone
     }
   };
-
-  currentConfig.profile.profiles.push(newProfile);
-  setConfig(currentConfig);
-
-  renderProfiles();
+  if (!validateProfile(profile)) {
+    alert('当前配置缺少有效坐标或时区，不能保存为 profile');
+    return;
+  }
+  currentConfig.profile.profiles = [
+    ...currentConfig.profile.profiles.filter((item) => item.id !== id),
+    profile
+  ];
+  await saveSettings();
   closeSaveAsCustomModal();
-  alert('自定义配置已保存');
 }
 
-function exportProfile(profile: Profile) {
-  const dataStr = JSON.stringify(profile, null, 2);
-  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(dataBlob);
+function exportProfile(profile: Profile): void {
+  downloadJson(`vanishgeo-profile-${profile.id}-${Date.now()}.json`, profile);
+}
 
+function deleteProfile(profileId: string): void {
+  if (!confirm('确定要删除这个配置文件吗？')) return;
+  currentConfig.profile.profiles = currentConfig.profile.profiles.filter((profile) => profile.id !== profileId);
+  renderProfiles();
+}
+
+function downloadJson(filename: string, value: unknown): void {
+  const dataBlob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(dataBlob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `vanishme-profile-${profile.id}-${Date.now()}.json`;
+  link.download = filename;
   link.click();
-
   URL.revokeObjectURL(url);
 }
 
-function deleteProfile(profileId: string) {
-  if (!confirm('确定要删除这个配置文件吗？')) return;
-
-  currentConfig.profile.profiles = currentConfig.profile.profiles.filter(p => p.id !== profileId);
-  setConfig(currentConfig);
-  renderProfiles();
+function exportConfiguration(): void {
+  currentConfig = readForm();
+  downloadJson(`vanishgeo-config-${Date.now()}.json`, currentConfig);
 }
 
-function deleteSiteRule(hostname: string) {
-  if (!confirm(`确定要删除 ${hostname} 的规则吗？`)) return;
-
-  delete currentConfig.siteRules[hostname];
-  renderSiteRules();
+function importConfiguration(): void {
+  importFileEl.click();
 }
 
-async function handleGetFromIP() {
+async function handleImportFile(event: Event): Promise<void> {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
   try {
-    getFromIPBtn.disabled = true;
-    getFromIPBtn.textContent = '获取中...';
-
-    // Use ipwhois.app API (free, no API key required)
-    const response = await fetch('https://ipwhois.app/json/');
-    if (!response.ok) {
-      throw new Error('Failed to fetch IP info');
-    }
-
-    const data = await response.json();
-
-    if (!data.success || !data.latitude || !data.longitude) {
-      throw new Error('No location data in response');
-    }
-
-    // 1. Fill geolocation
-    latitudeEl.value = data.latitude.toString();
-    longitudeEl.value = data.longitude.toString();
-    geolocationEnabledEl.checked = true;
-
-    // 2. Fill timezone
-    if (data.timezone) {
-      timezoneEl.value = data.timezone;
-      timezoneEnabledEl.checked = true;
-
-      // Calculate offset from timezone_gmtOffset (in seconds)
-      // timezone_gmtOffset = -25200 (LA, UTC-7) -> -25200 / 3600 = -7
-      const utcOffsetHours = data.timezone_gmtOffset / 3600;
-      utcOffsetEl.value = utcOffsetHours.toString();
-    }
-
-    // 3. Fill language based on country code
-    if (data.country_code) {
-      const languageMap: Record<string, { language: string; languages: string[]; acceptLanguage: string }> = {
-        'US': { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-        'GB': { language: 'en-GB', languages: ['en-GB', 'en'], acceptLanguage: 'en-GB,en;q=0.9' },
-        'CN': { language: 'zh-CN', languages: ['zh-CN', 'zh'], acceptLanguage: 'zh-CN,zh;q=0.9' },
-        'JP': { language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP,ja;q=0.9' },
-        'KR': { language: 'ko-KR', languages: ['ko-KR', 'ko'], acceptLanguage: 'ko-KR,ko;q=0.9' },
-        'DE': { language: 'de-DE', languages: ['de-DE', 'de'], acceptLanguage: 'de-DE,de;q=0.9' },
-        'FR': { language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9' },
-        'SG': { language: 'en-SG', languages: ['en-SG', 'en'], acceptLanguage: 'en-SG,en;q=0.9' },
-        'TW': { language: 'zh-TW', languages: ['zh-TW', 'zh'], acceptLanguage: 'zh-TW,zh;q=0.9' },
-        'HK': { language: 'zh-HK', languages: ['zh-HK', 'zh'], acceptLanguage: 'zh-HK,zh;q=0.9' },
-      };
-
-      const langConfig = languageMap[data.country_code] || { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' };
-      languageEl.value = langConfig.language;
-      languagesEl.value = langConfig.languages.join(', ');
-      acceptLanguageEl.value = langConfig.acceptLanguage;
-      languageEnabledEl.checked = true;
-    }
-
-    // 4. Auto-save
+    currentConfig = normalizeConfig(JSON.parse(await file.text()));
+    populateForm(currentConfig);
     await saveSettings();
-
-    alert(`已从 IP 获取并保存配置：\n${data.city}, ${data.country}\n纬度: ${data.latitude}\n经度: ${data.longitude}\n时区: ${data.timezone || 'N/A'}`);
   } catch (error) {
-    console.error('Failed to get config from IP:', error);
-    alert('从 IP 获取配置失败，请手动输入或稍后重试');
+    alert(`导入配置失败: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    importFileEl.value = '';
+  }
+}
+
+async function resetAllData(): Promise<void> {
+  if (!confirm('重置所有数据为默认值？此操作无法撤销。')) return;
+  currentConfig = normalizeConfig(DEFAULT_CONFIG);
+  populateForm(currentConfig);
+  await saveSettings();
+}
+
+async function handleGetFromIP(): Promise<void> {
+  getFromIPBtn.disabled = true;
+  getFromIPBtn.textContent = '获取中...';
+  try {
+    await sendRuntimeMessage({ action: 'manualUpdate' });
+    await loadConfig();
+    alert('出口 IP 定位已刷新，auto 模式会使用最新定位。');
   } finally {
     getFromIPBtn.disabled = false;
     getFromIPBtn.textContent = '🌐 从 IP 自动配置（地理位置 + 时区 + 语言）';
   }
 }
 
-async function saveSettings() {
-  try {
-    // Parse domain list
-    const domainListArray = domainListEl.value
-      .split('\n')
-      .map(d => d.trim())
-      .filter(d => d.length > 0);
-
-    // Parse languages
-    const languagesArray = languagesEl.value
-      .split(',')
-      .map(l => l.trim())
-      .filter(l => l.length > 0);
-
-    // Validate inputs
-    const lat = parseFloat(latitudeEl.value);
-    const lon = parseFloat(longitudeEl.value);
-    const acc = parseFloat(accuracyEl.value);
-    const utcOffsetHours = parseFloat(utcOffsetEl.value);
-
-    if (lat < -90 || lat > 90) {
-      alert('纬度必须在 -90 到 90 之间');
-      return;
-    }
-    if (lon < -180 || lon > 180) {
-      alert('经度必须在 -180 到 180 之间');
-      return;
-    }
-    if (acc <= 0) {
-      alert('精度必须大于 0');
-      return;
-    }
-    if (utcOffsetHours < -12 || utcOffsetHours > 14) {
-      alert('UTC 偏移必须在 -12 到 +14 小时之间');
-      return;
-    }
-
-    const offsetMinutes = -utcOffsetHours * 60;
-
-    currentConfig.globalEnabled = globalEnabledEl.checked;
-    currentConfig.debugMode = debugModeEl.checked;
-    currentConfig.matchMode = matchModeEl.value as 'global' | 'whitelist' | 'blacklist';
-    currentConfig.domainList = domainListArray;
-
-    currentConfig.geolocation.enabled = geolocationEnabledEl.checked;
-    currentConfig.geolocation.latitude = lat;
-    currentConfig.geolocation.longitude = lon;
-    currentConfig.geolocation.accuracy = acc;
-    currentConfig.geolocation.randomize = randomizeEl.checked;
-    currentConfig.geolocation.randomRadiusMeters = parseFloat(randomRadiusMetersEl.value);
-    currentConfig.geolocation.spoofPermission = spoofPermissionEl.checked;
-
-    currentConfig.timezone.enabled = timezoneEnabledEl.checked;
-    currentConfig.timezone.timezone = timezoneEl.value;
-    currentConfig.timezone.offsetMinutes = offsetMinutes;
-
-    currentConfig.language.enabled = languageEnabledEl.checked;
-    currentConfig.language.language = languageEl.value;
-    currentConfig.language.languages = languagesArray;
-    currentConfig.language.acceptLanguage = acceptLanguageEl.value;
-
-    currentConfig.webrtc.enabled = webrtcEnabledEl.checked;
-    currentConfig.webrtc.policy = webrtcPolicyEl.value as any;
-
-    await setConfig(currentConfig);
-    alert('设置已保存');
-  } catch (error) {
-    console.error('Failed to save config:', error);
-    alert('保存配置失败');
-  }
-}
-
-function exportConfiguration() {
-  const dataStr = JSON.stringify(currentConfig, null, 2);
-  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(dataBlob);
-
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `vanishme-config-${Date.now()}.json`;
-  link.click();
-
-  URL.revokeObjectURL(url);
-}
-
-function importConfiguration() {
-  importFileEl.click();
-}
-
-async function handleImportFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-
-  try {
-    const text = await file.text();
-    const imported = JSON.parse(text) as PrivacyConfig;
-
-    if (!imported.geolocation || !imported.webrtc || !imported.language || !imported.timezone) {
-      throw new Error('Invalid configuration file');
-    }
-
-    if (confirm('导入此配置？这将替换你的当前设置。')) {
-      await setConfig(imported);
-      await loadConfig();
-      alert('配置导入成功');
-    }
-  } catch (error) {
-    console.error('Import failed:', error);
-    alert('导入配置失败，请检查文件格式');
-  }
-
-  importFileEl.value = '';
-}
-
-async function resetAllData() {
-  if (confirm('重置所有数据为默认值？此操作无法撤销。')) {
-    if (confirm('确定要继续吗？')) {
-      await resetConfig();
-      await loadConfig();
-      alert('所有数据已重置');
-    }
-  }
-}
-
-// Tab switching
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     const targetTab = (btn as HTMLElement).dataset.tab;
-
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
+    document.querySelectorAll('.tab-btn').forEach((button) => button.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach((content) => content.classList.remove('active'));
     btn.classList.add('active');
     document.querySelector(`.tab-content[data-tab="${targetTab}"]`)?.classList.add('active');
   });
 });
 
-// Event listeners
-saveBtn.addEventListener('click', saveSettings);
+saveBtn.addEventListener('click', () => { void saveSettings(); });
 saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
-confirmSaveProfileBtn.addEventListener('click', handleSaveAsCustom);
+confirmSaveProfileBtn.addEventListener('click', () => { void handleSaveAsCustom(); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
-
-getFromIPBtn.addEventListener('click', handleGetFromIP);
-
+getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
 exportConfigBtn.addEventListener('click', exportConfiguration);
 importConfigBtn.addEventListener('click', importConfiguration);
-importFileEl.addEventListener('change', handleImportFile);
-resetAllBtn.addEventListener('click', resetAllData);
-
-// Close modal on outside click
-saveProfileModal.addEventListener('click', (e) => {
-  if (e.target === saveProfileModal) {
-    closeSaveAsCustomModal();
-  }
+importFileEl.addEventListener('change', (event) => { void handleImportFile(event); });
+resetAllBtn.addEventListener('click', () => { void resetAllData(); });
+saveProfileModal.addEventListener('click', (event) => {
+  if (event.target === saveProfileModal) closeSaveAsCustomModal();
 });
 
-// Initialize
-loadConfig();
+void loadConfig();

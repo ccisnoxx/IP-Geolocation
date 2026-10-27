@@ -1,21 +1,30 @@
 import './popup.css';
-import { getConfig, setConfig, resetConfig, applyProfile } from '../shared/storage';
-import { DEFAULT_CONFIG } from '../shared/defaults';
-import type { PrivacyConfig, GeolocationHistory } from '../shared/types';
+import {
+  DEFAULT_CANVAS,
+  DEFAULT_CONFIG,
+  normalizeConfig,
+  normalizeGeolocation,
+  normalizeLanguage,
+  normalizeTimezone,
+  normalizeWebRtc
+} from '../shared/config-model';
+import { ruleLines, rulesFromText } from '../shared/rule-text';
+import { describeSiteStatus } from '../shared/site-status';
+import type { GeolocationHistory, SiteSpoofConfig } from '../shared/types';
 
-// DOM elements
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
 const globalStatusEl = document.getElementById('globalStatus') as HTMLElement;
 const currentSiteEl = document.getElementById('currentSite') as HTMLElement;
+const siteWarningEl = document.getElementById('siteWarning') as HTMLElement;
+const siteWarningTextEl = document.getElementById('siteWarningText') as HTMLElement;
+const siteWarningHintEl = document.getElementById('siteWarningHint') as HTMLElement;
+const siteOkEl = document.getElementById('siteOk') as HTMLElement;
+const retryLocationBtn = document.getElementById('retryLocation') as HTMLButtonElement;
 const enableSiteBtn = document.getElementById('enableSite') as HTMLButtonElement;
 const disableSiteBtn = document.getElementById('disableSite') as HTMLButtonElement;
-
-const matchModeEl = document.getElementById('matchMode') as HTMLSelectElement;
-const domainListEl = document.getElementById('domainList') as HTMLTextAreaElement;
-
+const ruleListEl = document.getElementById('ruleList') as HTMLTextAreaElement;
 const openOptionsHeaderBtn = document.getElementById('openOptionsHeader') as HTMLButtonElement;
-
 const geolocationEnabledEl = document.getElementById('geolocationEnabled') as HTMLInputElement;
 const latitudeEl = document.getElementById('latitude') as HTMLInputElement;
 const longitudeEl = document.getElementById('longitude') as HTMLInputElement;
@@ -25,477 +34,278 @@ const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HT
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
 const saveCoordinateBtn = document.getElementById('saveCoordinate') as HTMLButtonElement;
 const getFromIPBtn = document.getElementById('getFromIP') as HTMLButtonElement;
-
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
 const utcOffsetEl = document.getElementById('utcOffset') as HTMLInputElement;
-
 const languageEnabledEl = document.getElementById('languageEnabled') as HTMLInputElement;
 const languageEl = document.getElementById('language') as HTMLInputElement;
 const languagesEl = document.getElementById('languages') as HTMLInputElement;
 const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputElement;
-
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
-
 const canvasEnabledEl = document.getElementById('canvasEnabled') as HTMLInputElement;
+const canvasPlatformEl = document.getElementById('canvasPlatform') as HTMLSelectElement;
+const canvasHideCjkEl = document.getElementById('canvasHideCjk') as HTMLInputElement;
 const resetFontsBtn = document.getElementById('resetFonts') as HTMLButtonElement;
-
-const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const openOptionsBtn = document.getElementById('openOptions') as HTMLButtonElement;
 const openLeakTestBtn = document.getElementById('openLeakTest') as HTMLButtonElement;
 const resetBtn = document.getElementById('reset') as HTMLButtonElement;
 const autoSaveToast = document.getElementById('autoSaveToast') as HTMLElement;
 
-let currentConfig: PrivacyConfig;
-let currentHostname: string = '';
+let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
+let currentHostname = '';
 let autoSaveTimer: number | null = null;
 
-function showAutoSaveToast() {
-  // Clear existing timer
-  if (autoSaveTimer) {
-    clearTimeout(autoSaveTimer);
-  }
+function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response || response.status === 'error') {
+        reject(new Error(response?.message || 'Unknown runtime error'));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
 
-  // Show toast
+function showAutoSaveToast(): void {
+  if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
   autoSaveToast.classList.add('show');
-
-  // Hide after 2 seconds
   autoSaveTimer = window.setTimeout(() => {
     autoSaveToast.classList.remove('show');
     autoSaveTimer = null;
   }, 2000);
 }
 
-async function loadConfig() {
-  currentConfig = await getConfig();
-
-  // Get current tab hostname
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.url) {
-      currentHostname = new URL(tab.url).hostname;
-      currentSiteEl.textContent = currentHostname;
-    }
-  } catch (error) {
-    currentSiteEl.textContent = 'N/A';
-  }
-
-  // Populate UI
-  globalEnabledEl.checked = currentConfig.globalEnabled;
-  debugModeEl.checked = currentConfig.debugMode || false;
-  updateGlobalStatus();
-
-  // Match mode
-  matchModeEl.value = currentConfig.matchMode || 'global';
-  domainListEl.value = (currentConfig.domainList || []).join('\n');
-
-  // Geolocation
-  geolocationEnabledEl.checked = currentConfig.geolocation.enabled;
-  geolocationEnabledEl.checked = currentConfig.geolocation.enabled;
-  latitudeEl.value = currentConfig.geolocation.latitude.toString();
-  longitudeEl.value = currentConfig.geolocation.longitude.toString();
-  accuracyEl.value = currentConfig.geolocation.accuracy.toString();
-  randomizeEl.checked = currentConfig.geolocation.randomize;
-  randomRadiusMetersEl.value = currentConfig.geolocation.randomRadiusMeters.toString();
-  spoofPermissionEl.checked = currentConfig.geolocation.spoofPermission;
-
-  // Timezone
-  timezoneEnabledEl.checked = currentConfig.timezone.enabled;
-  timezoneEl.value = currentConfig.timezone.timezone;
-  // Convert offsetMinutes to hours for display
-  const utcOffsetHours = -currentConfig.timezone.offsetMinutes / 60;
-  utcOffsetEl.value = utcOffsetHours.toString();
-
-  // Language
-  languageEnabledEl.checked = currentConfig.language.enabled;
-  languageEl.value = currentConfig.language.language;
-  languagesEl.value = currentConfig.language.languages.join(', ');
-  acceptLanguageEl.value = currentConfig.language.acceptLanguage;
-
-  // WebRTC
-  webrtcEnabledEl.checked = currentConfig.webrtc.enabled;
-  webrtcPolicyEl.value = currentConfig.webrtc.policy;
-
-  // Canvas
-  canvasEnabledEl.checked = currentConfig.canvas.enabled;
+function webRtcSelectValue(config: SiteSpoofConfig): string {
+  if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
+  if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
+  return 'default';
 }
 
-function updateGlobalStatus() {
+function updateGlobalStatus(): void {
   globalStatusEl.textContent = globalEnabledEl.checked ? '全局保护已启用' : '全局保护已禁用';
 }
 
-async function saveChanges() {
-  try {
-    // Parse domain list
-    const domainListArray = domainListEl.value
-      .split('\n')
-      .map(d => d.trim())
-      .filter(d => d.length > 0);
+function populateForm(config: SiteSpoofConfig): void {
+  globalEnabledEl.checked = config.masterEnabled;
+  debugModeEl.checked = config.debugMode;
+  updateGlobalStatus();
+  ruleListEl.value = ruleLines(config.rules);
 
-    // Parse languages
-    const languagesArray = languagesEl.value
-      .split(',')
-      .map(l => l.trim())
-      .filter(l => l.length > 0);
+  const geo = config.globalProfile.geolocation;
+  geolocationEnabledEl.checked = geo.enabled;
+  latitudeEl.value = geo.latitude === null ? '' : String(geo.latitude);
+  longitudeEl.value = geo.longitude === null ? '' : String(geo.longitude);
+  accuracyEl.value = String(geo.accuracy);
+  randomizeEl.checked = geo.randomize;
+  randomRadiusMetersEl.value = String(geo.randomRadiusMeters);
+  spoofPermissionEl.checked = geo.spoofPermission;
 
-    // Validate inputs
-    const lat = parseFloat(latitudeEl.value);
-    const lon = parseFloat(longitudeEl.value);
-    const acc = parseFloat(accuracyEl.value);
-    const utcOffsetHours = parseFloat(utcOffsetEl.value);
+  const timezone = config.globalProfile.timezone;
+  timezoneEnabledEl.checked = timezone.enabled;
+  timezoneEl.value = timezone.timezone;
+  const offset = timezone.timezone ? new Date().getTimezoneOffset() : 0;
+  utcOffsetEl.value = timezone.timezone ? String(-offset / 60) : '';
 
-    if (lat < -90 || lat > 90) {
-      alert('纬度必须在 -90 到 90 之间');
-      return;
-    }
-    if (lon < -180 || lon > 180) {
-      alert('经度必须在 -180 到 180 之间');
-      return;
-    }
-    if (acc <= 0) {
-      alert('精度必须大于 0');
-      return;
-    }
-    if (utcOffsetHours < -12 || utcOffsetHours > 14) {
-      alert('UTC 偏移必须在 -12 到 +14 小时之间');
-      return;
-    }
+  const language = config.globalProfile.language;
+  languageEnabledEl.checked = language.enabled;
+  languageEl.value = language.language;
+  languagesEl.value = language.languages.join(', ');
+  acceptLanguageEl.value = language.acceptLanguage;
 
-    // Convert UTC offset hours to offsetMinutes (note the sign reversal)
-    // UTC-7 (Los Angeles) = -7 hours = +420 minutes offset
-    // UTC+8 (Singapore) = +8 hours = -480 minutes offset
-    const offsetMinutes = -utcOffsetHours * 60;
-
-    currentConfig.globalEnabled = globalEnabledEl.checked;
-    currentConfig.debugMode = debugModeEl.checked;
-    currentConfig.matchMode = matchModeEl.value as 'global' | 'whitelist' | 'blacklist';
-    currentConfig.domainList = domainListArray;
-
-    currentConfig.geolocation.enabled = geolocationEnabledEl.checked;
-    currentConfig.geolocation.latitude = lat;
-    currentConfig.geolocation.longitude = lon;
-    currentConfig.geolocation.accuracy = acc;
-    currentConfig.geolocation.randomize = randomizeEl.checked;
-    currentConfig.geolocation.randomRadiusMeters = parseFloat(randomRadiusMetersEl.value);
-    currentConfig.geolocation.spoofPermission = spoofPermissionEl.checked;
-
-    currentConfig.timezone.enabled = timezoneEnabledEl.checked;
-    currentConfig.timezone.timezone = timezoneEl.value;
-    currentConfig.timezone.offsetMinutes = offsetMinutes;
-
-    currentConfig.language.enabled = languageEnabledEl.checked;
-    currentConfig.language.language = languageEl.value;
-    currentConfig.language.languages = languagesArray;
-    currentConfig.language.acceptLanguage = acceptLanguageEl.value;
-
-    currentConfig.webrtc.enabled = webrtcEnabledEl.checked;
-    currentConfig.webrtc.policy = webrtcPolicyEl.value as any;
-
-    currentConfig.canvas.enabled = canvasEnabledEl.checked;
-
-    await setConfig(currentConfig);
-
-    // Show toast
-    showAutoSaveToast();
-
-    // Don't auto-reload - let user refresh manually or close popup
-  } catch (error) {
-    console.error('Failed to save config:', error);
-    alert('保存配置失败');
-  }
+  webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
+  webrtcPolicyEl.value = webRtcSelectValue(config);
+  canvasEnabledEl.checked = config.canvas.enabled;
+  canvasPlatformEl.value = config.canvas.platform;
+  canvasHideCjkEl.checked = config.canvas.hideCjkFonts;
 }
 
-async function handleApplyProfile(profileId: string) {
-  if (!profileId) return;
-
-  if (!confirm('应用此配置会覆盖当前设置，确定继续吗？')) {
-    return;
-  }
-
-  try {
-    await applyProfile(profileId);
-    await loadConfig();
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      chrome.tabs.reload(tab.id);
+function readForm(): SiteSpoofConfig {
+  const rules = rulesFromText(ruleListEl.value, currentConfig.rules);
+  return normalizeConfig({
+    ...currentConfig,
+    masterEnabled: globalEnabledEl.checked,
+    debugMode: debugModeEl.checked,
+    rules,
+    globalProfile: {
+      language: normalizeLanguage({
+        enabled: languageEnabledEl.checked,
+        mode: 'custom',
+        language: languageEl.value,
+        languages: languagesEl.value.split(',').map((item) => item.trim()).filter(Boolean),
+        acceptLanguage: acceptLanguageEl.value
+      }),
+      timezone: normalizeTimezone({
+        enabled: timezoneEnabledEl.checked,
+        mode: timezoneEl.value ? 'manual' : 'auto',
+        timezone: timezoneEl.value
+      }),
+      geolocation: normalizeGeolocation({
+        enabled: geolocationEnabledEl.checked,
+        mode: latitudeEl.value && longitudeEl.value ? 'manual' : 'auto',
+        latitude: latitudeEl.value === '' ? null : Number(latitudeEl.value),
+        longitude: longitudeEl.value === '' ? null : Number(longitudeEl.value),
+        accuracy: Number(accuracyEl.value),
+        randomize: randomizeEl.checked,
+        randomRadiusMeters: Number(randomRadiusMetersEl.value),
+        spoofPermission: spoofPermissionEl.checked,
+        history: currentConfig.globalProfile.geolocation.history
+      })
+    },
+    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
+    canvas: {
+      ...currentConfig.canvas,
+      enabled: canvasEnabledEl.checked,
+      platform: canvasPlatformEl.value as SiteSpoofConfig['canvas']['platform'],
+      hideCjkFonts: canvasHideCjkEl.checked
     }
-
-    window.close();
-  } catch (error) {
-    console.error('Failed to apply profile:', error);
-    alert('应用配置失败');
-  }
-}
-
-async function handleEnableSite() {
-  if (!currentHostname) return;
-
-  const domainListArray = domainListEl.value
-    .split('\n')
-    .map(d => d.trim())
-    .filter(d => d.length > 0);
-
-  // Add to whitelist or remove from blacklist depending on match mode
-  if (currentConfig.matchMode === 'whitelist') {
-    // Add to whitelist if not already there
-    if (!domainListArray.includes(currentHostname)) {
-      domainListArray.push(currentHostname);
-      currentConfig.domainList = domainListArray;
-      domainListEl.value = domainListArray.join('\n');
-    }
-  } else if (currentConfig.matchMode === 'blacklist') {
-    // Remove from blacklist
-    const index = domainListArray.indexOf(currentHostname);
-    if (index > -1) {
-      domainListArray.splice(index, 1);
-      currentConfig.domainList = domainListArray;
-      domainListEl.value = domainListArray.join('\n');
-    }
-  }
-
-  await setConfig(currentConfig);
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) {
-    chrome.tabs.reload(tab.id);
-  }
-
-  window.close();
-}
-
-async function handleDisableSite() {
-  if (!currentHostname) return;
-
-  const domainListArray = domainListEl.value
-    .split('\n')
-    .map(d => d.trim())
-    .filter(d => d.length > 0);
-
-  // Add to blacklist or remove from whitelist depending on match mode
-  if (currentConfig.matchMode === 'blacklist') {
-    // Add to blacklist if not already there
-    if (!domainListArray.includes(currentHostname)) {
-      domainListArray.push(currentHostname);
-      currentConfig.domainList = domainListArray;
-      domainListEl.value = domainListArray.join('\n');
-    }
-  } else if (currentConfig.matchMode === 'whitelist') {
-    // Remove from whitelist
-    const index = domainListArray.indexOf(currentHostname);
-    if (index > -1) {
-      domainListArray.splice(index, 1);
-      currentConfig.domainList = domainListArray;
-      domainListEl.value = domainListArray.join('\n');
-    }
-  }
-
-  await setConfig(currentConfig);
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) {
-    chrome.tabs.reload(tab.id);
-  }
-
-  window.close();
-}
-
-async function handleSaveCoordinate() {
-  const lat = parseFloat(latitudeEl.value);
-  const lon = parseFloat(longitudeEl.value);
-  const acc = parseFloat(accuracyEl.value);
-
-  if (isNaN(lat) || isNaN(lon) || isNaN(acc)) {
-    alert('无效的坐标');
-    return;
-  }
-
-  const history: GeolocationHistory = {
-    latitude: lat,
-    longitude: lon,
-    accuracy: acc,
-    createdAt: Date.now()
-  };
-
-  // Keep only last 10 unique coordinates
-  const existingHistory = currentConfig.geolocation.history || [];
-  const isDuplicate = existingHistory.some(
-    h => h.latitude === lat && h.longitude === lon
-  );
-
-  if (!isDuplicate) {
-    existingHistory.unshift(history);
-    currentConfig.geolocation.history = existingHistory.slice(0, 10);
-    await setConfig(currentConfig);
-
-    // Auto-save and reload
-    await saveChanges();
-  }
-}
-
-function handleOpenLeakTest() {
-  chrome.tabs.create({
-    url: chrome.runtime.getURL('leak-test/leak-test.html')
   });
 }
 
-function handleOpenOptions() {
-  chrome.runtime.openOptionsPage();
+async function saveChanges(): Promise<void> {
+  currentConfig = readForm();
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'setSiteConfig', config: currentConfig });
+  currentConfig = normalizeConfig(response.config);
+  showAutoSaveToast();
 }
 
-async function handleReset() {
-  if (confirm('重置所有设置为默认值？')) {
-    await resetConfig();
+function renderSiteStatus(state: any): void {
+  const status = describeSiteStatus(state || { matched: false, payload: null, errors: [] });
+  siteWarningEl.hidden = !status.broken;
+  siteOkEl.hidden = !status.active;
+  if (status.broken) {
+    siteWarningTextEl.textContent = status.text;
+    siteWarningHintEl.textContent = status.hint;
+  }
+  retryLocationBtn.hidden = !status.broken;
+}
+
+async function loadConfig(): Promise<void> {
+  const response = await sendRuntimeMessage<{ state: any }>({ action: 'getCurrentTabState' });
+  currentConfig = normalizeConfig(response.state.config);
+  currentHostname = response.state.domain || '';
+  currentSiteEl.textContent = currentHostname || 'N/A';
+  renderSiteStatus(response.state);
+  populateForm(currentConfig);
+}
+
+async function handleApplyProfile(profileId: string): Promise<void> {
+  if (!profileId) return;
+  const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'applyProfile', profileId });
+  currentConfig = normalizeConfig(response.config);
+  populateForm(currentConfig);
+  showAutoSaveToast();
+}
+
+async function handleEnableSite(): Promise<void> {
+  if (!currentHostname) return;
+  // upsert：站点没有任何规则时直接建一条启用的，已有的则翻成启用
+  await sendRuntimeMessage({ action: 'setDomainRuleEnabled', domain: currentHostname, enabled: true });
+  await loadConfig();
+}
+
+async function handleDisableSite(): Promise<void> {
+  if (!currentHostname) return;
+  // 「排除」而不是删除：保留规则才能在父域白名单里单独挖掉一个子域
+  await sendRuntimeMessage({ action: 'setDomainRuleEnabled', domain: currentHostname, enabled: false });
+  await loadConfig();
+}
+
+async function handleSaveCoordinate(): Promise<void> {
+  const lat = Number(latitudeEl.value);
+  const lon = Number(longitudeEl.value);
+  const acc = Number(accuracyEl.value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(acc)) {
+    alert('无效的坐标');
+    return;
+  }
+  const history: GeolocationHistory = { latitude: lat, longitude: lon, accuracy: acc, createdAt: Date.now() };
+  currentConfig.globalProfile.geolocation.history = [
+    history,
+    ...currentConfig.globalProfile.geolocation.history.filter((item) => item.latitude !== lat || item.longitude !== lon)
+  ].slice(0, 10);
+  await saveChanges();
+}
+
+async function handleRetryLocation(): Promise<void> {
+  retryLocationBtn.disabled = true;
+  retryLocationBtn.textContent = '获取中...';
+  try {
+    await sendRuntimeMessage({ action: 'manualUpdate' });
     await loadConfig();
+  } finally {
+    retryLocationBtn.disabled = false;
+    retryLocationBtn.textContent = '重试定位';
   }
 }
 
-async function handleGetFromIP() {
+async function handleGetFromIP(): Promise<void> {
+  getFromIPBtn.disabled = true;
+  getFromIPBtn.textContent = '获取中...';
   try {
-    getFromIPBtn.disabled = true;
-    getFromIPBtn.textContent = '获取中...';
-
-    // Use ipwhois.app API (free, no API key required)
-    const response = await fetch('https://ipwhois.app/json/');
-    if (!response.ok) {
-      throw new Error('Failed to fetch IP info');
-    }
-
-    const data = await response.json();
-
-    if (!data.success || !data.latitude || !data.longitude) {
-      throw new Error('No location data in response');
-    }
-
-    // 1. Fill geolocation
-    latitudeEl.value = data.latitude.toString();
-    longitudeEl.value = data.longitude.toString();
-    geolocationEnabledEl.checked = true;
-
-    // 2. Fill timezone
-    if (data.timezone) {
-      timezoneEl.value = data.timezone;
-      timezoneEnabledEl.checked = true;
-
-      // Calculate offset from timezone_gmtOffset (in seconds)
-      // timezone_gmtOffset = -25200 (LA, UTC-7) -> -25200 / 3600 = -7
-      const utcOffsetHours = data.timezone_gmtOffset / 3600;
-      utcOffsetEl.value = utcOffsetHours.toString();
-    }
-
-    // 3. Fill language based on country code
-    if (data.country_code) {
-      const languageMap: Record<string, { language: string; languages: string[]; acceptLanguage: string }> = {
-        'US': { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-        'GB': { language: 'en-GB', languages: ['en-GB', 'en'], acceptLanguage: 'en-GB,en;q=0.9' },
-        'CN': { language: 'zh-CN', languages: ['zh-CN', 'zh'], acceptLanguage: 'zh-CN,zh;q=0.9' },
-        'JP': { language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP,ja;q=0.9' },
-        'KR': { language: 'ko-KR', languages: ['ko-KR', 'ko'], acceptLanguage: 'ko-KR,ko;q=0.9' },
-        'DE': { language: 'de-DE', languages: ['de-DE', 'de'], acceptLanguage: 'de-DE,de;q=0.9' },
-        'FR': { language: 'fr-FR', languages: ['fr-FR', 'fr'], acceptLanguage: 'fr-FR,fr;q=0.9' },
-        'SG': { language: 'en-SG', languages: ['en-SG', 'en'], acceptLanguage: 'en-SG,en;q=0.9' },
-        'TW': { language: 'zh-TW', languages: ['zh-TW', 'zh'], acceptLanguage: 'zh-TW,zh;q=0.9' },
-        'HK': { language: 'zh-HK', languages: ['zh-HK', 'zh'], acceptLanguage: 'zh-HK,zh;q=0.9' },
-      };
-
-      const langConfig = languageMap[data.country_code] || { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' };
-      languageEl.value = langConfig.language;
-      languagesEl.value = langConfig.languages.join(', ');
-      acceptLanguageEl.value = langConfig.acceptLanguage;
-      languageEnabledEl.checked = true;
-    }
-
-    // 4. Auto-save and reload
-    await saveChanges();
-
-    // Show success message (saveChanges will close the popup, so this won't be seen)
-    // But if there's an error in saveChanges, at least the form is filled
-  } catch (error) {
-    console.error('Failed to get config from IP:', error);
-    alert('从 IP 获取配置失败，请手动输入或稍后重试');
+    await sendRuntimeMessage({ action: 'manualUpdate' });
+    await loadConfig();
+    showAutoSaveToast();
   } finally {
     getFromIPBtn.disabled = false;
     getFromIPBtn.textContent = '从 IP 自动配置';
   }
 }
 
-async function handleResetFonts() {
-  try {
-    resetFontsBtn.disabled = true;
-    resetFontsBtn.textContent = '更新中...';
-
-    // Force update targetFonts to the latest default list
-    currentConfig.canvas.targetFonts = DEFAULT_CONFIG.canvas.targetFonts;
-    await setConfig(currentConfig);
-
-    // Reload current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      chrome.tabs.reload(tab.id);
-    }
-
-    alert('字体列表已更新！请刷新页面测试。');
-  } catch (error) {
-    console.error('Failed to reset fonts:', error);
-    alert('更新字体列表失败');
-  } finally {
-    resetFontsBtn.disabled = false;
-    resetFontsBtn.textContent = '更新到最新字体列表';
-  }
+async function handleResetFonts(): Promise<void> {
+  // 恢复的是三层默认值：平台 auto、中文层开、手动层清空
+  currentConfig.canvas.platform = DEFAULT_CANVAS.platform;
+  currentConfig.canvas.hideCjkFonts = DEFAULT_CANVAS.hideCjkFonts;
+  currentConfig.canvas.targetFonts = [...DEFAULT_CANVAS.targetFonts];
+  populateForm(currentConfig);
+  await saveChanges();
 }
 
-// Event listeners
-globalEnabledEl.addEventListener('change', () => {
-  updateGlobalStatus();
-  saveChanges();
+globalEnabledEl.addEventListener('change', () => { updateGlobalStatus(); void saveChanges(); });
+debugModeEl.addEventListener('change', () => { void saveChanges(); });
+ruleListEl.addEventListener('blur', () => { void saveChanges(); });
+enableSiteBtn.addEventListener('click', () => { void handleEnableSite(); });
+retryLocationBtn.addEventListener('click', () => { void handleRetryLocation(); });
+disableSiteBtn.addEventListener('click', () => { void handleDisableSite(); });
+geolocationEnabledEl.addEventListener('change', () => { void saveChanges(); });
+latitudeEl.addEventListener('blur', () => { void saveChanges(); });
+longitudeEl.addEventListener('blur', () => { void saveChanges(); });
+accuracyEl.addEventListener('blur', () => { void saveChanges(); });
+randomizeEl.addEventListener('change', () => { void saveChanges(); });
+randomRadiusMetersEl.addEventListener('blur', () => { void saveChanges(); });
+spoofPermissionEl.addEventListener('change', () => { void saveChanges(); });
+timezoneEnabledEl.addEventListener('change', () => { void saveChanges(); });
+timezoneEl.addEventListener('blur', () => { void saveChanges(); });
+languageEnabledEl.addEventListener('change', () => { void saveChanges(); });
+languageEl.addEventListener('blur', () => { void saveChanges(); });
+languagesEl.addEventListener('blur', () => { void saveChanges(); });
+acceptLanguageEl.addEventListener('blur', () => { void saveChanges(); });
+webrtcEnabledEl.addEventListener('change', () => { void saveChanges(); });
+webrtcPolicyEl.addEventListener('change', () => { void saveChanges(); });
+canvasEnabledEl.addEventListener('change', () => { void saveChanges(); });
+canvasPlatformEl.addEventListener('change', () => { void saveChanges(); });
+canvasHideCjkEl.addEventListener('change', () => { void saveChanges(); });
+saveCoordinateBtn.addEventListener('click', () => { void handleSaveCoordinate(); });
+getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
+resetFontsBtn.addEventListener('click', () => { void handleResetFonts(); });
+openOptionsBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
+openOptionsHeaderBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openOptions' }); });
+openLeakTestBtn.addEventListener('click', () => { void sendRuntimeMessage({ action: 'openLeakTest' }); });
+resetBtn.addEventListener('click', () => {
+  currentConfig = normalizeConfig(DEFAULT_CONFIG);
+  populateForm(currentConfig);
+  void saveChanges();
 });
-debugModeEl.addEventListener('change', () => saveChanges());
-matchModeEl.addEventListener('blur', () => saveChanges());
-domainListEl.addEventListener('blur', () => saveChanges());
 
-enableSiteBtn.addEventListener('click', handleEnableSite);
-disableSiteBtn.addEventListener('click', handleDisableSite);
-
-geolocationEnabledEl.addEventListener('change', () => saveChanges());
-latitudeEl.addEventListener('blur', () => saveChanges());
-longitudeEl.addEventListener('blur', () => saveChanges());
-accuracyEl.addEventListener('blur', () => saveChanges());
-randomizeEl.addEventListener('change', () => saveChanges());
-randomRadiusMetersEl.addEventListener('blur', () => saveChanges());
-spoofPermissionEl.addEventListener('change', () => saveChanges());
-
-timezoneEnabledEl.addEventListener('change', () => saveChanges());
-timezoneEl.addEventListener('blur', () => saveChanges());
-utcOffsetEl.addEventListener('blur', () => saveChanges());
-
-languageEnabledEl.addEventListener('change', () => saveChanges());
-languageEl.addEventListener('blur', () => saveChanges());
-languagesEl.addEventListener('blur', () => saveChanges());
-acceptLanguageEl.addEventListener('blur', () => saveChanges());
-
-webrtcEnabledEl.addEventListener('change', () => saveChanges());
-webrtcPolicyEl.addEventListener('change', () => saveChanges());
-
-canvasEnabledEl.addEventListener('change', () => saveChanges());
-
-saveCoordinateBtn.addEventListener('click', handleSaveCoordinate);
-getFromIPBtn.addEventListener('click', handleGetFromIP);
-resetFontsBtn.addEventListener('click', handleResetFonts);
-openOptionsBtn.addEventListener('click', handleOpenOptions);
-openOptionsHeaderBtn.addEventListener('click', handleOpenOptions);
-openLeakTestBtn.addEventListener('click', handleOpenLeakTest);
-resetBtn.addEventListener('click', handleReset);
-
-// Profile card click handlers
-document.querySelectorAll('.profile-card').forEach(card => {
+document.querySelectorAll('.profile-card').forEach((card) => {
   card.addEventListener('click', () => {
-    const profileId = (card as HTMLElement).dataset.profile;
-    if (profileId) {
-      handleApplyProfile(profileId);
-    }
+    void handleApplyProfile((card as HTMLElement).dataset.profile || '');
   });
 });
 
-// Initialize
-loadConfig();
+void loadConfig();
