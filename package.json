@@ -1,12 +1,24 @@
 {
-  "name": "vanishme",
-  "version": "1.0.0",
-  "description": "VanishMe - Browser privacy leak protection and environment consistency management tool",
+  "name": "vanishgeo",
+  "version": "1.2.0",
+  "description": "VanishGeo - Browser privacy leak protection and environment consistency management tool",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "env": "node tools/chrome-env.mjs",
+    "probe": "node tools/verify-env.mjs --frameHost=localhost",
+    "build:persona": "node scripts/build-persona.mjs",
+    "smoke:options": "node tools/smoke-options.mjs",
+    "audit:native": "node tools/native-audit.mjs",
+    "smoke:failclosed": "node tools/smoke-failclosed.mjs",
+    "smoke:real-site": "node tools/smoke-real-site.mjs",
+    "audit": "node tools/audit.mjs",
+    "smoke:ipchange": "node tools/smoke-ip-change.mjs",
+    "smoke:fingerprint": "node tools/smoke-fingerprint.mjs"
   },
   "keywords": [
     "privacy",
@@ -23,6 +35,7 @@
     "@types/node": "^20.12.7",
     "typescript": "^5.4.5",
     "vite": "^5.2.10",
+    "tsx": "^4.20.3",
     "vite-plugin-static-copy": "^1.0.4"
   }
 }
