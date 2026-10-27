@@ -195,3 +195,25 @@ test('配置体检必须真的接到诊断页上，且修法能被点', () => {
     assert.ok(css.includes(`.audit-item.${severity}`), `缺少 ${severity} 档的样式`);
   }
 });
+
+test('发布流水线接得上：npm 脚本、校验工具、三道闸都在', () => {
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts.release, 'node scripts/release.mjs');
+  assert.equal(pkg.scripts['verify:release'], 'node tools/verify-release.mjs');
+
+  const release = read('scripts/release.mjs');
+  // 三道闸：产物校验、版本一致、静态规则非空，都要在打包之前跑
+  assert.match(release, /verifyBakedRuntime\(/, '必须真的校验产物内容');
+  assert.match(release, /manifestVersion/, '必须比对 manifest 与 package 版本');
+  assert.ok(
+    release.indexOf('verifyBuild(target)') < release.indexOf('writeFileSync(zipPath'),
+    '校验必须在出包之前'
+  );
+  // 中间态留下的 persona.config.json 不能泄漏到仓库里
+  assert.match(release, /rmSync\(personaFile/, '构建完要清掉 persona.config.json');
+  assert.match(read('.gitignore'), /^release\/$/m);
+
+  const verify = read('tools/verify-release.mjs');
+  assert.match(verify, /__first/, '首屏校验必须在 document_start 抓快照');
+  assert.match(verify, /host-resolver-rules/, '要把包里的域名指到本地');
+});

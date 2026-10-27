@@ -12,6 +12,8 @@
     "env": "node tools/chrome-env.mjs",
     "probe": "node tools/verify-env.mjs --frameHost=localhost",
     "build:persona": "node scripts/build-persona.mjs",
+    "release": "node scripts/release.mjs",
+    "verify:release": "node tools/verify-release.mjs",
     "smoke:options": "node tools/smoke-options.mjs",
     "audit:native": "node tools/native-audit.mjs",
     "smoke:failclosed": "node tools/smoke-failclosed.mjs",
