@@ -16,6 +16,7 @@ import {
   defaultRules,
   isValidDomain,
   normalizeCanvas,
+  normalizePlatform,
   migrateStoredConfig,
   normalizeConfig,
   normalizeDomain,
@@ -334,13 +335,20 @@ export function getEffectiveProfile(
   const geolocation = resolveGeolocationValue(geolocationConfig, lastLocation);
   const timezone = resolveTimezoneValue(timezoneConfig, geolocation, lastLocation);
   const canvas = normalizeCanvas(normalized.canvas);
+  const platform = normalizePlatform(normalized.platform);
+  // 「一套声称，两个消费者」：平台层开着的时候，字体层必须跟着同一个声称走，
+  // 否则 UA 说 Windows、字体却说这台机器没有 mac 字体，交叉校验一眼就矛盾。
+  const platformUsable = Boolean(platform.enabled && platform.claimed !== 'auto');
+  const effectiveCanvas = platformUsable
+    ? { ...canvas, platform: platform.claimed as CanvasConfig['platform'] }
+    : canvas;
   // payload 携带三层原始字段，**不在这里展开**成字体列表。
   //
   // 展开逻辑要用到 shared/font-aliases，而那个模块同时被注入脚本引用；background
   // 再引用一次就会让 Rollup 抽出共享 chunk，runtime.js 里出现 `import` —— MAIN world
   // 的经典脚本会直接语法错误。所以解析放在注入层（runtime / baked-resolver），
   // 它们本来就是同一个 bundle。
-  const canvasConfig = canvas;
+  const canvasConfig = effectiveCanvas;
   const errors: string[] = [];
 
   if (geolocationConfig && !geolocation) {
@@ -360,7 +368,8 @@ export function getEffectiveProfile(
   // 扩展装上了、站点也在白名单里，页面却什么都没变。
   const geolocationUsable = Boolean(geolocation);
   const canvasUsable = Boolean(canvas.enabled);
-  if (!languageUsable && !timezoneUsable && !geolocationUsable && !canvasUsable) {
+  // 平台层自己也能把 payload 拉起来：只改 UA/UA-CH 也是一个完整用例
+  if (!languageUsable && !timezoneUsable && !geolocationUsable && !canvasUsable && !platformUsable) {
     return { matched: true, rule, payload: null, errors };
   }
 
@@ -383,7 +392,10 @@ export function getEffectiveProfile(
         mode: timezoneConfig.mode,
         timezone: timezoneConfig.timezone
       } : { enabled: false, mode: 'auto', timezone: '' },
-      canvasConfig
+      canvasConfig,
+      platform: platformUsable
+        ? { claimed: platform.claimed, version: platform.version, architecture: platform.architecture }
+        : null
     },
     // 部分生效时 errors 里保留原因：UI 要能说清"语言已生效、时区没生效"
     errors

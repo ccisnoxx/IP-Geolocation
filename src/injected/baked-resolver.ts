@@ -1,4 +1,4 @@
-import type { CanvasPlatform } from '../shared/types';
+import type { CanvasPlatform, PlatformClaim } from '../shared/types';
 import type { LastLocation, SiteSpoofConfig } from '../shared/types';
 
 /**
@@ -27,6 +27,8 @@ export interface BakedRuntimePayload {
     spoofPermission: boolean;
   } | null;
   canvasConfig: { enabled: boolean; spoofFonts: boolean; platform?: CanvasPlatform; hideCjkFonts?: boolean; targetFonts: string[] };
+  /** 平台声称；null / 缺席 = 不改 UA。烘焙构建里它同样是常量，首屏就能生效。 */
+  platform?: { claimed: PlatformClaim; version: string; architecture: string } | null;
 }
 
 type Override = { mode?: string; value?: any } | null | undefined;

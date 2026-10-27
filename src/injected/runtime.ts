@@ -1,5 +1,6 @@
 import { resolveBakedPayload, type BakedRuntimePayload } from './baked-resolver';
 import { installCanvasFontPatches } from './canvas-patch';
+import { installNavigatorPatch, platformClaimValues } from './navigator-patch';
 import { createDisguise } from './disguise';
 import {
   buildTargetFontKeys,
@@ -42,6 +43,8 @@ interface RuntimeState {
   canvasTargetFonts: string[] | null;
   /** 诊断回报用：当前生效的字体层配置（不含字表本身） */
   canvasConfig: { platform?: string; hideCjkFonts?: boolean } | null;
+  /** 平台声称（UA / UA-CH / Worker 同源） */
+  platformClaim: { claimed: string; version: string; architecture: string } | null;
   installedWorker: boolean;
 }
 
@@ -64,6 +67,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     installedCanvas: false,
     canvasTargetFonts: null,
     canvasConfig: null,
+    platformClaim: null,
     installedWorker: false
   };
 
@@ -173,12 +177,17 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     // Worker 里只需按同一套归一化规则比较，不用再背一份别名数据。
     const fontFamilies = state.canvasTargetFonts || [];
     const fontTargets = fontFamilies.length ? Array.from(buildTargetFontKeys(fontFamilies)) : [];
-    if (!state.timezone && !state.language && !fontTargets.length) return '';
+    const claimValues = platformClaimValues(state.platformClaim ? state.platformClaim.claimed : null, state.platformClaim
+      ? { version: state.platformClaim.version, architecture: state.platformClaim.architecture }
+      : null);
+    const platform = claimValues ? { uaToken: claimValues.uaToken, platform: claimValues.platform } : null;
+    if (!state.timezone && !state.language && !fontTargets.length && !platform) return '';
     return buildWorkerPatch({
       timezone: state.timezone,
       language: state.language,
       languages: state.languages,
-      fontTargets
+      fontTargets,
+      platform
     });
   }
 
@@ -237,6 +246,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     language: string | null;
     languages: string[] | null;
     fontTargets: string[];
+    platform: { uaToken: string; platform: string } | null;
   }): string {
     return `;(${workerPatch.toString()})(${JSON.stringify(config)});`;
   }
@@ -298,9 +308,19 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     state.canvasConfig = canvasConfig
       ? { platform: canvasConfig.platform, hideCjkFonts: canvasConfig.hideCjkFonts }
       : null;
+
+    // 平台声称：和字体层共用同一个声称（payload 里的 canvasConfig.platform 已经
+    // 按它解析过了），这里负责 UA / UA-CH。传 null 表示撤销回原生值。
+    const claim = payload.platform && payload.platform.claimed && payload.platform.claimed !== 'auto'
+      ? payload.platform
+      : null;
+    state.platformClaim = claim;
+    installNavigatorPatch(globalThis, claim ? claim.claimed : null, claim
+      ? { version: claim.version, architecture: claim.architecture }
+      : null, { disguise, define });
     if (canvasConfig) installCanvas(canvasConfig, canvasTargets);
     const needCanvas = Boolean(canvasConfig && canvasConfig.spoofFonts && canvasTargets.length);
-    if (needTimezone || needLanguage || needLocale || needCanvas) installWorker();
+    if (needTimezone || needLanguage || needLocale || needCanvas || claim) installWorker();
 
     if (state.debug) {
       console.log('[VanishGeo] applied', {

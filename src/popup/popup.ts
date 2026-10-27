@@ -5,6 +5,7 @@ import {
   normalizeConfig,
   normalizeGeolocation,
   normalizeLanguage,
+  normalizePlatform,
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
@@ -44,6 +45,10 @@ const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputE
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
 const canvasEnabledEl = document.getElementById('canvasEnabled') as HTMLInputElement;
+const platformEnabledEl = document.getElementById('platformEnabled') as HTMLInputElement;
+const platformClaimedEl = document.getElementById('platformClaimed') as HTMLSelectElement;
+const platformVersionEl = document.getElementById('platformVersion') as HTMLInputElement;
+const platformArchEl = document.getElementById('platformArch') as HTMLInputElement;
 const canvasPlatformEl = document.getElementById('canvasPlatform') as HTMLSelectElement;
 const canvasHideCjkEl = document.getElementById('canvasHideCjk') as HTMLInputElement;
 const resetFontsBtn = document.getElementById('resetFonts') as HTMLButtonElement;
@@ -120,6 +125,10 @@ function populateForm(config: SiteSpoofConfig): void {
 
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
+  platformEnabledEl.checked = config.platform.enabled;
+  platformClaimedEl.value = config.platform.claimed;
+  platformVersionEl.value = config.platform.version;
+  platformArchEl.value = config.platform.architecture;
   canvasEnabledEl.checked = config.canvas.enabled;
   canvasPlatformEl.value = config.canvas.platform;
   canvasHideCjkEl.checked = config.canvas.hideCjkFonts;
@@ -158,6 +167,12 @@ function readForm(): SiteSpoofConfig {
       })
     },
     webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
+    platform: normalizePlatform({
+      enabled: platformEnabledEl.checked,
+      claimed: platformClaimedEl.value as SiteSpoofConfig['platform']['claimed'],
+      version: platformVersionEl.value,
+      architecture: platformArchEl.value
+    }),
     canvas: {
       ...currentConfig.canvas,
       enabled: canvasEnabledEl.checked,
@@ -288,6 +303,10 @@ acceptLanguageEl.addEventListener('blur', () => { void saveChanges(); });
 webrtcEnabledEl.addEventListener('change', () => { void saveChanges(); });
 webrtcPolicyEl.addEventListener('change', () => { void saveChanges(); });
 canvasEnabledEl.addEventListener('change', () => { void saveChanges(); });
+platformEnabledEl.addEventListener('change', () => { void saveChanges(); });
+platformClaimedEl.addEventListener('change', () => { void saveChanges(); });
+platformVersionEl.addEventListener('change', () => { void saveChanges(); });
+platformArchEl.addEventListener('change', () => { void saveChanges(); });
 canvasPlatformEl.addEventListener('change', () => { void saveChanges(); });
 canvasHideCjkEl.addEventListener('change', () => { void saveChanges(); });
 saveCoordinateBtn.addEventListener('click', () => { void handleSaveCoordinate(); });

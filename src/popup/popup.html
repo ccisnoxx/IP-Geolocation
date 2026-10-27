@@ -185,6 +185,37 @@
       </details>
 
       <details>
+        <summary>平台声称（UA / UA-CH）</summary>
+        <div class="config-content">
+          <label class="checkbox-label">
+            <input type="checkbox" id="platformEnabled">
+            <span>让浏览器声称是另一个平台</span>
+          </label>
+
+          <label for="platformClaimed" style="margin-top: 10px; display: block; font-size: 12px; color: #999;">声称平台</label>
+          <select id="platformClaimed" class="input">
+            <option value="auto">不声称（保持真实平台）</option>
+            <option value="mac">macOS</option>
+            <option value="windows">Windows</option>
+            <option value="linux">Linux</option>
+          </select>
+
+          <div class="two-col" style="margin-top: 8px;">
+            <div>
+              <label for="platformVersion" style="display: block; font-size: 12px; color: #999;">平台版本（可空）</label>
+              <input type="text" id="platformVersion" class="input" placeholder="如 14.6.0 / 15.0.0">
+            </div>
+            <div>
+              <label for="platformArch" style="display: block; font-size: 12px; color: #999;">CPU 架构（可空）</label>
+              <input type="text" id="platformArch" class="input" placeholder="arm / x86">
+            </div>
+          </div>
+
+          <div class="hint">打开后同时改写 <code>navigator.userAgent</code>、<code>navigator.platform</code>、<code>userAgentData</code>（含高熵值）与请求头 <code>Sec-CH-UA-*</code>，字体层也会跟着这个声称走 —— 否则 UA 说 Windows、字体却说没有 mac 字体，交叉校验一眼就矛盾。留空则按平台默认。<strong>注意</strong>：WebGL 渲染器、屏幕色深不在这一层里，仍会暴露真实 GPU。</div>
+        </div>
+      </details>
+
+      <details>
         <summary>Canvas 字体伪装</summary>
         <div class="config-content">
           <label class="checkbox-label">
@@ -192,9 +223,9 @@
             <span>启用字体反检测</span>
           </label>
 
-          <label for="canvasPlatform" style="margin-top: 10px; display: block; font-size: 12px; color: #999;">声称的平台</label>
+          <label for="canvasPlatform" style="margin-top: 10px; display: block; font-size: 12px; color: #999;">字体层按哪个平台判定</label>
           <select id="canvasPlatform" class="input">
-            <option value="auto">自动（按本机真实平台，隐藏另外两个平台的字体）</option>
+            <option value="auto">自动（跟随平台声称；没声称时按本机真实平台）</option>
             <option value="mac">macOS（隐藏 Windows / Linux 字体）</option>
             <option value="windows">Windows（隐藏 macOS / Linux 字体）</option>
             <option value="linux">Linux（隐藏 macOS / Windows 字体）</option>
