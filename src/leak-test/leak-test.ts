@@ -243,11 +243,54 @@ async function renderConfig(): Promise<void> {
       ? `auto（跟随出口 IP；accuracy ${geolocation.accuracy}m）`
       : `${geolocation.latitude}, ${geolocation.longitude}（accuracy ${geolocation.accuracy}m）`);
 
+    // 字体层：这里只显示"配置说了什么"。三张字表只存在于注入层（它必须自包含，
+    // 不能与其它入口共享 chunk），所以"实际生效多少条"要问页面里的 runtime ——
+    // 它在 document_start 装完补丁后会把真实条数报回来，见下方 renderFontUsage。
+    const canvas = config.canvas;
+    const claimed = canvas.platform === 'auto' || !canvas.platform ? '自动（跟随浏览器）' : canvas.platform;
+    setText('configFonts', canvas.enabled
+      ? `${claimed} · 中文层 ${canvas.hideCjkFonts ? '隐藏' : '保留'} · 手动追加 ${canvas.targetFonts.length} 条`
+      : 'off（页面按原生字表判定）');
+    setText('configFontTargets', canvas.enabled ? '正在查询页面实际上报…' : '（未启用字体伪装）');
+
     const enabled = config.rules.filter((rule) => rule.enabled).map((rule) => rule.domain);
     const excluded = config.rules.filter((rule) => !rule.enabled).map((rule) => `!${rule.domain}`);
     setText('configRules', [...enabled, ...excluded].join('、') || '（空）');
+
+    if (config.canvas.enabled) void renderFontUsage();
   } catch (error) {
     setText('configMaster', `读取失败：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * "实际生效"这一行：问后台要注入层的回报。
+ *
+ * 为什么不在这里算：三张字表只编在 injected/runtime.js 里（注入层必须自包含，
+ * 一旦与其它入口共享 chunk，产物就不是经典脚本、MAIN world 里根本跑不起来）。
+ * 所以数字只能由 document_start 装完补丁的 runtime 自己报回来。
+ */
+async function renderFontUsage(): Promise<void> {
+  const element = document.getElementById('configFontTargets');
+  const setText = (value: string) => { if (element) element.textContent = value; };
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const target = tabs.find((tab) => tab.url && /^https?:/i.test(tab.url));
+    if (!target || !target.url) {
+      setText('没有可比对的站点（先打开一个 http/https 页面，且该域名已启用）');
+      return;
+    }
+    const response = await chrome.runtime.sendMessage({ action: 'getFontLayers', url: target.url });
+    const layers = response && response.layers;
+    if (!layers) {
+      setText(`${new URL(target.url).hostname}：还没有页面加载过（打开或刷新该页后再看）`);
+      return;
+    }
+    // 与配置对不上时明确说出来：说明页面拿到的 payload 和当前配置不是同一份
+    const platformNote = layers.platform === 'auto' ? '自动' : layers.platform;
+    setText(`${new URL(target.url).hostname}：${layers.count} 条 · 平台 ${platformNote} · 中文层 ${layers.hideCjkFonts ? '隐藏' : '保留'}`);
+  } catch (error) {
+    setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
