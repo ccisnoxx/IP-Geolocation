@@ -8,9 +8,12 @@
  *   npm run audit -- --skip=realsite --verbose
  *   npm run audit -- --no-build --timeout=300
  *
- * 四路检查：
+ * 检查项：
  *   options     选项页端到端（改语言 → 静态规则停用、动态注册生效）
  *   failclosed  定位失败可见性（角标 !、payload=null、弹窗告警、恢复后清空）
+ *   frames      父域 / 子域 / 不透明 frame 的 payload 隔离与 clear
+ *   bakedfailclosed 烘焙包坐标未解析 → deny，恢复坐标后可逆，关总开关恢复原生
+ *   bakedclear  烘焙包排除站点 / 关总开关 / frozen 的 clear 与冻结行为
  *   native      原生模式自检（无调试端口，19 项环境一致性）
  *   realsite    真实站点一致性（真实注册页 vs 当前代理出口 IP）
  */
@@ -42,6 +45,14 @@ const ENGINES = [
     nativeMode: false,
     nativeNote: 'Chrome 155 忽略 --load-extension，原生模式装不上扩展'
   },
+  {
+    id: 'chrome119',
+    name: 'Chrome 119',
+    path: join(homedir(), '.vanishgeo', 'browsers', 'chrome-119', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
+    // Chrome 119 没有 CDP Extensions.loadUnpacked，只能靠 --load-extension 启动参数
+    legacyExtension: true,
+    nativeMode: true
+  },
   { id: 'helium', name: 'Helium 156', path: '/Applications/Helium.app/Contents/MacOS/Helium', nativeMode: true }
 ];
 
@@ -71,6 +82,9 @@ const STATIC_CHECKS = [
 const CHECKS = [
   { id: 'options', label: 'options 页端到端', script: 'tools/smoke-options.mjs', args: [] },
   { id: 'failclosed', label: '定位失败可见性', script: 'tools/smoke-failclosed.mjs', args: [] },
+  { id: 'frames', label: 'frame 隔离', script: 'tools/smoke-frames.mjs', lateArgs: () => ['--extension=' + extensionPath] },
+  { id: 'bakedfailclosed', label: '烘焙 fail-closed', script: 'tools/smoke-baked-failclosed.mjs', lateArgs: () => ['--extension=' + extensionPath] },
+  { id: 'bakedclear', label: '烘焙 clear / frozen', script: 'tools/smoke-baked-clear.mjs', args: [] },
   { id: 'native', label: '原生模式自检', script: 'tools/native-audit.mjs', args: ['--profile=' + join(homedir(), '.vanishgeo', 'audit-profile')] },
   { id: 'realsite', label: '真实站点一致性', script: 'tools/smoke-real-site.mjs', args: [] },
   // auto 构建（时区按出口 IP 派生）单独跑一遍：首帧头与页面语言必须一致，
@@ -124,7 +138,13 @@ function run(check, engine) {
     encoding: 'utf8',
     timeout: TIMEOUT,
     maxBuffer: 32 * 1024 * 1024,
-    env: { ...process.env, CHROME_PATH: engine.path, VANISHGEO_PERSONA: PERSONA, VANISHGEO_EXIT_JSON: exitJson }
+    env: {
+      ...process.env,
+      CHROME_PATH: engine.path,
+      VANISHGEO_PERSONA: PERSONA,
+      VANISHGEO_EXIT_JSON: exitJson,
+      ...(engine.legacyExtension ? { VANISHGEO_LEGACY_EXTENSION: '1' } : {})
+    }
   });
   const output = `${result.stdout || ''}${result.stderr || ''}`;
   const timedOut = Boolean(result.error && result.error.code === 'ETIMEDOUT');

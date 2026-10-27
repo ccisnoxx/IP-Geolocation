@@ -14,6 +14,8 @@ export interface BakedRuntimePayload {
   debugMode: boolean;
   ruleId?: string;
   domain?: string;
+  /** 这份 payload 是按哪个 hostname 解析出来的；桥用它拒绝父页 payload 串到独立子域 iframe */
+  hostname?: string;
   timezone: string | null;
   timezoneConfig: { enabled: boolean; mode: 'auto' | 'manual'; timezone: string };
   languageConfig: { enabled: boolean; language: string; languages: string[]; acceptLanguage: string } | null;
@@ -26,6 +28,8 @@ export interface BakedRuntimePayload {
     randomRadiusMeters: number;
     spoofPermission: boolean;
   } | null;
+  /** 定位开启但坐标解析不出来：注入层返回 POSITION_UNAVAILABLE，不落回原生 */
+  geolocationDenied?: boolean;
   canvasConfig: { enabled: boolean; spoofFonts: boolean; platform?: CanvasPlatform; hideCjkFonts?: boolean; targetFonts: string[] };
 }
 
@@ -92,6 +96,20 @@ function resolveTimezoneConfig(globalProfile: any, override: Override) {
   };
 }
 
+function isGeolocationEnabled(globalProfile: any, override: Override): boolean {
+  const mode = override?.mode || 'inherit';
+  if (mode === 'disable') return false;
+  const source = mode === 'override' ? (override?.value || {}) : (globalProfile?.geolocation || {});
+  return source.enabled !== false;
+}
+
+function lastCoordinate(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function resolveGeolocation(globalProfile: any, override: Override, lastLocation: LastLocation | null) {
   const mode = override?.mode || 'inherit';
   if (mode === 'disable') return null;
@@ -99,9 +117,9 @@ function resolveGeolocation(globalProfile: any, override: Override, lastLocation
   if (source.enabled === false) return null;
 
   const manual = source.mode === 'manual';
-  const latitude = manual ? Number(source.latitude) : Number(lastLocation?.latitude);
-  const longitude = manual ? Number(source.longitude) : Number(lastLocation?.longitude);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const latitude = manual ? lastCoordinate(source.latitude) : lastCoordinate(lastLocation?.latitude);
+  const longitude = manual ? lastCoordinate(source.longitude) : lastCoordinate(lastLocation?.longitude);
+  if (latitude === null || longitude === null) return null;
 
   return {
     latitude,
@@ -121,7 +139,7 @@ export function resolveBakedPayload(
   lastLocation: LastLocation | null
 ): BakedRuntimePayload | null {
   if (!config || config.masterEnabled === false) return null;
-  const host = String(hostname || '').toLowerCase();
+  const host = String(hostname || '').toLowerCase().replace(/\.+$/, '');
   if (!host) return null;
 
   const rule = pickRule(config, host);
@@ -134,7 +152,9 @@ export function resolveBakedPayload(
 
   const language = resolveLanguage(globalProfile, overrides.language);
   const timezoneConfig = resolveTimezoneConfig(globalProfile, overrides.timezone);
-  const geolocation = resolveGeolocation(globalProfile, overrides.geolocation, lastLocation);
+  const geolocationEnabled = isGeolocationEnabled(globalProfile, overrides.geolocation);
+  const geolocation = geolocationEnabled ? resolveGeolocation(globalProfile, overrides.geolocation, lastLocation) : null;
+  const geolocationDenied = geolocationEnabled && !geolocation;
 
   let timezone: string | null = null;
   if (timezoneConfig) {
@@ -145,12 +165,9 @@ export function resolveBakedPayload(
     }
   }
 
-  if (geolocation === null && globalProfile?.geolocation && globalProfile.geolocation.enabled !== false && overrides.geolocation?.mode !== 'disable') {
-    // 地理定位开启但拿不到坐标：退回只做语言/时区，避免整页不生效
-  }
-  if (timezoneConfig && !timezone) {
-    // 时区开启但没有可用值时，不阻断语言伪装
-  }
+  // 地理定位开启但拿不到坐标：不退回原生（那会把真实位置交出去），
+  // 而是在 payload 里标记 deny，由注入层返回 POSITION_UNAVAILABLE。
+  // 时区开启但没有可用值时，同样不阻断语言伪装。
 
   const canvas = (config as any).canvas || {};
   // 与 normalizeCanvas 的默认值保持一致（这里不 import config-model：注入脚本要零依赖）
@@ -165,9 +182,11 @@ export function resolveBakedPayload(
     debugMode: Boolean((config as any).debugMode),
     ruleId: rule.id,
     domain: rule.domain,
+    hostname: host,
     timezone,
     timezoneConfig: timezoneConfig || { enabled: false, mode: 'auto', timezone: '' },
     languageConfig: language,
+    geolocationDenied,
     geolocation: geolocation
       ? {
         latitude: geolocation.latitude,

@@ -1,14 +1,11 @@
 import { resolveBakedPayload, type BakedRuntimePayload } from './baked-resolver';
-import { installCanvasFontPatches } from './canvas-patch';
-import { installLocalFontsFilter } from './local-fonts';
+import { installCanvasFontPatches, uninstallCanvasFontPatches } from './canvas-patch';
+import { installLocalFontsFilter, uninstallLocalFontsFilter } from './local-fonts';
+import { createCanvasFontState } from './canvas-state';
 import { createDisguise } from './disguise';
-import { rewriteFontString } from './font-mask';
-import {
-  buildTargetFontKeys,
-  isTargetFontFamily,
-  resolveCanvasTargetFonts
-} from '../shared/font-aliases';
-import { installGeolocation } from './geolocation';
+import { defineNativeLike } from './define';
+import { buildTargetFontKeys, resolveCanvasTargetFonts } from '../shared/font-aliases';
+import { installGeolocation, uninstallGeolocation } from './geolocation';
 import { createSignalSpoof } from './signal-spoof';
 import { workerPatch } from './worker-patch';
 
@@ -38,6 +35,9 @@ interface RuntimeState {
   language: string | null;
   languages: string[] | null;
   geolocation: BakedRuntimePayload['geolocation'];
+  /** 定位启用但坐标解析不出来：安装 deny 补丁，返回 POSITION_UNAVAILABLE */
+  geolocationDenied: boolean;
+  installedGeo: boolean;
   debug: boolean;
   installedCanvas: boolean;
   canvasTargetFonts: string[] | null;
@@ -61,6 +61,8 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     language: null,
     languages: null,
     geolocation: null,
+    geolocationDenied: false,
+    installedGeo: false,
     debug: false,
     installedCanvas: false,
     canvasTargetFonts: null,
@@ -76,43 +78,33 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
   });
 
   function define(target: any, key: string, value: any): void {
-    try {
-      Object.defineProperty(target, key, { value, writable: true, enumerable: false, configurable: true });
-    } catch {
-      try {
-        target[key] = value;
-      } catch { /* ignore */ }
-    }
+    defineNativeLike(target, key, value);
   }
 
   // ---------- canvas / fonts ----------
 
-  let targetFontKeys = new Set<string>();
+  // 目标集合与"补丁是否安装"分开维护：补丁只装一次，目标集合每份 payload 都要更新。
+  // 否则关掉 canvas 之后主线程仍按旧字表隐藏，Worker 已经恢复原生，两边对不上。
+  const canvasFonts = createCanvasFontState();
 
-  // 摘掉命中族名这件事的细节（尤其是"摘掉之后填什么"）见 font-mask.ts。
-  function fallbackFont(font: string): string | null {
-    // 没有目标字体时直接跳过：每个 measureText 都会走这里，热路径上别做正则
-    if (targetFontKeys.size === 0) return null;
-    return rewriteFontString(font, (family) => isTargetFontFamily(family, targetFontKeys));
-  }
+  // 运行期补丁的还原栈。模块级补丁（signal / geolocation / canvas / local-fonts）
+  // 各自维护一份，这里只管 runtime 自己装的 Worker 包装器。
+  const restores: Array<() => void> = [];
 
-  function installCanvas(config: BakedRuntimePayload['canvasConfig'], targetFonts: string[]): void {
-    // 展开别名：声明 "PingFang SC" 之后，苹方-简 / 苹方 / PingFang SC Light 一并命中
-    targetFontKeys = buildTargetFontKeys(targetFonts);
-    // state.canvasTargetFonts 由 applySpoof 统一维护（要区分 spoofFonts 开关）
+  function installCanvas(config: BakedRuntimePayload['canvasConfig']): void {
     if (!config.spoofFonts || state.installedCanvas) return;
     state.installedCanvas = true;
 
     // 两种 2D 上下文都要补：`<canvas>` 和 `new OffscreenCanvas()`。后者是真实
     // 检测脚本最常用的绕过方式（只补前者时一行就绕过去了）。
-    installCanvasFontPatches(globalThis, { fallbackFont, disguise, define });
+    installCanvasFontPatches(globalThis, { fallbackFont: canvasFonts.fallbackFont, disguise, define });
 
     // 本地字体清单是另一条路：canvas 只伪装"量出来的宽度"，而 queryLocalFonts
     // 直接枚举本机全部字体（实测 667 条，含 24 条 PingFang）。不滤掉它，上面三层
     // 字表全部白做 —— 而且它没有阈值、没有误差，比 canvas 量测更硬。
     installLocalFontsFilter(globalThis, {
       isHidden: ({ family, fullName, postscriptName }) => [family, fullName, postscriptName]
-        .some((name) => typeof name === 'string' && isTargetFontFamily(name, targetFontKeys)),
+        .some((name) => typeof name === 'string' && canvasFonts.isTarget(name)),
       disguise
     });
 
@@ -126,7 +118,11 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
   // ---------- Worker ----------
 
   /** 让 `X.prototype.constructor === X` 继续成立：共享原生原型，并把 constructor 指回来 */
-  function adoptPrototype(wrapper: any, Native: any): void {
+  function adoptPrototype(wrapper: any, Native: any): (() => void) | null {
+    let constructorDescriptor: PropertyDescriptor | undefined;
+    try {
+      constructorDescriptor = Object.getOwnPropertyDescriptor(Native.prototype, 'constructor');
+    } catch { /* ignore */ }
     try {
       Object.defineProperty(wrapper, 'prototype', { value: Native.prototype, writable: false });
     } catch { /* ignore */ }
@@ -135,6 +131,12 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
         value: wrapper, writable: true, enumerable: false, configurable: true
       });
     } catch { /* ignore */ }
+    return () => {
+      try {
+        if (constructorDescriptor) Object.defineProperty(Native.prototype, 'constructor', constructorDescriptor);
+        else delete Native.prototype.constructor;
+      } catch { /* ignore */ }
+    };
   }
 
   /**
@@ -159,9 +161,22 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     });
   }
 
-  function installWorker(): void {
-    if (state.installedWorker) return;
-    state.installedWorker = true;
+  function installWorker(): (() => void) | null {
+    if (state.installedWorker) return null;
+    const undo: Array<() => void> = [];
+
+    /** 替换 globalThis 上的构造器，返回还原闭包（原属性不存在时删除） */
+    const replaceGlobal = (key: string, value: any): void => {
+      let descriptor: PropertyDescriptor | undefined;
+      try { descriptor = Object.getOwnPropertyDescriptor(globalThis, key); } catch { /* ignore */ }
+      define(globalThis as any, key, value);
+      undo.push(() => {
+        try {
+          if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+          else delete (globalThis as any)[key];
+        } catch { /* ignore */ }
+      });
+    };
 
     /** 生成带补丁前缀的 blob URL；没有可补丁的目标时返回 null，调用方走原生路径 */
     const makeWorkerUrl = (scriptURL: string | URL, options?: WorkerOptions): string | null => {
@@ -187,8 +202,9 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
           return new NativeWorker(scriptURL, options);
         }
       }, 'Worker', 1);
-      adoptPrototype(wrapped, NativeWorker);
-      define(globalThis as any, 'Worker', wrapped);
+      const restorePrototype = adoptPrototype(wrapped, NativeWorker);
+      if (restorePrototype) undo.push(restorePrototype);
+      replaceGlobal('Worker', wrapped);
     }
 
     const NativeSharedWorker = (globalThis as any).SharedWorker;
@@ -203,9 +219,20 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
           return new NativeSharedWorker(scriptURL, optionsOrName);
         }
       }, 'SharedWorker', 1);
-      adoptPrototype(wrapped, NativeSharedWorker);
-      define(globalThis as any, 'SharedWorker', wrapped);
+      const restorePrototype = adoptPrototype(wrapped, NativeSharedWorker);
+      if (restorePrototype) undo.push(restorePrototype);
+      replaceGlobal('SharedWorker', wrapped);
     }
+
+    if (!undo.length) return null;
+    state.installedWorker = true;
+    return () => {
+      while (undo.length) {
+        const restore = undo.pop();
+        try { restore?.(); } catch { /* ignore */ }
+      }
+      state.installedWorker = false;
+    };
   }
 
   /** 当前状态下的 Worker 补丁源码。每次 new Worker 都重新生成，见 installWorker。 */
@@ -218,11 +245,73 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     return `;(${workerPatch.toString()})(${JSON.stringify(config)});`;
   }
 
+  /**
+   * 解析烘焙配置用的主机名。
+   *
+   * about:blank / about:srcdoc 没有 hostname，用 referrer 落到父页面的规则上；
+   * 否则子框架装了 runtime 也拿不到 payload，父页面一读 contentWindow 就是原生值。
+   * 这里不 import `shared/frame-url`：runtime 与 content 同时引用会让 Rollup 抽出一个
+   * 共享 chunk，而 MAIN world 的经典脚本不能有 import。桥那边用共享实现，这边保持
+   * 自包含（与 canvas / worker 的处理方式一致）。
+   */
+  function effectiveHostname(): string {
+    if (location.hostname) return location.hostname;
+    try {
+      return new URL(document.referrer).hostname;
+    } catch {
+      return '';
+    }
+  }
+
   // ---------- 应用 ----------
 
+  /**
+   * 还原所有补丁。
+   *
+   * 这是"烘焙包里的排除站点 / 关总开关"能生效的关键：静态 content_scripts 会在
+   * document_start 先应用烘焙值，桥随后拿到 `matched: false` 时下发 clear，
+   * 这里把原型/全局构造器逐项放回原生。已经存在于页面闭包里的旧引用收不回来，
+   * 但之后所有新读取都是原生值。
+   */
+  function uninstallAll(): void {
+    while (restores.length) {
+      const restore = restores.pop();
+      try { restore?.(); } catch { /* ignore */ }
+    }
+    // 模块级补丁：各自按安装顺序的逆序还原，没装过的是 no-op
+    try { signals.uninstall(); } catch { /* ignore */ }
+    try { uninstallGeolocation(); } catch { /* ignore */ }
+    try { uninstallCanvasFontPatches(globalThis); } catch { /* ignore */ }
+    try { uninstallLocalFontsFilter(globalThis); } catch { /* ignore */ }
+    // 最后再还原 toString：上面若有个别还原失败（描述符被锁），至少不会让残留的
+    // 包装函数立刻露出源码。正常路径上此时已经没有任何被伪装的函数了。
+    try { disguise.uninstall(); } catch { /* ignore */ }
+
+    state.timezone = null;
+    state.language = null;
+    state.languages = null;
+    state.geolocation = null;
+    state.geolocationDenied = false;
+    state.installedGeo = false;
+    state.debug = false;
+    state.installedCanvas = false;
+    state.installedWorker = false;
+    state.canvasTargetFonts = [];
+    state.canvasConfig = null;
+    canvasFonts.setTargets([]);
+  }
+
   function applySpoof(payload: RuntimePayload): void {
-    if (!payload) return;
-    if ((payload as any).extensionEnabled === false || payload.enabled === false) return;
+    // clear 是显式指令；null 同样按 clear 处理（后台用 payload: null 表示"这个站点
+    // 现在不该有伪装"）。两种情况都必须先还原，否则排除/关闭后旧补丁会一直留着。
+    if (!payload || (payload as any).clear === true) {
+      uninstallAll();
+      return;
+    }
+    if ((payload as any).extensionEnabled === false || payload.enabled === false) {
+      uninstallAll();
+      return;
+    }
 
     state.debug = Boolean(payload.debugMode);
 
@@ -243,6 +332,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     state.language = nextLanguage;
     state.languages = nextLanguages;
     state.geolocation = payload.geolocation || null;
+    state.geolocationDenied = Boolean(payload.geolocationDenied);
 
     // 只有原生值与目标值不一致时才打补丁
     const needTimezone = Boolean(state.timezone) && state.timezone !== signals.native.timeZone;
@@ -256,12 +346,19 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     if (needTimezone || needLocale) signals.installDateMethods();
     if (needTimezone) signals.installDateConstructor();
     if (needTimezone || needLocale) signals.installIntl();
-    if (state.geolocation) {
-      installGeolocation({
-        get: () => state.geolocation,
+    // 定位有三种状态：spoof（有坐标）、deny（启用但解析不出来）、off（不接管）。
+    // 前两种都需要装补丁；从 deny/spoof 切到 off 时必须卸载，否则 get() 返回 null
+    // 会被 geolocation.ts 当成 deny —— 关掉定位反而把站点拒了。
+    const geolocationActive = Boolean(state.geolocation || state.geolocationDenied);
+    if (geolocationActive && !state.installedGeo) {
+      state.installedGeo = installGeolocation({
+        get: () => (state.geolocationDenied ? { deny: true as const } : state.geolocation),
         disguise,
         now: () => NativeDate.now()
       });
+    } else if (!geolocationActive && state.installedGeo) {
+      uninstallGeolocation();
+      state.installedGeo = false;
     }
     const canvasConfig = payload.canvasConfig && payload.canvasConfig.enabled ? payload.canvasConfig : null;
     // 三层在这里合并成最终列表：平台层（platform，auto 用本机真实平台）+ 中文层
@@ -275,9 +372,15 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     state.canvasConfig = canvasConfig
       ? { platform: canvasConfig.platform, hideCjkFonts: canvasConfig.hideCjkFonts }
       : null;
-    if (canvasConfig) installCanvas(canvasConfig, canvasTargets);
+    // 先更新目标集合，再装补丁：第一帧 measureText 就要看到正确的字表。
+    // canvas 关闭 / spoofFonts 关闭时这里是空集合，等于立即恢复原生度量。
+    canvasFonts.setTargets(state.canvasTargetFonts);
+    if (canvasConfig) installCanvas(canvasConfig);
     const needCanvas = Boolean(canvasConfig && canvasConfig.spoofFonts && canvasTargets.length);
-    if (needTimezone || needLanguage || needLocale || needCanvas) installWorker();
+    if (needTimezone || needLanguage || needLocale || needCanvas) {
+      const restoreWorker = installWorker();
+      if (restoreWorker) restores.push(restoreWorker);
+    }
 
     if (state.debug) {
       console.log('[VanishGeo] applied', {
@@ -292,7 +395,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
   // 1) 构建期烘焙：document_start 同步生效，首屏脚本读到的就是目标值
   if (BAKED && BAKED.config) {
     try {
-      const payload = resolveBakedPayload(BAKED.config, location.hostname, BAKED.lastLocation || null);
+      const payload = resolveBakedPayload(BAKED.config, effectiveHostname(), BAKED.lastLocation || null);
       if (payload) applySpoof(payload as RuntimePayload);
     } catch { /* ignore */ }
   }

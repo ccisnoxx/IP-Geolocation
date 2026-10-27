@@ -17,6 +17,9 @@
  * TypeError）也不接管 —— 交给原生实现先跑，我们只在结果上做减法。
  */
 
+// 按 scope 记下安装前的描述符（API 挂在 window 上，测试里会有多个假 scope）。
+const originals = new WeakMap<any, PropertyDescriptor>();
+
 export interface LocalFontsFilterDeps {
   /** 命中被伪装字体时返回 true；入参是 FontData 上的三个名字 */
   isHidden: (names: { family?: string; fullName?: string; postscriptName?: string }) => boolean;
@@ -60,8 +63,21 @@ export function installLocalFontsFilter(scope: any, deps: LocalFontsFilterDeps):
       enumerable: descriptor.enumerable,
       configurable: descriptor.configurable
     });
+    originals.set(scope, descriptor);
     return true;
   } catch {
     return false;
   }
+}
+/**
+ * 还原 queryLocalFonts。关闭字体层或站点被排除时调用；没装过的是 no-op。
+ * 之后 `window.queryLocalFonts()` 会重新枚举本机全部字体。
+ */
+export function uninstallLocalFontsFilter(scope: any): void {
+  const descriptor = scope ? originals.get(scope) : undefined;
+  if (!scope || !descriptor) return;
+  try {
+    Object.defineProperty(scope, 'queryLocalFonts', descriptor);
+  } catch { /* ignore */ }
+  originals.delete(scope);
 }

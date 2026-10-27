@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -45,9 +45,9 @@ test('preset → 烘焙配置：三处取值同源，且能过配置体检', () 
 
 test('preset → 烘焙配置：域名规则逐个启用，id 稳定', () => {
   const config = configFromPreset(DEFAULT_PROFILES[0], { domains: DOMAINS });
-  assert.deepEqual(config.rules.map((rule) => rule.domain), DOMAINS);
-  assert.ok(config.rules.every((rule) => rule.enabled === true));
-  assert.deepEqual(config.rules.map((rule) => rule.id), ['rule-0', 'rule-1']);
+  assert.deepEqual(config.rules.map((rule: any) => rule.domain), DOMAINS);
+  assert.ok(config.rules.every((rule: any) => rule.enabled === true));
+  assert.deepEqual(config.rules.map((rule: any) => rule.id), ['rule-0', 'rule-1']);
 });
 
 test('persona → 烘焙配置：扁平字段被摊进 globalProfile', () => {

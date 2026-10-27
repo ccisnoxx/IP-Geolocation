@@ -2,6 +2,15 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <script>
+    // 跨域 iframe 自检值：子框架通过 postMessage 上报，测试读 window.__frameInfo。
+    window.__frameInfo = {};
+    window.addEventListener('message', function (event) {
+      var data = event.data;
+      if (!data || data.__vanishGeoFrameInfo !== true) return;
+      window.__frameInfo[data.name || data.url] = data;
+    });
+  </script>
   <title>iframe top fixture</title>
   <style>
     body {
@@ -69,7 +78,8 @@
         name="allowlisted-child"
         title="allowlisted child"
         data-scenario="allowlisted-child"
-        src="http://child.localhost:8765/fixtures/iframe/child-allowlisted.html"></iframe>
+        data-cross-host="child.localhost"
+        data-cross-path="/fixtures/iframe/child-allowlisted.html"></iframe>
     </div>
 
     <div>
@@ -79,7 +89,8 @@
         name="nonmatch-child"
         title="non-matching child"
         data-scenario="nonmatch-child"
-        src="http://nonmatch.localhost:8765/fixtures/iframe/child-nonmatch.html"></iframe>
+        data-cross-host="nonmatch.localhost"
+        data-cross-path="/fixtures/iframe/child-nonmatch.html"></iframe>
     </div>
 
     <div>
@@ -107,9 +118,23 @@
     (function() {
       var frame = document.getElementById('aboutblank-frame');
       var doc = frame.contentDocument;
-      doc.open();
-      doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>about:blank child</title><style>body{font-family:sans-serif;margin:16px}</style></head><body data-info-prefix="frame"><h1>about:blank child</h1><dl><dt>URL</dt><dd id="frame-url">-</dd><dt>Title</dt><dd id="frame-title">-</dd><dt>Name</dt><dd id="frame-name">-</dd><dt>language</dt><dd id="frame-language">-</dd><dt>languages</dt><dd id="frame-languages">-</dd><dt>timezone</dt><dd id="frame-timezone">-</dd><dt>offset</dt><dd id="frame-offset">-</dd><dt>date</dt><dd id="frame-date">-</dd></dl><script src=\"/fixtures/iframe/frame-info.js\"><' + '/script></body></html>');
-      doc.close();
+      // 不要用 document.open/write：那会替换整个文档，连已注入的桥/runtime 一起丢掉，
+      // 测出来的“原生值”其实是测试页自己制造的，而不是扩展在 about:blank 上的行为。
+      doc.title = 'about:blank child';
+      doc.body.dataset.infoPrefix = 'frame';
+      doc.body.innerHTML = '<h1>about:blank child</h1><dl><dt>URL</dt><dd id="frame-url">-</dd><dt>Title</dt><dd id="frame-title">-</dd><dt>Name</dt><dd id="frame-name">-</dd><dt>language</dt><dd id="frame-language">-</dd><dt>languages</dt><dd id="frame-languages">-</dd><dt>timezone</dt><dd id="frame-timezone">-</dd><dt>offset</dt><dd id="frame-offset">-</dd><dt>date</dt><dd id="frame-date">-</dd></dl>';
+      var script = doc.createElement('script');
+      script.src = '/fixtures/iframe/frame-info.js';
+      doc.body.appendChild(script);
+    })();
+  </script>
+  <script>
+    // 跨域 fixture 的端口跟当前页面走：正式 E2E 用随机端口，避免和本机 8765 冲突。
+    (function () {
+      var port = location.port;
+      document.querySelectorAll('iframe[data-cross-host]').forEach(function (frame) {
+        frame.src = 'http://' + frame.dataset.crossHost + (port ? ':' + port : '') + frame.dataset.crossPath;
+      });
     })();
   </script>
   <script>

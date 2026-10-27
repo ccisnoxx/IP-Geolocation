@@ -10,7 +10,7 @@ import type { WorkerPatchConfig } from '../src/injected/worker-patch';
  * 这个上下文**只有**标准内置对象（没有 jsdom、没有模块作用域）：补丁能跑通就说明
  * 它确实自包含 —— 不是靠 import 了 runtime.ts 里的工具函数才勉强工作的。
  */
-function createWorkerContext(config: WorkerPatchConfig): vm.Context {
+function createWorkerContext(config: WorkerPatchConfig, beforePatch = ''): vm.Context {
   const context = vm.createContext({ console });
   vm.runInContext('globalThis.self = globalThis;', context);
   // 真实 WorkerNavigator：值全在原型上，实例零自有属性。用字面量会被自己的
@@ -34,6 +34,7 @@ function createWorkerContext(config: WorkerPatchConfig): vm.Context {
     'globalThis.__name = function (fn, name) { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch (e) {} return fn; };',
     context
   );
+  if (beforePatch) vm.runInContext(beforePatch, context);
   vm.runInContext(`;(${workerPatch.toString()})(${JSON.stringify(config)});`, context);
   return context;
 }
@@ -67,7 +68,31 @@ test('Worker 里的 navigator 跟着 payload 走', () => {
   assert.deepEqual([...evaluate<string[]>(context, 'navigator.languages')], ['ja-JP', 'ja']);
 });
 
-test('Worker 里的 Date getter 用目标时区', () => {
+test('Worker 的 navigator 补丁落在原型上，实例零自有属性', () => {
+  const context = createWorkerContext(TOKYO);
+
+  // 原生 WorkerNavigator 的实例没有自有属性；补在实例上会留下 language / languages
+  assert.deepEqual([...evaluate<string[]>(context, 'Object.getOwnPropertyNames(navigator)')], []);
+
+  const descriptor = evaluate<any>(
+    context,
+    'Object.getOwnPropertyDescriptor(WorkerNavigator.prototype, "language")'
+  );
+  assert.equal(descriptor.enumerable, true, 'WebIDL attribute 必须保持可枚举');
+  assert.equal(descriptor.configurable, true);
+  assert.equal(
+    evaluate(context, 'String(Object.getOwnPropertyDescriptor(WorkerNavigator.prototype, "language").get)'),
+    'function get language() { [native code] }'
+  );
+});
+
+test('Worker 的 navigator.languages 是稳定引用', () => {
+  const context = createWorkerContext(TOKYO);
+  assert.equal(evaluate(context, 'navigator.languages === navigator.languages'), true);
+  assert.equal(evaluate(context, 'Object.isFrozen(navigator.languages)'), true);
+});
+
+test('Worker 的 Date getter 用目标时区', () => {
   const context = createWorkerContext(TOKYO);
   const utcMidnight = Date.UTC(2026, 0, 1, 0, 0, 0);
 
@@ -236,27 +261,27 @@ test('Worker 不接管 fonts.check（原生对系统字体本来就返回 true�
 
 /** 建一个假 OffscreenCanvas 2D 上下文，原生实现按 font 串返回固定宽度 */
 function createCanvasWorkerContext(fontTargets: string[]): vm.Context {
-  const context = createWorkerContext({ timezone: null, language: null, languages: null, fontTargets });
-  vm.runInContext(`
-    globalThis.__widths = {};
-    class FakeCtx {
-      constructor() { this.font = '10px monospace'; }
-      measureText(text) {
-        // 原生行为：字体名存在于表里就用它的宽度，否则用 monospace 的
-        const declared = (this.font.match(/"([^"]+)"/) || [])[1];
-        const width = (declared && globalThis.__widths[declared]) || 100;
-        return { width: width + text.length };
+  return createWorkerContext(
+    { timezone: null, language: null, languages: null, fontTargets },
+    `
+      globalThis.__widths = {};
+      class FakeCtx {
+        constructor() { this.font = '10px monospace'; }
+        measureText(text) {
+          // 原生行为：字体名存在于表里就用它的宽度，否则用 monospace 的
+          const declared = (this.font.match(/"([^"]+)"/) || [])[1];
+          const width = (declared && globalThis.__widths[declared]) || 100;
+          return { width: width + text.length };
+        }
       }
-    }
-    globalThis.__widths['SimSun'] = 999;
-    globalThis.__widths['宋体'] = 999;
-    globalThis.__widths['PingFang SC'] = 777;
-    // 列表外的字体：假定它真的装着，宽度与 monospace 不同
-    globalThis.__widths['Helvetica'] = 555;
-    globalThis.OffscreenCanvasRenderingContext2D = FakeCtx;
-  `, context);
-  vm.runInContext(`;(${workerPatch.toString()})(${JSON.stringify({ timezone: null, language: null, languages: null, fontTargets })});`, context);
-  return context;
+      globalThis.__widths['SimSun'] = 999;
+      globalThis.__widths['宋体'] = 999;
+      globalThis.__widths['PingFang SC'] = 777;
+      // 列表外的字体：假定它真的装着，宽度与 monospace 不同
+      globalThis.__widths['Helvetica'] = 555;
+      globalThis.OffscreenCanvasRenderingContext2D = FakeCtx;
+    `
+  );
 }
 
 const measure = (context: vm.Context, font: string): number =>
@@ -265,6 +290,26 @@ const measure = (context: vm.Context, font: string): number =>
 test('Worker 只补一次：补丁后 measureText 落在原型上', () => {
   const context = createCanvasWorkerContext(['SimSun']);
   assert.equal(vm.runInContext('Object.prototype.hasOwnProperty.call(OffscreenCanvasRenderingContext2D.prototype, "measureText")', context), true);
+});
+
+test('Worker 的 measureText 保留原生描述符的 enumerable', () => {
+  const context = createWorkerContext(
+    { timezone: null, language: null, languages: null, fontTargets: ['SimSun'] },
+    `
+      class FakeCtx { constructor() { this.font = '10px monospace'; } }
+      Object.defineProperty(FakeCtx.prototype, 'measureText', {
+        value: function () { return { width: 1 }; },
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      globalThis.OffscreenCanvasRenderingContext2D = FakeCtx;
+    `
+  );
+  assert.equal(
+    evaluate(context, 'Object.getOwnPropertyDescriptor(OffscreenCanvasRenderingContext2D.prototype, "measureText").enumerable'),
+    true
+  );
 });
 
 test('Worker 里被伪装字体与 monospace 等宽（拉丁名）', () => {

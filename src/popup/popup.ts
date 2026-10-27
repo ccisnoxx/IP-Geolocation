@@ -9,6 +9,8 @@ import {
   normalizeWebRtc
 } from '../shared/config-model';
 import { ruleLines, rulesFromText } from '../shared/rule-text';
+import { sendRuntimeMessage } from '../shared/runtime-message';
+import { coordinateInputValue, geolocationModeFromInput, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
 import { describeSiteStatus } from '../shared/site-status';
 import type { GeolocationHistory, SiteSpoofConfig } from '../shared/types';
 
@@ -56,21 +58,6 @@ let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
 let currentHostname = '';
 let autoSaveTimer: number | null = null;
 
-function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!response || response.status === 'error') {
-        reject(new Error(response?.message || 'Unknown runtime error'));
-        return;
-      }
-      resolve(response);
-    });
-  });
-}
 
 function showAutoSaveToast(): void {
   if (autoSaveTimer) window.clearTimeout(autoSaveTimer);
@@ -81,11 +68,6 @@ function showAutoSaveToast(): void {
   }, 2000);
 }
 
-function webRtcSelectValue(config: SiteSpoofConfig): string {
-  if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
-  if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
-  return 'default';
-}
 
 function updateGlobalStatus(): void {
   globalStatusEl.textContent = globalEnabledEl.checked ? '全局保护已启用' : '全局保护已禁用';
@@ -99,8 +81,8 @@ function populateForm(config: SiteSpoofConfig): void {
 
   const geo = config.globalProfile.geolocation;
   geolocationEnabledEl.checked = geo.enabled;
-  latitudeEl.value = geo.latitude === null ? '' : String(geo.latitude);
-  longitudeEl.value = geo.longitude === null ? '' : String(geo.longitude);
+  latitudeEl.value = coordinateInputValue(geo.latitude);
+  longitudeEl.value = coordinateInputValue(geo.longitude);
   accuracyEl.value = String(geo.accuracy);
   randomizeEl.checked = geo.randomize;
   randomRadiusMetersEl.value = String(geo.randomRadiusMeters);
@@ -109,8 +91,9 @@ function populateForm(config: SiteSpoofConfig): void {
   const timezone = config.globalProfile.timezone;
   timezoneEnabledEl.checked = timezone.enabled;
   timezoneEl.value = timezone.timezone;
-  const offset = timezone.timezone ? new Date().getTimezoneOffset() : 0;
-  utcOffsetEl.value = timezone.timezone ? String(-offset / 60) : '';
+  // 必须按**配置里的时区**算，不能用宿主的 getTimezoneOffset()：
+  // 选了 America/Los_Angeles 却显示 +08 是纯粹的误导。
+  utcOffsetEl.value = utcOffsetInputValue(timezone.timezone);
 
   const language = config.globalProfile.language;
   languageEnabledEl.checked = language.enabled;
@@ -147,9 +130,9 @@ function readForm(): SiteSpoofConfig {
       }),
       geolocation: normalizeGeolocation({
         enabled: geolocationEnabledEl.checked,
-        mode: latitudeEl.value && longitudeEl.value ? 'manual' : 'auto',
-        latitude: latitudeEl.value === '' ? null : Number(latitudeEl.value),
-        longitude: longitudeEl.value === '' ? null : Number(longitudeEl.value),
+        mode: geolocationModeFromInput(latitudeEl.value, longitudeEl.value),
+        latitude: parseCoordinateInput(latitudeEl.value),
+        longitude: parseCoordinateInput(longitudeEl.value),
         accuracy: Number(accuracyEl.value),
         randomize: randomizeEl.checked,
         randomRadiusMeters: Number(randomRadiusMetersEl.value),
@@ -217,10 +200,19 @@ async function handleDisableSite(): Promise<void> {
 }
 
 async function handleSaveCoordinate(): Promise<void> {
-  const lat = Number(latitudeEl.value);
-  const lon = Number(longitudeEl.value);
-  const acc = Number(accuracyEl.value);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(acc)) {
+  // Number('') === 0：空输入会在历史里留下一条 (0,0)，先显式挡住。
+  const latText = latitudeEl.value.trim();
+  const lonText = longitudeEl.value.trim();
+  const accText = accuracyEl.value.trim();
+  if (!latText || !lonText || !accText) {
+    alert('请填写完整的纬度和经度');
+    return;
+  }
+  const lat = Number(latText);
+  const lon = Number(lonText);
+  const acc = Number(accText);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(acc)
+    || Math.abs(lat) > 90 || Math.abs(lon) > 180 || acc < 0) {
     alert('无效的坐标');
     return;
   }

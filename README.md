@@ -113,14 +113,24 @@ youtube.com、reddit.com、linkedin.com）；**从旧版升级**时，`VanishMe`
 命令行验证：
 
 ```bash
-npm run typecheck     # 类型
-npm test              # 单测（103 条）
+npm run typecheck     # 类型（含 tests/）
+npm run lint          # ESLint
+npm run verify        # lint + typecheck + test
+npm test              # 单测（300 条）
+npm run test:coverage # 单测 + Node 覆盖率报告
+npm run test:coverage:core # 核心文件分支覆盖率门禁（每文件 ≥ 80%）
+# options / popup 的 DOM 测试用 jsdom 驱动真实点击与表单事件
 npm run build         # 构建
-npm run audit         # 静态检查 + 双引擎 E2E，输出通过率表格
+npm run audit         # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium），输出通过率表格
+npm run smoke:frames  # frame 隔离（父域 / 子域 / about:blank / srcdoc）
+npm run smoke:baked-failclosed  # 烘焙包定位 fail-closed + 可逆恢复 + 关总开关 clear
+npm run smoke:baked-clear  # 烘焙包排除站点 / 关总开关 / frozen 冻结验证
+node tools/native-parity.mjs  # Helium 原生形状对拍（83 项，control vs patched）
 ```
 
-`npm run audit` 里另含 `smoke:options` / `smoke:failclosed` / `smoke:fingerprint` /
-`smoke:ipchange` / `smoke:real-site` 五组探针，具体见 [tools/README.md](tools/README.md)。
+`npm run audit` 里另含 `smoke:options` / `smoke:failclosed` / `smoke:frames` /
+`smoke:baked-failclosed` / `smoke:baked-clear` / `smoke:fingerprint` / `smoke:ipchange` /
+`smoke:real-site` 八组探针，具体见 [tools/README.md](tools/README.md)。
 
 ### 🧱 烘焙构建（persona）
 
@@ -135,18 +145,28 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - 同时把域名写进 manifest 的**静态** `content_scripts`（`world: "MAIN"`、
   `document_start`、`all_frames`、`match_about_blank`）：不受"动态注册赶不上首个渲染进程"影响
 - 在选项页改了语言 → 自动禁用静态 ruleset 交给动态规则；新增域名由动态注册补上，不重复注入
-- 运行时通道（ISOLATED 桥 → `MessagePort` → 注入层）在烘焙构建里默认关闭：配置已经在包里了
+- 运行时通道（ISOLATED 桥 → `MessagePort` → 注入层）在烘焙构建里**默认开启**：烘焙值只是初值，选项页改动仍要实时生效；`--no-bridge` / `--frozen` 才彻底关闭
+- **排除站点 / 关总开关在烘焙包里也生效**：静态脚本无法按域名卸载，桥拿到
+  `matched: false` 后会下发 `clear`，注入层把 Date / Intl / navigator / Geolocation /
+  Canvas / Worker 逐项还原（已验证刷新后仍是原生值，请求头同步回退）。
+  已经进入页面闭包的旧引用收不回来，但之后所有新读取都是原生值
+- 关掉桥（`--no-bridge` / `--frozen`）等于把规则冻结进包：后台也读烘焙配置，
+  保存配置不会改 DNR / 权限；排除、总开关、语言改动都需要重新构建才生效
 
 ### 🔬 实测结论
 
 - `TZ` 改时区（含 Service Worker），`-AppleLanguages (en-US)` 改 ICU locale；`--lang` 只改
   `navigator.language`，**不改** ICU。三者都对时扩展一个原生对象都不改
-- Chrome 155 已移除 `--load-extension`；Helium 156 仍然支持，不需要 `--setup-extension`
+- Chrome 155 已移除 `--load-extension`；Chrome 119 和 Helium 156 仍然支持（审计用后者测老引擎）
+- Chrome 119 没有 CDP `Extensions.loadUnpacked`；老引擎用启动参数装载，扩展 id 从 extension target 里发现
 - DNR `modifyHeaders` 用 `regexFilter` 会把 `main_frame` 打成 `ERR_ABORTED`，已改用
   `requestDomains`；重写动态规则会打断进行中的请求，所以规则没变就不重写
 - 冷 profile 首次启动要等约 10s 注入才就绪（2/3.5/5/7/8s 都漏，12s 成功）；同一个 profile 第二次启动 2s 内就绪
 - 语言与时区**解耦**：`auto` 时区拿不到定位时，语言和 `Accept-Language` 照常生效，只有时区留在原生值
 - fail-closed 不是静默：角标变红 `!`、弹窗显示原因、`getCurrentTabState` 返回具体 `errors`
+- **定位 fail-closed**：命中规则且定位开启、但坐标解析不出来（auto 没拿到出口 IP / 手填值非法）时，
+  `getCurrentPosition` 与 `watchPosition` 返回 `POSITION_UNAVAILABLE`（code 2），权限层同步置为
+  `block`；不会落回原生定位。坐标解析出来后同一文档内自动切回伪装坐标，无需刷新
 
 ### 🔧 实现要点
 
@@ -156,6 +176,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - **WebIDL 形状**：`GeolocationCoordinates` 的属性是原型上的只读 getter，实例零自有属性
 - **不造假信号**：不接管 `document.fonts.check`（原生对系统字体本来就返回 `true`）
 - **私有通道**：payload 经 `document_start` 握手换来的 `MessagePort` 下发，页面既看不到也伪造不了
+- **按 frame 投递**：payload 带解析时的精确 `hostname`；后台用 `webNavigation.getAllFrames` 为每个 frame 单独算规则并带 `frameId` 下发，父页不会覆盖独立子域 iframe，子框架规则删除后也会收到自己的 `clear`。同一 URL 的解析结果复用，投递最多 8 个并发，避免几十个 iframe 被串行 IPC 拖慢
 - **静态优先**：烘焙构建把 DNR 规则与内容脚本写进 manifest，首帧即生效
 - **值一致优先**：原生值已经正确时不打补丁
 
@@ -286,10 +307,19 @@ There is a single test page: right-click the toolbar icon → "Open diagnostic p
 Command line:
 
 ```bash
-npm run typecheck     # types
-npm test              # unit tests (103)
+npm run typecheck     # types (tests included)
+npm run lint          # ESLint
+npm run verify        # lint + typecheck + test
+npm test              # unit tests (300)
+npm run test:coverage # unit tests + Node coverage report
+npm run test:coverage:core # core-file branch gate (per file >= 80%)
+# options / popup DOM tests drive real clicks and form events through jsdom
 npm run build         # build
-npm run audit         # static checks + two-engine E2E, prints a pass-rate table
+npm run audit         # static checks + three-engine E2E (Chrome 155 / 119 / Helium), prints a pass-rate table
+npm run smoke:frames  # frame isolation (parent / child / about:blank / srcdoc)
+npm run smoke:baked-failclosed  # baked geolocation fail-closed + reversible recovery + master-off clear
+npm run smoke:baked-clear  # baked exclusion / master-off / frozen freeze behavior
+node tools/native-parity.mjs  # Helium native-shape parity (83 checks, control vs patched)
 ```
 
 ### 🧱 Baked (persona) builds
@@ -305,14 +335,16 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - Baked domains are also declared as **static** `content_scripts` (`world: "MAIN"`,
   `document_start`, `all_frames`, `match_about_blank`), which closes the "dynamic registration misses the first renderer" gap
 - Editing the language in the options page disables the static ruleset and hands over to dynamic rules
-- The runtime bridge (ISOLATED → `MessagePort` → injection layer) defaults to off in baked builds
+- The runtime bridge (ISOLATED → `MessagePort` → injection layer) defaults to **on** in baked builds; `--no-bridge` / `--frozen` disables it
+- Frozen builds also read the baked config in the background: saving settings cannot change DNR or permissions, so page and headers cannot diverge
 
 ### 🔬 Measured behaviour
 
 - `TZ` sets the timezone for every process (service worker included); `-AppleLanguages (en-US)`
   changes the ICU locale; `--lang` only changes `navigator.language`. When all three already
   match, the extension patches nothing
-- Chrome 155 dropped `--load-extension`; Helium 156 still honours it and needs no `--setup-extension`
+- Chrome 155 dropped `--load-extension`; Chrome 119 and Helium 156 still honour it (the audit uses that for the legacy engine)
+- Chrome 119 has no CDP `Extensions.loadUnpacked`; the legacy engine is loaded with `--load-extension` and its id is discovered from extension targets
 - A DNR `modifyHeaders` rule built with `regexFilter` aborts `main_frame` with `ERR_ABORTED`;
   the rules now use `requestDomains`, and unchanged rules are never rewritten
 - A cold profile needs ~10 s before content scripts inject; a warm one is ready within 2 s
@@ -329,6 +361,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - **WebIDL shape**: `GeolocationCoordinates` attributes are read-only prototype getters, instances carry no own properties
 - **No invented signals**: `document.fonts.check` is left alone (the native one already returns `true` for system fonts)
 - **Private channel**: payloads arrive through a `MessagePort` obtained by a `document_start` handshake; the page can neither observe nor forge them
+- **Per-frame delivery**: payloads carry the exact `hostname` they were resolved for; the background uses `webNavigation.getAllFrames` to resolve and send each frame with its own `frameId`, so a parent payload cannot overwrite an independently-ruled child iframe, and a removed child rule still receives its own `clear`. Payload resolution is shared per URL and sends are capped at 8 concurrent IPC calls
 - **Static first**: baked builds ship DNR rules and content scripts in the manifest, live on the first frame
 - **Value first**: no patching when the native value is already correct
 

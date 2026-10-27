@@ -11,6 +11,12 @@
  * 真实字体宽度，绕开全部字体伪装。Worker 里的同名原型由 worker-patch 负责。
  */
 
+const CONTEXT_PROTOTYPES = ['CanvasRenderingContext2D', 'OffscreenCanvasRenderingContext2D'];
+
+// 安装前记下原描述符；原型是全局单例，用 WeakMap 按原型存，uninstall 时只还原
+// 我们真正动过的那些（测试里会同时造多个假 scope）。
+const originals = new WeakMap<any, PropertyDescriptor | undefined>();
+
 export interface CanvasPatchDeps {
   /** 命中被伪装字体时返回替换后的 font 串，否则 null */
   fallbackFont: (font: string) => string | null;
@@ -24,6 +30,13 @@ export interface CanvasPatchDeps {
 export function patchMeasureText(proto: any, deps: CanvasPatchDeps): boolean {
   const nativeMeasureText = proto && proto.measureText;
   if (typeof nativeMeasureText !== 'function') return false;
+  if (!originals.has(proto)) {
+    try {
+      originals.set(proto, Object.getOwnPropertyDescriptor(proto, 'measureText'));
+    } catch {
+      originals.set(proto, undefined);
+    }
+  }
 
   deps.define(proto, 'measureText', deps.disguise(function (this: any, text: string) {
     const replacement = deps.fallbackFont(this.font);
@@ -48,9 +61,25 @@ export function patchMeasureText(proto: any, deps: CanvasPatchDeps): boolean {
  */
 export function installCanvasFontPatches(scope: any, deps: CanvasPatchDeps): string[] {
   const patched: string[] = [];
-  for (const name of ['CanvasRenderingContext2D', 'OffscreenCanvasRenderingContext2D']) {
+  for (const name of CONTEXT_PROTOTYPES) {
     const proto = scope && scope[name] && scope[name].prototype;
     if (proto && patchMeasureText(proto, deps)) patched.push(name);
   }
   return patched;
+}
+/**
+ * 还原 measureText。只还原 `installCanvasFontPatches` 动过的原型；没装过的是 no-op。
+ * 关闭 canvas 伪装或站点被排除时调用，之后页面量到的就是原生宽度。
+ */
+export function uninstallCanvasFontPatches(scope: any): void {
+  for (const name of CONTEXT_PROTOTYPES) {
+    const proto = scope && scope[name] && scope[name].prototype;
+    if (!proto || !originals.has(proto)) continue;
+    const descriptor = originals.get(proto);
+    try {
+      if (descriptor) Object.defineProperty(proto, 'measureText', descriptor);
+      else delete proto.measureText;
+    } catch { /* ignore */ }
+    originals.delete(proto);
+  }
 }

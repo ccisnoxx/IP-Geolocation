@@ -16,6 +16,7 @@ import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CDP, evaluate, launchChrome, sleep, killChrome } from './lib/cdp.mjs';
+import { loadExtension } from './lib/extension.mjs';
 import { ensureCerts } from './lib/certs.mjs';
 
 const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -25,6 +26,7 @@ const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
 const domain = String(argv.domain || 'claude.ai');
 const CONTROL_DOMAIN = String(argv.control || 'example.com');
 const extensionPath = String(argv.extension || join(process.cwd(), 'dist'));
+if (process.env.VANISHGEO_LEGACY_EXTENSION === '1') process.env.VANISHGEO_EXTENSION = extensionPath;
 
 const results = [];
 function check(name, ok, detail) {
@@ -131,7 +133,7 @@ const chrome = await launchChrome({
   ]
 });
 const cdp = await CDP.connect(chrome.websocketUrl);
-await cdp.send('Extensions.loadUnpacked', { path: extensionPath });
+await loadExtension(cdp, extensionPath);
 for (let index = 0; index < 40; index += 1) {
   const { targetInfos } = await cdp.send('Target.getTargets');
   if (targetInfos.some((item) => item.url.includes('/background/service-worker.js'))) break;

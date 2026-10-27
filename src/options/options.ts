@@ -2,7 +2,6 @@ import './options.css';
 import {
   DEFAULT_CONFIG,
   DEFAULT_PROFILES,
-  getTimezoneOffsetMinutes,
   normalizeConfig,
   normalizeGeolocation,
   normalizeLanguage,
@@ -10,6 +9,8 @@ import {
   normalizeWebRtc
 } from '../shared/config-model';
 import { ruleLines, rulesFromText } from '../shared/rule-text';
+import { sendRuntimeMessage } from '../shared/runtime-message';
+import { coordinateInputValue, geolocationModeFromInput, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
 import { validateProfile } from '../shared/profile';
 import type { Profile, SiteSpoofConfig } from '../shared/types';
 
@@ -51,27 +52,6 @@ const newProfileDescriptionEl = document.getElementById('newProfileDescription')
 const confirmSaveProfileBtn = document.getElementById('confirmSaveProfile') as HTMLButtonElement;
 const cancelSaveProfileBtn = document.getElementById('cancelSaveProfile') as HTMLButtonElement;
 
-function sendRuntimeMessage<T = any>(message: Record<string, unknown>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!response || response.status === 'error') {
-        reject(new Error(response?.message || 'Unknown runtime error'));
-        return;
-      }
-      resolve(response);
-    });
-  });
-}
-
-function webRtcSelectValue(config: SiteSpoofConfig): string {
-  if (config.webRtc.globalMode === 'strict') return 'disable_non_proxied_udp';
-  if (config.webRtc.globalMode === 'compatible') return 'default_public_interface_only';
-  return 'default';
-}
 
 function populateForm(config: SiteSpoofConfig): void {
   globalEnabledEl.checked = config.masterEnabled;
@@ -80,8 +60,8 @@ function populateForm(config: SiteSpoofConfig): void {
 
   const geo = config.globalProfile.geolocation;
   geolocationEnabledEl.checked = geo.enabled;
-  latitudeEl.value = geo.latitude === null ? '' : String(geo.latitude);
-  longitudeEl.value = geo.longitude === null ? '' : String(geo.longitude);
+  latitudeEl.value = coordinateInputValue(geo.latitude);
+  longitudeEl.value = coordinateInputValue(geo.longitude);
   accuracyEl.value = String(geo.accuracy);
   randomizeEl.checked = geo.randomize;
   randomRadiusMetersEl.value = String(geo.randomRadiusMeters);
@@ -90,8 +70,7 @@ function populateForm(config: SiteSpoofConfig): void {
   const timezone = config.globalProfile.timezone;
   timezoneEnabledEl.checked = timezone.enabled;
   timezoneEl.value = timezone.timezone;
-  const offset = timezone.timezone ? getTimezoneOffsetMinutes(timezone.timezone) : null;
-  utcOffsetEl.value = offset === null ? '' : String(-offset / 60);
+  utcOffsetEl.value = utcOffsetInputValue(timezone.timezone);
 
   const language = config.globalProfile.language;
   languageEnabledEl.checked = language.enabled;
@@ -127,9 +106,9 @@ function readForm(): SiteSpoofConfig {
       }),
       geolocation: normalizeGeolocation({
         enabled: geolocationEnabledEl.checked,
-        mode: latitudeEl.value && longitudeEl.value ? 'manual' : 'auto',
-        latitude: latitudeEl.value === '' ? null : Number(latitudeEl.value),
-        longitude: longitudeEl.value === '' ? null : Number(longitudeEl.value),
+        mode: geolocationModeFromInput(latitudeEl.value, longitudeEl.value),
+        latitude: parseCoordinateInput(latitudeEl.value),
+        longitude: parseCoordinateInput(longitudeEl.value),
         accuracy: Number(accuracyEl.value),
         randomize: randomizeEl.checked,
         randomRadiusMeters: Number(randomRadiusMetersEl.value),
@@ -311,13 +290,20 @@ async function handleSaveAsCustom(): Promise<void> {
   }
   currentConfig = readForm();
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  const latitude = currentConfig.globalProfile.geolocation.latitude;
+  const longitude = currentConfig.globalProfile.geolocation.longitude;
+  // Number(null) === 0：坐标没填时不能悄悄生成一个 (0,0) 的 profile。
+  if (latitude === null || longitude === null) {
+    alert('当前配置缺少有效坐标，不能保存为 profile');
+    return;
+  }
   const profile: Profile = {
     id,
     name,
     description: newProfileDescriptionEl.value.trim() || undefined,
     geolocation: {
-      latitude: Number(currentConfig.globalProfile.geolocation.latitude),
-      longitude: Number(currentConfig.globalProfile.geolocation.longitude),
+      latitude,
+      longitude,
       accuracy: currentConfig.globalProfile.geolocation.accuracy,
       country: currentConfig.globalProfile.geolocation.country
     },
@@ -346,10 +332,15 @@ function exportProfile(profile: Profile): void {
   downloadJson(`vanishgeo-profile-${profile.id}-${Date.now()}.json`, profile);
 }
 
-function deleteProfile(profileId: string): void {
+async function deleteProfile(profileId: string): Promise<void> {
   if (!confirm('确定要删除这个配置文件吗？')) return;
   currentConfig.profile.profiles = currentConfig.profile.profiles.filter((profile) => profile.id !== profileId);
+  if (currentConfig.profile.activeProfileId === profileId) {
+    currentConfig.profile.activeProfileId = null;
+  }
   renderProfiles();
+  // 只改内存不落库，刷新页面就"复活"了 —— 必须走一次保存。
+  await saveSettings();
 }
 
 function downloadJson(filename: string, value: unknown): void {

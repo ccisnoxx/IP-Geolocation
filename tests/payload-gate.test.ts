@@ -37,10 +37,52 @@ test('只有定位时也要产出 payload', () => {
   const resolved = getEffectiveProfile(config, 'example.com', null);
   assert.ok(resolved.payload, 'geo-only 必须有 payload');
   assert.equal(resolved.matched, true);
+  assert.equal(resolved.payload!.hostname, 'example.com');
   assert.equal(resolved.payload!.geolocation!.latitude, 35.6762);
   assert.equal(resolved.payload!.timezone, null, '时区没启用就不该被顺手打开');
   assert.ok(!resolved.payload!.languageConfig, '语言没启用时 languageConfig 为空');
   assert.equal(resolved.payload!.canvasConfig!.enabled, false);
+});
+
+test('定位开启但坐标未解析时产出 deny，而不是 payload=null', () => {
+  const config = build({
+    globalProfile: {
+      geolocation: { enabled: true, mode: 'auto', latitude: null, longitude: null, accuracy: 100 }
+    }
+  });
+
+  const resolved = getEffectiveProfile(config, 'example.com', null);
+  assert.ok(resolved.payload, 'deny 也是一层必须生效的行为，不能把 payload 丢掉');
+  assert.equal(resolved.payload!.geolocation, null);
+  assert.equal(resolved.payload!.geolocationDenied, true);
+  assert.ok(resolved.errors.some((error) => error.includes('geolocation')));
+});
+
+test('手填坐标非法时即使有 lastLocation 也 deny', () => {
+  const config = build({
+    globalProfile: {
+      geolocation: { enabled: true, mode: 'manual', latitude: null, longitude: null, accuracy: 100 }
+    }
+  });
+  const lastLocation = { latitude: 35.6762, longitude: 139.6503, country: 'Japan', timezone: 'Asia/Tokyo' };
+
+  const resolved = getEffectiveProfile(config, 'example.com', lastLocation);
+  assert.ok(resolved.payload);
+  assert.equal(resolved.payload!.geolocation, null);
+  assert.equal(resolved.payload!.geolocationDenied, true);
+});
+
+test('lastLocation 坐标缺失时按未解析处理，不伪造 0,0', () => {
+  const config = build({
+    globalProfile: {
+      geolocation: { enabled: true, mode: 'auto', latitude: null, longitude: null, accuracy: 100 }
+    }
+  });
+
+  const resolved = getEffectiveProfile(config, 'example.com', { latitude: null, longitude: null, country: 'X' } as any);
+  assert.ok(resolved.payload);
+  assert.equal(resolved.payload!.geolocation, null);
+  assert.equal(resolved.payload!.geolocationDenied, true);
 });
 
 test('只有 canvas 时也要产出 payload', () => {

@@ -102,6 +102,7 @@ export async function launchChrome({ userDataDir, headless = true, args = [], en
     '--metrics-recording-only',
     '--disable-features=Translate,OptimizationHints,MediaRouter',
     ...(headless ? ['--headless=new'] : []),
+    ...(process.env.VANISHGEO_EXTENSION ? [`--load-extension=${process.env.VANISHGEO_EXTENSION}`] : []),
     ...args,
     // 只有看起来像 URL 的参数才算导航目标（-AppleLanguages "(en-US)" 这类值不是）
     ...(args.some((item) => /^(https?:|file:|about:|data:|chrome:)/i.test(item)) ? [] : ['about:blank'])

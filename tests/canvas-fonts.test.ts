@@ -9,6 +9,7 @@ import {
 } from '../src/shared/font-aliases';
 import type { FontPlatform } from '../src/shared/font-aliases';
 import { installCanvasFontPatches } from '../src/injected/canvas-patch';
+import { defineNativeLike } from '../src/injected/define';
 import { normalizeConfig } from '../src/shared/config-model';
 import type { CanvasConfig } from '../src/shared/types';
 
@@ -112,7 +113,7 @@ function makeDeps() {
       },
       define: (target: any, key: string, value: any) => {
         calls.push('define:' + key);
-        Object.defineProperty(target, key, { value, writable: true, configurable: true, enumerable: false });
+        defineNativeLike(target, key, value);
       }
     }
   };
@@ -161,6 +162,33 @@ test('度量结束后 ctx.font 还原成页面写进去的原串', () => {
   ctx.font = declared;
   ctx.measureText('中文');
   assert.equal(ctx.font, declared);
+});
+
+test('measureText 保留原生描述符的 enumerable（WebIDL operation 可枚举）', () => {
+  const scope: any = { CanvasRenderingContext2D: makeFakeContextClass({}) };
+  const proto = scope.CanvasRenderingContext2D.prototype;
+  // 把假原生方法改成 WebIDL 的形状：原型上的 operation 是可枚举的
+  Object.defineProperty(proto, 'measureText', {
+    value: proto.measureText,
+    writable: true,
+    enumerable: true,
+    configurable: true
+  });
+
+  installCanvasFontPatches(scope, makeDeps().deps);
+  assert.equal(Object.getOwnPropertyDescriptor(proto, 'measureText')!.enumerable, true);
+});
+
+test('defineNativeLike：已有成员沿用原 enumerable，新成员保持不可枚举', () => {
+  const proto: any = {};
+  Object.defineProperty(proto, 'nativeOp', {
+    value() { return 1; }, writable: true, enumerable: true, configurable: true
+  });
+  defineNativeLike(proto, 'nativeOp', () => 2);
+  assert.equal(Object.getOwnPropertyDescriptor(proto, 'nativeOp')!.enumerable, true);
+
+  defineNativeLike(proto, 'brandNew', () => 3);
+  assert.equal(Object.getOwnPropertyDescriptor(proto, 'brandNew')!.enumerable, false);
 });
 
 test('没有原生 measureText 时安静跳过，不抛错', () => {

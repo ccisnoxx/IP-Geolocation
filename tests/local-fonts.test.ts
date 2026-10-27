@@ -21,7 +21,7 @@ const norm = (value?: string) => String(value || '')
   .replace(/regular$|bold$|light$|medium$|semibold$|heavy$|black$|thin$/, '');
 
 function makeScope(fonts: FontLike[], options: { enumerable?: boolean; reject?: any } = {}) {
-  const native = function queryLocalFonts(this: any, passed?: any) {
+  const native = function queryLocalFonts(this: any, _passed?: any) {
     if (options.reject) return Promise.reject(options.reject);
     return Promise.resolve(fonts.map((font) => ({ ...font })));
   };

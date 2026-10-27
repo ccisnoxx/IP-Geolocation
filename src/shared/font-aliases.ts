@@ -11,7 +11,7 @@
  * 把前者当作独立字体族解析，检测方换成字重写一遍就能绕过按名字精确匹配的实现。
  */
 
-import type { CanvasConfig, CanvasPlatform } from './types';
+import type { CanvasConfig } from './types';
 
 /** 每一组是同一个物理字体的所有已知写法（顺序无关） */
 const FONT_FAMILY_GROUPS: string[][] = [

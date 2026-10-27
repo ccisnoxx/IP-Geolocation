@@ -82,14 +82,17 @@ test('品牌统一：除迁移说明外不出现旧名', () => {
   }
 });
 
-test('CI 跑 typecheck + 单测，release 显式声明 contents: write', () => {
+test('CI 跑 typecheck + lint + 单测，release 显式声明 contents: write', () => {
   const ci = read('.github/workflows/ci.yml');
   assert.match(ci, /run: npm run typecheck/);
+  assert.match(ci, /run: npm run lint/);
   assert.match(ci, /run: npm test/);
+  assert.match(ci, /run: npm run test:coverage:core/);
   assert.match(ci, /run: npm run build/);
   assert.match(ci, /permissions:\s*\n\s*contents: read/);
 
   const release = read('.github/workflows/release.yml');
+  assert.match(release, /run: npm run lint/);
   assert.match(release, /permissions:\s*\n\s*contents: write/);
   // 打包前必须先过校验，否则会发出一个类型不干净的包
   const typecheckAt = release.indexOf('npm run typecheck');
@@ -132,5 +135,23 @@ test('横幅里不残留旧字标', () => {
     const svg = read(`images/${name}.svg`);
     assert.doesNotMatch(svg, /VanishMe/, `${name}.svg 仍写着旧名`);
     assert.match(svg, />VanishGeo</, `${name}.svg 缺 VanishGeo 字标`);
+  }
+});
+
+test('核心覆盖率门禁按文件检查分支且阈值是 80%', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const command = pkg.scripts['test:coverage:core'];
+  assert.match(command, /--per-file/);
+  assert.match(command, /--branches=80/);
+  assert.match(command, /c8/);
+  for (const file of [
+    'src/background/services.ts',
+    'src/background/dnr.ts',
+    'src/content/content-bridge.ts',
+    'src/injected/baked-resolver.ts',
+    'src/shared/config-model.ts',
+    'src/shared/config-resolver.ts'
+  ]) {
+    assert.match(command, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });
