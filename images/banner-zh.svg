@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  VanishGeo banner（1774×887）
+
+  这是**源文件**，PNG 由它渲染得到：
+      node scripts/render-banner.mjs
+  改字标/配色只改这里，不要直接改 images/banner-*.png。
+
+  配色取自 images/icon.png：底色 #05090d，主色绿 #4caf50，亮绿 #58e06a。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1774" height="887" viewBox="0 0 1774 887">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070c11"/>
+      <stop offset="0.55" stop-color="#05090d"/>
+      <stop offset="1" stop-color="#040709"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.18" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#4caf50" stop-opacity="0.20"/>
+      <stop offset="0.55" stop-color="#2f7d3a" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="globeGlow" cx="0.83" cy="0.5" r="0.42">
+      <stop offset="0" stop-color="#58e06a" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4caf50" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#4caf50" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="150" y="292" width="200" height="200" rx="44"/></clipPath>
+  </defs>
+
+  <rect width="1774" height="887" fill="url(#bg)"/>
+  <rect width="1774" height="887" fill="url(#glow)"/>
+  <rect width="1774" height="887" fill="url(#globeGlow)"/>
+
+  <!-- 右侧装饰：经纬网，暗示 Geo；压到很低的不透明度，不抢字标 -->
+  <g transform="translate(1400 444)" fill="none" stroke="#4caf50" stroke-opacity="0.13">
+    <circle r="268" stroke-width="1.5"/>
+    <circle r="196" stroke-width="1"/>
+    <ellipse rx="96" ry="268" stroke-width="1"/>
+    <ellipse rx="188" ry="268" stroke-width="1"/>
+    <path d="M -268 0 H 268" stroke-width="1"/>
+    <path d="M -236 -96 H 236" stroke-width="1" stroke-opacity="0.7"/>
+    <path d="M -236 96 H 236" stroke-width="1" stroke-opacity="0.7"/>
+  </g>
+
+  <!-- 顶部小标签 -->
+  <text x="152" y="176" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="22" font-weight="600"
+        letter-spacing="7" fill="#5fbe6d" fill-opacity="0.9">CHROME MV3 EXTENSION</text>
+
+  <!-- 图标底板：图标本身是深色素描 + 白底，所以放进白色圆角方块里当作 app 图标 -->
+  <g>
+    <rect x="150" y="292" width="200" height="200" rx="44" fill="#f7f9f8"/>
+    <image x="186" y="328" width="128" height="128" clip-path="url(#tile)"
+           xlink:href="data:image/png;base64,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"/>
+  </g>
+
+  <!-- 字标 -->
+  <text x="404" y="432" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="152" font-weight="700"
+        letter-spacing="-3" fill="#ffffff">VanishGeo</text>
+
+  <!-- 字标下的短绿线 -->
+  <rect x="406" y="464" width="196" height="5" rx="2.5" fill="url(#rule)"/>
+
+  <!-- 主标语 -->
+  <text x="404" y="540" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, sans-serif" font-size="38" font-weight="500"
+        fill="#cfd8d6">环境一致性工具：时区 · 语言 · 定位 · 字体</text>
+
+  <!-- 副标语 -->
+  <text x="404" y="598" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, sans-serif" font-size="30" font-weight="400"
+        fill="#7d8f8c" fill-opacity="0.95">让页面、请求头与真实出口说的是同一件事</text>
+
+  <!-- 底部说明 -->
+  <text x="152" y="772" font-family="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, sans-serif" font-size="26" font-weight="400"
+        fill="#6b7b78" fill-opacity="0.85">三层一致：进程环境 / 请求头（DNR）/ 页面 JS</text>
+</svg>

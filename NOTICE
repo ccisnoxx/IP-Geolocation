@@ -1,0 +1,14 @@
+VanishGeo
+=========
+
+VanishGeo is a derivative work based on VanishMe:
+
+  https://github.com/XiNian-dada/VanishMe
+
+VanishMe is licensed under the MIT License. The original MIT License text is
+preserved in LICENSE.
+
+This derivative integrates selected capabilities from the local IP-Geolocation
+project, including unified site configuration, allowlist resolution, dynamic
+runtime injection, DNR Accept-Language rules, WebRTC policy handling, automatic
+IP geolocation, diagnostics, fixtures, and regression tests.

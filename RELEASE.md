@@ -1,162 +1,109 @@
 # 发布指南
 
-## 初始化 Git 仓库并推送到 GitHub
+从仓库到 GitHub Release 的完整流程。安装与使用见 [INSTALL.md](INSTALL.md)。
 
-### 1. 初始化本地仓库
+## 0. 前置：仓库名与品牌
+
+产品名统一为 **VanishGeo**（`manifest.json`、`package.json`、界面、文档都是这个名字）。
+本文档里的 GitHub 链接按 `XiNian-dada/VanishGeo` 写。
+
+如果仓库还没改名，先把 GitHub 仓库改成 `VanishGeo` 并同步 local remote：
 
 ```bash
-cd /Users/bernard/Code/VanishMe
-
-# 初始化 git 仓库（如果还没有）
-git init
-
-# 添加所有文件
-git add .
-
-# 创建第一次提交
-git commit -m "Initial commit: VanishMe privacy extension"
+git remote set-url origin https://github.com/XiNian-dada/VanishGeo.git
 ```
 
-### 2. 在 GitHub 创建仓库
+否则文档里的 Releases / Actions 链接会 404。
 
-1. 访问 https://github.com/new
-2. Repository name: `VanishMe`
-3. Description: `浏览器隐私保护扩展 - 伪装你的浏览器指纹 | Browser privacy protection extension`
-4. 选择 Public
-5. **不要**勾选 "Add a README file" （我们已经有了）
-6. **不要**勾选 "Add .gitignore" （我们已经有了）
-7. **不要**勾选 "Choose a license" （我们已经有了）
-8. 点击 "Create repository"
+## 1. CI：每个提交都跑
 
-### 3. 关联远程仓库并推送
+`.github/workflows/ci.yml`，触发条件为所有分支的 push 与 PR，权限 `contents: read`：
 
-```bash
-# 添加远程仓库
-git remote add origin https://github.com/XiNian-dada/VanishMe.git
+| 步骤 | 命令 | 失败含义 |
+| --- | --- | --- |
+| Typecheck | `npm run typecheck` | 类型不干净，不会进包 |
+| Unit tests | `npm test` | 行为回归 |
+| Build | `npm run build` | 构建失败 |
+| Verify output | `test -f dist/...` | 产物缺文件 / manifest 不是 V3 |
 
-# 推送到 GitHub
-git branch -M main
-git push -u origin main
+## 2. 发版：推 tag 即发布
+
+`.github/workflows/release.yml`，触发条件为 `v*.*.*` tag。
+
+显式声明了：
+
+```yaml
+permissions:
+  contents: write      # 创建 Release + 上传产物所必需；默认的只读 token 会 403
 ```
 
-## 发布新版本
+流程：
 
-### 创建并推送 Tag 触发自动发布
+1. `npm ci` → **typecheck** → **单测** → `npm run build`
+2. 从 tag 提取版本号，**校验与 `dist/manifest.json` 的 `version` 一致**（不一致直接失败）
+3. 打包成 `vanishgeo-v<version>.zip`
+4. 生成 changelog（上一个 tag..HEAD 的提交标题）
+5. 创建 Release 并上传 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
 
-GitHub Actions 会在推送新 tag 时自动构建并发布：
+> 版本号只有一个来源：`manifest.json`（`package.json` 跟着同步）。tag 只是触发器，
+> 对不上就红，不会发出一个版本号自相矛盾的包。
+
+## 3. 发一个版本的完整步骤
 
 ```bash
-# 确保所有改动已提交
-git add .
-git commit -m "描述你的改动"
+# 1) 本地先跑一遍与 CI 相同的检查
+npm run typecheck
+npm test
+npm run build
 
-# 创建版本标签（遵循语义化版本）
-git tag v1.0.0
+# 2) 同步版本号（manifest.json 与 package.json 必须一致）
+#    例如 1.1.0 -> 1.1.1
 
-# 推送代码和标签
+# 3) 提交并推送
+git add -A
+git commit -m "release: v1.1.1"
 git push origin main
-git push origin v1.0.0
-```
 
-### 版本号规则（语义化版本）
-
-- **v1.0.0** - 主版本.次版本.修订号
-- **主版本（Major）**: 重大更新，不兼容的 API 变更
-- **次版本（Minor）**: 新功能，向后兼容
-- **修订号（Patch）**: Bug 修复，向后兼容
-
-### 示例版本发布
-
-```bash
-# 第一个正式版本
-git tag v1.0.0
-git push origin v1.0.0
-
-# 添加新功能
-git tag v1.1.0
-git push origin v1.1.0
-
-# Bug 修复
+# 4) 打 tag 并推送（这一步才会触发发布）
 git tag v1.1.1
 git push origin v1.1.1
-
-# 重大更新
-git tag v2.0.0
-git push origin v2.0.0
 ```
 
-## GitHub Actions 自动化流程
+版本号规则（语义化版本）：
 
-推送 tag 后，GitHub Actions 会自动：
+- **Major**：不兼容的配置结构变化（例如 `schemaVersion` 提升）
+- **Minor**：新能力，向后兼容
+- **Patch**：修复
 
-1. ✅ 检出代码
-2. ✅ 安装 Node.js 和依赖
-3. ✅ 构建扩展 (`npm run build`)
-4. ✅ 打包 dist 文件夹为 zip
-5. ✅ 生成更新日志
-6. ✅ 创建 GitHub Release
-7. ✅ 上传 `vanishme-v*.*.*.zip` 到 Release
+## 4. 发布前检查清单
 
-## 查看构建状态
+- [ ] `npm run typecheck` / `npm test` / `npm run build` 全绿
+- [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag
+- [ ] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）
+- [ ] 仓库里没有真实 IP、个人路径、浏览器 profile（`tools/out/profiles/` 已被 gitignore）
+- [ ] README / INSTALL / CONFIG_GUIDE 的描述与当前行为一致（匹配模型、默认值、生效方式）
+- [ ] 在真实站点上手动验一遍：时区、语言、`Accept-Language`、WebRTC
 
-1. 推送 tag 后访问：https://github.com/XiNian-dada/VanishMe/actions
-2. 点击最新的 "Release" workflow
-3. 查看构建进度和日志
-4. 构建成功后，Release 会自动出现在：https://github.com/XiNian-dada/VanishMe/releases
-
-## 常见问题
-
-### Q: Tag 推送失败？
-```bash
-# 删除本地 tag
-git tag -d v1.0.0
-
-# 删除远程 tag
-git push origin :refs/tags/v1.0.0
-
-# 重新创建 tag
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-### Q: 如何修改已发布的 Release？
-1. 访问 https://github.com/XiNian-dada/VanishMe/releases
-2. 点击对应 Release 的 "Edit" 按钮
-3. 修改内容后保存
-
-### Q: 如何删除 Release？
-1. 访问 https://github.com/XiNian-dada/VanishMe/releases
-2. 点击对应 Release 的 "Delete" 按钮
-3. 然后删除对应的 tag：
-```bash
-git push origin :refs/tags/v1.0.0
-```
-
-## 建议的发布流程
-
-1. **开发阶段** - 在 feature 分支开发
-2. **测试** - 本地构建并测试扩展功能
-3. **合并** - 合并到 main 分支
-4. **更新版本号** - 确认版本号符合语义化版本规范
-5. **创建 Tag** - 创建并推送版本 tag
-6. **等待构建** - GitHub Actions 自动构建和发布
-7. **验证 Release** - 下载 zip 文件测试
-8. **宣布发布** - 分享 Release 链接
-
-## 首次发布建议
+## 5. 回溯与修复
 
 ```bash
-# 确保一切准备就绪
-npm run build  # 本地测试构建
-npm run type-check  # 类型检查
+# 删除本地/远程 tag 后重打（tag 已触发过发布会留下一条记录，需要手动清理 Release）
+git tag -d v1.1.1
+git push origin :refs/tags/v1.1.1
 
-# 创建首个正式版本
-git tag v1.0.0
-git push origin main
-git push origin v1.0.0
+# 修改已发布的 Release 内容：GitHub → Releases → Edit
+# 删除 Release：GitHub → Releases → Delete，再删 tag
 ```
 
-发布成功后，用户可以从：
-https://github.com/XiNian-dada/VanishMe/releases/latest
+## 6. 相关命令
 
-下载最新版本的扩展！
+```bash
+npm run audit            # 静态检查 + 双引擎 E2E，输出通过率表格
+npm run smoke:options    # 选项页写入路径的端到端冒烟
+npm run smoke:failclosed # fail-closed 行为
+npm run smoke:fingerprint# 主线程 / iframe / Worker 跨上下文一致性
+npm run smoke:ipchange   # 出口变化后是否跟随
+npm run smoke:real-site  # 真实站点核对
+```
+
+`npm run audit` 里任何一项失败都会以非零退出码结束，适合放在发布前的最后一道闸。
