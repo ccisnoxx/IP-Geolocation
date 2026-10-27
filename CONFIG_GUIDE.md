@@ -104,12 +104,12 @@ MiSans / MIUI / 鸿蒙黑体 / HONOR Sans / OPPO Sans / vivo Sans / 阿里巴巴
 
 ### 两个开关怎么组合
 
-- **"一台没有中文字体的 mac"**：真 Mac 上 `platform=auto` + `hideCjkFonts=on`。
+- **"一台没有中文字体的 mac"**：`platform=auto` + `hideCjkFonts=on`。
   苹方也被藏掉，检测方的中文行全部落空。代价是自相矛盾 —— 真 mac 有苹方，
-  `document.fonts.check` 和实际渲染字形仍能看出中文能力（见下面"做不到的事"）
-- **"一台自洽的 mac"**：`platform=mac` + `hideCjkFonts=off`。
+  实际渲染中文仍然看得出系统 CJK 能力（见下面"做不到的事"）
+- **"一台自洽的 mac"**：`platform=auto` + `hideCjkFonts=off`。
   苹方在，检测方的中文行会命中 —— 但那是事实，不命中反而不像 mac
-- **"一台自洽的 Windows"**：`platform=windows` + `hideCjkFonts=off`。
+- **"一台自洽的 Windows"**：在真 Windows 上 `platform=auto`。
   mac 自带字体全部消失，中文检测项里只剩 Windows 的字体名
 
 ### 手动层与默认值
@@ -123,8 +123,13 @@ MiSans / MIUI / 鸿蒙黑体 / HONOR Sans / OPPO Sans / vivo Sans / 阿里巴巴
   只补前者时，检测脚本一行就绕过了
 - **不动渲染**：CSS 布局（`getBoundingClientRect`）、实际字形都不受影响
 - **中文兜底存在性消不掉**：`72px monospace` 量中文仍会落到系统 CJK 字体
-- **`document.fonts.check` 故意不接管**：原生对没装的字体名也返回 `true`，
-  两边一致才不构成差异信号
+- **`document.fonts.check` 故意不接管，它也不是信号**：实测原生对
+  `"NoSuchFontZzz123"` 这种随口编的名字同样返回 `true`（它测的是 FontFaceSet，
+  不是系统字体安装情况）。改它反而会造出真机永远不出现的差异
+- **隐藏项与真缺失逐字节同宽**：命中字体换成 `"__vg_absent__"` 这种必然不存在的
+  族名，而不是 `monospace`。真机实测 16px 下 `MMMM`：monospace 38.53、
+  sans-serif 56.45、不存在的族名 56.45 —— 填 monospace 会差 18px，一个对照组就能
+  把"被藏了"和"真没有"分开
 - **worker 里同一套规则**：主线程解析出最终列表后把键集合传给 Worker，
   两边不会说两套话
 
