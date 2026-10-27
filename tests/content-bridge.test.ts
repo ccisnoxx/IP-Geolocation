@@ -64,9 +64,9 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
 
   const window = {
     location: { href: CHILD_URL },
-    postMessage: (message: any, _target: string, ports?: MessagePort[]) => {
-      if (!message || message.__vanishGeo !== 'handshake' || !ports || !ports[0]) return;
-      const port = ports[0];
+    postMessage: (message: any, _target: string, transfer?: MessagePort[]) => {
+      if (!message || message.__vanishGeo !== 'handshake' || !transfer || !transfer[0]) return;
+      const port = transfer[0];
       handshakes.push(message);
       ports.push(port);
       runtimePort = port;
@@ -92,6 +92,8 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
     pulls,
     reports,
     handshakes,
+    window,
+    chrome,
     get listener() { return listener; },
     get runtimePort() { return runtimePort; },
     setResponse(value: any) { response = value; },
@@ -268,4 +270,69 @@ test('MessagePort.postMessage 同步抛错时由 deliver 吞掉', async () => {
   } finally {
     MessagePort.prototype.postMessage = original;
   }
+});
+
+test('重复创建同一 window 时第二个实例直接 no-op', () => {
+  const harness = createHarness();
+  const second = createContentBridge({
+    window: harness.window,
+    document: { referrer: PARENT_REFERRER },
+    chrome: harness.chrome,
+    nonce: NONCE
+  });
+  assert.doesNotThrow(() => second.stop());
+});
+
+test('响应 payload 的 hostname 不匹配时丢弃，不交给 runtime', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.delivered.length;
+  harness.setResponse({
+    status: 'ok',
+    matched: true,
+    payload: { hostname: 'parent.localhost', domain: 'parent.localhost' }
+  });
+  harness.listener?.({ action: 'applyPayload', payload: { hostname: 'parent.localhost' } });
+  await waitFor(() => harness.pulls.length >= 2);
+  await sleep(20);
+  assert.equal(harness.delivered.length, before);
+});
+
+test('端口就绪后的非 ack 消息被忽略，不再触发第二次握手', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const handshakes = harness.handshakes.length;
+  harness.runtimePort?.postMessage({ __vanishGeo: NONCE, kind: 'other' });
+  await sleep(80);
+  assert.equal(harness.handshakes.length, handshakes);
+  assert.equal(harness.delivered.at(-1)?.payload.hostname, 'child.localhost');
+});
+
+test('同一 tick 的多次 clear 只安排一次重拉', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.pulls.length;
+  harness.listener?.({ action: 'applyPayload', clear: true });
+  harness.listener?.({ action: 'applyPayload', clear: true });
+  await waitFor(() => harness.pulls.length > before);
+  await sleep(20);
+  assert.equal(harness.pulls.length, before + 1);
+});
+
+test('无 timer / 无端口时 stop 也能安全退出', () => {
+  const harness = createHarness({ autoAck: false });
+  assert.doesNotThrow(() => harness.stop());
+});
+
+test('后台广播里的无关消息直接忽略，不触发重拉', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.pulls.length;
+  assert.doesNotThrow(() => {
+    harness.listener?.(null);
+    harness.listener?.({ action: 'somethingElse' });
+    harness.listener?.({ action: 'applyPayload', payload: 42 });
+  });
+  await sleep(30);
+  assert.equal(harness.pulls.length, before + 1, '只有无效 payload 的那条触发一次重拉');
 });

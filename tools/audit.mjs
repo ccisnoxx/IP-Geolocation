@@ -48,7 +48,7 @@ const ENGINES = [
   {
     id: 'chrome119',
     name: 'Chrome 119',
-    path: join(homedir(), '.vanishgeo', 'browsers', 'chrome-119', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
+    path: process.env.CHROME119_PATH || join(homedir(), '.vanishgeo', 'browsers', 'chrome-119', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
     // Chrome 119 没有 CDP Extensions.loadUnpacked，只能靠 --load-extension 启动参数
     legacyExtension: true,
     nativeMode: true
@@ -85,6 +85,9 @@ const CHECKS = [
   { id: 'frames', label: 'frame 隔离', script: 'tools/smoke-frames.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'bakedfailclosed', label: '烘焙 fail-closed', script: 'tools/smoke-baked-failclosed.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'bakedclear', label: '烘焙 clear / frozen', script: 'tools/smoke-baked-clear.mjs', args: [] },
+  { id: 'presets', label: '5 preset 浏览器 E2E', script: 'tools/smoke-presets.mjs', args: [] },
+  { id: 'coldstart', label: '冷启动 / clear', script: 'tools/smoke-cold-start.mjs', args: [] },
+  { id: 'popup', label: 'popup 交互', script: 'tools/smoke-popup.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'native', label: '原生模式自检', script: 'tools/native-audit.mjs', args: ['--profile=' + join(homedir(), '.vanishgeo', 'audit-profile')] },
   { id: 'realsite', label: '真实站点一致性', script: 'tools/smoke-real-site.mjs', args: [] },
   // auto 构建（时区按出口 IP 派生）单独跑一遍：首帧头与页面语言必须一致，
