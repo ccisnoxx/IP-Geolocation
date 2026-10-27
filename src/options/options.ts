@@ -41,6 +41,7 @@ const siteRulesEl = document.getElementById('siteRules') as HTMLElement;
 const exportConfigBtn = document.getElementById('exportConfig') as HTMLButtonElement;
 const importConfigBtn = document.getElementById('importConfig') as HTMLButtonElement;
 const importFileEl = document.getElementById('importFile') as HTMLInputElement;
+const exportBakeBtn = document.getElementById('exportBake') as HTMLButtonElement;
 const resetAllBtn = document.getElementById('resetAll') as HTMLButtonElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const saveAsCustomBtn = document.getElementById('saveAsCustom') as HTMLButtonElement;
@@ -366,6 +367,22 @@ function exportConfiguration(): void {
   downloadJson(`vanishgeo-config-${Date.now()}.json`, currentConfig);
 }
 
+/**
+ * 导出烘焙构建的输入文件。
+ *
+ * 非烘焙构建：content script 在 document_start 发起握手 → 后台解析配置 → 端口回投，
+ * 这条链路是异步的，页面首个内联脚本可能先跑（实测本地页能稳定复现）。
+ * 烘焙构建把 payload 编译成 runtime.js 里的常量，document_start 同步生效。
+ */
+async function exportBakeSnapshot(): Promise<void> {
+  const response = await chrome.runtime.sendMessage({ action: 'getBakeSnapshot' }).catch((error: unknown) => ({ status: 'error', error: String(error) }));
+  if (!response || response.status === 'error') {
+    alert(`导出失败: ${response && response.error ? response.error : '后台没有响应'}`);
+    return;
+  }
+  downloadJson('vanishgeo-bake.json', { config: response.config, lastLocation: response.lastLocation ?? null });
+}
+
 function importConfiguration(): void {
   importFileEl.click();
 }
@@ -420,6 +437,7 @@ confirmSaveProfileBtn.addEventListener('click', () => { void handleSaveAsCustom(
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
 getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
 exportConfigBtn.addEventListener('click', exportConfiguration);
+exportBakeBtn.addEventListener('click', () => { void exportBakeSnapshot(); });
 importConfigBtn.addEventListener('click', importConfiguration);
 importFileEl.addEventListener('change', (event) => { void handleImportFile(event); });
 resetAllBtn.addEventListener('click', () => { void resetAllData(); });

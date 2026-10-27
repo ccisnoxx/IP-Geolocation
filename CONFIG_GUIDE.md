@@ -157,7 +157,46 @@ google.com          ← 启用：google.com 及其所有子域
 | 坐标与 IP 城市差几千公里 | 手动坐标没跟着出口改 | 用「从 IP 自动配置」重新推一次 |
 | 某些站点没有伪装 | 该域名不在规则里，或被更长的排除规则命中 | 弹窗「站点白名单」检查 |
 
-## 九、验证
+## 九、首屏窗口：为什么开发构建有、烘焙构建没有
+
+配置进到页面有两条路，区别只在**什么时候**生效：
+
+| 构建 | 配置来源 | 生效时刻 | 页面首个内联脚本读到 |
+|---|---|---|---|
+| `npm run build`（开发） | `chrome.storage.local`，经 `sendMessage` 取回 | 异步，一次 IPC 往返 | **原生值** |
+| `build:persona` / `--config`（烘焙） | 编译进 `injected/runtime.js` 的常量 | `document_start` 同步 | 目标值 |
+
+实测（本机 Helium，出口 Las Vegas，目标 `America/Los_Angeles` / `en-US`）：
+
+```
+开发构建  __first = { tz: "Asia/Shanghai", lang: "zh-CN", offset: -480 }   ← 窗口
+烘焙构建  __first = { tz: "America/Los_Angeles", lang: "en-US", offset: 420 }
+```
+
+原因是硬性的：`document_start` 注入的脚本确实在页面脚本之前跑，但配置要经
+`chrome.runtime.sendMessage` 或 `chrome.storage` 才拿到，**任何异步 API 都输给解析器**——
+HTML 已经缓冲好时，首个内联脚本紧接着就执行。所以开发构建的窗口关不掉，只能换路径。
+
+### 想要零窗口：导出 + 烘焙（一条命令）
+
+1. 选项页 →「数据管理」→**导出烘焙配置（首屏零窗口）** → 得到 `vanishgeo-bake.json`
+2. 构建：
+
+```bash
+npm run build:persona -- --config=~/Downloads/vanishgeo-bake.json --out=dist-baked
+```
+
+3. `chrome://extensions` → 加载已解压的扩展程序 → 选 `dist-baked`
+
+烘焙只是**初始值**：之后在选项页里改语言/时区/字体，照样实时生效（走消息通道）。
+要连消息通道都不要、彻底冻结，加 `--no-bridge`。
+
+### 什么时候可以不管这个窗口
+
+检测脚本通常在 `DOMContentLoaded` 之后才跑，那时 payload 早已落地，开发构建也一致。
+只有"在 `<head>` 里同步读 `Intl` / `new Date()` 并把结果立刻上报"的站点才能看到差异。
+
+## 十、验证
 
 1. 右键扩展图标 →「Open diagnostic page」
 2. 「当前配置」区域对照期望值

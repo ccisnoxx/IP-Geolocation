@@ -162,9 +162,15 @@
       <div class="data-actions">
         <button id="exportConfig" class="btn-secondary">导出完整配置</button>
         <button id="importConfig" class="btn-secondary">导入配置</button>
+        <button id="exportBake" class="btn-secondary">导出烘焙配置（首屏零窗口）</button>
         <button id="resetAll" class="btn-danger">重置所有数据</button>
         <input type="file" id="importFile" accept=".json" style="display: none;">
       </div>
+      <p class="hint">
+        非烘焙构建的配置要经一次异步 IPC 才进到页面，页面的第一个内联脚本可能在它之前执行。
+        把这份快照交给 <code>npm run build:persona -- --config=&lt;文件&gt;</code> 构建，
+        配置会变成 <code>document_start</code> 的同步常量，这个窗口就不存在了。
+      </p>
     </section>
 
     <footer>

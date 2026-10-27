@@ -46,9 +46,12 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+  // 任何写入都先让内存快照失效，否则读取方会拿到旧值（尤其是 lastLocation）
+  services.invalidateStorageCache();
   // 保存路径自己会应用一次；这里兜住其它写入方（导入、迁移、旧版本残留），
   // 同一份配置靠签名去重，且绝不触发 IP 定位。
-  if (areaName === 'local' && changes.siteSpoofConfig) {
+  if (changes.siteSpoofConfig) {
     void services.applyConfig();
   }
 });
