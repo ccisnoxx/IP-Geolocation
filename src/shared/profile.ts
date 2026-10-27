@@ -1,56 +1,61 @@
-import type { Profile, PrivacyConfig } from './types';
-import { DEFAULT_PROFILES } from './defaults';
+import {
+  DEFAULT_PROFILES,
+  normalizeConfig,
+  normalizeGeolocation,
+  normalizeLanguage,
+  normalizeString,
+  normalizeTimezone,
+  validateTimezone
+} from './config-model';
+import type { Profile, SiteSpoofConfig } from './types';
 
 export function validateProfile(profile: Partial<Profile>): boolean {
-  if (!profile.id || !profile.name) return false;
-
+  if (!normalizeString(profile.id) || !normalizeString(profile.name)) return false;
   if (!profile.geolocation) return false;
   const { latitude, longitude, accuracy } = profile.geolocation;
-  if (latitude < -90 || latitude > 90) return false;
-  if (longitude < -180 || longitude > 180) return false;
-  if (accuracy <= 0) return false;
-
-  if (!profile.language) return false;
-  if (!profile.language.language || !Array.isArray(profile.language.languages)) return false;
-
-  if (!profile.timezone) return false;
-  if (!profile.timezone.timezone) return false;
-  if (profile.timezone.offsetMinutes < -840 || profile.timezone.offsetMinutes > 720) return false;
-
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return false;
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return false;
+  if (!Number.isFinite(accuracy) || accuracy <= 0) return false;
+  if (!profile.language || !profile.language.language || !Array.isArray(profile.language.languages)) return false;
+  if (!profile.timezone || !validateTimezone(profile.timezone.timezone)) return false;
   return true;
 }
 
-export function applyProfileToConfig(config: PrivacyConfig, profileId: string): PrivacyConfig {
-  const profile = [...DEFAULT_PROFILES, ...config.profile.profiles].find(p => p.id === profileId);
+export function applyProfileToConfig(config: SiteSpoofConfig, profileId: string): SiteSpoofConfig {
+  const normalized = normalizeConfig(config);
+  const profile = normalized.profile.profiles.find((item) => item.id === profileId)
+    || DEFAULT_PROFILES.find((item) => item.id === profileId);
 
-  if (!profile) {
-    return config;
-  }
+  if (!profile) return normalized;
 
-  return {
-    ...config,
-    geolocation: {
-      ...config.geolocation,
-      latitude: profile.geolocation.latitude,
-      longitude: profile.geolocation.longitude,
-      accuracy: profile.geolocation.accuracy
-    },
-    language: {
-      ...config.language,
-      language: profile.language.language,
-      languages: profile.language.languages,
-      acceptLanguage: profile.language.acceptLanguage
-    },
-    timezone: {
-      ...config.timezone,
-      timezone: profile.timezone.timezone,
-      offsetMinutes: profile.timezone.offsetMinutes
+  return normalizeConfig({
+    ...normalized,
+    globalProfile: {
+      language: normalizeLanguage({
+        enabled: normalized.globalProfile.language.enabled,
+        mode: 'preset',
+        ...profile.language
+      }),
+      timezone: normalizeTimezone({
+        enabled: normalized.globalProfile.timezone.enabled,
+        mode: 'manual',
+        timezone: profile.timezone.timezone
+      }),
+      geolocation: normalizeGeolocation({
+        ...normalized.globalProfile.geolocation,
+        enabled: normalized.globalProfile.geolocation.enabled,
+        mode: 'manual',
+        latitude: profile.geolocation.latitude,
+        longitude: profile.geolocation.longitude,
+        accuracy: profile.geolocation.accuracy,
+        country: profile.geolocation.country || profile.name
+      })
     },
     profile: {
-      ...config.profile,
+      ...normalized.profile,
       activeProfileId: profileId
     }
-  };
+  });
 }
 
 export { DEFAULT_PROFILES };

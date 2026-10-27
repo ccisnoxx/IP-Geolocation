@@ -1,3 +1,23 @@
+export type LanguageMode = 'preset' | 'custom';
+export type TimezoneMode = 'auto' | 'manual';
+export type GeolocationMode = 'auto' | 'manual';
+export type OverrideMode = 'inherit' | 'override' | 'disable';
+export type WebRtcMode = 'strict' | 'compatible' | 'default';
+
+export interface LanguageConfig {
+  enabled: boolean;
+  mode: LanguageMode;
+  language: string;
+  languages: string[];
+  acceptLanguage: string;
+}
+
+export interface TimezoneConfig {
+  enabled: boolean;
+  mode: TimezoneMode;
+  timezone: string;
+}
+
 export interface GeolocationHistory {
   latitude: number;
   longitude: number;
@@ -8,41 +28,52 @@ export interface GeolocationHistory {
 
 export interface GeolocationConfig {
   enabled: boolean;
-  latitude: number;
-  longitude: number;
+  mode: GeolocationMode;
+  latitude: number | null;
+  longitude: number | null;
   accuracy: number;
+  country: string;
   randomize: boolean;
   randomRadiusMeters: number;
   spoofPermission: boolean;
   history: GeolocationHistory[];
 }
 
-export interface WebRTCConfig {
-  enabled: boolean;
-  policy: 'default' | 'default_public_interface_only' | 'default_public_and_private_interfaces' | 'disable_non_proxied_udp';
+export interface WebRtcConfig {
+  globalMode: WebRtcMode;
 }
 
-export interface LanguageConfig {
-  enabled: boolean;
-  language: string;
-  languages: string[];
-  acceptLanguage: string;
-}
-
-export interface TimezoneConfig {
-  enabled: boolean;
-  timezone: string;
-  offsetMinutes: number;
-}
+/** 声称的平台：决定隐藏"不属于这个平台"的字体。none = 不按平台隐藏 */
+export type CanvasPlatform = 'auto' | 'mac' | 'windows' | 'linux' | 'none';
 
 export interface CanvasConfig {
   enabled: boolean;
   spoofFonts: boolean;
-  targetFonts: string[]; // 要隐藏的字体列表，让检测失败（如隐藏中文字体）
+  /**
+   * 平台层。`auto` = 按浏览器真实平台（`navigator.userAgentData.platform`），
+   * 隐藏另外两个平台的字体；`none` 关掉这一层。
+   */
+  platform: CanvasPlatform;
+  /** 中文 / 国产厂商层：与平台正交，控制的是"这台机器有没有中文环境" */
+  hideCjkFonts: boolean;
+  /** 手动追加要隐藏的字体（在上面两层之上叠加） */
+  targetFonts: string[];
+}
+
+export interface SignalOverride<T> {
+  mode: OverrideMode;
+  value: T | null;
 }
 
 export interface SiteRule {
+  id: string;
+  domain: string;
   enabled: boolean;
+  overrides: {
+    language: SignalOverride<Partial<LanguageConfig>>;
+    timezone: SignalOverride<Partial<TimezoneConfig>>;
+    geolocation: SignalOverride<Partial<GeolocationConfig>>;
+  };
 }
 
 export interface Profile {
@@ -53,6 +84,7 @@ export interface Profile {
     latitude: number;
     longitude: number;
     accuracy: number;
+    country?: string;
   };
   language: {
     language: string;
@@ -61,7 +93,6 @@ export interface Profile {
   };
   timezone: {
     timezone: string;
-    offsetMinutes: number;
   };
 }
 
@@ -70,27 +101,55 @@ export interface ProfileConfig {
   profiles: Profile[];
 }
 
-export type MatchMode = 'global' | 'whitelist' | 'blacklist';
-
-export interface PrivacyConfig {
-  globalEnabled: boolean;
-  debugMode: boolean; // 调试模式：是否在控制台输出详细日志
-  matchMode: MatchMode; // 匹配模式：全局、白名单、黑名单
-  domainList: string[]; // 域名列表（用于白名单或黑名单）
-  siteRules: Record<string, SiteRule>;
-  geolocation: GeolocationConfig;
-  webrtc: WebRTCConfig;
-  language: LanguageConfig;
-  timezone: TimezoneConfig;
+export interface SiteSpoofConfig {
+  /** 配置结构版本；升级时按它决定要不要补默认值（见 CONFIG_SCHEMA_VERSION） */
+  schemaVersion: number;
+  masterEnabled: boolean;
+  debugMode: boolean;
+  globalProfile: {
+    language: LanguageConfig;
+    timezone: TimezoneConfig;
+    geolocation: GeolocationConfig;
+  };
+  webRtc: WebRtcConfig;
   canvas: CanvasConfig;
   profile: ProfileConfig;
+  rules: SiteRule[];
 }
 
-export interface InjectedConfig {
-  enabled: boolean;
+export interface LastLocation {
+  latitude: number;
+  longitude: number;
+  country: string;
+  timezone?: string | null;
+  timezoneOffset?: number | null;
+  updateTime?: string;
+}
+
+export interface EffectivePayload {
+  extensionEnabled: true;
   debugMode: boolean;
-  geolocation: GeolocationConfig;
-  language: LanguageConfig;
-  timezone: TimezoneConfig;
-  canvas: CanvasConfig;
+  ruleId: string;
+  domain: string;
+  geolocation: (GeolocationConfig & {
+    latitude: number;
+    longitude: number;
+    timezone?: string | null;
+  }) | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string | null;
+  timezoneSource: 'manual' | 'lastLocation' | null;
+  languageConfig: LanguageConfig | null;
+  timezoneConfig: TimezoneConfig;
+  canvasConfig: CanvasConfig;
+}
+
+export interface EffectiveProfileResult {
+  matched: boolean;
+  rule: SiteRule | null;
+  payload: EffectivePayload | null;
+  errors: string[];
+  /** 命中了显式排除（disabled 规则）：该站点及其子域不做任何改写 */
+  excluded?: boolean;
 }

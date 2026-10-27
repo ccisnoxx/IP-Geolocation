@@ -1,116 +1,118 @@
-// Domain matching logic (inlined to avoid code splitting)
-function patternToRegex(pattern: string): RegExp {
-  let regexStr = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*');
-  regexStr = '^' + regexStr + '$';
-  return new RegExp(regexStr, 'i');
-}
+/**
+ * ISOLATED world 桥：把后台解析好的 payload 送进 MAIN world。
+ *
+ * 通道模型换过一次，原因值得写下来。
+ *
+ * 旧做法是 `window.postMessage({ __vanishGeo: NONCE, payload })`：nonce 是构建期
+ * 随机值，看起来安全，但页面的 `message` 监听器和我们监听的是**同一个事件**。
+ * 页面只要 `window.addEventListener('message', e => e.data)` 就能读到 nonce 和
+ * 整份 payload，之后想推什么就推什么 —— 共享秘密一旦上了公开频道就不再是秘密。
+ *
+ * 现在改成私有端口：
+ *
+ * 1. content script 在 `document_start` **同步**发出一条握手，携带 `MessagePort`；
+ *    此刻页面还没有任何脚本执行，也就没有任何监听器能看到这条消息。
+ * 2. MAIN world 的 runtime 早已挂好一次性监听器，收下端口后立刻移除自己的
+ *    `message` 监听 —— 之后再没有任何可观测的握手。
+ * 3. 后续 payload 全部走端口。端口只有两端持有（runtime 的闭包、这里的闭包），
+ *    页面既看不到也拿不到；端口消息还要再校验一次 nonce，即使某个极端路径下
+ *    端口被抢走，伪造消息也会被丢弃。
+ *
+ * persona 构建里 `__VANISHGEO_BRIDGE__` 为 false，这个文件整体空转：
+ * 配置已经烘焙进 runtime.js，document_start 同步生效，完全不需要运行时通道。
+ */
+(function () {
+  if (typeof __VANISHGEO_BRIDGE__ === 'boolean' && !__VANISHGEO_BRIDGE__) return;
+  if (typeof __VANISHGEO_NONCE__ !== 'string' || !__VANISHGEO_NONCE__) return;
 
-function matchDomain(domain: string, pattern: string): boolean {
-  if (!domain || !pattern) return false;
-  domain = domain.toLowerCase().trim();
-  pattern = pattern.toLowerCase().trim();
-  domain = domain.replace(/^https?:\/\//, '');
-  pattern = pattern.replace(/^https?:\/\//, '');
-  domain = domain.split(':')[0].split('/')[0];
-  pattern = pattern.split(':')[0].split('/')[0];
-  if (!pattern.includes('*')) {
-    return domain === pattern;
-  }
-  const regex = patternToRegex(pattern);
-  return regex.test(domain);
-}
+  const NONCE = __VANISHGEO_NONCE__;
 
-function matchDomainList(domain: string, patterns: string[]): boolean {
-  if (!domain || !patterns || patterns.length === 0) return false;
-  return patterns.some(pattern => matchDomain(domain, pattern));
-}
+  // isolated world 的 window 与页面不共享，所以这里的标记页面上看不见
+  const scope = window as unknown as Record<symbol, boolean>;
+  const guard = Symbol.for('vanishgeo.bridge');
+  if (scope[guard]) return;
+  scope[guard] = true;
 
-function shouldEnableSpoofing(
-  domain: string,
-  matchMode: 'global' | 'whitelist' | 'blacklist',
-  domainList: string[]
-): boolean {
-  if (!domain) return false;
-  switch (matchMode) {
-    case 'global':
-      return true;
-    case 'whitelist':
-      return matchDomainList(domain, domainList);
-    case 'blacklist':
-      return !matchDomainList(domain, domainList);
-    default:
-      return false;
-  }
-}
+  let port: MessagePort | null = null;
+  /** 端口还没就绪时暂存最后一份 payload，就绪后补发 */
+  let pendingPayload: unknown = null;
+  let handshakes = 0;
 
-// Inline the getEffectiveConfigForUrl function to avoid code splitting
-async function getEffectiveConfigForUrl(url: string) {
-  const { bpg_config } = await chrome.storage.local.get('bpg_config');
-  if (!bpg_config) {
-    // Return default config if none exists
-    return {
-      globalEnabled: true,
-      geolocation: { enabled: false },
-      timezone: { enabled: false },
-      language: { enabled: false },
-      webrtc: { enabled: false }
-    };
-  }
+  const HANDSHAKE_RETRY = [60, 200, 600, 1500, 4000];
 
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    hostname = '';
-  }
-
-  // Check global enable switch
-  if (!bpg_config.globalEnabled) {
-    return {
-      ...bpg_config,
-      globalEnabled: false
-    };
-  }
-
-  // Check match mode and domain list
-  const matchEnabled = shouldEnableSpoofing(
-    hostname,
-    bpg_config.matchMode || 'global',
-    bpg_config.domainList || []
-  );
-
-  // Check site-specific rules (highest priority)
-  const siteRule = bpg_config.siteRules?.[hostname];
-  const enabled = siteRule ? siteRule.enabled : matchEnabled;
-
-  return {
-    ...bpg_config,
-    globalEnabled: enabled
+  const deliver = (payload: unknown): void => {
+    if (!payload) return;
+    if (!port) {
+      pendingPayload = payload;
+      return;
+    }
+    try {
+      port.postMessage({ __vanishGeo: NONCE, payload });
+    } catch { /* 端口已关闭 */ }
   };
-}
 
-// Listen for config requests from injected script
-window.addEventListener('message', async (event) => {
-  if (event.source !== window) return;
-  if (event.data.type === '__BPG_REQUEST_CONFIG__') {
-    const config = await getEffectiveConfigForUrl(window.location.href);
-    const injectedConfig = {
-      enabled: config.globalEnabled,
-      debugMode: config.debugMode || false,
-      geolocation: config.geolocation,
-      timezone: config.timezone,
-      language: config.language,
-      canvas: config.canvas
+  const pullPayload = (attempt = 0): void => {
+    // Service Worker 可能正在冷启动，这时候 sendMessage 会报 "Receiving end does not exist"。
+    // 退避重试几轮，别把这种情况当成"没有配置"。
+    chrome.runtime.sendMessage({ action: 'getPayloadForUrl', url: window.location.href }, (response) => {
+      const failed = chrome.runtime.lastError || !response || response.status === 'error';
+      if (failed) {
+        const delays = [40, 120, 300, 700];
+        if (attempt < delays.length) setTimeout(() => pullPayload(attempt + 1), delays[attempt]);
+        return;
+      }
+      if (!response.matched || !response.payload) return;
+      deliver(response.payload);
+    });
+  };
+
+  const onPortReady = (inbox: MessagePort): void => {
+    port = inbox;
+    if (pendingPayload) {
+      const payload = pendingPayload;
+      pendingPayload = null;
+      deliver(payload);
+    }
+    pullPayload();
+  };
+
+  const handshake = (): void => {
+    if (port) return;
+    handshakes += 1;
+    // 旧通道不 close：ack 可能还在队列里。关掉它等于把已经成功的握手扔掉，
+    // 而 runtime 收下第一个端口后就不再监听 —— 那样就再也握不上手了。
+    const channel = new MessageChannel();
+    const inbox = channel.port1;
+    inbox.onmessage = (event) => {
+      if (port) return;
+      const data: any = event.data;
+      // ack 里带 nonce：确认对面真的是那个 runtime，而不是页面伪造的端口
+      if (!data || data.__vanishGeo !== 'ack' || data.nonce !== NONCE) return;
+      onPortReady(inbox);
     };
+    inbox.start();
+    // 同步发出。content script 在 document_start 执行，页面脚本还没跑，
+    // 这条消息（和它携带的端口）页面观察不到。
+    window.postMessage({ __vanishGeo: 'handshake' }, '*', [channel.port2]);
+  };
 
-    window.postMessage({
-      type: '__BPG_CONFIG_RESPONSE__',
-      config: injectedConfig
-    }, '*');
-  }
-});
+  handshake();
 
-// injected/injected.js is loaded by manifest.json in the MAIN world.
-// This content script only acts as the isolated-world bridge to extension storage.
+  const scheduleRetry = (): void => {
+    if (port || handshakes > HANDSHAKE_RETRY.length) return;
+    // runtime 走动态注入时它比我们晚一步，这里补几次握手。这条路径上页面可能
+    // 已经挂好监听器，但端口里的消息仍然需要 nonce，伪造不了。
+    setTimeout(() => {
+      if (port) return;
+      handshake();
+      scheduleRetry();
+    }, HANDSHAKE_RETRY[handshakes - 1]);
+  };
+  scheduleRetry();
+
+  // 后台推来的增量更新（配置变更、定位刷新）走这里，不再经 window.postMessage
+  chrome.runtime.onMessage.addListener((message) => {
+    if (!message || message.action !== 'applyPayload') return;
+    deliver(message.payload);
+  });
+})();

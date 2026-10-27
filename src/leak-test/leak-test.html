@@ -3,15 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VanishMe Leak Test</title>
+  <title>VanishGeo Leak Test</title>
   <link rel="stylesheet" href="leak-test.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>VanishMe Leak Test</h1>
-      <p class="subtitle">View information accessible to web pages</p>
+      <h1>VanishGeo Leak Test</h1>
+      <p class="subtitle">浏览器原生基线 + 选中标签页的实测值</p>
+      <p class="note">
+        本页运行在扩展源下，注入层不作用于这里，所以下面显示的浏览器原生基线。
+        要确认某个站点上生效的值，用「探测当前标签页」按钮，或直接打开该站点查看。
+      </p>
     </header>
+
+    <section class="test-section">
+      <h2>当前配置（期望值）</h2>
+      <div class="test-content">
+        <div class="test-item">
+          <span class="label">总开关:</span>
+          <span id="configMaster" class="value">-</span>
+        </div>
+        <div class="test-item">
+          <span class="label">语言:</span>
+          <span id="configLanguage" class="value">-</span>
+        </div>
+        <div class="test-item">
+          <span class="label">Accept-Language:</span>
+          <span id="configAcceptLanguage" class="value">-</span>
+        </div>
+        <div class="test-item">
+          <span class="label">时区:</span>
+          <span id="configTimezone" class="value">-</span>
+        </div>
+        <div class="test-item">
+          <span class="label">地理位置:</span>
+          <span id="configGeolocation" class="value">-</span>
+        </div>
+        <div class="test-item">
+          <span class="label">启用域名:</span>
+          <span id="configRules" class="value">-</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="test-section">
+      <h2>探测当前标签页</h2>
+      <div class="test-content">
+        <p class="note">
+          在选中标签页的 MAIN world 里跑一遍真实取值和反检测不变量。标签页必须是你
+          规则里启用的域名，否则看到的自然是原生值。
+        </p>
+        <div class="test-item">
+          <label class="label" for="probeTarget">目标标签页:</label>
+          <select id="probeTarget" class="probe-select"></select>
+        </div>
+        <button id="probeTab" class="btn-primary">探测选中标签页</button>
+        <div id="probeResult" class="probe-result"></div>
+      </div>
+    </section>
 
     <section class="test-section">
       <h2>Geolocation</h2>
@@ -138,7 +188,7 @@
     <footer>
       <p class="disclaimer">
         This page displays information that web pages can access through JavaScript.
-        VanishMe spoofs some of these values at the JavaScript layer but cannot guarantee complete anonymity.
+        本页显示的基线来自扩展源；页面生效值请用「探测当前标签页」或直接打开目标站点核对。
       </p>
     </footer>
   </div>

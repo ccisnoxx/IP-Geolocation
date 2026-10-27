@@ -1,236 +1,181 @@
-import type { PrivacyConfig } from '../shared/types';
+import { normalizeLanguage } from '../shared/config-model';
+import {
+  getEffectiveLanguage,
+  getEffectiveProfile,
+  getExcludedDomainsFor,
+  getExcludedRuleDomains
+} from '../shared/config-resolver';
+import type { LanguageConfig, LastLocation, SiteRule, SiteSpoofConfig } from '../shared/types';
 
-const ACCEPT_LANGUAGE_RULE_ID_START = 1;
-const ACCEPT_LANGUAGE_RULE_ID_END = 1000;
+export const ACCEPT_LANGUAGE_RULE_ID_START = 1100;
+export const ACCEPT_LANGUAGE_RULE_ID_END = 2099;
+
+/** 烘焙构建里由 manifest 声明的静态规则集（配置改过之后就禁用它，交给动态规则） */
+export const BAKED_RULESET_ID = 'baked-language';
 
 const ACCEPT_LANGUAGE_RESOURCE_TYPES = [
-  chrome.declarativeNetRequest.ResourceType.MAIN_FRAME,
-  chrome.declarativeNetRequest.ResourceType.SUB_FRAME,
-  chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST
-];
+  'main_frame',
+  'sub_frame',
+  'xmlhttprequest',
+  'script',
+  'stylesheet',
+  'image',
+  'font',
+  'other'
+] as chrome.declarativeNetRequest.ResourceType[];
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function languageForRule(config: SiteSpoofConfig, rule: SiteRule): LanguageConfig | null {
+  const override = rule.overrides.language;
+  if (override.mode === 'disable') return null;
+  if (override.mode === 'override') return normalizeLanguage(override.value || {});
+  return config.globalProfile.language.enabled ? config.globalProfile.language : null;
 }
 
-function normalizePattern(pattern: string): string | null {
-  const trimmed = pattern.trim().toLowerCase();
-  if (!trimmed) return null;
-
-  const withoutProtocol = trimmed.replace(/^https?:\/\//, '');
-  const domainOnly = withoutProtocol.split('/')[0].split(':')[0];
-
-  return domainOnly || null;
-}
-
-function patternToUrlRegex(pattern: string): string | null {
-  const normalized = normalizePattern(pattern);
-  if (!normalized) return null;
-
-  if (normalized === '*') {
-    return '^https?://';
+export function managedAcceptLanguageRuleIds(): number[] {
+  const ids: number[] = [];
+  for (let id = ACCEPT_LANGUAGE_RULE_ID_START; id <= ACCEPT_LANGUAGE_RULE_ID_END; id += 1) {
+    ids.push(id);
   }
-
-  const hostPattern = normalized
-    .split('*')
-    .map(escapeRegex)
-    .join('[^/?#:]*');
-
-  return `^https?://(?:[^/?#@]*@)?${hostPattern}(?::[0-9]+)?(?:[/?#]|$)`;
+  return ids;
 }
 
-function exactDomains(patterns: string[]): string[] {
-  const domains: string[] = [];
-
-  patterns.forEach(pattern => {
-    const normalized = normalizePattern(pattern);
-    if (normalized && normalized !== '*' && !normalized.includes('*')) {
-      domains.push(normalized);
-    }
-  });
-
-  return domains;
-}
-
-function createRuleCondition(
-  pattern?: string,
-  excludedDomains: string[] = []
-): chrome.declarativeNetRequest.RuleCondition | null {
-  const condition: chrome.declarativeNetRequest.RuleCondition = {
-    resourceTypes: ACCEPT_LANGUAGE_RESOURCE_TYPES,
-    isUrlFilterCaseSensitive: false
-  };
-
-  if (excludedDomains.length > 0) {
-    condition.excludedRequestDomains = excludedDomains;
-  }
-
-  if (!pattern) {
-    return condition;
-  }
-
-  const regexFilter = patternToUrlRegex(pattern);
-  if (!regexFilter) {
-    return null;
-  }
-
-  condition.regexFilter = regexFilter;
-  return condition;
-}
-
-function createModifyHeaderRule(
-  id: number,
-  acceptLanguage: string,
-  condition: chrome.declarativeNetRequest.RuleCondition,
-  priority = 1
-): chrome.declarativeNetRequest.Rule {
-  return {
-    id,
-    priority,
-    action: {
-      type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
-      requestHeaders: [
-        {
-          header: 'Accept-Language',
-          operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-          value: acceptLanguage
-        }
-      ]
-    },
-    condition
-  };
-}
-
-function createAllowRule(
-  id: number,
-  condition: chrome.declarativeNetRequest.RuleCondition,
-  priority = 2
-): chrome.declarativeNetRequest.Rule {
-  return {
-    id,
-    priority,
-    action: {
-      type: chrome.declarativeNetRequest.RuleActionType.ALLOW
-    },
-    condition
-  };
-}
-
-function buildAcceptLanguageRules(config: PrivacyConfig): chrome.declarativeNetRequest.Rule[] {
+/**
+ * 只给「语言真的会生效」的域名发头。
+ *
+ * 关键：Accept-Language 只取决于语言配置，**不依赖定位**。早先这里用
+ * `getEffectiveProfile(...).payload` 当开关，时区解析不出来就把头一起停了，
+ * 结果 auto 模式首帧出现「请求头 zh-CN、页面 en-US」（定位在注入前就恢复了，
+ * 但请求已经发出去了）。现在语言和时区分开判定，头永远跟 JS 的 navigator.language 一致。
+ */
+export function buildAcceptLanguageRules(
+  config: SiteSpoofConfig,
+  lastLocation: LastLocation | null = null
+): chrome.declarativeNetRequest.Rule[] {
+  if (!config.masterEnabled) return [];
   const rules: chrome.declarativeNetRequest.Rule[] = [];
-  let nextRuleId = ACCEPT_LANGUAGE_RULE_ID_START;
+  // 被显式禁用的域名要在父域规则里挖掉，否则「google.com 启用 + mail.google.com 排除」
+  // 的头仍然会被父规则改写 —— 页面是原生的、请求头却是伪装的，两边自相矛盾。
+  const excludedDomains = getExcludedRuleDomains(config);
 
-  const nextId = () => {
-    if (nextRuleId > ACCEPT_LANGUAGE_RULE_ID_END) {
+  config.rules.filter((rule) => rule.enabled).forEach((rule) => {
+    const language = languageForRule(config, rule);
+    if (!language) return;
+    if (!getEffectiveLanguage(config, rule.domain)) return;
+    const nextId = ACCEPT_LANGUAGE_RULE_ID_START + rules.length;
+    if (nextId > ACCEPT_LANGUAGE_RULE_ID_END) {
       throw new Error('Too many Accept-Language rules');
     }
-
-    return nextRuleId++;
-  };
-
-  const siteRuleEntries = Object.entries(config.siteRules || {});
-  const enabledSiteRules = siteRuleEntries
-    .filter(([, rule]) => rule.enabled)
-    .map(([hostname]) => hostname);
-  const disabledSiteRules = siteRuleEntries
-    .filter(([, rule]) => !rule.enabled)
-    .map(([hostname]) => hostname);
-
-  const addModifyRule = (pattern: string, priority = 1, excludedDomains: string[] = []) => {
-    const condition = createRuleCondition(pattern, excludedDomains);
-    if (condition) {
-      rules.push(createModifyHeaderRule(nextId(), config.language.acceptLanguage, condition, priority));
-    }
-  };
-
-  const addAllowRule = (pattern: string, priority = 2) => {
-    const condition = createRuleCondition(pattern);
-    if (condition) {
-      rules.push(createAllowRule(nextId(), condition, priority));
-    }
-  };
-
-  switch (config.matchMode) {
-    case 'whitelist': {
-      const disabledDomains = exactDomains(disabledSiteRules);
-      [...(config.domainList || []), ...enabledSiteRules].forEach(pattern => {
-        addModifyRule(pattern, 1, disabledDomains);
-      });
-      break;
-    }
-
-    case 'blacklist': {
-      const excludedPatterns = [...(config.domainList || []), ...disabledSiteRules];
-      const excludedDomains = exactDomains(excludedPatterns);
-
-      excludedPatterns.forEach(pattern => {
-        addAllowRule(pattern, 2);
-      });
-
-      const globalCondition = createRuleCondition(undefined, excludedDomains);
-      if (globalCondition) {
-        rules.push(createModifyHeaderRule(nextId(), config.language.acceptLanguage, globalCondition));
+    const excludedForRule = getExcludedDomainsFor(rule.domain, excludedDomains);
+    rules.push({
+      id: nextId,
+      priority: Math.max(1, rule.domain.length),
+      action: {
+        type: 'modifyHeaders' as chrome.declarativeNetRequest.RuleActionType,
+        requestHeaders: [{
+          header: 'Accept-Language',
+          operation: 'set' as chrome.declarativeNetRequest.HeaderOperation,
+          value: language.acceptLanguage
+        }]
+      },
+      condition: {
+        // requestDomains 自动覆盖子域，且不依赖正则 —— Helium（Chromium 156 分支）
+        // 上带 regexFilter 的 modifyHeaders 规则会把 main_frame 直接 ERR_ABORTED。
+        requestDomains: [rule.domain],
+        ...(excludedForRule.length ? { excludedRequestDomains: excludedForRule } : {}),
+        resourceTypes: ACCEPT_LANGUAGE_RESOURCE_TYPES
       }
-
-      enabledSiteRules.forEach(pattern => {
-        addModifyRule(pattern, 3);
-      });
-      break;
-    }
-
-    case 'global':
-    default: {
-      const disabledDomains = exactDomains(disabledSiteRules);
-
-      disabledSiteRules.forEach(pattern => {
-        addAllowRule(pattern, 2);
-      });
-
-      const globalCondition = createRuleCondition(undefined, disabledDomains);
-      if (globalCondition) {
-        rules.push(createModifyHeaderRule(nextId(), config.language.acceptLanguage, globalCondition));
-      }
-      break;
-    }
-  }
+    });
+  });
 
   return rules;
 }
 
-async function getAcceptLanguageRuleIds(): Promise<number[]> {
-  const rules = await chrome.declarativeNetRequest.getDynamicRules();
-  return rules
-    .map(rule => rule.id)
-    .filter(id => id >= ACCEPT_LANGUAGE_RULE_ID_START && id <= ACCEPT_LANGUAGE_RULE_ID_END);
+function ruleSignature(rule: chrome.declarativeNetRequest.Rule): string {
+  return `${rule.id}#${ruleContentSignature(rule)}`;
 }
 
-export async function updateAcceptLanguageRule(config: PrivacyConfig): Promise<void> {
-  if (!config.globalEnabled || !config.language.enabled) {
-    await clearAcceptLanguageRule();
+/** 只比内容、不比 id —— 静态规则集从 1 编号，动态规则从 1100 编号 */
+function ruleContentSignature(rule: chrome.declarativeNetRequest.Rule): string {
+  const condition = rule.condition || {};
+  const headers = (rule.action.requestHeaders || [])
+    .map((header) => `${header.header}|${header.operation}|${header.value}`)
+    .join(',');
+  return [
+    rule.priority,
+    headers,
+    (condition.requestDomains || []).join(','),
+    (condition.excludedRequestDomains || []).join(','),
+    (condition.resourceTypes || []).slice().sort().join(',')
+  ].join('#');
+}
+
+function contentSignatures(rules: chrome.declarativeNetRequest.Rule[]): string {
+  return rules.map(ruleContentSignature).sort().join('\n');
+}
+
+function isManagedRule(rule: chrome.declarativeNetRequest.Rule): boolean {
+  return rule.id >= ACCEPT_LANGUAGE_RULE_ID_START && rule.id <= ACCEPT_LANGUAGE_RULE_ID_END;
+}
+
+/** 静态规则集里的 id 从 1 开始编号（每个 ruleset 有独立的 id 空间） */
+export function buildStaticAcceptLanguageRules(
+  config: SiteSpoofConfig,
+  lastLocation: LastLocation | null = null
+): chrome.declarativeNetRequest.Rule[] {
+  return buildAcceptLanguageRules(config, lastLocation).map((rule, index) => ({ ...rule, id: index + 1 }));
+}
+
+/** 本次构建烘焙进去的静态规则，没有就是 null（普通构建走动态规则） */
+export function bakedStaticRules(): chrome.declarativeNetRequest.Rule[] | null {
+  if (typeof __VANISHGEO_STATIC_RULES__ === 'undefined') return null;
+  const rules = __VANISHGEO_STATIC_RULES__;
+  return Array.isArray(rules) && rules.length > 0 ? rules : null;
+}
+
+async function isRulesetEnabled(id: string): Promise<boolean> {
+  try {
+    const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+    return enabled.includes(id);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 每条规则落地一次就够。两个不想踩的坑：
+ * - 重写动态规则会让**正在进行的请求**直接 ERR_ABORTED（Chromium 156 实测：启动后第一个页面白屏）
+ * - 烘焙构建的静态规则在第一条请求之前就生效，SW 根本没启动也不影响
+ * 所以：静态规则能覆盖当前配置时完全不动动态规则；配置被改过才禁用静态、改用动态。
+ */
+export async function updateAcceptLanguageRules(
+  config: SiteSpoofConfig,
+  lastLocation: LastLocation | null = null
+): Promise<void> {
+  const api = chrome.declarativeNetRequest;
+  if (!api?.updateDynamicRules) return;
+
+  const next = buildAcceptLanguageRules(config, lastLocation);
+  const staticRules = bakedStaticRules();
+
+  if (staticRules && await isRulesetEnabled(BAKED_RULESET_ID)) {
+    if (contentSignatures(staticRules) === contentSignatures(next)) {
+      const leftovers = (await api.getDynamicRules()).filter(isManagedRule);
+      if (leftovers.length > 0) {
+        await api.updateDynamicRules({ removeRuleIds: managedAcceptLanguageRuleIds() });
+      }
+      return;
+    }
+    await api.updateEnabledRulesets({ disableRulesetIds: [BAKED_RULESET_ID] });
+  }
+
+  const managed = (await api.getDynamicRules()).filter(isManagedRule);
+  if (managed.length === next.length
+    && managed.map(ruleSignature).sort().join('\n') === next.map(ruleSignature).sort().join('\n')) {
     return;
   }
 
-  try {
-    const removeRuleIds = await getAcceptLanguageRuleIds();
-    const rules = buildAcceptLanguageRules(config);
-
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds,
-      addRules: rules
-    });
-  } catch (error) {
-    console.error('Failed to update Accept-Language rule:', error);
-  }
-}
-
-export async function clearAcceptLanguageRule(): Promise<void> {
-  try {
-    const removeRuleIds = await getAcceptLanguageRuleIds();
-
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds
-    });
-  } catch (error) {
-    console.error('Failed to clear Accept-Language rule:', error);
-  }
+  await api.updateDynamicRules({
+    removeRuleIds: managedAcceptLanguageRuleIds(),
+    addRules: next
+  });
 }

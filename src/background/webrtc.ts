@@ -1,31 +1,28 @@
-import type { PrivacyConfig } from '../shared/types';
+import type { SiteSpoofConfig, WebRtcMode } from '../shared/types';
 
-export async function applyWebRTCPolicy(config: PrivacyConfig): Promise<void> {
-  if (!chrome.privacy?.network?.webRTCIPHandlingPolicy) {
-    console.warn('WebRTC IP handling policy API not available');
-    return;
-  }
+export type WebRtcPolicyValue = 'default' | 'default_public_interface_only' | 'default_public_and_private_interfaces' | 'disable_non_proxied_udp';
 
-  try {
-    const policy = config.webrtc.enabled ? config.webrtc.policy : 'default';
-    await chrome.privacy.network.webRTCIPHandlingPolicy.set({
-      value: policy
-    });
-  } catch (error) {
-    console.error('Failed to set WebRTC policy:', error);
+export const WEBRTC_POLICY_VALUES: Record<WebRtcMode, WebRtcPolicyValue | null> = {
+  strict: 'disable_non_proxied_udp',
+  compatible: 'default_public_interface_only',
+  default: null
+};
+
+export async function applyWebRTCPolicy(config: SiteSpoofConfig): Promise<WebRtcPolicyValue | null> {
+  const setting = chrome.privacy?.network?.webRTCIPHandlingPolicy;
+  if (!setting) return null;
+
+  const policy = config.masterEnabled ? WEBRTC_POLICY_VALUES[config.webRtc.globalMode] : null;
+  if (policy) {
+    await setting.set({ value: policy as any, scope: 'regular' });
+  } else {
+    await setting.clear({ scope: 'regular' });
   }
+  return policy;
 }
 
 export async function resetWebRTCPolicy(): Promise<void> {
-  if (!chrome.privacy?.network?.webRTCIPHandlingPolicy) {
-    return;
-  }
-
-  try {
-    await chrome.privacy.network.webRTCIPHandlingPolicy.set({
-      value: 'default'
-    });
-  } catch (error) {
-    console.error('Failed to reset WebRTC policy:', error);
-  }
+  const setting = chrome.privacy?.network?.webRTCIPHandlingPolicy;
+  if (!setting) return;
+  await setting.clear({ scope: 'regular' });
 }
