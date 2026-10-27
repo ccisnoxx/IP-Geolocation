@@ -845,3 +845,43 @@ test('没有内容脚本 API 时注册直接跳过', async () => {
   await harness.services.applyConfig(await harness.services.getSiteConfig());
   assert.equal(harness.stats.registered, 0);
 });
+
+test('updateGeolocation 读取配置抛错时记录错误并返回失败', async () => {
+  const harness = createHarness();
+  const original = (globalThis as any).chrome.storage.local.get;
+  (globalThis as any).chrome.storage.local.get = async () => { throw new Error('storage blocked'); };
+  try {
+    const result = await harness.services.updateGeolocation(true);
+    assert.equal(result.ok, false);
+    assert.match(result.error || '', /background geolocation update failed/);
+    assert.match(harness.storage.lastGeoError || '', /storage blocked/);
+  } finally {
+    (globalThis as any).chrome.storage.local.get = original;
+  }
+});
+
+test('refreshActionBadge 在 tabs.query 失败时静默跳过', async () => {
+  const harness = createHarness();
+  const original = (globalThis as any).chrome.tabs.query;
+  (globalThis as any).chrome.tabs.query = async () => { throw new Error('tabs blocked'); };
+  try {
+    await assert.doesNotReject(() => harness.services.refreshActionBadge());
+  } finally {
+    (globalThis as any).chrome.tabs.query = original;
+  }
+});
+
+test('reloadAffectedTabs 跳过非法 URL，reload 抛错也不传播', async () => {
+  const harness = createHarness({ tabs: [
+    { id: 1, url: 'https://claude.ai/x' },
+    { id: 2, url: 'http://[bad' }
+  ], reloadError: true });
+  await assert.doesNotReject(() => harness.services.reloadAffectedTabs('claude.ai'));
+  assert.deepEqual(harness.stats.reloads, []);
+});
+
+test('addDomainRule 走新建规则分支', async () => {
+  const harness = createHarness();
+  const saved = await harness.services.addDomainRule('new.example');
+  assert.ok(saved.rules.some((rule) => rule.domain === 'new.example' && rule.enabled));
+});

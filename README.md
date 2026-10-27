@@ -116,15 +116,19 @@ youtube.com、reddit.com、linkedin.com）；**从旧版升级**时，`VanishMe`
 npm run typecheck     # 类型（含 tests/）
 npm run lint          # ESLint
 npm run verify        # lint + typecheck + test
-npm test              # 单测（300 条）
+npm test              # 单测（312 条）
 npm run test:coverage # 单测 + Node 覆盖率报告
-npm run test:coverage:core # 核心文件分支覆盖率门禁（每文件 ≥ 80%）
+npm run test:coverage:core # 核心文件分支覆盖率门禁（每文件 ≥ 85%）
 # options / popup 的 DOM 测试用 jsdom 驱动真实点击与表单事件
 npm run build         # 构建
+npm run setup:chrome119 # 下载/校验 Chrome for Testing 119（macOS arm64）
 npm run audit         # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium），输出通过率表格
 npm run smoke:frames  # frame 隔离（父域 / 子域 / about:blank / srcdoc）
 npm run smoke:baked-failclosed  # 烘焙包定位 fail-closed + 可逆恢复 + 关总开关 clear
 npm run smoke:baked-clear  # 烘焙包排除站点 / 关总开关 / frozen 冻结验证
+npm run smoke:presets # 五个内置 preset 的浏览器 E2E（语言/时区/请求头）
+npm run smoke:cold-start # 冷启动 + clear 浏览器 smoke
+npm run smoke:popup   # popup 真实点击 / storage / 后台消息 smoke
 node tools/native-parity.mjs  # Helium 原生形状对拍（83 项，control vs patched）
 ```
 
@@ -310,15 +314,19 @@ Command line:
 npm run typecheck     # types (tests included)
 npm run lint          # ESLint
 npm run verify        # lint + typecheck + test
-npm test              # unit tests (300)
+npm test              # unit tests (312)
 npm run test:coverage # unit tests + Node coverage report
-npm run test:coverage:core # core-file branch gate (per file >= 80%)
+npm run test:coverage:core # core-file branch gate (per file >= 85%)
 # options / popup DOM tests drive real clicks and form events through jsdom
 npm run build         # build
+npm run setup:chrome119 # download/verify Chrome for Testing 119 (macOS arm64)
 npm run audit         # static checks + three-engine E2E (Chrome 155 / 119 / Helium), prints a pass-rate table
 npm run smoke:frames  # frame isolation (parent / child / about:blank / srcdoc)
 npm run smoke:baked-failclosed  # baked geolocation fail-closed + reversible recovery + master-off clear
 npm run smoke:baked-clear  # baked exclusion / master-off / frozen freeze behavior
+npm run smoke:presets # five built-in presets browser E2E (language/timezone/header)
+npm run smoke:cold-start # cold-start + clear browser smoke
+npm run smoke:popup   # popup real clicks / storage / background-message smoke
 node tools/native-parity.mjs  # Helium native-shape parity (83 checks, control vs patched)
 ```
 

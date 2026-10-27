@@ -138,11 +138,11 @@ test('横幅里不残留旧字标', () => {
   }
 });
 
-test('核心覆盖率门禁按文件检查分支且阈值是 80%', () => {
+test('核心覆盖率门禁按文件检查分支且阈值是 85%', () => {
   const pkg = JSON.parse(read('package.json'));
   const command = pkg.scripts['test:coverage:core'];
   assert.match(command, /--per-file/);
-  assert.match(command, /--branches=80/);
+  assert.match(command, /--branches=85/);
   assert.match(command, /c8/);
   for (const file of [
     'src/background/services.ts',
@@ -153,5 +153,26 @@ test('核心覆盖率门禁按文件检查分支且阈值是 80%', () => {
     'src/shared/config-resolver.ts'
   ]) {
     assert.match(command, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
+test('nightly 自动安装 Chrome 119 并跑浏览器审计', () => {
+  const nightly = read('.github/workflows/nightly.yml');
+  assert.match(nightly, /npm run setup:chrome119/);
+  assert.match(nightly, /setup-browsers\.mjs --chrome=119 --check/);
+  assert.match(nightly, /npm run audit/);
+  const setup = read('scripts/setup-browsers.mjs');
+  assert.match(setup, /119\.0\.6045\.105/);
+  assert.match(setup, /SHA256/);
+});
+
+test('新增 preset / 冷启动 / popup 浏览器检查已接入 audit 与 npm scripts', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const audit = read('tools/audit.mjs');
+  assert.equal(pkg.scripts['smoke:presets'], 'node tools/smoke-presets.mjs');
+  assert.equal(pkg.scripts['smoke:cold-start'], 'node tools/smoke-cold-start.mjs');
+  assert.equal(pkg.scripts['smoke:popup'], 'node tools/smoke-popup.mjs');
+  for (const id of ['presets', 'coldstart', 'popup']) {
+    assert.match(audit, new RegExp(`id: '${id}'`));
   }
 });

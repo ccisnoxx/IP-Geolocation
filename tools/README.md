@@ -103,7 +103,7 @@ npm run smoke:baked-clear
 
 ```
 ▶ 静态 · 类型检查 … ✓  0.5s
-▶ 静态 · 单元测试 … ✓ 300/300  1.0s
+▶ 静态 · 单元测试 … ✓ 312/312  1.0s
 ▶ 静态 · 构建 … ✓  0.3s
 ```
 
@@ -147,7 +147,7 @@ npm run smoke:ipchange -- --extension=/path/to/ext
 ## 一条命令跑完全部验证
 
 ```bash
-npm run audit                                    # 三引擎 × 十路检查
+npm run audit                                    # 三引擎 × 十三路检查
 npm run audit -- --engines=chrome119             # 只跑老引擎
 npm run audit -- --engines=helium                # 只跑 Helium
 npm run audit -- --only=options,failclosed       # 只跑指定项
@@ -165,7 +165,17 @@ npm run audit -- --no-build --timeout=300        # 不重建烘焙构建 / 单�
 │ Helium 156 │ ✓ 9/9           │ ✓ 10/10       │ ✓ 19/19   │ ✓ 13/13         │ ✓ 21/21            │ ✓ 19/19     │ ✓ 8/8         │ ✓ 8/8           │ ✓ 11/11     │ ✓ 10/10   │
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-合计 368/368 项通过 · 32/32 组全绿 · 用时 280s（1 组因引擎能力跳过）
+原有十组 368/368 项通过 · 32/32 组全绿。
+
+新增三组：
+
+| 引擎 | 5 preset 浏览器 E2E | 冷启动 / clear | popup 交互 |
+| --- | --- | --- | --- |
+| Chrome 155 | ✓ 5/5 | ✓ 6/6 | ✓ 4/4 |
+| Chrome 119 | ✓ 5/5 | ✓ 6/6 | ✓ 4/4 |
+| Helium 156 | ✓ 5/5 | ✓ 6/6 | ✓ 4/4 |
+
+合计 **413/413** 项通过 · **41/41** 组全绿 · 用时 **485s**（1 组因引擎能力跳过）。
 ```
 
 出口 IP 由 `tools/lib/exit.mjs` 统一查一次再分发给各组（重复查会被接口限流，导致时区判定被标 ⚠ 跳过）。
@@ -177,8 +187,9 @@ npm run audit -- --no-build --timeout=300        # 不重建烘焙构建 / 单�
 每组之间留 1.5s 让上一轮的浏览器退干净。
 `--engines`/`--only` 指到不存在的名字直接报错退出，不会静默空跑。
 
-Chrome 119 的安装位置是 `~/.vanishgeo/browsers/chrome-119/`；不存在时审计会自动跳过该引擎。
+Chrome 119 用 `npm run setup:chrome119` 安装到 `~/.vanishgeo/browsers/chrome-119/`（macOS arm64，下载后校验 SHA256）；不存在时审计会自动跳过该引擎。
 它没有 CDP `Extensions.loadUnpacked`，脚本用 `--load-extension` 启动并从 extension target 里取 id。
+`.github/workflows/nightly.yml` 每天自动装 119 并跑 Chrome（以及 runner 自带 Chrome）矩阵；Helium 仍需本地安装。
 
 三条工程约定（都是踩过的坑换来的）：
 

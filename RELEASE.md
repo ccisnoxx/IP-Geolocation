@@ -50,7 +50,7 @@ permissions:
 5. 生成 changelog（上一个 tag..HEAD 的提交标题）
 6. 创建 Release 并上传全部 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
 
-三个 zip 之间不是重复：开发构建是"装一次就跟着你走"的通用包（选项页改动实时生效），
+这些 zip 之间不是重复：开发构建是"装一次就跟着你走"的通用包（选项页改动实时生效），
 烘焙包是"这条机器就长这样"的定制品。用户要哪个取决于他会不会在第一帧被看穿。
 
 烘焙包默认保留运行时桥：排除站点、关总开关、改语言仍会实时生效（注入层逐项还原）。
@@ -119,10 +119,14 @@ node scripts/release.mjs --all-presets  # 五个内置 preset 全量构建
 for z in release/*.zip; do node scripts/release.mjs --check="$z"; done  # 逐个校验
 npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
 npm run audit            # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium）
+# GitHub Actions nightly 每天自动安装 Chrome 119 并跑可自动化的浏览器矩阵
 npm run smoke:options    # 选项页写入路径的端到端冒烟
 npm run smoke:failclosed # fail-closed 行为
 npm run smoke:fingerprint# 主线程 / iframe / Worker 跨上下文一致性
 npm run smoke:ipchange   # 出口变化后是否跟随
+npm run smoke:presets    # 五个 preset 的浏览器 E2E
+npm run smoke:cold-start # 冷启动 + clear
+npm run smoke:popup      # popup 交互
 npm run smoke:real-site  # 真实站点核对
 ```
 

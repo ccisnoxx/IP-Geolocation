@@ -1,0 +1,64 @@
+name: Nightly browser audit
+
+on:
+  schedule:
+    # 02:00 Asia/Shanghai（GitHub cron 是 UTC）
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: macos-14
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify types, lint and unit tests
+        run: npm run verify
+
+      - name: Core branch coverage
+        run: npm run test:coverage:core
+
+      # Chrome 119 没有 CDP Extensions.loadUnpacked；固定版本装在
+      # ~/.vanishgeo/browsers/chrome-119，供 audit 的老引擎路径使用。
+      - name: Cache Chrome for Testing 119
+        uses: actions/cache@v4
+        with:
+          path: ~/.vanishgeo/browsers/chrome-119
+          key: chrome119-119.0.6045.105-mac-arm64
+
+      - name: Install Chrome for Testing 119
+        run: npm run setup:chrome119
+
+      - name: Check Chrome 119
+        run: node scripts/setup-browsers.mjs --chrome=119 --check
+
+      # GitHub macOS runner 通常自带 Google Chrome；没有时至少跑 Chrome 119。
+      # Helium 无法在 runner 上自动安装，三引擎矩阵仍以本地审计为准。
+      - name: Run browser audit
+        shell: bash
+        run: |
+          ENGINES=chrome119
+          if [ -d "/Applications/Google Chrome.app" ]; then
+            ENGINES="chrome,chrome119"
+          fi
+          echo "audit engines: $ENGINES"
+          npm run audit -- --engines="$ENGINES" --timeout=300
