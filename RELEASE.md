@@ -41,9 +41,16 @@ permissions:
 
 1. `npm ci` → **typecheck** → **单测** → `npm run build`
 2. 从 tag 提取版本号，**校验与 `dist/manifest.json` 的 `version` 一致**（不一致直接失败）
-3. 打包成 `vanishgeo-v<version>.zip`
-4. 生成 changelog（上一个 tag..HEAD 的提交标题）
-5. 创建 Release 并上传 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
+3. 打包成 `vanishgeo-v<version>.zip`（**开发构建**：配置经异步 IPC 进页面，
+   页面的第一个内联脚本可能读到原生值 —— 也就是"首屏窗口"）
+4. 再跑一遍发布流水线 `npm run release -- --all-presets`，产出五个**烘焙**包
+   `vanishgeo-<version>-<preset>.zip`（配置编译进 `runtime.js`，`document_start`
+   同步生效，首屏零窗口），逐个用 `--check` 校验
+5. 生成 changelog（上一个 tag..HEAD 的提交标题）
+6. 创建 Release 并上传全部 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
+
+三个 zip 之间不是重复：开发构建是"装一次就跟着你走"的通用包（选项页改动实时生效），
+烘焙包是"这条机器就长这样"的定制品。用户要哪个取决于他会不会在第一帧被看穿。
 
 > 版本号只有一个来源：`manifest.json`（`package.json` 跟着同步）。tag 只是触发器，
 > 对不上就红，不会发出一个版本号自相矛盾的包。
@@ -80,6 +87,8 @@ git push origin v1.1.1
 - [ ] `npm run typecheck` / `npm test` / `npm run build` 全绿
 - [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag
 - [ ] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）
+- [ ] `npm run release -- --all-presets` 出得了包，`npm run verify:release -- --zip=…`
+      真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过
 - [ ] 仓库里没有真实 IP、个人路径、浏览器 profile（`tools/out/profiles/` 已被 gitignore）
 - [ ] README / INSTALL / CONFIG_GUIDE 的描述与当前行为一致（匹配模型、默认值、生效方式）
 - [ ] 在真实站点上手动验一遍：时区、语言、`Accept-Language`、WebRTC
@@ -98,6 +107,8 @@ git push origin :refs/tags/v1.1.1
 ## 6. 相关命令
 
 ```bash
+npm run release          # 烘焙 → 校验 → 打包 → 记账，见 CONFIG_GUIDE §十
+npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
 npm run audit            # 静态检查 + 双引擎 E2E，输出通过率表格
 npm run smoke:options    # 选项页写入路径的端到端冒烟
 npm run smoke:failclosed # fail-closed 行为
