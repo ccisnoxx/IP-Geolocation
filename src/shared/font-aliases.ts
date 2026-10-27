@@ -29,6 +29,9 @@ const FONT_FAMILY_GROUPS: string[][] = [
   ['PingFang SC', '苹方-简', '苹方', '苹方简体'],
   ['PingFang TC', '苹方-繁', '苹方繁體'],
   ['PingFang HK', '苹方-港'],
+  // 蒙古文变体：macOS 自带，属于同一个苹方家族。漏掉它就会出现"苹方-简 不存在、
+  // 但 PingFang MO 存在"这种真机不会有的组合
+  ['PingFang MO'],
   ['Hiragino Sans GB', '冬青黑体简体中文', 'ヒラギノ角ゴシック GB'],
   ['STHeiti', '华文黑体'],
   ['STSong', '华文宋体'],
@@ -196,7 +199,7 @@ export const CJK_VENDOR_FONTS: string[] = [
   'Microsoft YaHei', 'Microsoft YaHei UI', 'SimSun', 'NSimSun', 'SimHei',
   'KaiTi', 'FangSong', 'DengXian',
   // macOS
-  'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'STSong', 'Songti SC',
+  'PingFang SC', 'PingFang MO', 'Hiragino Sans GB', 'STHeiti', 'STSong', 'Songti SC',
   // 开源 CJK
   'Source Han Sans CN', 'Source Han Sans SC', 'Source Han Sans TW',
   'Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Serif CJK SC',

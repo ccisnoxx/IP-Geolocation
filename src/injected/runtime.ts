@@ -1,5 +1,6 @@
 import { resolveBakedPayload, type BakedRuntimePayload } from './baked-resolver';
 import { installCanvasFontPatches } from './canvas-patch';
+import { installLocalFontsFilter } from './local-fonts';
 import { createDisguise } from './disguise';
 import { rewriteFontString } from './font-mask';
 import {
@@ -105,6 +106,15 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     // 两种 2D 上下文都要补：`<canvas>` 和 `new OffscreenCanvas()`。后者是真实
     // 检测脚本最常用的绕过方式（只补前者时一行就绕过去了）。
     installCanvasFontPatches(globalThis, { fallbackFont, disguise, define });
+
+    // 本地字体清单是另一条路：canvas 只伪装"量出来的宽度"，而 queryLocalFonts
+    // 直接枚举本机全部字体（实测 667 条，含 24 条 PingFang）。不滤掉它，上面三层
+    // 字表全部白做 —— 而且它没有阈值、没有误差，比 canvas 量测更硬。
+    installLocalFontsFilter(globalThis, {
+      isHidden: ({ family, fullName, postscriptName }) => [family, fullName, postscriptName]
+        .some((name) => typeof name === 'string' && isTargetFontFamily(name, targetFontKeys)),
+      disguise
+    });
 
     // FontFaceSet.prototype.check 故意不接管。
     //
