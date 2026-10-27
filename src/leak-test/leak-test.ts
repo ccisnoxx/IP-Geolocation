@@ -1,5 +1,7 @@
 import './leak-test.css';
 import { SITE_CONFIG_KEY, normalizeConfig } from '../shared/config-model';
+import { auditConfig, sortFindings, type AuditFinding, type AuditSeverity } from '../shared/config-audit';
+import type { SiteSpoofConfig } from '../shared/types';
 
 // Geolocation elements
 const geolocationExistsEl = document.getElementById('geolocationExists') as HTMLElement;
@@ -258,9 +260,74 @@ async function renderConfig(): Promise<void> {
     setText('configRules', [...enabled, ...excluded].join('、') || '（空）');
 
     if (config.canvas.enabled) void renderFontUsage();
+    renderAudit(config);
   } catch (error) {
     setText('configMaster', `读取失败：${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+const SEVERITY_LABEL: Record<AuditSeverity, string> = { error: '必错', warn: '可疑', info: '取舍' };
+
+/** 配置体检：把纯逻辑模块的结论渲染成清单，可点的给出修法 */
+function renderAudit(config: SiteSpoofConfig): void {
+  const container = document.getElementById('auditList');
+  if (!container) return;
+  container.textContent = '';
+
+  const findings = sortFindings(auditConfig(config));
+  if (!findings.length) {
+    const ok = document.createElement('div');
+    ok.className = 'audit-ok';
+    ok.textContent = '没有发现自相矛盾的配置。';
+    container.appendChild(ok);
+    return;
+  }
+
+  for (const finding of findings) {
+    container.appendChild(renderFinding(finding, config));
+  }
+}
+
+function renderFinding(finding: AuditFinding, config: SiteSpoofConfig): HTMLElement {
+  const item = document.createElement('div');
+  item.className = `audit-item ${finding.severity}`;
+
+  const head = document.createElement('div');
+  head.className = 'audit-head';
+  const badge = document.createElement('span');
+  badge.className = 'audit-badge';
+  badge.textContent = SEVERITY_LABEL[finding.severity];
+  const title = document.createElement('span');
+  title.className = 'audit-title';
+  title.textContent = finding.title;
+  head.append(badge, title);
+
+  const detail = document.createElement('div');
+  detail.className = 'audit-detail';
+  detail.textContent = finding.detail;
+
+  item.append(head, detail);
+
+  if (finding.fix) {
+    const fix = finding.fix;
+    const button = document.createElement('button');
+    button.className = 'audit-fix';
+    button.textContent = fix.label;
+    button.addEventListener('click', () => {
+      void (async () => {
+        const stored = await chrome.storage.local.get(SITE_CONFIG_KEY);
+        const current = normalizeConfig(stored[SITE_CONFIG_KEY] || null);
+        const next = normalizeConfig(fix.apply(current));
+        await chrome.storage.local.set({ [SITE_CONFIG_KEY]: next });
+        button.disabled = true;
+        button.textContent = '已应用，重新读取…';
+        await renderConfig();
+      })();
+    });
+    item.appendChild(button);
+  }
+
+  return item;
 }
 
 /**

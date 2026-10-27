@@ -181,3 +181,17 @@ test('首屏零窗口路径可走：选项页有导出按钮，后台有对应�
   // 烘焙脚本吃掉的就是这个形状，改了字段名等于让导出文件不可用
   assert.match(services, /config: SiteSpoofConfig; lastLocation: LastLocation \| null/, '快照形状必须与 build-persona --config 对齐');
 });
+
+test('配置体检必须真的接到诊断页上，且修法能被点', () => {
+  const html = read('src/leak-test/leak-test.html');
+  const ts = read('src/leak-test/leak-test.ts');
+  const css = read('src/leak-test/leak-test.css');
+
+  assert.match(html, /id="auditList"/, '诊断页缺少体检容器');
+  assert.match(ts, /auditConfig\(/, '诊断页没有调用体检逻辑');
+  assert.match(ts, /fix\.apply\(/, '修法必须真的被应用');
+  assert.match(ts, /chrome\.storage\.local\.set/, '修完要写回存储，否则刷新就丢');
+  for (const severity of ['error', 'warn', 'info']) {
+    assert.ok(css.includes(`.audit-item.${severity}`), `缺少 ${severity} 档的样式`);
+  }
+});
