@@ -219,19 +219,68 @@ google.com          ← 启用：google.com 及其所有子域
 `chrome.runtime.sendMessage` 或 `chrome.storage` 才拿到，**任何异步 API 都输给解析器**——
 HTML 已经缓冲好时，首个内联脚本紧接着就执行。所以开发构建的窗口关不掉，只能换路径。
 
-### 想要零窗口：导出 + 烘焙（一条命令）
+### 发布流水线：一条命令出包
 
-1. 选项页 →「数据管理」→**导出烘焙配置（首屏零窗口）** → 得到 `vanishgeo-bake.json`
-2. 构建：
+手上有两种输入：仓库内置的五个 preset，或者从出口 IP 推出来的 persona
+（`~/.vanishgeo/personas/*.json`）。两者都走同一条烘焙路径：
+
+```bash
+npm run release -- --preset=singapore          # 单个
+npm run release -- --all-presets               # 五个全出
+npm run release -- --persona=us-la-1           # 用 IP 推出的 persona
+npm run release -- --all-personas --frozen     # 全部 persona，且彻底冻结
+npm run release -- --preset=singapore --domains=claude.ai,anthropic.com
+```
+
+产物在 `release/`：
+
+```
+vanishgeo-1.2.1-singapore.zip        93 KB   Asia/Singapore en-SG   13 条静态规则
+vanishgeo-1.2.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 域名 / 构建时间
+```
+
+三道闸，任一不过就不出包（**检查的是产物内容，不是退出码**）：
+
+1. `injected/runtime.js` 里必须真的出现目标时区与语言 —— 否则说明拿到的是开发构建，
+   首屏窗口原样发出去了，而且从外面看不出来
+2. `runtime.js` 里不能出现 `import`（MAIN world 是经典脚本）也不能残留
+   `__VANISHGEO_BAKED__` 占位符（define 没生效）
+3. `manifest.json` 与 `package.json` 同版本；`rules/baked-language.json` 非空
+
+### 校验已出的包：真开浏览器量首屏
+
+上面的闸只能证明"产物里写着目标时区"，证明不了"页面的第一个内联脚本已经看到了它"。
+这两件事在开发构建里恰好会分叉，所以要单独量：
+
+```bash
+npm run verify:release -- --zip=release/vanishgeo-1.2.1-united-states.zip
+```
+
+```
+首屏读到：tz=America/New_York locale=en-US lang=en-US offset=240 jan=300 GMT-0500
+✓ 首屏时区就是烘焙值      America/New_York vs America/New_York
+✓ Date 层跟着目标时区（1 月 1 日的偏移）  300 vs 300
+✓ Date.toString 带目标时区
+✓ 首屏语言就是烘焙值
+4/4 通过
+```
+
+工具会从包里自己取一个启用域名，用自签证书 + `--host-resolver-rules` 把它指到本地，
+页面在 `document_start` 用内联脚本抓一份快照 —— 量的是**页面实际读到的值**。
+
+注意 `jan=300` 与 `offset=240` 同时出现不是矛盾：前者是 1 月 1 日（EST，UTC-5），
+后者是"今天"（10 月，EDT，UTC-4）。日期层如果没被补，两个数字都会等于本机时区。
+
+### 只想要一次临时烘焙
+
+选项页 →「数据管理」→**导出烘焙配置（首屏零窗口）** → 得到 `vanishgeo-bake.json`，然后：
 
 ```bash
 npm run build:persona -- --config=~/Downloads/vanishgeo-bake.json --out=dist-baked
 ```
 
-3. `chrome://extensions` → 加载已解压的扩展程序 → 选 `dist-baked`
-
 烘焙只是**初始值**：之后在选项页里改语言/时区/字体，照样实时生效（走消息通道）。
-要连消息通道都不要、彻底冻结，加 `--no-bridge`。
+要连消息通道都不要、彻底冻结，加 `--frozen`（release）或 `--no-bridge`（build:persona）。
 
 ### 什么时候可以不管这个窗口
 
