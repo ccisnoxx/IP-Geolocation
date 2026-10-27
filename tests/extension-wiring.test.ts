@@ -164,3 +164,17 @@ test('注入层自己解析三层字体：background 不得引用 font-aliases',
       `${path} 引用 font-aliases 会把注入脚本打成 chunk`);
   }
 });
+
+test('首屏零窗口路径可走：选项页有导出按钮，后台有对应消息动作', () => {
+  const html = read('src/options/options.html');
+  const optionsTs = read('src/options/options.ts');
+  const router = read('src/background/message-router.ts');
+  const services = read('src/background/services.ts');
+
+  assert.match(html, /id="exportBake"/, '选项页缺少「导出烘焙配置」按钮');
+  assert.match(optionsTs, /getBakeSnapshot/, '选项页没有请求烘焙快照');
+  assert.match(router, /case 'getBakeSnapshot'/, '后台没有 getBakeSnapshot 动作');
+  assert.match(services, /async function getBakeSnapshot/, 'services 没有实现 getBakeSnapshot');
+  // 烘焙脚本吃掉的就是这个形状，改了字段名等于让导出文件不可用
+  assert.match(services, /config: SiteSpoofConfig; lastLocation: LastLocation \| null/, '快照形状必须与 build-persona --config 对齐');
+});

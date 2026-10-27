@@ -36,6 +36,18 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
         await services.noteDocumentInjected((sender as { documentId?: string }).documentId);
         return { status: 'ok', ...(await services.getPayloadForUrl(request.url || sender.url || '')) };
       }
+      case 'reportFontLayers': {
+        // 来自内容脚本：注入层在 document_start 装完补丁后回报实际生效的字体层
+        services.reportFontLayers(request.url || (sender as { url?: string }).url || '', request.layers);
+        return { status: 'ok' };
+      }
+      case 'getFontLayers': {
+        return { status: 'ok', layers: services.getFontLayers(request.url || '') };
+      }
+      case 'getBakeSnapshot': {
+        // 只给扩展自己的页面用：拿到当前配置，导出成烘焙构建的输入
+        return { status: 'ok', ...(await services.getBakeSnapshot()) };
+      }
       case 'getCurrentTabState': {
         // 显式传 tabId 时按它算（弹窗拿不到目标标签、或者需要离线核对时都用得上）
         const tab = request.tabId !== undefined && request.tabId !== null

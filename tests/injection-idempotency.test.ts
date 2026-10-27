@@ -265,3 +265,25 @@ test('删除规则同样重载受影响标签页，规则真的消失', async ()
   assert.equal(config.rules.some((rule) => rule.domain === 'mail.google.com'), false);
   assert.deepEqual(harness.stats.reloads, [1]);
 });
+
+test('内存快照跟着存储走：保存后立刻读到新值，lastLocation 写入也能看见', async () => {
+  const harness = createHarness();
+  const initial = await harness.services.getSiteConfig();
+
+  // 第一次读会填充快照，之后必须靠写入路径打掉，不能读到陈旧值
+  const saved = await harness.services.saveSiteConfig({
+    ...initial,
+    canvas: { ...initial.canvas, enabled: true, platform: 'windows' }
+  });
+  assert.equal(saved.canvas.platform, 'windows');
+
+  const reread = await harness.services.getSiteConfig();
+  assert.equal(reread.canvas.platform, 'windows', '保存后必须读到新值，不能命中旧快照');
+
+  // 定位写入同样要反映到缓存（否则首屏 payload 会拿上一次的坐标）
+  await harness.services.updateGeolocation(true);
+  const location = await harness.services.getLastLocation();
+  assert.ok(location, '定位更新后应能读到');
+  const afterLocation = await harness.services.getLastLocation();
+  assert.deepEqual(afterLocation, location, '第二次读必须与第一次一致（命中缓存）');
+});

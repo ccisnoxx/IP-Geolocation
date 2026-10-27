@@ -138,6 +138,13 @@ export interface BackgroundServices {
   webRtcPolicies: typeof WEBRTC_POLICY_VALUES;
   getSiteConfig(): Promise<SiteSpoofConfig>;
   saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig>;
+  /** 让内存快照失效（storage.onChanged 里调用） */
+  invalidateStorageCache(): void;
+  /** 注入层回报的实际生效字体层（诊断页读取） */
+  reportFontLayers(url: string, layers: unknown): void;
+  getFontLayers(url: string): { count: number; platform: string; hideCjkFonts: boolean; at: number } | null;
+  /** 导出当前配置，给烘焙构建用 */
+  getBakeSnapshot(): Promise<{ config: SiteSpoofConfig; lastLocation: LastLocation | null }>;
   getLastLocation(): Promise<LastLocation | null>;
   getExtensionState(): Promise<{ enabled: boolean; config: SiteSpoofConfig }>;
   setExtensionEnabled(enabled: boolean): Promise<SiteSpoofConfig>;
@@ -215,8 +222,25 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
+  /**
+   * 内存快照。
+   *
+   * 每次导航、每个 frame 的 payload 都要读一遍配置；`chrome.storage.local.get`
+   * 是跨进程 IPC，冷启动时能吃掉几十毫秒 —— 而首屏脚本只等那一下。缓存在 SW 里，
+   * 用 `storage.onChanged` 失效，读到的永远和存储一致。
+   */
+  let snapshotCache: Record<string, any> | null = null;
+  let lastLocationCache: { value: LastLocation | null } | null = null;
+
+  function invalidateStorageCache(): void {
+    snapshotCache = null;
+    lastLocationCache = null;
+  }
+
   async function getStorageSnapshot(): Promise<Record<string, any>> {
-    return chrome.storage.local.get(null);
+    if (snapshotCache) return snapshotCache;
+    snapshotCache = await chrome.storage.local.get(null);
+    return snapshotCache;
   }
 
   async function getSiteConfig(): Promise<SiteSpoofConfig> {
@@ -233,12 +257,17 @@ export function createBackgroundServices(): BackgroundServices {
       : migrateLegacyConfig(data);
 
     await chrome.storage.local.set({ siteSpoofConfig: config });
+    // 种子的这次写入也要反映到缓存里，否则接下来每次读都会重新走种子分支
+    snapshotCache = { ...data, siteSpoofConfig: config };
     return config;
   }
 
   async function getLastLocation(): Promise<LastLocation | null> {
+    if (lastLocationCache) return lastLocationCache.value;
     const data = await chrome.storage.local.get(LAST_LOCATION_KEY);
-    return data[LAST_LOCATION_KEY] || null;
+    const value = (data[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
+    lastLocationCache = { value };
+    return value;
   }
 
   async function unregisterSpoofContentScripts(): Promise<void> {
@@ -385,6 +414,7 @@ export function createBackgroundServices(): BackgroundServices {
 
     if (previous.join(',') !== wanted.join(',')) {
       await chrome.storage.local.set({ [GEO_PERMISSION_KEY]: wanted });
+      invalidateStorageCache();
     }
   }
 
@@ -404,6 +434,7 @@ export function createBackgroundServices(): BackgroundServices {
       throw new Error(result.errors.join('; '));
     }
     await chrome.storage.local.set({ siteSpoofConfig: result.config });
+    invalidateStorageCache();
     // 写入之后立刻应用一次；随后 storage.onChanged 会带着同一份签名再进来一趟，
     // 被 applyConfig 的签名去重挡掉，不会重复注册脚本 / 重写 DNR 规则。
     await applyConfig(result.config);
@@ -423,6 +454,47 @@ export function createBackgroundServices(): BackgroundServices {
   async function setWebRtcGlobalMode(mode: string): Promise<SiteSpoofConfig> {
     const config = await getSiteConfig();
     return saveSiteConfig({ ...config, webRtc: normalizeWebRtc({ globalMode: mode as any }) });
+  }
+
+  /**
+   * 烘焙配置快照：给 scripts/build-persona.mjs --config=<file> 用。
+   *
+   * 非烘焙构建的 payload 走一次异步 IPC 才落地，页面首个内联脚本可能读到原生值；
+   * 烘焙构建把它变成 document_start 的同步常量，这个窗口就没有了。
+   */
+  async function getBakeSnapshot(): Promise<{ config: SiteSpoofConfig; lastLocation: LastLocation | null }> {
+    return { config: await getSiteConfig(), lastLocation: await getLastLocation() };
+  }
+
+  /**
+   * 注入层报上来的"实际生效字体层"。字表只编在注入脚本里，后台算不出来，
+   * 所以诊断页的数字必须从这里取。只放内存：重启后页面会重新报一次。
+   */
+  const fontLayerReports = new Map<string, { count: number; platform: string; hideCjkFonts: boolean; at: number }>();
+
+  function reportFontLayers(url: string, layers: unknown): void {
+    const hostname = url ? (() => { try { return new URL(url).hostname; } catch { return ''; } })() : '';
+    if (!hostname || !layers || typeof layers !== 'object') return;
+    const value = layers as { count?: unknown; platform?: unknown; hideCjkFonts?: unknown };
+    const count = Number(value.count);
+    if (!Number.isFinite(count) || count < 0) return;
+    fontLayerReports.set(hostname, {
+      count,
+      platform: typeof value.platform === 'string' ? value.platform : 'auto',
+      hideCjkFonts: Boolean(value.hideCjkFonts),
+      at: Date.now()
+    });
+    // 只保留最近 50 个域名，别让这张表无限长
+    if (fontLayerReports.size > 50) {
+      const oldest = [...fontLayerReports.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+      if (oldest) fontLayerReports.delete(oldest[0]);
+    }
+  }
+
+  function getFontLayers(url: string): { count: number; platform: string; hideCjkFonts: boolean; at: number } | null {
+    const hostname = url ? (() => { try { return new URL(url).hostname; } catch { return ''; } })() : '';
+    if (!hostname) return null;
+    return fontLayerReports.get(hostname) || null;
   }
 
   async function buildPayloadForUrl(url: string, configOverride?: SiteSpoofConfig, lastLocationOverride?: LastLocation | null): Promise<EffectiveProfileResult> {
@@ -550,6 +622,7 @@ export function createBackgroundServices(): BackgroundServices {
 
       const nextLocation: LastLocation = { ...locationToSet, updateTime: new Date().toLocaleString() };
       await chrome.storage.local.set({ [LAST_LOCATION_KEY]: nextLocation, lastGeoError: '' });
+      invalidateStorageCache();
       await updateAllTabs(config, nextLocation);
       return { ok: true, location: nextLocation };
     } catch (error) {
@@ -725,6 +798,10 @@ export function createBackgroundServices(): BackgroundServices {
     webRtcPolicies: WEBRTC_POLICY_VALUES,
     getSiteConfig,
     saveSiteConfig,
+    invalidateStorageCache,
+    getBakeSnapshot,
+    reportFontLayers,
+    getFontLayers,
     getLastLocation,
     getExtensionState,
     setExtensionEnabled,
