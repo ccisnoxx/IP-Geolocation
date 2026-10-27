@@ -3,6 +3,8 @@ export interface WorkerPatchConfig {
   language?: string | null;
   languages?: string[] | null;
   fontTargets?: string[] | null;
+  /** 平台声称：Worker 里的 navigator.userAgent / platform 必须和主线程一致 */
+  platform?: { uaToken: string; platform: string } | null;
 }
 
 /**
@@ -101,12 +103,30 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
   // ---------- navigator ----------
 
-  if (language) {
+  const claim = config && config.platform ? config.platform : null;
+  if (language || claim) {
     const nav = scope.navigator;
     if (nav) {
-      putGetter(nav, 'language', function () { return language; });
-      // WebIDL: readonly attribute FrozenArray<DOMString> —— 必须冻结
-      putGetter(nav, 'languages', function () { return Object.freeze(languageList.slice()); });
+      // 属性定义在 WorkerNavigator.prototype 上：defineProperty 打在实例上会留下
+      // `Object.getOwnPropertyDescriptor(navigator, 'userAgent') !== undefined`
+      // 这种一行就能查到的痕迹，原生上一律是原型访问器。
+      const navProto = Object.getPrototypeOf(nav) || nav;
+      if (language) {
+        putGetter(navProto, 'language', function () { return language; });
+        // WebIDL: readonly attribute FrozenArray<DOMString> —— 必须冻结
+        putGetter(navProto, 'languages', function () { return Object.freeze(languageList.slice()); });
+      }
+      // Worker 里也能读到 UA / platform：只改主线程的话，页面开个 Worker 一问就穿帮
+      if (claim) {
+        const nativeUa = String(nav.userAgent || '');
+        const bracket = /\(([^)]*)\)/.exec(nativeUa);
+        const spoofedUa = bracket
+          ? nativeUa.slice(0, bracket.index) + '(' + claim.uaToken + ')' + nativeUa.slice(bracket.index + bracket[0].length)
+          : nativeUa;
+        putGetter(navProto, 'userAgent', function () { return spoofedUa; });
+        putGetter(navProto, 'platform', function () { return claim.platform; });
+        putGetter(navProto, 'appVersion', function () { return spoofedUa.replace(/^Mozilla\//, ''); });
+      }
     }
   }
 

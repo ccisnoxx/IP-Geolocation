@@ -157,7 +157,43 @@ google.com          ← 启用：google.com 及其所有子域
 | 坐标与 IP 城市差几千公里 | 手动坐标没跟着出口改 | 用「从 IP 自动配置」重新推一次 |
 | 某些站点没有伪装 | 该域名不在规则里，或被更长的排除规则命中 | 弹窗「站点白名单」检查 |
 
-## 九、首屏窗口：为什么开发构建有、烘焙构建没有
+## 九、平台声称：一套声称，两个消费者
+
+`platform` 这一层打开之后，同一个声称会同时落到**四个地方**，缺一处就自相矛盾：
+
+| 落点 | 例子（声称 windows） |
+|---|---|
+| `navigator.userAgent` / `appVersion` | `… (Windows NT 10.0; Win64; x64) …`，Chrome 版本段保持真话 |
+| `navigator.platform` | `Win32` |
+| `navigator.userAgentData`（含高熵值） | `platform: "Windows"`、`platformVersion: "15.0.0"`、`architecture: "x86"` |
+| 请求头 | `User-Agent`、`Sec-CH-UA-Platform`、`Sec-CH-UA-Platform-Version`、`Sec-CH-UA-Arch`、`Sec-CH-UA-Bitness`、`Sec-CH-UA-Model`、`Sec-CH-UA-WoW64` |
+| **字体层** | 平台层改按同样的声称判定：声称 windows ⇒ 隐藏 mac / Linux 字体，保留 Windows 自带 |
+
+最后一行是关键：payload 里的 `canvasConfig.platform` 会被声称覆盖，所以不存在
+「UA 说 Windows、字体却说这台机器没有 mac 字体」这种自己造出来的矛盾。
+反过来，只开字体层不开平台层时，字体层按自己的设置走，**诊断页会直接标出这个矛盾**
+（`平台声称: 未声称（…交叉校验会看到矛盾…）`）。
+
+### 能用与不能用的边界
+
+会被改写的：UA、`navigator.platform`、UA-CH 低熵与高熵值、上述请求头、Worker 里的同名值。
+
+不会被改写的：**WebGL 渲染器字符串 / GPU 型号 / 屏幕色深**。它们来自真实硬件，
+声称 Windows 而 WebGL 报 `Apple M2` 依然穿帮。这一层解决的是"跨字段互相打架"，
+不是"让整机看起来像另一台机器"。
+
+验证：
+
+```bash
+npm run smoke:platform -- --claim=windows   # 8/8 通过
+npm run smoke:platform -- --claim=mac
+npm run smoke:platform -- --claim=linux
+```
+
+工具会同时打印**首屏时刻**与**稳定后**两组值 —— 开发构建里首屏那组还是原生值
+（见下一节的窗口），断言用的是稳定后那组。
+
+## 十、首屏窗口：为什么开发构建有、烘焙构建没有
 
 配置进到页面有两条路，区别只在**什么时候**生效：
 
@@ -196,7 +232,7 @@ npm run build:persona -- --config=~/Downloads/vanishgeo-bake.json --out=dist-bak
 检测脚本通常在 `DOMContentLoaded` 之后才跑，那时 payload 早已落地，开发构建也一致。
 只有"在 `<head>` 里同步读 `Intl` / `new Date()` 并把结果立刻上报"的站点才能看到差异。
 
-## 十、验证
+## 十一、验证
 
 1. 右键扩展图标 →「Open diagnostic page」
 2. 「当前配置」区域对照期望值

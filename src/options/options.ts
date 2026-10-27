@@ -6,6 +6,7 @@ import {
   normalizeConfig,
   normalizeGeolocation,
   normalizeLanguage,
+  normalizePlatform,
   normalizeTimezone,
   normalizeWebRtc
 } from '../shared/config-model';
@@ -35,6 +36,10 @@ const languagesEl = document.getElementById('languages') as HTMLInputElement;
 const acceptLanguageEl = document.getElementById('acceptLanguage') as HTMLInputElement;
 const webrtcEnabledEl = document.getElementById('webrtcEnabled') as HTMLInputElement;
 const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElement;
+const platformEnabledEl = document.getElementById('platformEnabled') as HTMLInputElement;
+const platformClaimedEl = document.getElementById('platformClaimed') as HTMLSelectElement;
+const platformVersionEl = document.getElementById('platformVersion') as HTMLInputElement;
+const platformArchEl = document.getElementById('platformArch') as HTMLInputElement;
 const defaultProfilesEl = document.getElementById('defaultProfiles') as HTMLElement;
 const customProfilesEl = document.getElementById('customProfiles') as HTMLElement;
 const siteRulesEl = document.getElementById('siteRules') as HTMLElement;
@@ -99,6 +104,10 @@ function populateForm(config: SiteSpoofConfig): void {
   languagesEl.value = language.languages.join(', ');
   acceptLanguageEl.value = language.acceptLanguage;
 
+  platformEnabledEl.checked = config.platform.enabled;
+  platformClaimedEl.value = config.platform.claimed;
+  platformVersionEl.value = config.platform.version;
+  platformArchEl.value = config.platform.architecture;
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
 
