@@ -242,13 +242,13 @@ export function detectFontPlatform(): FontPlatform | null {
  * 把 canvas 配置解析成**最终要隐藏的字体列表**。
  *
  * 三层叠加，去重（不区分大小写）：
- *   1. 平台层：`platform` 声称的平台 → 隐藏另外两个平台的自带字体
+ *   1. 平台层：按本机真实平台 → 隐藏另外两个平台的自带字体
  *      （`auto` 用浏览器真实平台，`none` 关掉这一层）
  *   2. 中文层：`hideCjkFonts` → 隐藏中文 / 国产厂商字体
  *   3. 手动层：`targetFonts` → 用户自己追加的
  *
  * 平台层和中文层是**正交**的：一个解决"这台机器不像某个平台"，一个解决
- * "这台机器没有中文环境"。声称 mac 但还想消掉"装了中文字体"这个信号，
+ * "这台机器没有中文环境"。真 Mac 上还想消掉"装了中文字体"这个信号，
  * 就把 hideCjkFonts 也打开 —— 代价是自相矛盾（真 Mac 有苹方），收益是
  * 中文环境那条线索消失。两个开关都摆出来，让用户自己权衡。
  */
@@ -259,10 +259,11 @@ export function resolveCanvasTargetFonts(
   const input = canvas || {};
   // 允许传部分字段：注入层的 payload 类型比 CanvasConfig 宽松（烘焙构建里
   // platform / hideCjkFonts 可能缺席），默认值与 normalizeCanvas 保持一致。
-  const declaredPlatform = input.platform;
-  const claimed: CanvasPlatform = !declaredPlatform || declaredPlatform === 'auto'
-    ? ((realPlatform ?? detectFontPlatform()) || 'none')
-    : declaredPlatform;
+  // 平台层只有两个值：auto = 按真实平台判定，none = 不参与。
+  // 真实平台从 payload 带来（主线程与 Worker 用同一个），没带就现场探一次。
+  const family: FontPlatform | 'none' = input.platform === 'none'
+    ? 'none'
+    : ((realPlatform ?? detectFontPlatform()) || 'none');
 
   const result: string[] = [];
   const seen = new Set<string>();
@@ -275,9 +276,7 @@ export function resolveCanvasTargetFonts(
     }
   };
 
-  if (claimed === 'mac' || claimed === 'windows' || claimed === 'linux') {
-    push(fontsForOtherPlatforms(claimed));
-  }
+  if (family !== 'none') push(fontsForOtherPlatforms(family));
   if (input.hideCjkFonts !== false) push(CJK_VENDOR_FONTS);
   push(input.targetFonts || []);
 

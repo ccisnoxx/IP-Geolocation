@@ -480,7 +480,7 @@ export function createBackgroundServices(): BackgroundServices {
     if (!Number.isFinite(count) || count < 0) return;
     fontLayerReports.set(hostname, {
       count,
-      platform: typeof value.platform === 'string' ? value.platform : 'auto',
+      platform: value.platform === 'none' ? 'none' : 'auto',
       hideCjkFonts: Boolean(value.hideCjkFonts),
       at: Date.now()
     });

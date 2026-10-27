@@ -43,27 +43,15 @@ export interface WebRtcConfig {
   globalMode: WebRtcMode;
 }
 
-/** 声称的平台：决定隐藏"不属于这个平台"的字体。none = 不按平台隐藏 */
-export type CanvasPlatform = 'auto' | 'mac' | 'windows' | 'linux' | 'none';
-
-/** 声称的平台：`auto` 表示不声称、跟随真实平台 */
-export type PlatformClaim = 'auto' | 'mac' | 'windows' | 'linux';
-
+/** 平台维度：决定隐藏"不属于本机这个平台"的字体。none = 不按平台隐藏 */
 /**
- * 平台层：**一套声称，两个消费者**。
+ * 字体层的平台维度：只决定"按哪个平台的字表去判定"，不对外声称任何东西。
  *
- * 打开之后同时改写 navigator.userAgent / navigator.platform / navigator.userAgentData
- * 与 Sec-CH-UA-* 请求头，并让字体层按同一个平台判定 —— 否则 UA 说 macOS、字体却说
- * 这台机器没有 mac 字体，任何做交叉校验的指纹库都会把它标成矛盾，比不伪装更显眼。
+ * 曾经有 mac / windows / linux 三个手动值，语义是"让这台机器看起来像另一个平台"。
+ * 那件事在 JS 层做不到（WebGL 渲染器、GPU、色深仍是真硬件），做了反而制造矛盾，
+ * 所以在 4 里收窄成：auto = 按本机真实平台，none = 这一层不参与。
  */
-export interface PlatformConfig {
-  enabled: boolean;
-  claimed: PlatformClaim;
-  /** Sec-CH-UA-Platform-Version；空串 = 按平台取默认值 */
-  version: string;
-  /** Sec-CH-UA-Arch；空串 = 按平台取默认值（mac 默认 arm，windows/linux 默认 x86） */
-  architecture: string;
-}
+export type CanvasPlatform = 'auto' | 'none';
 
 export interface CanvasConfig {
   enabled: boolean;
@@ -131,7 +119,6 @@ export interface SiteSpoofConfig {
     geolocation: GeolocationConfig;
   };
   webRtc: WebRtcConfig;
-  platform: PlatformConfig;
   canvas: CanvasConfig;
   profile: ProfileConfig;
   rules: SiteRule[];
@@ -163,11 +150,6 @@ export interface EffectivePayload {
   languageConfig: LanguageConfig | null;
   timezoneConfig: TimezoneConfig;
   canvasConfig: CanvasConfig;
-  /**
-   * 平台声称。字体层已经按同一个声称解析过了（`canvasConfig.platform`），
-   * 这里给出的是要写进 UA / UA-CH / Sec-CH-UA-* 的值；null = 不声称。
-   */
-  platform: { claimed: PlatformClaim; version: string; architecture: string } | null;
 }
 
 export interface EffectiveProfileResult {

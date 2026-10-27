@@ -1,4 +1,4 @@
-import type { CanvasPlatform, PlatformClaim } from '../shared/types';
+import type { CanvasPlatform } from '../shared/types';
 import type { LastLocation, SiteSpoofConfig } from '../shared/types';
 
 /**
@@ -27,8 +27,6 @@ export interface BakedRuntimePayload {
     spoofPermission: boolean;
   } | null;
   canvasConfig: { enabled: boolean; spoofFonts: boolean; platform?: CanvasPlatform; hideCjkFonts?: boolean; targetFonts: string[] };
-  /** 平台声称；null / 缺席 = 不改 UA。烘焙构建里它同样是常量，首屏就能生效。 */
-  platform?: { claimed: PlatformClaim; version: string; architecture: string } | null;
 }
 
 type Override = { mode?: string; value?: any } | null | undefined;
@@ -156,7 +154,7 @@ export function resolveBakedPayload(
 
   const canvas = (config as any).canvas || {};
   // 与 normalizeCanvas 的默认值保持一致（这里不 import config-model：注入脚本要零依赖）
-  const platform: CanvasPlatform = ['auto', 'mac', 'windows', 'linux', 'none'].includes(canvas.platform)
+  const platform: CanvasPlatform = ['auto', 'none'].includes(canvas.platform)
     ? canvas.platform
     : 'auto';
   const hideCjkFonts = canvas.hideCjkFonts !== false;

@@ -3,8 +3,6 @@ import type {
   CanvasPlatform,
   GeolocationConfig,
   LanguageConfig,
-  PlatformClaim,
-  PlatformConfig,
   Profile,
   SignalOverride,
   SiteRule,
@@ -67,21 +65,6 @@ export const DEFAULT_CANVAS: CanvasConfig = {
   hideCjkFonts: true,
   // 手写追加项，默认空；旧版把整张中文表放在这里，升级时会被搬进 hideCjkFonts
   targetFonts: []
-};
-
-export const PLATFORM_CLAIMS: PlatformClaim[] = ['auto', 'mac', 'windows', 'linux'];
-
-/**
- * 平台层的默认值：**不声称**。
- *
- * 打开它会改写 UA / UA-CH / Sec-CH-UA-*，而这些值必须与真实机器对得上才有意义；
- * 默认关掉，让"字体层按 mac 判定"这类既有配置保持原样，想消除矛盾时再打开。
- */
-export const DEFAULT_PLATFORM: PlatformConfig = {
-  enabled: false,
-  claimed: 'auto',
-  version: '',
-  architecture: ''
 };
 
 export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
@@ -255,27 +238,24 @@ export function normalizeWebRtc(config: Partial<WebRtcConfig> | { policy?: strin
   return { globalMode };
 }
 
-const CANVAS_PLATFORMS: CanvasPlatform[] = ['auto', 'mac', 'windows', 'linux', 'none'];
+const CANVAS_PLATFORMS: CanvasPlatform[] = ['auto', 'none'];
 
-export function normalizePlatform(config: Partial<PlatformConfig> | null | undefined): PlatformConfig {
-  const input = config || {};
-  const claimed = PLATFORM_CLAIMS.includes(input.claimed as PlatformClaim)
-    ? (input.claimed as PlatformClaim)
-    : DEFAULT_PLATFORM.claimed;
-  return {
-    // 声称 auto 等于没声称：开着也没有可写的东西
-    enabled: Boolean(input.enabled) && claimed !== 'auto',
-    claimed,
-    version: normalizeString(input.version),
-    architecture: normalizeString(input.architecture)
-  };
-}
+/**
+ * v4 之前的手动值。它们的语义是"按那个平台判定"，跟"按真实平台判定"是两件事；
+ * 但按另一个平台判定等于让这台机器假装成另一台（字体藏了，UA 没藏），
+ * 那一层已经移除，所以旧值一律回到 auto —— 也就是按真实平台。
+ */
+const LEGACY_MANUAL_PLATFORMS = new Set(['mac', 'windows', 'linux']);
 
 export function normalizeCanvas(config: Partial<CanvasConfig> | null | undefined): CanvasConfig {
   const input = config || {};
-  const platform = CANVAS_PLATFORMS.includes(input.platform as CanvasPlatform)
-    ? (input.platform as CanvasPlatform)
-    : DEFAULT_CANVAS.platform;
+  const rawPlatform = input.platform as string | undefined;
+  let platform: CanvasPlatform = DEFAULT_CANVAS.platform;
+  if (CANVAS_PLATFORMS.includes(rawPlatform as CanvasPlatform)) {
+    platform = rawPlatform as CanvasPlatform;
+  } else if (rawPlatform && LEGACY_MANUAL_PLATFORMS.has(rawPlatform)) {
+    platform = 'auto';
+  }
 
   const declared = Array.isArray(input.targetFonts)
     ? input.targetFonts.map((item) => normalizeString(item)).filter(Boolean)
@@ -375,7 +355,6 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
     geolocation: DEFAULT_GEOLOCATION
   },
   webRtc: DEFAULT_WEBRTC,
-  platform: DEFAULT_PLATFORM,
   canvas: DEFAULT_CANVAS,
   profile: {
     activeProfileId: 'united-states',
@@ -426,23 +405,10 @@ export function normalizeProfiles(value: unknown): Profile[] {
  *    所以这里不需要额外的升级代码，版本号只用来标记"结构变过"。
  * 2：`canvas.targetFonts` 增加国产厂商字体（已并入 CJK_VENDOR_FONTS）。
  */
-export const CONFIG_SCHEMA_VERSION = 4;
-
 /**
- * v3 → v4 的迁移：把 `canvas.platform` 的显式声称搬到平台层。
- *
- * 老配置里那个字段只影响字体；现在它同时决定 UA / UA-CH / 请求头，
- * 但**迁移时不自动打开**（enabled 保持 false）—— 改写 UA 是个大动作，
- * 得用户自己点。诊断页会在两者不一致时直接报矛盾，点了开关就一致了。
+ * 4：字体层的平台维度收窄成 auto / none（移除了"假装另一个平台"的手动值）。
  */
-function resolvePlatformInput(input: Partial<SiteSpoofConfig>): Partial<PlatformConfig> {
-  if (input.platform) return input.platform;
-  const legacy = (input.canvas || {}).platform;
-  if (legacy === 'mac' || legacy === 'windows' || legacy === 'linux') {
-    return { ...DEFAULT_PLATFORM, claimed: legacy };
-  }
-  return DEFAULT_PLATFORM;
-}
+export const CONFIG_SCHEMA_VERSION = 4;
 
 export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefined): SiteSpoofConfig {
   const input = config || {};
@@ -458,7 +424,6 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
       geolocation: normalizeGeolocation(globalProfile.geolocation || DEFAULT_GEOLOCATION)
     },
     webRtc: normalizeWebRtc(input.webRtc || DEFAULT_WEBRTC),
-    platform: normalizePlatform(resolvePlatformInput(input)),
     canvas: normalizeCanvas(input.canvas || DEFAULT_CANVAS),
     profile: {
       activeProfileId: normalizeString(profile.activeProfileId) || DEFAULT_CONFIG.profile.activeProfileId,

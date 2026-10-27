@@ -6,7 +6,6 @@ import {
   getExcludedRuleDomains
 } from '../shared/config-resolver';
 import type { LanguageConfig, LastLocation, SiteRule, SiteSpoofConfig } from '../shared/types';
-import { buildPlatformHeaders, realUserAgent } from './platform-headers';
 
 export const ACCEPT_LANGUAGE_RULE_ID_START = 1100;
 export const ACCEPT_LANGUAGE_RULE_ID_END = 2099;
@@ -57,39 +56,6 @@ export function buildAcceptLanguageRules(
   // 被显式禁用的域名要在父域规则里挖掉，否则「google.com 启用 + mail.google.com 排除」
   // 的头仍然会被父规则改写 —— 页面是原生的、请求头却是伪装的，两边自相矛盾。
   const excludedDomains = getExcludedRuleDomains(config);
-
-  // 平台层：UA / UA-CH 与字体层共用同一个声称；这里只负责请求头那一半。
-  // 与 Accept-Language 用同一个 id 段与同一套签名比对，改动会一起落地。
-  const platform = config.platform;
-  const platformHeaders = platform && platform.enabled && platform.claimed !== 'auto'
-    ? buildPlatformHeaders(platform.claimed, { version: platform.version, architecture: platform.architecture }, realUserAgent())
-    : [];
-  if (platformHeaders.length) {
-    config.rules.filter((rule) => rule.enabled).forEach((rule) => {
-      const nextId = ACCEPT_LANGUAGE_RULE_ID_START + rules.length;
-      if (nextId > ACCEPT_LANGUAGE_RULE_ID_END) {
-        throw new Error('Too many request header rules');
-      }
-      const excludedForRule = getExcludedDomainsFor(rule.domain, excludedDomains);
-      rules.push({
-        id: nextId,
-        priority: Math.max(1, rule.domain.length),
-        action: {
-          type: 'modifyHeaders' as chrome.declarativeNetRequest.RuleActionType,
-          requestHeaders: platformHeaders.map((header) => ({
-            header: header.header,
-            operation: 'set' as chrome.declarativeNetRequest.HeaderOperation,
-            value: header.value
-          }))
-        },
-        condition: {
-          requestDomains: [rule.domain],
-          ...(excludedForRule.length ? { excludedRequestDomains: excludedForRule } : {}),
-          resourceTypes: ACCEPT_LANGUAGE_RESOURCE_TYPES
-        }
-      });
-    });
-  }
 
   config.rules.filter((rule) => rule.enabled).forEach((rule) => {
     const language = languageForRule(config, rule);

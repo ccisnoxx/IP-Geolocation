@@ -134,10 +134,13 @@ test('字体伪装三层的开关必须真的接到界面上', () => {
   const popup = read('src/popup/popup.html');
   const popupTs = read('src/popup/popup.ts');
 
-  // 平台选择器与中文层开关
+  // 平台层只有 auto / none：手动选另一个平台等于假装成另一台机器，已移除
   assert.match(popup, /id="canvasPlatform"/);
-  for (const value of ['auto', 'mac', 'windows', 'linux', 'none']) {
+  for (const value of ['auto', 'none']) {
     assert.match(popup, new RegExp(`<option value="${value}"`), `缺少 platform 选项 ${value}`);
+  }
+  for (const value of ['mac', 'windows', 'linux']) {
+    assert.doesNotMatch(popup, new RegExp(`<option value="${value}"`), `不该再有平台声称 ${value}`);
   }
   assert.match(popup, /id="canvasHideCjk"/);
 
@@ -177,26 +180,4 @@ test('首屏零窗口路径可走：选项页有导出按钮，后台有对应�
   assert.match(services, /async function getBakeSnapshot/, 'services 没有实现 getBakeSnapshot');
   // 烘焙脚本吃掉的就是这个形状，改了字段名等于让导出文件不可用
   assert.match(services, /config: SiteSpoofConfig; lastLocation: LastLocation \| null/, '快照形状必须与 build-persona --config 对齐');
-});
-
-test('平台声称必须真的接到界面上，并且不能把 UA 表塞进共享 chunk', () => {
-  const popupHtml = read('src/popup/popup.html');
-  const popupTs = read('src/popup/popup.ts');
-  const optionsHtml = read('src/options/options.html');
-  const optionsTs = read('src/options/options.ts');
-
-  for (const [name, html] of [['popup', popupHtml], ['options', optionsHtml]] as const) {
-    for (const id of ['platformEnabled', 'platformClaimed', 'platformVersion', 'platformArch']) {
-      assert.ok(html.includes(`id="${id}"`), `${name} 缺少 #${id}`);
-    }
-  }
-  assert.match(popupTs, /normalizePlatform/, 'popup 没把平台字段写回配置');
-  assert.match(optionsTs, /normalizePlatform/, 'options 没把平台字段写回配置');
-
-  // 注入层的 navigator-patch 与后台的 platform-headers 各自持有一份表：
-  // 一旦后台去 import 注入层那份，Rollup 就会抽 chunk，runtime.js 不再是经典脚本。
-  const dnr = read('src/background/dnr.ts');
-  assert.match(dnr, /from '\.\/platform-headers'/, 'dnr 应该用自己的头表');
-  assert.doesNotMatch(dnr, /injected\/navigator-patch/, 'background 不能直接引注入层的补丁模块');
-  assert.doesNotMatch(read('src/shared/config-model.ts'), /navigator-patch|platform-headers/);
 });
