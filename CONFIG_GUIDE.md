@@ -133,6 +133,42 @@ MiSans / MIUI / 鸿蒙黑体 / HONOR Sans / OPPO Sans / vivo Sans / 阿里巴巴
 - **worker 里同一套规则**：主线程解析出最终列表后把键集合传给 Worker，
   两边不会说两套话
 
+### 第三条路：`queryLocalFonts()`
+
+canvas 只伪装"量出来的宽度"，但浏览器还有一条**直接枚举**的路：
+`window.queryLocalFonts()` 一次返回本机全部字体。本机实测（扩展关闭）
+
+```
+667 条 / 248 个族，其中 PingFang 24 条、宋体·雅黑 8 条
+```
+
+它比 canvas 量测硬得多 —— 没有阈值、没有误差、没有对照组技巧，两者一对就穿帮。
+所以这一层也补：清单按同一把键过滤，与 canvas 的判断**同源**，因此不会出现
+"canvas 说没装、清单里还列着"的组合。
+
+实测（同一台机器，只差扩展开关）：
+
+| | 清单条数 | 族数 | 被藏掉的族 |
+| --- | --- | --- | --- |
+| 扩展关闭 | 667 | 248 | — |
+| 扩展开启 | 632 | 239 | Hiragino Sans GB、PingFang HK/MO/SC/TC、STHeiti、STSong、Songti SC、YuGothic |
+
+几个必须记住的细节：
+
+- **API 挂在 `window` 上，不在 `navigator` 上**。`navigator.queryLocalFonts` 是
+  `undefined` —— 早期文档因为测错了对象，写成了"当前构建里 absent"，等于漏了一整条通道
+- **不删掉这个函数**：真 Chromium 有这个 API，删掉本身就是"被改过"的证据
+  （`'queryLocalFonts' in window` 一行就够）。保留 API、只少几个族，才是真机在
+  "这台机器没装这些字体"时的样子
+- **属性描述符原样复制**：原生是 `enumerable: true`（`Object.keys(window)` 里能看见），
+  装补丁时若默认写成 `false`，页面一行 `Object.keys` 就验出来了
+- **原生 reject 原样透传**：用户拒权是 `NotAllowedError`，不能变成 resolve 空数组
+- **`PingFang MO`（蒙古文变体）曾经漏网**：它不在别名表里，于是出现"苹方-简 不存在、
+  PingFang MO 存在"这种真机不会有的组合，已补进苹方家族
+- **`YuGothic` 是被顺带藏掉的**：藏其它平台字体时 Windows 的 `Yu Gothic` 会连到
+  macOS 自带的 `YuGothic`（同一款字形的两个写法）。这份"多藏了一个真机有的族"的
+  代价换来的是两份视图永远一致 —— 反过来漏一个才是更糟的方向
+
 ## 六、WebRTC
 
 | 档位 | 底层策略 | 说明 |

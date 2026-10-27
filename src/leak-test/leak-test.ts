@@ -479,6 +479,34 @@ async function pageProbe() {
     push('字体度量', `读取失败：${error}`);
   }
 
+  // 本地字体清单：canvas 之外的第二条路，而且更硬 —— 直接枚举，没有阈值也没有误差。
+  // 只在权限已授予时去取，否则一探测就弹权限框，太扰人。
+  try {
+    const fontsApi = (window as any).queryLocalFonts;
+    const permission = await navigator.permissions
+      .query({ name: 'local-fonts' as any })
+      .catch(() => null);
+    const state = permission?.state || 'unknown';
+    if (typeof fontsApi !== 'function') {
+      push('queryLocalFonts', 'API 不存在（这个浏览器没实现？）');
+    } else if (state !== 'granted') {
+      push('queryLocalFonts', `未授权（${state}）：站点拿不到清单，这一层暂时无从泄漏`);
+    } else {
+      const list = await fontsApi.call(window);
+      const families = [...new Set(list.map((font: any) => font.family))];
+      const hiddenHits = ['PingFang SC', 'PingFang MO', 'Songti SC', 'SimSun', 'Microsoft YaHei']
+        .filter((name) => families.includes(name));
+      push('queryLocalFonts 条数', `${list.length} 条 / ${families.length} 个族`);
+      rows.push({
+        label: '清单里的中文族',
+        value: hiddenHits.join(', ') || 'none',
+        ok: hiddenHits.length === 0
+      });
+    }
+  } catch (error) {
+    push('queryLocalFonts', `读取失败：${error}`);
+  }
+
   // 定位
   try {
     const permission = await navigator.permissions.query({ name: 'geolocation' });
