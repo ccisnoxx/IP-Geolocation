@@ -189,4 +189,12 @@ if (isIpSyncEnabled(await getSiteConfig())) {
 | 13 | `src/background/ip-sync.ts` 新增 `canonicalCountry()`（两字母码 → `Intl.DisplayNames` 国名），解析响应时归一，`planExitIpSync` 与 `isSameLocation` 的比较两边都归一 | 新测试：`US`/`us`/`United States` 折成同一值；ipinfo 形状与 ipwho.is 形状的响应算出同一个 `info.country`，配置已对齐时 force 也只报 `['profile']` |
 | 22 | `tests/ui-options.test.ts` 的桩改成有状态：`getSiteConfig` 返回可变 `siteConfig`，`setSiteConfig` 写入它，`checkExitIpSync` 基于它构造回包，并暴露 `setSiteConfig()` 供用例预置 | 上面第 12 条的测试就是靠这个桩才成立（改前恒返回 `DEFAULT_CONFIG`，保存后再读拿不到改动） |
 
-未动：第 9、11、14–21 条（状态行轮询叠加、启动串行打两次归属地接口、`--ours` 留档、smoke 12s 窗口、`pickString` 转义撇号、`accuracy` 双默认、`BLOCK_START` 残留、三处"5"、`ip-sync.test.mjs` 白名单与 `DD` 处理、空周期静默成 5）。其中 15–21 属 P3，发版前可不做。
+第三轮（同一决定之后，提交历史落定再做）：
+
+| 条 | 改动 | 复验 |
+| --- | --- | --- |
+| 9 | `src/options/options.ts`：状态行刷新加轮次序号 `ipSyncStatusRound`，`await` 回来后比对序号，旧的一轮既不再写 DOM 也不继续重试（连点两次保存不再闪回旧文案） | 现有 17 条 options 用例全绿（状态行断言依赖同一路径） |
+| 11 | `src/background/services.ts` `bootstrap()`：跟随时改由 `checkExitIp` 负责查归属地（与 `updateGeolocation` 同一组接口），只有它没写出 `lastLocation` 时才回退到 `updateGeolocation`；否则走原来的单次定位 | 新测试：开开关、清掉 `lastSyncedExitIp` 冷启动 → 只打 **1** 轮接口（改前 2 轮），且 IP 与坐标都落库 |
+| 14 | `scripts/merge-upstream.sh`：每条「取本地」把路径 + 上游一侧（stage 3）的 blob 写进 `.git/vanishgeo-merge-ours.log`，收尾打印条数与位置 | /tmp 造冲突实测：日志两列 `path<TAB>blob`，`git show <blob>` 出来的是上游版本（第一版错记成 stage 2 = 我们自己，已修） |
+
+未动：第 15–21 条（smoke 12s 窗口、`pickString` 转义撇号、`accuracy` 双默认、`BLOCK_START` 残留、三处"5"、`ip-sync.test.mjs` 白名单与 `DD` 处理、空周期静默成 5），全属 P3。
