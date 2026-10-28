@@ -7,7 +7,16 @@ import { fileURLToPath } from 'node:url';
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function read(relativePath: string): string {
-  return fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
+  try {
+    return fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
+  } catch (error) {
+    // 这个文件里有些断言读的是构建产物而不是源码（例如 dist/injected/runtime.js）：
+    // 直接抛 ENOENT 的话，在 CI 上看起来像"接线断了"，实际只是没先构建。
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' && relativePath.startsWith('dist/')) {
+      throw new Error(`读不到构建产物 ${relativePath}：先跑 \`npm run build\` 再跑单测（CI 里 Build 步骤排在 Unit tests 之前）`);
+    }
+    throw error;
+  }
 }
 
 function exists(relativePath: string): boolean {

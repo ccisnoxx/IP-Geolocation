@@ -34,14 +34,15 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # 有几条接线用例要读 dist/injected/runtime.js（源码不等于产物），所以先构建
+      - name: Build extension
+        run: npm run build
+
       - name: Unit tests
         run: npm test
 
       - name: Core branch coverage
         run: npm run test:coverage:core
-
-      - name: Build extension
-        run: npm run build
 
       - name: Get version from tag
         id: get_version
