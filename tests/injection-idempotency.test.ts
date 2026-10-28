@@ -989,3 +989,33 @@ test('addDomainRule 走新建规则分支', async () => {
   const saved = await harness.services.addDomainRule('new.example');
   assert.ok(saved.rules.some((rule) => rule.domain === 'new.example' && rule.enabled));
 });
+
+// ---------- 配置页的「跟随出口 IP」状态读取 ----------
+
+test('getExitIpSyncState 只读：给出上次同步 IP 与定位，且不发起任何定位请求', async () => {
+  const harness = createHarness();
+  harness.storage.lastSyncedExitIp = '203.0.113.9';
+  harness.storage.lastLocation = {
+    latitude: 34.0522,
+    longitude: -118.2437,
+    accuracy: 50,
+    timezone: 'America/Los_Angeles',
+    country: 'United States',
+    updateTime: 123
+  };
+
+  const fetchesBefore = harness.stats.fetches;
+  const state = await harness.services.getExitIpSyncState();
+
+  assert.equal(state.storedIp, '203.0.113.9');
+  assert.equal(state.lastLocation?.timezone, 'America/Los_Angeles');
+  assert.equal(state.lastLocation?.latitude, 34.0522);
+  assert.equal(harness.stats.fetches, fetchesBefore, '状态读取不能顺手打地理接口');
+});
+
+test('getExitIpSyncState 在没同步过时给出空 IP 与 null 定位', async () => {
+  const harness = createHarness();
+  const state = await harness.services.getExitIpSyncState();
+  assert.equal(state.storedIp, '');
+  assert.equal(state.lastLocation, null);
+});

@@ -1,4 +1,7 @@
 import { buildAcceptLanguageRules, updateAcceptLanguageRules } from './dnr';
+import { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
+import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, runExitIpSync } from './ip-sync';
+import type { ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy } from './webrtc';
 import {
   LAST_LOCATION_KEY,
@@ -16,13 +19,6 @@ import { normalizeWorkerFallbackReason } from '../shared/worker-coverage';
 import type { WorkerFallbackReport, WorkerFallbackSummary } from '../shared/worker-coverage';
 import type { EffectiveProfileResult, LastLocation, SiteSpoofConfig } from '../shared/types';
 
-const GEO_API_URLS = [
-  'https://ipwho.is/',
-  'https://ipapi.co/json/',
-  'https://ipinfo.io/json'
-];
-
-const GEO_FETCH_TIMEOUT_MS = 5000;
 const ALARM_NAME = 'vanishgeo-update-location';
 const MAIN_RUNTIME_SCRIPT_ID = 'vanishgeo-main-runtime';
 const BRIDGE_SCRIPT_ID = 'vanishgeo-bridge';
@@ -80,111 +76,12 @@ async function currentDocumentId(tabId: number): Promise<string> {
   }
 }
 
-/**
- * 带超时的 JSON 请求。
- *
- * 三个 IP 接口是串行尝试的；任何一个挂住（TCP 半开、CDN 卡住）都会让
- * `updateGeolocation` 永远不返回，alarm 回调堆着、角标也不刷新。
- * 5 秒足够正常响应，失败就换下一家。
- */
-export async function fetchJson(url: string, timeoutMs = GEO_FETCH_TIMEOUT_MS): Promise<any> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// 出口 IP 接口的解析与请求都搬到了 `geo-api`（自动跟随出口 IP 也要用同一份校验）。
+// 这里保留同名导出，调用方（smoke 脚本 / 测试 / 其它模块）不受影响。
+export { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
 
 function isScriptableUrl(url: string | undefined): boolean {
   return /^https?:\/\//i.test(String(url || ''));
-}
-
-/**
- * 把接口里的坐标转成数字。
- *
- * 两个坑：
- * 1. `data.latitude && data.longitude` 会把**合法的 0** 当成缺失（赤道 / 本初子午线）；
- * 2. `Number(null)` / `Number('')` 都是 0，缺字段反而会被当成"坐标在几内亚湾"。
- * 所以先显式排除 null / undefined / 空串，再校验范围。
- */
-function toCoordinate(value: unknown, limit: number): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string' && value.trim() === '') return null;
-  const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(numeric) || Math.abs(numeric) > limit) return null;
-  return numeric;
-}
-
-function toCountry(data: any): string | null {
-  const value = data && data.country;
-  if (typeof value === 'string' && value) return value;
-  if (value && typeof value === 'object') return value.name || value.code || null;
-  return (data && (data.country_name || data.country_code)) || null;
-}
-
-function toTimezone(value: any): string | null {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && typeof value.id === 'string') return value.id;
-  return null;
-}
-
-export function parseGeoApiResponse(data: any): Omit<LastLocation, 'updateTime'> | null {
-  if (!data || typeof data !== 'object') return null;
-
-  if (data.success !== false) {
-    const latitude = toCoordinate(data.latitude, 90);
-    const longitude = toCoordinate(data.longitude, 180);
-    if (latitude !== null && longitude !== null) {
-      const timezoneOffset = data.timezone && Number.isFinite(Number(data.timezone.offset))
-        ? -Number(data.timezone.offset) / 60
-        : null;
-      return {
-        latitude,
-        longitude,
-        country: toCountry(data) || 'N/A',
-        timezone: toTimezone(data.timezone),
-        timezoneOffset
-      };
-    }
-  }
-
-  if (data.location && typeof data.location === 'object') {
-    const latitude = toCoordinate(data.location.latitude, 90);
-    const longitude = toCoordinate(data.location.longitude, 180);
-    if (latitude !== null && longitude !== null) {
-      return {
-        latitude,
-        longitude,
-        country: data.country && data.country.name ? data.country.name : (toCountry(data) || 'N/A'),
-        timezone: toTimezone(data.timezone),
-        timezoneOffset: null
-      };
-    }
-  }
-
-  if (typeof data.loc === 'string' && data.loc.includes(',')) {
-    const [rawLatitude, rawLongitude] = data.loc.split(',');
-    const latitude = toCoordinate(rawLatitude, 90);
-    const longitude = toCoordinate(rawLongitude, 180);
-    if (latitude !== null && longitude !== null) {
-      return {
-        latitude,
-        longitude,
-        country: toCountry(data) || data.region || data.city || 'N/A',
-        timezone: toTimezone(data.timezone),
-        timezoneOffset: null
-      };
-    }
-  }
-
-  // 只有国家、没有坐标的响应（例如 CN 分支）不再伪造 0,0：
-  // 那是一个真实存在的地点（几内亚湾），会和任何时区/坐标对不上。
-  // 返回 null 让调用方继续试下一个接口，全部失败就按 fail-closed 处理。
-  return null;
 }
 
 /**
@@ -205,6 +102,8 @@ export function configNeedsLocation(config: Partial<SiteSpoofConfig>): boolean {
 
 export interface BackgroundServices {
   alarmName: string;
+  /** 「跟随出口 IP」的 alarm 名（service-worker 按名字分派） */
+  ipSyncAlarmName: string;
   webRtcPolicies: typeof WEBRTC_POLICY_VALUES;
   getSiteConfig(): Promise<SiteSpoofConfig>;
   saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig>;
@@ -222,6 +121,12 @@ export interface BackgroundServices {
   getExtensionState(): Promise<{ enabled: boolean; config: SiteSpoofConfig }>;
   setExtensionEnabled(enabled: boolean): Promise<SiteSpoofConfig>;
   updateGeolocation(forceUpdate?: boolean): Promise<{ ok: boolean; location?: LastLocation; unchanged?: boolean; disabled?: boolean; error?: string }>;
+  /** 走一遍"跟随出口 IP"：查出口 → 改时区/坐标 → 应用。单飞，重复调用复用同一趟 */
+  checkExitIp(options?: { force?: boolean }): Promise<ExitIpSyncOutcome>;
+  /** 配置页只读：上次同步记下的出口 IP 与当前生效定位 */
+  getExitIpSyncState(): Promise<{ storedIp: string; lastLocation: LastLocation | null }>;
+  /** 让「跟随出口 IP」的 alarm 与当前配置对齐；返回对齐后是否应在运行 */
+  ensureIpSyncAlarm(): Promise<boolean>;
   /** 单条注入路径：确保文档里有 runtime，然后投递 payload（两者都幂等） */
   syncTab(tabId: number, url: string, options?: {
     config?: SiteSpoofConfig;
@@ -390,6 +295,14 @@ export function createBackgroundServices(): BackgroundServices {
   /** 上一次真正应用过的配置签名：保存路径与 storage 事件都会走到 applyConfig */
   let lastAppliedSignature = '';
 
+  /**
+   * 上一次应用时的「跟随出口 IP」开关状态。
+   *
+   * 用途只有一个：识别"关 → 开"的那一次跃变，立刻同步一遍；
+   * 不落 storage——它描述的是本进程的内状态，重启后由 bootstrap 负责首同步。
+   */
+  let lastIpSyncEnabled = false;
+
   function registerSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
     const run = () => doRegisterSpoofContentScripts(configOverride);
     const next = registerInFlight.then(run, run);
@@ -544,6 +457,9 @@ export function createBackgroundServices(): BackgroundServices {
     await updateAcceptLanguageRules(config, await getLastLocation());
     await applyWebRTCPolicy(config);
     await applyGeolocationPermissions(config);
+    // alarm 的存在状态从配置派生：关掉「跟随出口 IP」必须真的 clear，
+    // 否则下一轮它还会把刚被关掉的功能跑一遍（而且照样打接口）。
+    await ensureIpSyncAlarmFor(config, ipSyncAlarms);
     await refreshActionBadge();
   }
 
@@ -953,6 +869,78 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
+  // ---------- 跟随出口 IP ----------
+
+  /**
+   * 写 `lastLocation` 但**不**应用副作用。
+   *
+   * 和 `updateGeolocation` 的分工：那个是"定位层自己更新"，写完自己重算权限/头/标签页；
+   * 这里是 IP 同步流水线里的一步 —— 坐标和时区必须**一起换完再统一应用一次**，
+   * 否则中间态（新坐标 + 旧时区）会被当成有效配置写进 DNR。
+   */
+  async function writeLastLocation(location: LastLocation): Promise<void> {
+    await chrome.storage.local.set({ [LAST_LOCATION_KEY]: location, lastGeoError: '' });
+    invalidateStorageCache();
+  }
+
+  /** 只写配置，不应用（应用由 `checkExitIp` 在两步都写完之后做一次） */
+  async function writeSiteConfigOnly(config: SiteSpoofConfig): Promise<void> {
+    if (frozenBakedConfig()) return;
+    await chrome.storage.local.set({ siteSpoofConfig: config });
+    invalidateStorageCache();
+  }
+
+  async function readStoredExitIp(): Promise<string> {
+    const data = await chrome.storage.local.get(LAST_SYNCED_IP_KEY);
+    const value = data[LAST_SYNCED_IP_KEY];
+    return typeof value === 'string' ? value : '';
+  }
+
+  async function getExitIpSyncState(): Promise<{ storedIp: string; lastLocation: LastLocation | null }> {
+    return { storedIp: await readStoredExitIp(), lastLocation: await getLastLocation() };
+  }
+
+  async function checkExitIp(options: { force?: boolean } = {}): Promise<ExitIpSyncOutcome> {
+    const outcome = await runExitIpSync({
+      getConfig: getSiteConfig,
+      saveConfig: writeSiteConfigOnly,
+      saveLocation: writeLastLocation,
+      getLastLocation,
+      getStoredIp: readStoredExitIp,
+      saveStoredIp: async (ip: string) => {
+        await chrome.storage.local.set({ [LAST_SYNCED_IP_KEY]: ip });
+      },
+      applyNow: () => applyConfig(),
+      force: options.force
+    });
+    // 角标上的「!」取决于"配置是否自洽"；IP 同步可能刚把矛盾修掉
+    await refreshActionBadge();
+    return outcome;
+  }
+
+  // 测试与部分受限构建里可能没有 `chrome.alarms`：这种情况下把「对齐 alarm」
+  // 退化成空操作，而不是让整条 applyConfig 链在副作用阶段炸掉。
+  const alarmsApi = () => (typeof chrome !== 'undefined' ? chrome.alarms : undefined);
+
+  const ipSyncAlarms: IpSyncAlarmGateway = {
+    get: async (name: string) => {
+      const api = alarmsApi();
+      return api ? api.get(name) : undefined;
+    },
+    create: async (name: string, info: { periodInMinutes: number }) => {
+      const api = alarmsApi();
+      if (api) await api.create(name, info);
+    },
+    clear: async (name: string) => {
+      const api = alarmsApi();
+      if (api) await api.clear(name);
+    }
+  };
+
+  async function ensureIpSyncAlarm(): Promise<boolean> {
+    return ensureIpSyncAlarmFor(await getSiteConfig(), ipSyncAlarms);
+  }
+
   async function getPayloadForUrl(url: string): Promise<EffectiveProfileResult> {
     return buildPayloadForUrl(url);
   }
@@ -1099,6 +1087,11 @@ export function createBackgroundServices(): BackgroundServices {
     // 会话恢复出来的标签页（这些文档可能是在注册生效之前就存在的）。
     await applyConfig();
     await updateGeolocation(false);
+    // 「跟随出口 IP」要在启动时就对齐一次：alarm 的首次触发可能还在几分钟之后，
+    // 期间用户看到的会是上一次会话留下的旧出口画像。
+    if (isIpSyncEnabled(await getSiteConfig())) {
+      await checkExitIp();
+    }
   }
 
   /**
@@ -1139,6 +1132,16 @@ export function createBackgroundServices(): BackgroundServices {
     // 只在成功之后记账：中途失败（DNR / 权限被策略锁住）时下一次还能重试，
     // 不会因为"记成已应用"而永久停在半应用状态。
     lastAppliedSignature = signature;
+    // 开关从关到开：不等下一个 alarm 周期，立刻对齐一次出口画像。
+    const ipSyncEnabled = isIpSyncEnabled(config);
+    if (ipSyncEnabled && !lastIpSyncEnabled) {
+      lastIpSyncEnabled = true;
+      // 不 await：这里在保存路径上，用户点完开关就该拿到响应；
+      // 单飞保证它和 alarm / bootstrap 撞上时只打一次接口。
+      void checkExitIp().catch(() => undefined);
+    } else if (!ipSyncEnabled) {
+      lastIpSyncEnabled = false;
+    }
   }
 
   async function noteDocumentInjected(documentId?: string): Promise<void> {
@@ -1148,6 +1151,7 @@ export function createBackgroundServices(): BackgroundServices {
 
   return {
     alarmName: ALARM_NAME,
+    ipSyncAlarmName: IP_SYNC_ALARM_NAME,
     webRtcPolicies: WEBRTC_POLICY_VALUES,
     getSiteConfig,
     saveSiteConfig,
@@ -1161,6 +1165,9 @@ export function createBackgroundServices(): BackgroundServices {
     getExtensionState,
     setExtensionEnabled,
     updateGeolocation,
+    checkExitIp,
+    getExitIpSyncState,
+    ensureIpSyncAlarm,
     syncTab,
     noteDocumentInjected,
     getPayloadForUrl,

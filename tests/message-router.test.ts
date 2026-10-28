@@ -17,6 +17,8 @@ function createServices(overrides: Record<string, any> = {}) {
     saveSiteConfig: record('saveSiteConfig', { masterEnabled: true, rules: [] }),
     setWebRtcGlobalMode: record('setWebRtcGlobalMode', { masterEnabled: true }),
     getBakeSnapshot: record('getBakeSnapshot', { config: {} }),
+    checkExitIp: record('checkExitIp', { ok: true, changed: false, layers: [], ip: '' }),
+    getExitIpSyncState: record('getExitIpSyncState', { storedIp: '', lastLocation: null }),
     getPayloadForUrl: record('getPayloadForUrl', { matched: true, payload: { hostname: 'example.com' }, errors: [] }),
     noteDocumentInjected: record('noteDocumentInjected'),
     reportFontLayers: (...args: any[]) => { calls.push({ name: 'reportFontLayers', args }); },
@@ -85,6 +87,53 @@ test('setSiteConfig 把空对象交给保存层，applyProfile 先读再写', as
   assert.deepEqual(names, ['getSiteConfig', 'saveSiteConfig']);
 });
 
+test('checkExitIpSync 透传 force，并把新配置与状态一起回给配置页', async () => {
+  installChrome();
+  const { services, calls } = createServices({
+    checkExitIp: (...args: any[]) => {
+      calls.push({ name: 'checkExitIp', args });
+      return Promise.resolve({ ok: true, changed: true, skipped: undefined, layers: ['timezone', 'geolocation'], ip: '203.0.113.9' });
+    },
+    getExitIpSyncState: (...args: any[]) => {
+      calls.push({ name: 'getExitIpSyncState', args });
+      return Promise.resolve({ storedIp: '203.0.113.9', lastLocation: { latitude: 1, longitude: 2 } });
+    }
+  });
+  const router = createBackgroundMessageRouter(services);
+
+  const response = await router.respond({ action: 'checkExitIpSync', force: true }, {} as any);
+  assert.equal(response.status, 'ok');
+  assert.deepEqual(response.outcome.layers, ['timezone', 'geolocation']);
+  assert.equal(response.storedIp, '203.0.113.9');
+  assert.ok(response.config, '要把同步后的配置带回去，配置页才不用再多发一轮');
+  assert.deepEqual(calls.find((call) => call.name === 'checkExitIp')!.args[0], { force: true });
+
+  // 不带 force 的消息不能偷偷强制刷新
+  await router.respond({ action: 'checkExitIpSync' }, {} as any);
+  assert.deepEqual(calls.filter((call) => call.name === 'checkExitIp').at(-1)!.args[0], { force: false });
+
+  // 字符串 "false" 经 Boolean() 会变成 true：那样会白打一次接口并无条件重写配置
+  await router.respond({ action: 'checkExitIpSync', force: 'false' }, {} as any);
+  assert.deepEqual(calls.filter((call) => call.name === 'checkExitIp').at(-1)!.args[0], { force: false });
+  await router.respond({ action: 'checkExitIpSync', force: 1 }, {} as any);
+  assert.deepEqual(calls.filter((call) => call.name === 'checkExitIp').at(-1)!.args[0], { force: false });
+});
+
+test('getExitIpSyncState 只读：返回 ipSync 配置与上次同步状态', async () => {
+  installChrome();
+  const { services } = createServices({
+    getSiteConfig: async () => ({ masterEnabled: true, ipSync: { enabled: false, intervalMinutes: 5, syncLanguage: false } }),
+    getExitIpSyncState: async () => ({ storedIp: '', lastLocation: null })
+  });
+  const router = createBackgroundMessageRouter(services);
+
+  const response = await router.respond({ action: 'getExitIpSyncState' }, {} as any);
+  assert.equal(response.status, 'ok');
+  assert.deepEqual(response.ipSync, { enabled: false, intervalMinutes: 5, syncLanguage: false });
+  assert.equal(response.storedIp, '');
+  assert.equal(response.lastLocation, null);
+});
+
 test('getWebRtcConfig 返回规范化配置和生效策略', async () => {
   installChrome();
   const { services } = createServices({
@@ -151,6 +200,8 @@ test('已知 action 都能路由到对应 service（表驱动，防止新增 act
     { action: 'reportFontLayers', url: 'https://example.com/', layers: ['platform'] },
     { action: 'getFontLayers', url: 'https://example.com/' },
     { action: 'getBakeSnapshot' },
+    { action: 'getExitIpSyncState' },
+    { action: 'checkExitIpSync', force: true },
     { action: 'getCurrentTabState' },
     { action: 'addDomainRule', domain: 'example.com' },
     { action: 'setDomainRuleEnabled', domain: 'example.com', enabled: false },

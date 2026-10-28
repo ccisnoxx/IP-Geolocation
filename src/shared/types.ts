@@ -43,6 +43,22 @@ export interface WebRtcConfig {
   globalMode: WebRtcMode;
 }
 
+/**
+ * 跟随出口 IP。
+ *
+ * 语义只有一句：**出口 IP 变了，就把时区与坐标换成新出口所在地区的**。
+ * 语言故意不跟着走 —— 语言是用户画像里最稳的一层（用英语的人在东京出口
+ * 也很正常），跟着 IP 换语言只会制造"Accept-Language 说日语、页面里
+ * 却写英文"这类自相矛盾。真要跟，`syncLanguage` 显式打开。
+ */
+export interface IpSyncConfig {
+  enabled: boolean;
+  /** 检测周期（分钟）；钳制在 IP_SYNC_MIN_INTERVAL_MINUTES..IP_SYNC_MAX_INTERVAL_MINUTES */
+  intervalMinutes: number;
+  /** 语言是否也跟随出口国家。默认 false */
+  syncLanguage: boolean;
+}
+
 /** 平台维度：决定隐藏"不属于本机这个平台"的字体。none = 不按平台隐藏 */
 /**
  * 字体层的平台维度：只决定"按哪个平台的字表去判定"，不对外声称任何东西。
@@ -120,6 +136,7 @@ export interface SiteSpoofConfig {
   };
   webRtc: WebRtcConfig;
   canvas: CanvasConfig;
+  ipSync: IpSyncConfig;
   profile: ProfileConfig;
   rules: SiteRule[];
 }
