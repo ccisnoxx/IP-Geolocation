@@ -23,6 +23,11 @@ chrome.tabs.onActivated.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === services.alarmName) {
     void services.updateGeolocation();
+    return;
+  }
+  // 「跟随出口 IP」：出口换了才改配置，同 IP 直接跳过（见 ip-sync 的 planExitIpSync）。
+  if (alarm.name === services.ipSyncAlarmName) {
+    void services.checkExitIp();
   }
 });
 

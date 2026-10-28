@@ -19,6 +19,21 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
         return { status: 'ok', config: await services.saveSiteConfig({}) };
       case 'setWebRtcGlobalMode':
         return { status: 'ok', config: await services.setWebRtcGlobalMode(request.mode) };
+      case 'getExitIpSyncState': {
+        const config = await services.getSiteConfig();
+        return { status: 'ok', ipSync: config.ipSync, ...(await services.getExitIpSyncState()) };
+      }
+      case 'checkExitIpSync': {
+        // 严格比较：消息来自页面也可能来自别处，字符串 `"false"` 经 Boolean() 会变成
+        // true，白白多打一次接口并无条件重写配置（force 会驱逐 BFCache）。
+        const outcome = await services.checkExitIp({ force: request.force === true });
+        return {
+          status: 'ok',
+          outcome,
+          config: await services.getSiteConfig(),
+          ...(await services.getExitIpSyncState())
+        };
+      }
       case 'getWebRtcConfig': {
         const config = await services.getSiteConfig();
         const webRtc = normalizeWebRtc(config.webRtc);
