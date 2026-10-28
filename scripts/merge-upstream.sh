@@ -40,6 +40,20 @@ fi
 BASE="$(git rev-parse HEAD)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
+# 「取本地」是全量覆盖：冲突块里上游的那半边当场就没了，事后想回看某一条只能靠
+# reflog 里那个 MERGE_HEAD。这里把每条被覆盖的路径连同上游那一侧（stage 3）的
+# blob 记到 .git 里（不污染工作区），收口完打印一句去哪儿看。
+OURS_LOG="$(git rev-parse --git-dir)/vanishgeo-merge-ours.log"
+OURS_COUNT=0
+: > "$OURS_LOG"
+log_ours() {
+  local path="$1" stage2=""
+  # stage 3 = 上游那一侧（stage 2 是我们自己，记下来没用）
+  theirs="$(git rev-parse -q --verify ":3:$path" 2>/dev/null || true)"
+  printf '%s\t%s\n' "$path" "${theirs:-none}" >> "$OURS_LOG"
+  OURS_COUNT=$((OURS_COUNT + 1))
+}
+
 # 任何一步中途失败（门禁红了、pathspec 对不上）都要把"怎么退回去"说出来：
 # 这时仓库已经进了 merge 状态（冲突已 stage、MERGE_HEAD 在），停在半路的
 # 仓库比失败本身更容易让人踩坑，而脚本尾部的提示根本走不到。
@@ -71,6 +85,7 @@ while IFS= read -r -d '' record; do
   case "$code" in
     UU|AA)
       echo "  取本地   $path"
+      log_ours "$path"
       git checkout --ours -- "$path"
       git add -- "$path"
       ;;
@@ -118,6 +133,11 @@ echo "==> 门禁：单元测试"
 npx tsx --test tests/*.test.ts 2>&1 | tail -6
 
 echo
+if [ "$OURS_COUNT" -gt 0 ]; then
+  echo "==> 共 ${OURS_COUNT} 条冲突「取本地」，清单与上游一侧（stage 3）的 blob 记在："
+  echo "    ${OURS_LOG}"
+  echo "    （想单独回看某一条的上游版本：git show <blob> 或 git checkout ${UPSTREAM} -- <path>）"
+fi
 echo "==> 冲突已收口，未提交。检查 diff 后："
 echo "    git commit -m 'merge: 收进 ${UPSTREAM}（重写线优先，旧注入层保持删除）'"
 echo "    回滚：git reset --hard ${BASE:0:8}"
