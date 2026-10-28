@@ -17,6 +17,10 @@ git remote set-url origin https://github.com/XiNian-dada/VanishGeo.git
 
 ## 1. CI：每个提交都跑
 
+Node 版本：CI 矩阵跑 **22 / 24**（`package.json` 的 `engines` 下限是 22）。Node 20
+跑不动这套用例 —— `navigator`、`MessageChannel` 等全局在 20 里缺失，有 4 条"还原 /
+重新注入"用例会直接 `ReferenceError`，所以不要把 `node-version` 调回 20。
+
 `.github/workflows/ci.yml`，触发条件为所有分支的 push 与 PR，权限 `contents: read`：
 
 | 步骤 | 命令 | 失败含义 |

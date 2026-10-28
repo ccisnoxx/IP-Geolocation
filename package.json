@@ -48,6 +48,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
     "@types/jsdom": "^30.0.0",
