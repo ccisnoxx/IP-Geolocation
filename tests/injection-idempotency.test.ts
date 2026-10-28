@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_CONFIG, normalizeConfig } from '../src/shared/config-model';
 import { createBackgroundServices, configNeedsLocation, fetchJson, parseGeoApiResponse } from '../src/background/services';
-import { LAST_SYNCED_IP_KEY } from '../src/background/ip-sync';
+import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY } from '../src/background/ip-sync';
 
 /**
  * 这两组不变量是重构后必须一直成立的：
@@ -1044,4 +1044,72 @@ test('开着跟随时 bootstrap 只打一轮归属地接口（不再 updateGeolo
   const state = await harness.services.getExitIpSyncState();
   assert.equal(state.storedIp, '203.0.113.7');
   assert.ok(state.lastLocation, '启动同步应该把坐标写下来');
+});
+
+test('定位接口全挂：返回 ok:false 并把原因写进 lastGeoError', async () => {
+  // 三家都回了但没有坐标：走"没有有效坐标"这条分支，而不是静默成功
+  const harness = createHarness({ geoPayload: { success: false } });
+  await harness.services.getSiteConfig();
+  const result = await harness.services.updateGeolocation(true);
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? '', /no valid coordinates/);
+  assert.match(String(harness.storage.lastGeoError ?? ''), /no valid coordinates/);
+});
+
+test('定位结果和存量一致时报 unchanged，不重复写 storage', async () => {
+  const harness = createHarness({
+    geoPayload: { latitude: 34.0522, longitude: -118.2437, country: 'United States', timezone: { id: 'America/Los_Angeles', offset: -25200 } }
+  });
+  await harness.services.getSiteConfig();
+  const first = await harness.services.updateGeolocation(true);
+  assert.equal(first.ok, true);
+  const written = harness.storage.lastLocation;
+  const second = await harness.services.updateGeolocation(false);
+  assert.equal(second.unchanged, true, '坐标没变就不该再写一次');
+  assert.deepEqual(harness.storage.lastLocation, written);
+});
+
+test('IP 接口给不出 ip 时 bootstrap 回退到常规定位（至少把坐标补上）', async () => {
+  // 只有坐标、没有 ip：ip-sync 判不出出口 IP，于是 bootstrap 走 updateGeolocation
+  const harness = createHarness({
+    geoPayload: { latitude: 34.0522, longitude: -118.2437, country: 'United States', timezone: { id: 'America/Los_Angeles', offset: -25200 } }
+  });
+  const base = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({ ...base, ipSync: { enabled: true, syncLanguage: false, intervalMinutes: 5 } });
+  for (let i = 0; i < 40 && (await harness.services.getExitIpSyncState()).lastLocation; i += 1) {
+    await new Promise((resolve) => { setTimeout(resolve, 25); });
+  }
+  await harness.services.bootstrap();
+  const state = await harness.services.getExitIpSyncState();
+  assert.ok(state.lastLocation, 'ip-sync 没写出坐标时应该由 updateGeolocation 补上');
+});
+
+test('规则域名为空时明确抛错，不静默建一条空规则', async () => {
+  const harness = createHarness();
+  await harness.services.getSiteConfig();
+  await assert.rejects(() => harness.services.setDomainRuleEnabled('   ', true), /domain is required/);
+});
+
+test('关掉跟随开关时把定时器清掉（宿主有 chrome.alarms 的路径）', async () => {
+  const harness = createHarness();
+  const cleared: string[] = [];
+  // 默认 harness 没有 alarms：这条分支只在真有 alarms 的宿主里走到
+  (globalThis as any).chrome.alarms = {
+    get: async () => undefined,
+    create: async () => undefined,
+    clear: async (name: string) => { cleared.push(name); return true; },
+    getAll: async () => [],
+    onAlarm: { addListener() {} }
+  };
+  try {
+    const base = await harness.services.getSiteConfig();
+    await harness.services.saveSiteConfig({ ...base, ipSync: { enabled: true, syncLanguage: false, intervalMinutes: 5 } });
+    assert.equal(await harness.services.ensureIpSyncAlarm(), true, '开着时应该建出定时器');
+
+    await harness.services.saveSiteConfig({ ...base, ipSync: { enabled: false, syncLanguage: false, intervalMinutes: 5 } });
+    await harness.services.ensureIpSyncAlarm();
+    assert.ok(cleared.includes(IP_SYNC_ALARM_NAME), `关掉开关要清掉 ${IP_SYNC_ALARM_NAME}`);
+  } finally {
+    delete (globalThis as any).chrome.alarms;
+  }
 });
