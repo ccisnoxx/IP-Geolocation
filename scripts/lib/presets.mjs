@@ -16,6 +16,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BLOCK_START = /export const DEFAULT_PROFILES\b/;
+// 与 src/shared/config-model.ts 的 DEFAULT_GEOLOCATION.accuracy 必须一致，
+// 否则烘焙产物（走这里）与扩展内预设页（走 config-model）会给出不同的精度。
+export const DEFAULT_PRESET_ACCURACY = 50;
 const SOURCE_PATH = ['src', 'shared', 'config-model.ts'];
 
 function skipString(source, index) {
@@ -109,8 +112,13 @@ function splitEntries(source) {
   return entries;
 }
 
+/**
+ * 取字符串字段。值里可以含转义引号（`name: 'Cote d\'Ivoire'`）：不能写成 `[^']*`，
+ * 那会在第一个撇号处截断，拿到半截名字还不报错。
+ */
 function pickString(entry, field) {
-  return entry.match(new RegExp(`${field}: '([^']*)'`))?.[1];
+  const raw = entry.match(new RegExp(`${field}: '((?:\\\\.|[^'\\\\])*)'`))?.[1];
+  return raw === undefined ? undefined : raw.replace(/\\(.)/g, '$1');
 }
 
 function pickNumber(entry, field) {
@@ -149,7 +157,7 @@ export function parsePresets(source) {
       geolocation: {
         latitude,
         longitude,
-        accuracy: pickNumber(entry, 'accuracy') ?? 50,
+        accuracy: pickNumber(entry, 'accuracy') ?? DEFAULT_PRESET_ACCURACY,
         country: pickString(entry, 'country') || ''
       },
       language: {

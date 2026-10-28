@@ -395,3 +395,22 @@ test('状态行：先发的慢读回来时，不许盖掉后发的新文案', as
   assert.match(text, /198\.51\.100\.7/);
   assert.doesNotMatch(text, /还没成功同步过/);
 });
+
+test('周期输入框被清空时保持原值，不被悄悄夹成 5', async () => {
+  chromeStub.setIpSyncState({ enabled: true, syncLanguage: false, intervalMinutes: 5 });
+  el<HTMLInputElement>('ipSyncEnabled').checked = true;
+  // 先正常存成 17（这一步也让页面里的 currentConfig 跟上）
+  el<HTMLInputElement>('ipSyncInterval').value = '17';
+  let savesBefore = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > savesBefore);
+
+  // 再把输入框清空：空串不等于 0，更不该被下限夹成 5
+  el<HTMLInputElement>('ipSyncInterval').value = '';
+  savesBefore = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > savesBefore);
+
+  const payload = calls.filter((call) => call.action === 'setSiteConfig').at(-1)!.config;
+  assert.equal(payload.ipSync.intervalMinutes, 17, '清空保持原值，不是改成 5');
+});

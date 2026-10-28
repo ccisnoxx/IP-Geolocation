@@ -374,7 +374,7 @@ npm run audit         # static checks + three-engine E2E (Chrome 155 / 119 / Hel
 npm run smoke:frames  # frame isolation (parent / child / about:blank / srcdoc)
 npm run smoke:baked-failclosed  # baked geolocation fail-closed + reversible recovery + master-off clear
 npm run smoke:baked-clear  # baked exclusion / master-off / frozen freeze behavior
-npm run smoke:presets # five built-in presets browser E2E (language/timezone/header)
+npm run smoke:presets # every built-in preset in a real browser (language/timezone/header)
 npm run smoke:cold-start # cold-start + clear browser smoke
 npm run smoke:popup   # popup real clicks / storage / background-message smoke
 node tools/native-parity.mjs  # Helium native-shape parity (83 checks, control vs patched)

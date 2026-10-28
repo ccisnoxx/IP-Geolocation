@@ -197,4 +197,16 @@ if (isIpSyncEnabled(await getSiteConfig())) {
 | 11 | `src/background/services.ts` `bootstrap()`：跟随时改由 `checkExitIp` 负责查归属地（与 `updateGeolocation` 同一组接口），只有它没写出 `lastLocation` 时才回退到 `updateGeolocation`；否则走原来的单次定位 | 新测试：开开关、清掉 `lastSyncedExitIp` 冷启动 → 只打 **1** 轮接口（改前 2 轮），且 IP 与坐标都落库 |
 | 14 | `scripts/merge-upstream.sh`：每条「取本地」把路径 + 上游一侧（stage 3）的 blob 写进 `.git/vanishgeo-merge-ours.log`，收尾打印条数与位置 | /tmp 造冲突实测：日志两列 `path<TAB>blob`，`git show <blob>` 出来的是上游版本（第一版错记成 stage 2 = 我们自己，已修） |
 
-未动：第 15–21 条（smoke 12s 窗口、`pickString` 转义撇号、`accuracy` 双默认、`BLOCK_START` 残留、三处"5"、`ip-sync.test.mjs` 白名单与 `DD` 处理、空周期静默成 5），全属 P3。
+第四轮（P3 清尾，第 15–21 条全部处理）：
+
+| 条 | 改动 | 复验 |
+| --- | --- | --- |
+| 15 | `tools/smoke-options.mjs` 状态行断言改成**重新打开配置页再读**，不再依赖页面自刷（原来的 12s 窗口让这条断言实际在测"页面多久刷一次"） | 真 Chrome 跑通，状态行仍显示出口 IP |
+| 16 | `scripts/lib/presets.mjs` 的 `pickString` 改成转义感知（`(?:\\.|[^'\\])*` + 反转义），值里带 `\'` 不再截成半截 | 新用例：`name: 'Cote d\'Ivoire'` → 解析出完整名字；把正则改回 `[^']*` 时用例变红（拿到 `Cote d\`） |
+| 17 | 精度默认值收敛成 `DEFAULT_PRESET_ACCURACY`（`presets.mjs` 导出，`bake-plan.mjs` 两处引用），与扩展内 `DEFAULT_GEOLOCATION.accuracy` 同源 | 新用例断言两个常量相等 + 每个 preset 的精度都等于它 |
+| 18 | `BLOCK_START` 的正则词边界（此前已加 `\b`）补测试 | 新用例：`DEFAULT_PROFILES_OLD = []` 在前时仍取到真正的 `DEFAULT_PROFILES` |
+| 19 | 去掉会随 preset 数量漂移的硬编码：`tools/audit.mjs` 的「5 preset 浏览器 E2E」→「内置 preset 浏览器 E2E」、`bake-plan.mjs` 注释「五个城市」→「几个城市」、`README.md` 「five built-in presets」→「every built-in preset」 | 全仓 grep 无残留（`tools/README.md` 那张历史成绩表保留原样，它记录的是当时那一轮） |
+| 20 | `scripts/merge-upstream.sh`：待丢弃白名单 `tests/ip-sync.test.mjs` → `.ts`；补 `DD`（两边都删）分支 `git rm`，否则留下冲突项让后续 commit 失败 | `bash -n` 通过 |
+| 21 | `src/options/options.ts` 周期输入：空/非数字保持上次存的值（`parseIntervalMinutes`），不再被 `Number('') === 0` 夹成 5 | 新用例：存成 17 → 清空 → 再保存仍是 17；改回 `Number()` 时用例变红（5 ≠ 17） |
+
+至此 22 条里第 1–14、16–22 条已修，第 15/18/19/20 条属"文档/脚本/测试强度"，第 22 条（测试桩）也一并改了。
