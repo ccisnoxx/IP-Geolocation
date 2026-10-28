@@ -25,6 +25,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configFromPersona, configFromPreset, releaseFileName, resolveDomains, verifyBakedRuntime } from './lib/bake-plan.mjs';
+import { readPresets } from './lib/presets.mjs';
 import { createZip } from './lib/zip.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,39 +51,9 @@ function fail(message) {
 // ---------- 目标解析 ----------
 
 function presetTargets() {
-  // 预设清单只在 TS 里有一份，这里用正则读出来，不引编译器：
+  // 预设清单只在 TS 里有一份，抽取逻辑收在 lib/presets.mjs 里，两个消费方共用：
   // 配置来源必须唯一，多写一份 JSON 迟早对不上。
-  const source = readFileSync(join(ROOT, 'src', 'shared', 'config-model.ts'), 'utf8');
-  const block = source.slice(source.indexOf('export const DEFAULT_PROFILES'));
-  const end = block.indexOf('\n];');
-  const text = block.slice(0, end);
-  const profiles = [];
-  const entries = text.split(/\n  \{\n/).slice(1);
-  for (const entry of entries) {
-    const id = entry.match(/id: '([^']+)'/)?.[1];
-    const name = entry.match(/name: '([^']+)'/)?.[1];
-    const latitude = entry.match(/latitude: (-?[\d.]+)/)?.[1];
-    const longitude = entry.match(/longitude: (-?[\d.]+)/)?.[1];
-    const accuracy = entry.match(/accuracy: ([\d.]+)/)?.[1];
-    const country = entry.match(/country: '([^']*)'/)?.[1];
-    const language = entry.match(/language: '([^']+)'/)?.[1];
-    const languages = entry.match(/languages: \[([^\]]+)\]/)?.[1];
-    const acceptLanguage = entry.match(/acceptLanguage: '([^']+)'/)?.[1];
-    const timezone = entry.match(/timezone: '([^']+)'/)?.[1];
-    if (!id || !timezone || !language) continue;
-    profiles.push({
-      id,
-      name: name || id,
-      geolocation: { latitude: Number(latitude), longitude: Number(longitude), accuracy: Number(accuracy ?? 50), country: country || '' },
-      language: {
-        language,
-        languages: languages ? languages.split(',').map((item) => item.trim().replace(/^'|'$/g, '')).filter(Boolean) : [language],
-        acceptLanguage: acceptLanguage || language
-      },
-      timezone: { timezone }
-    });
-  }
-  return profiles;
+  return readPresets(ROOT);
 }
 
 function personaTargets(names) {

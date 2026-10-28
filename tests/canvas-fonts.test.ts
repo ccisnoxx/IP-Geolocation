@@ -11,7 +11,7 @@ import type { FontPlatform } from '../src/shared/font-aliases';
 import { installCanvasFontPatches, uninstallCanvasFontPatches } from '../src/injected/canvas-patch';
 import { createDisguise } from '../src/injected/disguise';
 import { defineNativeLike } from '../src/injected/define';
-import { normalizeConfig } from '../src/shared/config-model';
+import { CONFIG_SCHEMA_VERSION, normalizeConfig } from '../src/shared/config-model';
 import type { CanvasConfig } from '../src/shared/types';
 
 /**
@@ -220,7 +220,7 @@ test('旧配置里那张中文表会被搬进 hideCjkFonts，行为不变', () =
   } as any;
 
   const migrated = normalizeConfig(legacy);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, CONFIG_SCHEMA_VERSION);
   assert.equal(migrated.canvas.hideCjkFonts, true, '旧的中文表必须继续生效');
   // 旧条目原样保留在手动层（解析时去重），一条都不能丢
   assert.deepEqual(migrated.canvas.targetFonts, ['Microsoft YaHei', 'PingFang SC', 'SimSun', 'MiSans']);

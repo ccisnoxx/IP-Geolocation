@@ -2,6 +2,7 @@ import type {
   CanvasConfig,
   CanvasPlatform,
   GeolocationConfig,
+  IpSyncConfig,
   LanguageConfig,
   Profile,
   SignalOverride,
@@ -53,6 +54,22 @@ export const DEFAULT_GEOLOCATION: GeolocationConfig = {
 
 export const DEFAULT_WEBRTC: WebRtcConfig = {
   globalMode: 'strict'
+};
+
+/** 检测周期的上下界：5 分钟是既有定位 alarm 的节奏，再密只会把接口打到限流 */
+export const IP_SYNC_MIN_INTERVAL_MINUTES = 5;
+export const IP_SYNC_MAX_INTERVAL_MINUTES = 1440;
+
+/**
+ * 跟随出口 IP —— 默认关。
+ *
+ * 默认关的理由和 canvas 一样：它会在后台改写用户的时区/坐标，属于"替你决定"，
+ * 必须由用户显式打开。开着的时候语言仍不跟随（见 IpSyncConfig 注释）。
+ */
+export const DEFAULT_IP_SYNC: IpSyncConfig = {
+  enabled: false,
+  intervalMinutes: IP_SYNC_MIN_INTERVAL_MINUTES,
+  syncLanguage: false
 };
 
 export const DEFAULT_CANVAS: CanvasConfig = {
@@ -132,6 +149,14 @@ export const DEFAULT_PROFILES: Profile[] = [
     geolocation: { latitude: 40.7128, longitude: -74.006, accuracy: 50, country: 'United States' },
     language: { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
     timezone: { timezone: 'America/New_York' }
+  },
+  {
+    id: 'us-west',
+    name: 'United States (West)',
+    description: 'US West coast environment',
+    geolocation: { latitude: 34.0522, longitude: -118.2437, accuracy: 50, country: 'United States' },
+    language: { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
+    timezone: { timezone: 'America/Los_Angeles' }
   },
   {
     id: 'china',
@@ -225,6 +250,19 @@ export function normalizeGeolocation(config: Partial<GeolocationConfig> | null |
           }))
           .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
       : []
+  };
+}
+
+export function normalizeIpSync(config: Partial<IpSyncConfig> | null | undefined): IpSyncConfig {
+  const input = config || {};
+  const rawInterval = Number(input.intervalMinutes);
+  const intervalMinutes = Number.isFinite(rawInterval)
+    ? Math.min(IP_SYNC_MAX_INTERVAL_MINUTES, Math.max(IP_SYNC_MIN_INTERVAL_MINUTES, Math.round(rawInterval)))
+    : DEFAULT_IP_SYNC.intervalMinutes;
+  return {
+    enabled: input.enabled === true,
+    intervalMinutes,
+    syncLanguage: input.syncLanguage === true
   };
 }
 
@@ -346,8 +384,43 @@ export function defaultRules(): SiteRule[] {
   return DEFAULT_RULE_DOMAINS.map((domain) => createRule(domain));
 }
 
+/**
+ * v5 新增的内置站点规则：7 个"装完就能自测"的隐私检测站。
+ *
+ * 只写 apex 域 —— `domainMatches` 已经是后缀匹配（`host === domain ||
+ * host.endsWith('.' + domain)`），`*.browserleaks.com` 这种通配条目在
+ * `normalizeDomain` 里会被剥成裸域，写两遍只会变成重复规则。
+ */
+export const BUILTIN_DOMAINS_V5: string[] = [
+  'browserleaks.com',
+  'ipleak.net',
+  'browserscan.net',
+  'deviceinfo.me',
+  'whoer.net',
+  'ipinfo.io',
+  'iprisk.top'
+];
+
+/** v5 新增的内置预设。以后只加白名单、不加预设时留空数组。 */
+export const BUILTIN_PROFILE_IDS_V5: string[] = ['us-west'];
+
+/**
+ * 配置结构版本。升版只做一件事：把**新增的内置项**补进存量配置
+ * （见 `backfillV5Rules` / `backfillV5Profiles`，入口是 `migrateStoredConfig`）。
+ *
+ * 2：`canvas.targetFonts` 增加国产厂商字体（已并入 CJK_VENDOR_FONTS）。
+ * 3：字体伪装拆成三层（平台 / 中文 / 手动）。旧配置把中文表直接放在
+ *    `targetFonts` 里，升级时由 `normalizeCanvas` 搬进 `hideCjkFonts` ——
+ *    所以这里不需要额外的升级代码，版本号只用来标记"结构变过"。
+ * 4：字体层的平台维度收窄成 auto / none（移除了"假装另一个平台"的手动值）。
+ * 5：默认白名单补 7 个隐私检测站、内置预设补 `us-west`。**存量配置也要拿到** ——
+ *    之前 `normalizeConfig` 是"存量非空就整段以存量为准"，于是升级后老用户
+ *    的白名单里永远没有检测站，成了只有新装用户才有的功能。
+ */
+export const CONFIG_SCHEMA_VERSION = 5;
+
 export const DEFAULT_CONFIG: SiteSpoofConfig = {
-  schemaVersion: 1,
+  schemaVersion: CONFIG_SCHEMA_VERSION,
   masterEnabled: true,
   debugMode: false,
   globalProfile: {
@@ -357,6 +430,7 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
   },
   webRtc: DEFAULT_WEBRTC,
   canvas: DEFAULT_CANVAS,
+  ipSync: DEFAULT_IP_SYNC,
   profile: {
     activeProfileId: 'united-states',
     profiles: clone(DEFAULT_PROFILES)
@@ -399,22 +473,53 @@ export function normalizeProfiles(value: unknown): Profile[] {
 }
 
 /**
- * 配置结构版本。
+ * 把 v5 新增的内置站点规则补进存量配置。
  *
- * 3：字体伪装拆成三层（平台 / 中文 / 手动）。旧配置把中文表直接放在
- *    `targetFonts` 里，升级时由 `normalizeCanvas` 搬进 `hideCjkFonts` ——
- *    所以这里不需要额外的升级代码，版本号只用来标记"结构变过"。
- * 2：`canvas.targetFonts` 增加国产厂商字体（已并入 CJK_VENDOR_FONTS）。
+ * 三条约束：
+ * 1. **只补 `BUILTIN_DOMAINS_V5`**，不重放整份 `defaultRules()`。存量配置里缺的
+ *    老站点是用户自己删掉的，补回去等于把删除操作吞了。
+ * 2. 判定"已存在"按 `domain` 而不是 `id`：内置规则的 id 是随机生成的，
+ *    每次 `defaultRules()` 都不一样，按 id 比会以为永远缺。
+ * 3. `enabled: false` 的规则（`!browserleaks.com` 这种显式排除）同样算"已存在" ——
+ *    用户是想排除它，不是想要它。
  */
+function backfillV5Rules(stored: SiteRule[]): SiteRule[] {
+  const seen = new Set(stored.map((rule) => rule.domain).filter(Boolean));
+  const missing = BUILTIN_DOMAINS_V5.filter((domain) => !seen.has(domain));
+  // 存量顺序原样保留，也**不在这里去重**：重复域名是 `validateConfig` 要报给用户的
+  // 配置错误，回填顺手抹掉它就等于把校验静默关了一半。
+  //
+  // id 用域名推导，不用 `createRule` 的时间戳+随机串：迁移结果不写回存储（迁移发生在
+  // 每次读取上），随机 id 会让同一份存量配置每读一次就换一批 id，`applyConfig` 那边的
+  // `JSON.stringify` 签名去重从此永不命中 —— 一次保存会应用两遍（DNR 与 payload 各两份）。
+  return missing.length
+    ? [...stored, ...missing.map((domain) => ({ ...createRule(domain), id: `v5-${domain}` }))]
+    : stored;
+}
+
+/** 同上，补 v5 新增的内置预设（按 id 判重）。 */
+function backfillV5Profiles(stored: Profile[]): Profile[] {
+  const seen = new Set(stored.map((profile) => profile.id));
+  const missing = DEFAULT_PROFILES.filter((preset) => (
+    BUILTIN_PROFILE_IDS_V5.includes(preset.id) && !seen.has(preset.id)
+  ));
+  return missing.length ? [...stored, ...clone(missing)] : stored;
+}
+
 /**
- * 4：字体层的平台维度收窄成 auto / none（移除了"假装另一个平台"的手动值）。
+ * 存量配置的版本号。老配置没有这个字段（或写得不像数字）时按 1 处理：
+ * 宁可让它走一遍补丁，也不要跳过 —— 补丁本身是幂等的。
  */
-export const CONFIG_SCHEMA_VERSION = 4;
+function storedSchemaVersion(value: unknown): number {
+  const version = Number(value);
+  return Number.isFinite(version) ? version : 1;
+}
 
 export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefined): SiteSpoofConfig {
   const input = config || {};
   const globalProfile = (input.globalProfile || {}) as Partial<SiteSpoofConfig['globalProfile']>;
   const profile = (input.profile || {}) as Partial<SiteSpoofConfig['profile']>;
+  const profiles = normalizeProfiles(profile.profiles);
   return {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     masterEnabled: input.masterEnabled !== false,
@@ -426,24 +531,45 @@ export function normalizeConfig(config: Partial<SiteSpoofConfig> | null | undefi
     },
     webRtc: normalizeWebRtc(input.webRtc || DEFAULT_WEBRTC),
     canvas: normalizeCanvas(input.canvas || DEFAULT_CANVAS),
+    // 老配置里没有这个字段：normalizeIpSync 直接给默认值（关）。
+    // 这条路径每个字段都自带默认值，所以不需要为新字段再升 schemaVersion。
+    ipSync: normalizeIpSync(input.ipSync),
     profile: {
-      activeProfileId: normalizeString(profile.activeProfileId) || DEFAULT_CONFIG.profile.activeProfileId,
-      profiles: normalizeProfiles(profile.profiles).length ? normalizeProfiles(profile.profiles) : clone(DEFAULT_PROFILES)
+      // `null` 是合法状态（"没选预设"）：options 删除当前预设时就是写 null。
+      // 之前这里用 `|| DEFAULT` 兜底，会把 null 复活成 'united-states'，
+      // 于是"取消选择"静默失败，界面又跳回 United States。
+      activeProfileId: profile.activeProfileId === null
+        ? null
+        : normalizeString(profile.activeProfileId) || DEFAULT_CONFIG.profile.activeProfileId,
+      profiles: profiles.length ? profiles : clone(DEFAULT_PROFILES)
     },
     rules: Array.isArray(input.rules) ? input.rules.map(normalizeRule) : defaultRules()
   };
 }
 
 /**
- * 存储层入口：从 chrome.storage 读出来的配置走这里。
+ * 存储层入口：从 chrome.storage 读出来的配置走这里，也只有这里做版本升级。
  *
- * 现在结构迁移全部收敛在 `normalizeCanvas`（把旧的扁平 `targetFonts` 拆成
- * `hideCjkFonts` + 手动追加项），所以它只是 `normalizeConfig` 的语义别名 ——
- * 保留这个函数是为了让"存储层"和"任意部分配置"两个入口在类型和意图上分开，
- * 以后再加存储专属迁移时不用回头改调用方。
+ * 为什么迁移不放 `normalizeConfig`：那个函数在匹配规则、算 DNR 规则、渲染
+ * 卸载页的路径上被调无数次，还经常收到调用方临时拼出来的局部配置。迁移一旦
+ * 跟着它跑，"我手上这份 rules 到底该不该被补默认项"就取决于它有没有版本号，
+ * 行为会散到所有调用点。放在这里则只有一句话：**存进去的老配置读出来时补一次**。
+ *
+ * 幂等性靠版本号：`normalizeConfig` 的输出恒为当前版本，所以同一份配置第二次
+ * 进来就跳过补丁 —— 用户在升级后删掉的内置规则不会被下一次读取复活。
  */
 export function migrateStoredConfig(raw: Partial<SiteSpoofConfig> | null | undefined): SiteSpoofConfig {
-  return normalizeConfig(raw);
+  const normalized = normalizeConfig(raw);
+  const from = storedSchemaVersion(raw?.schemaVersion);
+  if (from >= CONFIG_SCHEMA_VERSION) return normalized;
+  return {
+    ...normalized,
+    rules: backfillV5Rules(normalized.rules),
+    profile: {
+      ...normalized.profile,
+      profiles: backfillV5Profiles(normalized.profile.profiles)
+    }
+  };
 }
 
 export function validateTimezone(timezone: string): boolean {
