@@ -97,8 +97,10 @@ git push origin v1.1.1
 - [ ] `npm run typecheck` / `npm run lint` / `npm test` / `npm run build` 全绿
 - [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag
 - [ ] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）
-- [ ] `npm run release -- --all-presets` 出得了包，`npm run verify:release -- --zip=…`
+- [ ] `npm run release -- --all-presets` 出得了包（六个），`npm run verify:release -- --zip=…`
       真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过
+- [ ] `npm run smoke:presets` 六个预设逐个在真浏览器里跑一遍（语言头 / 时区 / 界面卡片）
+- [ ] `npm run smoke:options` 选项页写入路径（含「跟随出口 IP」开关落库）
 - [ ] 仓库里没有真实 IP、个人路径、浏览器 profile（`tools/out/profiles/` 已被 gitignore）
 - [ ] README / INSTALL / CONFIG_GUIDE 的描述与当前行为一致（匹配模型、默认值、生效方式）
 - [ ] 若 `CONFIG_SCHEMA_VERSION` 变过：确认升级用户读一次配置就补上新内置项
@@ -136,3 +138,44 @@ npm run smoke:real-site  # 真实站点核对
 ```
 
 `npm run audit` 里任何一项失败都会以非零退出码结束，适合放在发布前的最后一道闸。
+
+## 7. 1.3.1 → 1.4.0：schema 4 → 5 的迁移说明
+
+1.4.0 是 **minor**：`CONFIG_SCHEMA_VERSION` 从 4 抬到 5，但迁移在读取时自动完成，
+用户不需要做任何操作（判据见上面「版本号规则」）。
+
+**自动补什么**
+
+| 补的内容 | 细节 |
+| --- | --- |
+| 7 个隐私检测站 | `browserleaks.com`、`ipleak.net`、`browserscan.net`、`deviceinfo.me`、`whoer.net`、`ipinfo.io`、`iprisk.top`，**追加在原有 13 条之后**，原顺序不变 |
+| `us-west` 预设 | `United States (West)`：`34.0522, -118.2437`、`America/Los_Angeles`、`en-US` / `en` / `en-US,en;q=0.9` |
+
+**怎么补的（`src/shared/config-model.ts`）**
+
+- 唯一入口是 `migrateStoredConfig`：`storedSchemaVersion()` 低于 5 才调
+  `backfillV5Rules` / `backfillV5Profiles`，所以**读多少次结果都一样**（幂等）。
+- 只补"内置项"这一层：用户删过的站点不会被复活 —— 判断依据是"当前配置里没有这一条且
+  版本低于 5"，补进去的 id 固定为 `v5-<domain>`（不是随机 id），保证同一份存量配置读
+  两次得到的字节完全相同。
+- 已有 20 条站点、6 个预设的配置什么都不会发生。
+
+**不会自动做的事**
+
+- 「跟随出口 IP」默认**关闭**：升级不会动用户的时区与坐标。打开之后才是覆盖语义 ——
+  `timezone.timezone`、经纬度、`geolocation.country` 会被出口那边的值改写，关掉开关
+  也不恢复原值（想留自己的值就先关再填）。
+- 不会把用户的时区/坐标从 `manual` 改成 `auto`，除非用户自己打开跟随开关。
+
+**回滚注意**
+
+1.3.1 不认识 `ipSync` 字段与 schema 5 的内置清单，把 v5 配置喂回去不会有迁移报错，但
+新补的 7 个站点与 `us-west` 预设会消失、"跟随出口 IP" 的设置被忽略。回滚前先
+配置页导出一次 JSON 备份。
+
+**验证**
+
+```bash
+npx tsx --test tests/config-migration.test.ts   # 回填、幂等、不复活删除项、同对象两次读签名一致
+npx tsx --test tests/presets.test.ts            # 预设解析与源文件严格一致
+```
