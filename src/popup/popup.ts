@@ -12,6 +12,7 @@ import { ruleLines, rulesFromText } from '../shared/rule-text';
 import { sendRuntimeMessage } from '../shared/runtime-message';
 import { coordinateInputValue, geolocationModeFromInput, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
 import { describeSiteStatus } from '../shared/site-status';
+import { WORKER_FALLBACK_REASON_LABELS } from '../shared/worker-coverage';
 import type { GeolocationHistory, SiteSpoofConfig } from '../shared/types';
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
@@ -22,6 +23,9 @@ const siteWarningEl = document.getElementById('siteWarning') as HTMLElement;
 const siteWarningTextEl = document.getElementById('siteWarningText') as HTMLElement;
 const siteWarningHintEl = document.getElementById('siteWarningHint') as HTMLElement;
 const siteOkEl = document.getElementById('siteOk') as HTMLElement;
+const workerFallbackEl = document.getElementById('workerFallback') as HTMLElement;
+const workerFallbackTextEl = document.getElementById('workerFallbackText') as HTMLElement;
+const workerFallbackHintEl = document.getElementById('workerFallbackHint') as HTMLElement;
 const retryLocationBtn = document.getElementById('retryLocation') as HTMLButtonElement;
 const enableSiteBtn = document.getElementById('enableSite') as HTMLButtonElement;
 const disableSiteBtn = document.getElementById('disableSite') as HTMLButtonElement;
@@ -168,12 +172,36 @@ function renderSiteStatus(state: any): void {
   retryLocationBtn.hidden = !status.broken;
 }
 
+/**
+ * Worker 包装失败提示。
+ *
+ * 只对**被包装过却回退**的上下文有意义：SharedWorker 本来就不包装（UNSUPPORTED），
+ * 它出现在这里没有信息量，也不该让人以为"出了故障"。
+ */
+function renderWorkerFallback(state: any): void {
+  const summary = state && state.workerFallback;
+  const count = summary && Number(summary.count) > 0 ? Number(summary.count) : 0;
+  if (!count) {
+    workerFallbackEl.hidden = true;
+    return;
+  }
+  const reasons: string[] = Array.isArray(summary.reasons)
+    ? summary.reasons.map((reason: string) => (WORKER_FALLBACK_REASON_LABELS as Record<string, string>)[reason] || String(reason))
+    : [];
+  workerFallbackEl.hidden = false;
+  workerFallbackTextEl.textContent = `本页 ${count} 个 Worker 未能包装${reasons.length ? `（${reasons.join('、')}）` : ''}`;
+  workerFallbackHintEl.textContent = summary.lastScript
+    ? `已回退原生入口：这些 Worker 里的 Date / Intl 是本机真实值。最近一次：${summary.lastScript}`
+    : '已回退原生入口：这些 Worker 里的 Date / Intl 是本机真实值。';
+}
+
 async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ state: any }>({ action: 'getCurrentTabState' });
   currentConfig = normalizeConfig(response.state.config);
   currentHostname = response.state.domain || '';
   currentSiteEl.textContent = currentHostname || 'N/A';
   renderSiteStatus(response.state);
+  renderWorkerFallback(response.state);
   populateForm(currentConfig);
 }
 

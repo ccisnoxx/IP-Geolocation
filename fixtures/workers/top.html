@@ -89,6 +89,7 @@
           dl.appendChild(dd);
         }
         row('status', entry.status);
+        row('coverage', entry.coverage || '-');
         if (entry.result) {
           row('language', entry.result.language);
           row('languages', JSON.stringify(entry.result.languages || []));
@@ -206,14 +207,30 @@
 
       async function runWorkerDiagnostics() {
         return {
-          classicWorker: await createWorker(new URL('worker-classic.js', rootUrl).href),
-          moduleWorker: await createWorker(new URL('worker-module.js', rootUrl).href, { type: 'module' }),
-          sharedWorker: await createSharedWorker(new URL('shared-worker.js', rootUrl).href),
-          nestedWorker: await createNestedWorker(
-            new URL('nested-parent.js', rootUrl).href,
-            new URL('nested-child.js', rootUrl).href
+          classicWorker: Object.assign(
+            await createWorker(new URL('worker-classic.js', rootUrl).href),
+            { coverage: 'supported' }
+          ),
+          moduleWorker: Object.assign(
+            await createWorker(new URL('worker-module.js', rootUrl).href, { type: 'module' }),
+            { coverage: 'supported' }
+          ),
+          sharedWorker: Object.assign(
+            await createSharedWorker(new URL('shared-worker.js', rootUrl).href),
+            {
+              coverage: 'unsupported',
+              note: 'SharedWorker 不在覆盖范围：换成 blob 入口会改变 (URL, name) 身份，跨文档共享实例无法保留。这里读到的是原生值。'
+            }
+          ),
+          nestedWorker: Object.assign(
+            await createNestedWorker(
+              new URL('nested-parent.js', rootUrl).href,
+              new URL('nested-child.js', rootUrl).href
+            ),
+            { coverage: 'unsupported', note: '父 Worker 内的 Worker 构造器未打补丁，孙 Worker 读到原生值。' }
           ),
           serviceWorker: {
+            coverage: 'unsupported',
             status: 'not_attempted',
             error: '',
             note: '当前未 hook navigator.serviceWorker.register；第一轮只记录 service worker 边界。'

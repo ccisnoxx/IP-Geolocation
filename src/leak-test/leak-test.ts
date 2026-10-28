@@ -1,6 +1,7 @@
 import './leak-test.css';
 import { SITE_CONFIG_KEY, normalizeConfig } from '../shared/config-model';
 import { auditConfig, sortFindings, type AuditFinding, type AuditSeverity } from '../shared/config-audit';
+import { buildWorkerDiagnosticsSnapshot } from '../shared/diagnostic';
 import type { SiteSpoofConfig } from '../shared/types';
 
 // Geolocation elements
@@ -260,6 +261,7 @@ async function renderConfig(): Promise<void> {
     setText('configRules', [...enabled, ...excluded].join('、') || '（空）');
 
     if (config.canvas.enabled) void renderFontUsage();
+    void renderWorkerCoverage();
     renderAudit(config);
   } catch (error) {
     setText('configMaster', `读取失败：${error instanceof Error ? error.message : String(error)}`);
@@ -356,6 +358,37 @@ async function renderFontUsage(): Promise<void> {
     // 与配置对不上时明确说出来：说明页面拿到的 payload 和当前配置不是同一份
     const platformNote = layers.platform === 'auto' ? '自动' : layers.platform;
     setText(`${new URL(target.url).hostname}：${layers.count} 条 · 平台 ${platformNote} · 中文层 ${layers.hideCjkFonts ? '隐藏' : '保留'}`);
+  } catch (error) {
+    setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Worker 覆盖面的"实际观察"。
+ *
+ * 声明部分来自 `WORKER_COVERAGE`（与注入层同源）；观察部分只认后台记录到的回退：
+ * 页面 CSP 拒绝 blob 时，那个 Worker 里读到的是原生值 —— 这时 classic/module 要显示
+ * degraded，不能和"已生效"混成一句话。
+ */
+async function renderWorkerCoverage(): Promise<void> {
+  const element = document.getElementById('workerCoverage');
+  const setText = (value: string) => { if (element) element.textContent = value; };
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const target = tabs.find((tab) => tab.url && /^https?:/i.test(tab.url));
+    const response = target && target.url
+      ? await chrome.runtime.sendMessage({ action: 'getWorkerFallbacks', url: target.url })
+      : null;
+    const fallback = (response && response.fallback) || null;
+    const snapshot = buildWorkerDiagnosticsSnapshot({ workerFallback: fallback });
+    const host = target && target.url ? new URL(target.url).hostname : '当前站点';
+    const head = snapshot.classicWorker.status === 'degraded'
+      ? `⚠️ classic/module 部分覆盖 · shared/nested/service 不支持`
+      : `classic/module 声明支持 · shared/nested/service 不支持`;
+    const note = fallback && fallback.count > 0
+      ? ` · ${host} 观察到 ${fallback.count} 个回退（${fallback.reasons.join('、')}），最近一次 ${fallback.lastScript || '未记录'}`
+      : ' · 未观察到回退';
+    setText(`${head}${note}`);
   } catch (error) {
     setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);
   }

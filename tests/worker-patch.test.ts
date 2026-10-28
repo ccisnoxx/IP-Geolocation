@@ -346,3 +346,112 @@ test('Worker 度量结束还原 font 串', () => {
   })()`, context);
   assert.match(value, /SimSun/);
 });
+
+// ---------- 绘制面：Worker 里的 fillText / strokeText ----------
+
+/**
+ * 主线程和 Worker 必须同时覆盖绘制，否则检测方换个执行上下文再问一次就露馅：
+ * 主线程说"字体缺失"，Worker 里的 fillText 却仍按真实字形落像素。
+ */
+const CANVAS_SETUP = `
+  globalThis.OffscreenCanvasRenderingContext2D = function OffscreenCanvasRenderingContext2D() {
+    this.font = '10px monospace';
+  };
+  globalThis.__draws = [];
+  OffscreenCanvasRenderingContext2D.prototype.measureText = function (text) {
+    return { width: this.font.length + String(text).length };
+  };
+  OffscreenCanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
+    __draws.push({ kind: 'fillText', font: this.font, argc: arguments.length });
+  };
+  OffscreenCanvasRenderingContext2D.prototype.strokeText = function (text, x, y, maxWidth) {
+    __draws.push({ kind: 'strokeText', font: this.font, argc: arguments.length });
+  };
+`;
+
+const FONT_CONFIG: WorkerPatchConfig = {
+  timezone: 'Asia/Tokyo',
+  language: 'ja-JP',
+  languages: ['ja-JP', 'ja'],
+  fontTargets: ['SimSun']
+};
+
+function readJson<T>(context: vm.Context, expression: string): T {
+  return JSON.parse(evaluate<string>(context, `JSON.stringify(${expression})`)) as T;
+}
+
+test('Worker 的 fillText / strokeText 与 measureText 走同一条回落路径', () => {
+  const context = createWorkerContext(FONT_CONFIG, CANVAS_SETUP);
+  const result = readJson<{
+    draws: Array<{ kind: string; font: string; argc: number }>;
+    font: string;
+    declared: string;
+    measure: number;
+    fallbackLength: number;
+  }>(context, `(() => {
+    const ctx = new OffscreenCanvasRenderingContext2D();
+    const declared = '72px "SimSun", monospace';
+    ctx.font = declared;
+    const measure = ctx.measureText('汉').width;
+    ctx.fillText('汉', 1, 2);
+    ctx.strokeText('汉', 1, 2, 40);
+    return {
+      draws: __draws,
+      font: ctx.font,
+      declared: declared,
+      measure: measure,
+      fallbackLength: '72px monospace'.length
+    };
+  })()`);
+
+  assert.deepEqual(result.draws.map((draw) => draw.font), ['72px monospace', '72px monospace']);
+  assert.deepEqual(result.draws.map((draw) => draw.argc), [3, 4], 'maxWidth 只按实参个数转发');
+  // 度量用的也是改写后的串，否则像素与宽度会对不上
+  assert.equal(result.measure, result.fallbackLength + 1);
+  // 读回仍是页面写进去的原串
+  assert.equal(result.font, result.declared);
+});
+
+test('Worker 绘制方法的签名与原生同形（name / length / toString / enumerable）', () => {
+  const context = createWorkerContext(FONT_CONFIG, CANVAS_SETUP);
+  const meta = readJson<Record<string, { name: string; length: number; enumerable: boolean; source: string }>>(
+    context,
+    `(() => {
+      const proto = OffscreenCanvasRenderingContext2D.prototype;
+      const out = {};
+      for (const key of ['fillText', 'strokeText']) {
+        const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+        out[key] = {
+          name: proto[key].name,
+          length: proto[key].length,
+          enumerable: descriptor.enumerable,
+          source: String(proto[key])
+        };
+      }
+      return out;
+    })()`
+  );
+
+  for (const key of ['fillText', 'strokeText']) {
+    assert.equal(meta[key].name, key);
+    assert.equal(meta[key].length, 4);
+    assert.equal(meta[key].enumerable, true, 'WebIDL operation 在原型上是可枚举的');
+    assert.equal(meta[key].source, `function ${key}() { [native code] }`);
+  }
+});
+
+test('没有目标字体时 Worker 的绘制原样透传', () => {
+  const context = createWorkerContext({ ...FONT_CONFIG, fontTargets: [] }, CANVAS_SETUP);
+  const result = readJson<{ draws: Array<{ font: string; argc: number }>; declared: string }>(
+    context,
+    `(() => {
+      const ctx = new OffscreenCanvasRenderingContext2D();
+      const declared = '16px Arial';
+      ctx.font = declared;
+      ctx.fillText('x', 0, 0);
+      return { draws: __draws, declared: declared };
+    })()`
+  );
+  assert.equal(result.draws[0].font, result.declared);
+  assert.equal(result.draws[0].argc, 3);
+});
