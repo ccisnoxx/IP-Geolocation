@@ -40,6 +40,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # tests/extension-wiring.test.ts 会读 dist/injected/runtime.js：单测依赖构建产物，
+      # 所以 Build 必须在 Unit tests 之前（顺序颠倒时本地有 dist 看不出来，CI 必红）
+      - name: Build
+        run: npm run build
+
       - name: Unit tests
         run: npm test
 
@@ -49,9 +54,6 @@ jobs:
       # 横幅是渲染产物：PNG 与 SVG 尺寸对不上就说明改了源文件没重新渲染
       - name: Verify banner renders
         run: node scripts/render-banner.mjs --check
-
-      - name: Build
-        run: npm run build
 
       - name: Verify build output
         run: |

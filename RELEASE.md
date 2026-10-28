@@ -70,9 +70,9 @@ permissions:
 # 1) 本地先跑一遍与 CI 相同的检查
 npm run typecheck
 npm run lint
+npm run build          # 必须在 npm test 之前：有些接线用例要读 dist/
 npm test
 npm run test:coverage:core
-npm run build
 
 # 2) 同步版本号（manifest.json 与 package.json 必须一致）
 #    例如 1.1.0 -> 1.1.1
