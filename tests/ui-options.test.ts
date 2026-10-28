@@ -11,6 +11,10 @@ interface RuntimeCall { action?: string; config?: any; domain?: string; profileI
 function createChrome(calls: RuntimeCall[]) {
   let bakeResponse: any = { status: 'ok', config: structuredClone(DEFAULT_CONFIG), lastLocation: null };
   let siteConfig = structuredClone(DEFAULT_CONFIG);
+  // 「先发的读慢、后发的读快」这种顺序不排队就是造不出来的：默认每次读都立刻回，
+  // 那么无论有没有轮次守卫，最后写下的都是最新一次读到的内容。
+  let ipSyncReadQueue: Array<{ delay: number; storedIp: string }> = [];
+  let responseDelay = 0;
   let ipSyncEnabled = false;
   let ipSyncLanguage = false;
   let ipSyncInterval = DEFAULT_CONFIG.ipSync.intervalMinutes;
@@ -35,15 +39,20 @@ function createChrome(calls: RuntimeCall[]) {
               return { status: 'ok', config: structuredClone(siteConfig) };
             case 'getBakeSnapshot':
               return bakeResponse;
-            case 'getExitIpSyncState':
+            case 'getExitIpSyncState': {
+              const queued = ipSyncReadQueue.shift();
+              responseDelay = queued?.delay ?? 0;
               return {
                 status: 'ok',
                 ipSync: { enabled: ipSyncEnabled, syncLanguage: ipSyncLanguage, intervalMinutes: ipSyncInterval },
-                storedIp: ipSyncEnabled ? (storedIpOverride ?? '203.0.113.9') : '',
+                storedIp: queued
+                  ? queued.storedIp
+                  : (ipSyncEnabled ? (storedIpOverride ?? '203.0.113.9') : ''),
                 lastLocation: ipSyncEnabled
                   ? { latitude: 34.0522, longitude: -118.2437, accuracy: 50, timezone: 'America/Los_Angeles', country: 'United States', updateTime: 1 }
                   : null
               };
+            }
             case 'checkExitIpSync': {
               // 真实链路上后台抛错会被 service-worker 转成 { status: 'error' }，
               // 前端 sendRuntimeMessage 再 reject —— 这里照这个形状造错误
@@ -61,7 +70,8 @@ function createChrome(calls: RuntimeCall[]) {
           }
         })();
         if (typeof callback === 'function') {
-          setTimeout(() => callback(response), 0);
+          setTimeout(() => callback(response), responseDelay);
+          responseDelay = 0;
           return undefined;
         }
         return Promise.resolve(response);
@@ -76,6 +86,7 @@ function createChrome(calls: RuntimeCall[]) {
     setSiteConfig(value: any) { siteConfig = structuredClone(value); },
     setExitIpSyncOutcome(value: any) { exitIpSyncOutcome = value; },
     setStoredExitIp(value: string | null) { storedIpOverride = value; },
+    setIpSyncReadQueue(queue: Array<{ delay: number; storedIp: string }>) { ipSyncReadQueue = [...queue]; },
     setCheckIpSyncError(value: string | null) { checkIpSyncError = value; }
   };
 }
@@ -362,4 +373,25 @@ test('开着跟随保存：用后台对齐的时区/坐标/国家，不把表单
   assert.equal(payload.globalProfile.geolocation.latitude, 34.0522);
   assert.equal(payload.globalProfile.geolocation.longitude, -118.2437);
   assert.equal(payload.globalProfile.geolocation.country, 'United States', '保存不该把 country 丢掉');
+});
+
+test('状态行：先发的慢读回来时，不许盖掉后发的新文案', async () => {
+  chromeStub.setIpSyncState({ enabled: true, syncLanguage: false, intervalMinutes: 5 });
+  chromeStub.setStoredExitIp('');
+  // 第一轮读到空（200ms 才回），第二轮读到 203.0.113.9（立刻回）：
+  // 没有轮次守卫时，慢读会在第二轮写完之后把"还没成功同步过"盖上去
+  chromeStub.setIpSyncReadQueue([{ delay: 200, storedIp: '' }]);
+  el<HTMLInputElement>('ipSyncEnabled').checked = true;
+  el<HTMLButtonElement>('save').click();
+  await new Promise((resolve) => { setTimeout(resolve, 50); });
+
+  chromeStub.setStoredExitIp('198.51.100.7');
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => el<HTMLElement>('ipSyncStatus').textContent!.includes('198.51.100.7'));
+
+  // 慢读在 ~250ms 落地：让位的话界面保持新文案
+  await new Promise((resolve) => { setTimeout(resolve, 400); });
+  const text = el<HTMLElement>('ipSyncStatus').textContent!;
+  assert.match(text, /198\.51\.100\.7/);
+  assert.doesNotMatch(text, /还没成功同步过/);
 });

@@ -506,13 +506,22 @@ function describeIpSyncOutcome(outcome: ExitIpSyncOutcome | undefined): string {
  * 渲染状态行。返回「这份状态算不算定了」：开关开着但还没拿到出口 IP 时算没定 ——
  * 刚打开开关的那次同步是后台异步跑的，页面这会儿读到的必然还是旧值。
  */
+// 每发起一轮刷新就换一个序号。`populateForm` 每次保存都会叫一轮，连点两次保存
+// 就会有两轮在跑；没有序号时先发的那轮后到，用旧状态覆盖掉新文案（表现为闪一下旧值）。
+let ipSyncStatusRound = 0;
+
+/** 读一次状态；返回"算不算定下来了"。 */
 async function refreshIpSyncStatus(): Promise<boolean> {
+  const round = ipSyncStatusRound;
   try {
     const state = await sendRuntimeMessage<IpSyncStateResponse>({ action: 'getExitIpSyncState' });
+    // await 期间有更新的一轮开始了：这次的结果已经过期，别再写 DOM
+    if (round !== ipSyncStatusRound) return true;
     ipSyncStatusEl.textContent = describeIpSyncState(state);
     if (!state?.ipSync?.enabled) return true;
     return Boolean((state.storedIp || '').trim());
   } catch (error) {
+    if (round !== ipSyncStatusRound) return true;
     ipSyncStatusEl.textContent = `读取同步状态失败：${error instanceof Error ? error.message : String(error)}`;
     return true;
   }
@@ -520,7 +529,10 @@ async function refreshIpSyncStatus(): Promise<boolean> {
 
 /** 后台同步是一次异步的查出口，等它落地再收工；最多等 ~4 秒，离线时不至于一直转 */
 async function refreshIpSyncStatusUntilSettled(attempts = 5, delayMs = 800): Promise<void> {
+  ipSyncStatusRound += 1;
+  const round = ipSyncStatusRound;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (round !== ipSyncStatusRound) return; // 后面又开了一轮，这轮让位
     if (await refreshIpSyncStatus()) return;
     await new Promise((resolve) => { setTimeout(resolve, delayMs); });
   }
