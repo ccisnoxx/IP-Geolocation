@@ -6,9 +6,10 @@
  *   node tools/smoke-options.mjs --extension=dist-probe-geo
  *   CHROME_PATH="/Applications/Helium.app/Contents/MacOS/Helium" node tools/smoke-options.mjs
  *
- * 覆盖两条写入路径：
+ * 覆盖三条写入路径：
  *   1. 改语言 → 静态 ruleset 让位（enabledRulesets 不再包含 baked-language）+ 动态规则换语言
  *   2. 加域名 → 动态注册内容脚本 + 动态 DNR 规则补上这一条
+ *   3. 打开「跟随出口 IP」→ 配置落库 + 后台真的建出定时器（周期跟表单一致）
  */
 import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -33,6 +34,7 @@ if (!existsSync(join(extensionPath, 'manifest.json'))) {
 
 const newLanguage = String(argv.language || 'ja-JP');
 const newDomain = String(argv.domain || 'example.org');
+const ipSyncInterval = Number(argv.ipSyncInterval || 17);
 const results = [];
 function check(name, ok, detail) {
   results.push({ name, ok, detail });
@@ -155,6 +157,68 @@ try {
   check('新域名继承当前语言', Boolean(added) && added.value.startsWith(newLanguage), added?.value || '-');
 } catch (error) {
   check('新域名已注册内容脚本', false, error.message);
+}
+
+// —— 路径 3：跟随出口 IP → 配置落库 + 定时器建出来 ——
+// 这里只断言「开关有没有真的接上后台」：查出口本身依赖网络，失败是允许的（下一轮重试）。
+await page(`(() => {
+  const enabled = document.getElementById('ipSyncEnabled');
+  const interval = document.getElementById('ipSyncInterval');
+  const language = document.getElementById('ipSyncLanguage');
+  if (!enabled || !interval || !language) throw new Error('配置页缺少跟随出口 IP 的控件');
+  enabled.checked = true;
+  enabled.dispatchEvent(new Event('change'));
+  if (language.disabled) throw new Error('总开关打开后语言开关仍被禁用');
+  interval.value = ${JSON.stringify(String(ipSyncInterval))};
+  document.getElementById('save').click();
+  return true;
+})()`);
+
+const background = () => evaluate(cdp, swSession, `Promise.all([
+  chrome.storage.local.get('siteSpoofConfig'),
+  chrome.alarms.getAll()
+]).then(([stored, alarms]) => ({
+  ipSync: (stored.siteSpoofConfig || {}).ipSync || null,
+  alarm: (alarms.find((item) => item.name === 'vanishgeo-exit-ip') || {}).periodInMinutes || null
+}))`, { awaitPromise: true });
+
+try {
+  const deadline = Date.now() + 8000;
+  let snapshot = await background();
+  while (Date.now() < deadline && !(snapshot.ipSync && snapshot.ipSync.enabled && snapshot.alarm === ipSyncInterval)) {
+    await sleep(200);
+    snapshot = await background();
+  }
+  check('跟随出口 IP 开关落库', Boolean(snapshot.ipSync && snapshot.ipSync.enabled), JSON.stringify(snapshot.ipSync));
+  check('周期跟表单一致', snapshot.ipSync && snapshot.ipSync.intervalMinutes === ipSyncInterval, `intervalMinutes=${snapshot.ipSync && snapshot.ipSync.intervalMinutes}`);
+  check('后台建出定时器', snapshot.alarm === ipSyncInterval, `periodInMinutes=${snapshot.alarm}`);
+} catch (error) {
+  check('跟随出口 IP 开关落库', false, error.message);
+}
+
+// 状态行能不能如实反映结果（有没有真的拿到出口 IP 取决于网络，两种都要自洽）
+try {
+  // 先等后台那次「开关关→开」的同步落地；它是一次真实的查出口请求，可能慢一两秒
+  let syncedIp = '';
+  const ipDeadline = Date.now() + 12000;
+  while (Date.now() < ipDeadline && !syncedIp) {
+    syncedIp = await page(`chrome.storage.local.get('lastSyncedExitIp').then((value) => value.lastSyncedExitIp || '')`, { awaitPromise: true });
+    if (!syncedIp) await sleep(300);
+  }
+  const deadline = Date.now() + 10000;
+  let status = '';
+  while (Date.now() < deadline) {
+    status = await page(`document.getElementById('ipSyncStatus').textContent`);
+    if (syncedIp ? status.includes(syncedIp) : status.includes('还没成功同步过')) break;
+    await sleep(300);
+  }
+  check(
+    syncedIp ? '状态行显示上次出口 IP' : '没拿到出口 IP 时状态行如实说没同步过',
+    syncedIp ? status.includes(syncedIp) : status.includes('还没成功同步过'),
+    status
+  );
+} catch (error) {
+  check('状态行显示同步结果', false, error.message);
 }
 
 cdp.close();

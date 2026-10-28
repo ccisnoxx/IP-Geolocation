@@ -44,7 +44,7 @@ permissions:
 2. 从 tag 提取版本号，**校验与 `dist/manifest.json` 的 `version` 一致**（不一致直接失败）
 3. 打包成 `vanishgeo-v<version>.zip`（**开发构建**：配置经异步 IPC 进页面，
    页面的第一个内联脚本可能读到原生值 —— 也就是"首屏窗口"）
-4. 再跑一遍发布流水线 `npm run release -- --all-presets`，产出五个**烘焙**包
+4. 再跑一遍发布流水线 `npm run release -- --all-presets`，产出六个**烘焙**包
    `vanishgeo-<version>-<preset>.zip`（配置编译进 `runtime.js`，`document_start`
    同步生效，首屏零窗口），逐个用 `--check` 校验
 5. 生成 changelog（上一个 tag..HEAD 的提交标题）
@@ -85,9 +85,12 @@ git push origin v1.1.1
 
 版本号规则（语义化版本）：
 
-- **Major**：不兼容的配置结构变化（例如 `schemaVersion` 提升）
-- **Minor**：新能力，向后兼容
+- **Major**：不兼容的配置结构变化 —— 新代码读不了老配置，或老代码读新配置会出错
+- **Minor**：新能力，向后兼容；`schemaVersion` 提升但**能自动迁移**的也算这一类
+  （v5 就是：读存量配置时补 7 个检测站与 `us-west` 预设，老配置不需要手动处理）
 - **Patch**：修复
+
+判据是"用户要不要动手"：读出来就能用 = minor；要用户重新填一遍 = major。
 
 ## 4. 发布前检查清单
 
@@ -98,6 +101,8 @@ git push origin v1.1.1
       真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过
 - [ ] 仓库里没有真实 IP、个人路径、浏览器 profile（`tools/out/profiles/` 已被 gitignore）
 - [ ] README / INSTALL / CONFIG_GUIDE 的描述与当前行为一致（匹配模型、默认值、生效方式）
+- [ ] 若 `CONFIG_SCHEMA_VERSION` 变过：确认升级用户读一次配置就补上新内置项
+      （`npx tsx --test tests/config-migration.test.ts` 覆盖回填、幂等、不复活删除项）
 - [ ] 在真实站点上手动验一遍：时区、语言、`Accept-Language`、WebRTC
 
 ## 5. 回溯与修复
@@ -115,7 +120,7 @@ git push origin :refs/tags/v1.1.1
 
 ```bash
 npm run release          # 烘焙 → 校验 → 打包 → 记账，见 CONFIG_GUIDE §十
-node scripts/release.mjs --all-presets  # 五个内置 preset 全量构建
+node scripts/release.mjs --all-presets  # 六个内置 preset 全量构建
 for z in release/*.zip; do node scripts/release.mjs --check="$z"; done  # 逐个校验
 npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
 npm run audit            # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium）
@@ -124,7 +129,7 @@ npm run smoke:options    # 选项页写入路径的端到端冒烟
 npm run smoke:failclosed # fail-closed 行为
 npm run smoke:fingerprint# 主线程 / iframe / Worker 跨上下文一致性
 npm run smoke:ipchange   # 出口变化后是否跟随
-npm run smoke:presets    # 五个 preset 的浏览器 E2E
+npm run smoke:presets    # 六个 preset 的浏览器 E2E
 npm run smoke:cold-start # 冷启动 + clear
 npm run smoke:popup      # popup 交互
 npm run smoke:real-site  # 真实站点核对

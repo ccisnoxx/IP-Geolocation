@@ -186,6 +186,24 @@ test('首屏零窗口路径可走：选项页有导出按钮，后台有对应�
   assert.match(services, /config: SiteSpoofConfig; lastLocation: LastLocation \| null/, '快照形状必须与 build-persona --config 对齐');
 });
 
+test('「跟随出口 IP」开关从头到尾接得上：配置页控件 → 消息动作 → services 实现', () => {
+  const html = read('src/options/options.html');
+  const optionsTs = read('src/options/options.ts');
+  const router = read('src/background/message-router.ts');
+  const services = read('src/background/services.ts');
+
+  for (const id of ['ipSyncEnabled', 'ipSyncLanguage', 'ipSyncInterval', 'ipSyncNow', 'ipSyncStatus']) {
+    assert.match(html, new RegExp(`id="${id}"`), `配置页缺少 #${id}`);
+    assert.match(optionsTs, new RegExp(`getElementById\\('${id}'\\)`), `options.ts 没有接线 #${id}`);
+  }
+  assert.match(router, /case 'getExitIpSyncState'/, '后台没有 getExitIpSyncState 动作');
+  assert.match(router, /case 'checkExitIpSync'/, '后台没有 checkExitIpSync 动作');
+  assert.match(services, /async function getExitIpSyncState/, 'services 没有实现 getExitIpSyncState');
+  assert.match(services, /async function checkExitIp/, 'services 没有实现 checkExitIp');
+  // 开关打开时必须按 auto 提交时区/坐标，否则点一次保存就把 auto 改回手动
+  assert.match(optionsTs, /mode: ipSyncOn \? 'auto'/, 'geolocation 模式没有跟随开关');
+});
+
 test('配置体检必须真的接到诊断页上，且修法能被点', () => {
   const html = read('src/leak-test/leak-test.html');
   const ts = read('src/leak-test/leak-test.ts');

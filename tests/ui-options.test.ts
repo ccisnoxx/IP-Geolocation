@@ -1,15 +1,22 @@
 import { register } from 'node:module';
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_CONFIG } from '../src/shared/config-model';
+import { DEFAULT_CONFIG, DEFAULT_PROFILES } from '../src/shared/config-model';
 import { installUiDom, waitFor } from './helpers/ui-dom';
 
 register(new URL('./helpers/css-loader.mjs', import.meta.url));
 
-interface RuntimeCall { action?: string; config?: any; domain?: string; profileId?: string }
+interface RuntimeCall { action?: string; config?: any; domain?: string; profileId?: string; force?: boolean }
 
 function createChrome(calls: RuntimeCall[]) {
   let bakeResponse: any = { status: 'ok', config: structuredClone(DEFAULT_CONFIG), lastLocation: null };
+  let siteConfig = structuredClone(DEFAULT_CONFIG);
+  let ipSyncEnabled = false;
+  let ipSyncLanguage = false;
+  let ipSyncInterval = DEFAULT_CONFIG.ipSync.intervalMinutes;
+  let exitIpSyncOutcome: any = null;
+  let storedIpOverride: string | null = null;
+  let checkIpSyncError: string | null = null;
   return {
     runtime: {
       lastError: undefined,
@@ -18,13 +25,37 @@ function createChrome(calls: RuntimeCall[]) {
         const response = (() => {
           switch (message.action) {
             case 'getSiteConfig':
-              return { status: 'ok', config: structuredClone(DEFAULT_CONFIG) };
+              // 桩要真的记住写进去的东西：恒返回 DEFAULT_CONFIG 时，任何"保存后
+              // 再读"的断言都只是在测渲染函数对一份固定输入的输出（见 REVIEW-P2 第 22 条）
+              return { status: 'ok', config: structuredClone(siteConfig) };
             case 'setSiteConfig':
-              return { status: 'ok', config: structuredClone(message.config) };
+              siteConfig = structuredClone(message.config);
+              return { status: 'ok', config: structuredClone(siteConfig) };
             case 'applyProfile':
-              return { status: 'ok', config: structuredClone(DEFAULT_CONFIG) };
+              return { status: 'ok', config: structuredClone(siteConfig) };
             case 'getBakeSnapshot':
               return bakeResponse;
+            case 'getExitIpSyncState':
+              return {
+                status: 'ok',
+                ipSync: { enabled: ipSyncEnabled, syncLanguage: ipSyncLanguage, intervalMinutes: ipSyncInterval },
+                storedIp: ipSyncEnabled ? (storedIpOverride ?? '203.0.113.9') : '',
+                lastLocation: ipSyncEnabled
+                  ? { latitude: 34.0522, longitude: -118.2437, accuracy: 50, timezone: 'America/Los_Angeles', country: 'United States', updateTime: 1 }
+                  : null
+              };
+            case 'checkExitIpSync': {
+              // 真实链路上后台抛错会被 service-worker 转成 { status: 'error' }，
+              // 前端 sendRuntimeMessage 再 reject —— 这里照这个形状造错误
+              if (checkIpSyncError) return { status: 'error', message: checkIpSyncError };
+              const synced = structuredClone(siteConfig);
+              synced.ipSync = { enabled: ipSyncEnabled, syncLanguage: ipSyncLanguage, intervalMinutes: ipSyncInterval };
+              return {
+                status: 'ok',
+                outcome: exitIpSyncOutcome || { ok: true, changed: true, layers: ['timezone', 'profile'], ip: '203.0.113.9' },
+                config: synced
+              };
+            }
             default:
               return { status: 'ok' };
           }
@@ -36,17 +67,28 @@ function createChrome(calls: RuntimeCall[]) {
         return Promise.resolve(response);
       }
     },
-    setBakeResponse(value: any) { bakeResponse = value; }
+    setBakeResponse(value: any) { bakeResponse = value; },
+    setIpSyncState(state: { enabled?: boolean; syncLanguage?: boolean; intervalMinutes?: number }) {
+      if (typeof state.enabled === 'boolean') ipSyncEnabled = state.enabled;
+      if (typeof state.syncLanguage === 'boolean') ipSyncLanguage = state.syncLanguage;
+      if (typeof state.intervalMinutes === 'number') ipSyncInterval = state.intervalMinutes;
+    },
+    setSiteConfig(value: any) { siteConfig = structuredClone(value); },
+    setExitIpSyncOutcome(value: any) { exitIpSyncOutcome = value; },
+    setStoredExitIp(value: string | null) { storedIpOverride = value; },
+    setCheckIpSyncError(value: string | null) { checkIpSyncError = value; }
   };
 }
 
 let ui: ReturnType<typeof installUiDom>;
 let calls: RuntimeCall[];
+let chromeStub: ReturnType<typeof createChrome>;
 
 before(async () => {
   ui = installUiDom('src/options/options.html', 'chrome-extension://test/options/options.html');
   calls = [];
-  (globalThis as any).chrome = createChrome(calls);
+  chromeStub = createChrome(calls);
+  (globalThis as any).chrome = chromeStub;
   await import('../src/options/options');
   await waitFor(() => (ui.document.getElementById('ruleList') as HTMLTextAreaElement).value.length > 0);
 });
@@ -60,7 +102,9 @@ test('options 加载后用真实 DOM 渲染字段、规则和空的自定义 pro
   assert.match(el<HTMLTextAreaElement>('ruleList').value, /chatgpt\.com/);
   assert.ok(ui.document.querySelectorAll('.site-rule').length > 0);
   assert.match(el('customProfiles').textContent || '', /暂无自定义配置文件/);
-  assert.equal(ui.document.querySelectorAll('.profile-card').length, 5);
+  // 内置卡片由 DEFAULT_PROFILES 驱动，数量跟着预设走，不写死
+  assert.equal(ui.document.querySelectorAll('.profile-card').length, DEFAULT_PROFILES.length);
+  assert.ok(ui.document.querySelector('.profile-card[data-profile="us-west"]'));
 });
 
 test('options 保存读取当前表单并把改名后的配置发给后台', async () => {
@@ -133,4 +177,189 @@ test('options 导出配置和烘焙失败路径都能走通', async () => {
   chrome.setBakeResponse({ status: 'error', error: 'offline' });
   el<HTMLButtonElement>('exportBake').click();
   await waitFor(() => ui.alerts.some((message) => message.includes('导出失败: offline')));
+});
+
+test('options 跟随出口 IP：总开关关着时语言/周期/立即同步都禁用，打开才解锁', () => {
+  const enabled = el<HTMLInputElement>('ipSyncEnabled');
+  enabled.checked = false;
+  enabled.dispatchEvent(new Event('change'));
+  assert.equal(el<HTMLInputElement>('ipSyncLanguage').disabled, true);
+  assert.equal(el<HTMLInputElement>('ipSyncInterval').disabled, true);
+  assert.equal(el<HTMLButtonElement>('ipSyncNow').disabled, true);
+
+  enabled.checked = true;
+  enabled.dispatchEvent(new Event('change'));
+  assert.equal(el<HTMLInputElement>('ipSyncLanguage').disabled, false);
+  assert.equal(el<HTMLInputElement>('ipSyncInterval').disabled, false);
+  assert.equal(el<HTMLButtonElement>('ipSyncNow').disabled, false);
+});
+
+test('options 开启跟随后保存：ipSync 落库，时区与坐标强制 auto 档', async () => {
+  el<HTMLInputElement>('ipSyncEnabled').checked = true;
+  el<HTMLInputElement>('ipSyncLanguage').checked = true;
+  el<HTMLInputElement>('ipSyncInterval').value = '10';
+  // 手填值：跟随开着时不该把 auto 改回 manual
+  el<HTMLInputElement>('timezone').value = 'Asia/Tokyo';
+  el<HTMLInputElement>('latitude').value = '35.6895';
+  el<HTMLInputElement>('longitude').value = '139.6917';
+
+  const before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+
+  const saved = calls.filter((call) => call.action === 'setSiteConfig').at(-1)!;
+  assert.deepEqual(saved.config.ipSync, { enabled: true, syncLanguage: true, intervalMinutes: 10 });
+  assert.equal(saved.config.globalProfile.timezone.mode, 'auto');
+  assert.equal(saved.config.globalProfile.geolocation.mode, 'auto');
+});
+
+test('options 跟随出口 IP：周期越界被夹到 5–1440', async () => {
+  el<HTMLInputElement>('ipSyncEnabled').checked = true;
+
+  el<HTMLInputElement>('ipSyncInterval').value = '0';
+  let before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+  assert.equal(calls.filter((call) => call.action === 'setSiteConfig').at(-1)!.config.ipSync.intervalMinutes, 5);
+
+  el<HTMLInputElement>('ipSyncInterval').value = '9999';
+  before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+  assert.equal(calls.filter((call) => call.action === 'setSiteConfig').at(-1)!.config.ipSync.intervalMinutes, 1440);
+});
+
+function enableIpSync(): void {
+  chromeStub.setIpSyncState({ enabled: true });
+  const enabled = el<HTMLInputElement>('ipSyncEnabled');
+  enabled.checked = true;
+  enabled.dispatchEvent(new Event('change'));
+}
+
+test('options 关掉跟随开关保存时，syncLanguage 一起落 false（勾选框 disabled，用户自己取消不了）', async () => {
+  el<HTMLInputElement>('ipSyncLanguage').checked = true;
+  el<HTMLInputElement>('ipSyncEnabled').checked = false;
+  const before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+  const payload = calls.filter((call) => call.action === 'setSiteConfig').at(-1)!.config;
+  assert.equal(payload.ipSync.enabled, false);
+  assert.equal(payload.ipSync.syncLanguage, false);
+});
+
+test('options 立即同步：force 透传，alert 说明改了哪些层，按钮恢复可点', async () => {
+  chromeStub.setExitIpSyncOutcome({ ok: true, changed: true, layers: ['timezone', 'geolocation', 'language'], ip: '198.51.100.7' });
+  enableIpSync();
+
+  const callsBefore = calls.length;
+  const alertsBefore = ui.alerts.length;
+  el<HTMLButtonElement>('ipSyncNow').click();
+  await waitFor(() => ui.alerts.length > alertsBefore);
+
+  const request = calls.slice(callsBefore).find((call) => call.action === 'checkExitIpSync');
+  assert.equal(request?.force, true);
+  assert.match(ui.alerts.at(-1)!, /198\.51\.100\.7/);
+  assert.match(ui.alerts.at(-1)!, /时区、坐标、语言/);
+  assert.equal(el<HTMLButtonElement>('ipSyncNow').disabled, false);
+  assert.equal(el<HTMLButtonElement>('ipSyncNow').textContent, '立即同步一次');
+});
+
+test('options 立即同步：IP 没变和查不到出口都给清楚的跳过/失败文案', async () => {
+  enableIpSync();
+  chromeStub.setExitIpSyncOutcome({ ok: true, changed: false, skipped: 'same-ip', layers: [], ip: '198.51.100.7' });
+  let alertsBefore = ui.alerts.length;
+  el<HTMLButtonElement>('ipSyncNow').click();
+  await waitFor(() => ui.alerts.length > alertsBefore);
+  assert.match(ui.alerts.at(-1)!, /出口 IP 没变/);
+
+  chromeStub.setExitIpSyncOutcome({ ok: false, error: '所有地理接口都失败' });
+  alertsBefore = ui.alerts.length;
+  el<HTMLButtonElement>('ipSyncNow').click();
+  await waitFor(() => ui.alerts.length > alertsBefore);
+  assert.match(ui.alerts.at(-1)!, /同步失败：所有地理接口都失败/);
+});
+
+test('options 立即同步：后台抛错时给出提示，不是静默恢复按钮', async () => {
+  enableIpSync();
+  chromeStub.setCheckIpSyncError('后台炸了');
+  const alertsBefore = ui.alerts.length;
+  el<HTMLButtonElement>('ipSyncNow').click();
+  await waitFor(() => ui.alerts.length > alertsBefore);
+
+  assert.match(ui.alerts.at(-1)!, /同步失败：后台炸了/);
+  assert.match(el('ipSyncStatus').textContent || '', /同步失败：后台炸了/);
+  assert.equal(el<HTMLButtonElement>('ipSyncNow').disabled, false);
+  assert.equal(el<HTMLButtonElement>('ipSyncNow').textContent, '立即同步一次');
+  chromeStub.setCheckIpSyncError(null);
+});
+
+test('options 跟随出口 IP：状态行显示上次出口 IP、定位与周期，关掉后说明仍按手填值', async () => {
+  chromeStub.setIpSyncState({ enabled: true, intervalMinutes: 15 });
+  let before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLInputElement>('ipSyncEnabled').checked = true;
+  el<HTMLInputElement>('ipSyncInterval').value = '15';
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+  // 状态行是异步刷新的：等周期这一轮真的渲染出来，避免读到上一轮的旧文案
+  await waitFor(() => (el('ipSyncStatus').textContent || '').includes('每 15 分钟检查一次'));
+  assert.match(el('ipSyncStatus').textContent || '', /203\.0\.113\.9/);
+  assert.match(el('ipSyncStatus').textContent || '', /America\/Los_Angeles/);
+  assert.match(el('ipSyncStatus').textContent || '', /34\.052, -118\.244/);
+
+  chromeStub.setIpSyncState({ enabled: false });
+  before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLInputElement>('ipSyncEnabled').checked = false;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+  await waitFor(() => (el('ipSyncStatus').textContent || '').includes('未开启'));
+});
+
+test('options 刚打开开关时状态行会等后台落地，拿到出口 IP 后自己更新', async () => {
+  chromeStub.setStoredExitIp('');
+  enableIpSync();
+  const before = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > before);
+  await waitFor(() => (el('ipSyncStatus').textContent || '').includes('还没成功同步过'));
+
+  // 后台同步跑完：状态行应该在下一次轮询里自己补上，不需要用户再点一次保存
+  chromeStub.setStoredExitIp('198.51.100.7');
+  await waitFor(() => (el('ipSyncStatus').textContent || '').includes('198.51.100.7'));
+  chromeStub.setStoredExitIp(null);
+});
+
+test('开着跟随保存：用后台对齐的时区/坐标/国家，不把表单里的手填值顶回去', async () => {
+  const aligned = structuredClone(DEFAULT_CONFIG);
+  aligned.ipSync = { enabled: true, syncLanguage: false, intervalMinutes: 5 };
+  aligned.globalProfile.timezone = { ...aligned.globalProfile.timezone, mode: 'auto', timezone: 'America/Los_Angeles' };
+  aligned.globalProfile.geolocation = {
+    ...aligned.globalProfile.geolocation,
+    mode: 'auto',
+    latitude: 34.0522,
+    longitude: -118.2437,
+    country: 'United States'
+  };
+  chromeStub.setSiteConfig(aligned);
+  chromeStub.setIpSyncState({ enabled: true, syncLanguage: false, intervalMinutes: 5 });
+
+  // 真实路径：点「立即同步一次」会带回新配置并 populateForm，currentConfig 随之更新
+  const alertsBefore = ui.alerts.length;
+  el<HTMLButtonElement>('ipSyncNow').click();
+  // 等 alert：它出现在 populateForm 之后，此时 currentConfig 才是后台对齐的那份
+  await waitFor(() => ui.alerts.length > alertsBefore);
+
+  // 用户在表单里改成柏林：开着跟随时这个手填值不该被提交
+  el<HTMLInputElement>('latitude').value = '52.52';
+  el<HTMLInputElement>('longitude').value = '13.405';
+  const savesBefore = calls.filter((call) => call.action === 'setSiteConfig').length;
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.filter((call) => call.action === 'setSiteConfig').length > savesBefore);
+
+  const payload = calls.filter((call) => call.action === 'setSiteConfig').at(-1)!.config;
+  assert.equal(payload.globalProfile.timezone.mode, 'auto');
+  assert.equal(payload.globalProfile.timezone.timezone, 'America/Los_Angeles');
+  assert.equal(payload.globalProfile.geolocation.mode, 'auto');
+  assert.equal(payload.globalProfile.geolocation.latitude, 34.0522);
+  assert.equal(payload.globalProfile.geolocation.longitude, -118.2437);
+  assert.equal(payload.globalProfile.geolocation.country, 'United States', '保存不该把 country 丢掉');
 });

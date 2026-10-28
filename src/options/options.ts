@@ -12,9 +12,20 @@ import { ruleLines, rulesFromText } from '../shared/rule-text';
 import { sendRuntimeMessage } from '../shared/runtime-message';
 import { coordinateInputValue, geolocationModeFromInput, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
 import { validateProfile } from '../shared/profile';
-import type { Profile, SiteSpoofConfig } from '../shared/types';
+import type { ExitIpSyncOutcome } from '../background/ip-sync';
+import type { IpSyncConfig, LastLocation, Profile, SiteSpoofConfig } from '../shared/types';
 
 let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
+
+/** `getExitIpSyncState` / `checkExitIpSync` 的返回形状（后台 message-router 给） */
+interface IpSyncStateResponse {
+  status?: string;
+  ipSync?: IpSyncConfig;
+  storedIp?: string;
+  lastLocation?: LastLocation | null;
+  outcome?: ExitIpSyncOutcome;
+  config?: SiteSpoofConfig;
+}
 
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
@@ -51,6 +62,11 @@ const newProfileNameEl = document.getElementById('newProfileName') as HTMLInputE
 const newProfileDescriptionEl = document.getElementById('newProfileDescription') as HTMLInputElement;
 const confirmSaveProfileBtn = document.getElementById('confirmSaveProfile') as HTMLButtonElement;
 const cancelSaveProfileBtn = document.getElementById('cancelSaveProfile') as HTMLButtonElement;
+const ipSyncEnabledEl = document.getElementById('ipSyncEnabled') as HTMLInputElement;
+const ipSyncLanguageEl = document.getElementById('ipSyncLanguage') as HTMLInputElement;
+const ipSyncIntervalEl = document.getElementById('ipSyncInterval') as HTMLInputElement;
+const ipSyncNowBtn = document.getElementById('ipSyncNow') as HTMLButtonElement;
+const ipSyncStatusEl = document.getElementById('ipSyncStatus') as HTMLElement;
 
 
 function populateForm(config: SiteSpoofConfig): void {
@@ -81,11 +97,24 @@ function populateForm(config: SiteSpoofConfig): void {
   webrtcEnabledEl.checked = config.webRtc.globalMode !== 'default';
   webrtcPolicyEl.value = webRtcSelectValue(config);
 
+  ipSyncEnabledEl.checked = config.ipSync.enabled;
+  ipSyncLanguageEl.checked = config.ipSync.syncLanguage;
+  ipSyncIntervalEl.value = String(config.ipSync.intervalMinutes);
+  syncIpSyncControls();
+  void refreshIpSyncStatusUntilSettled();
+
   renderProfiles();
   renderSiteRules();
 }
 
 function readForm(): SiteSpoofConfig {
+  // 跟随出口 IP 打开时，时区与坐标由后台按出口 IP 改写。这里必须存成 auto 档，
+  // 否则在配置页点一次保存就把 auto 手滑改回 manual，开关看起来像没生效。
+  const ipSyncOn = ipSyncEnabledEl.checked;
+  // 开着跟随时，表单里的时区/坐标是静态旧值（后台对齐的结果在 currentConfig 里）。
+  // 把它们原样提交回去，等于用旧值覆盖后台刚写好的值：auto 档虽然不看字段值，但下一轮
+  // `planExitIpSync` 会因此多报一层「变了」，还把配置写成自相矛盾的样子。
+  const staticProfile = currentConfig.globalProfile;
   return normalizeConfig({
     ...currentConfig,
     masterEnabled: globalEnabledEl.checked,
@@ -101,14 +130,17 @@ function readForm(): SiteSpoofConfig {
       }),
       timezone: normalizeTimezone({
         enabled: timezoneEnabledEl.checked,
-        mode: timezoneEl.value ? 'manual' : 'auto',
-        timezone: timezoneEl.value
+        mode: ipSyncOn || !timezoneEl.value ? 'auto' : 'manual',
+        timezone: ipSyncOn ? staticProfile.timezone.timezone : timezoneEl.value
       }),
       geolocation: normalizeGeolocation({
         enabled: geolocationEnabledEl.checked,
-        mode: geolocationModeFromInput(latitudeEl.value, longitudeEl.value),
-        latitude: parseCoordinateInput(latitudeEl.value),
-        longitude: parseCoordinateInput(longitudeEl.value),
+        mode: ipSyncOn ? 'auto' : geolocationModeFromInput(latitudeEl.value, longitudeEl.value),
+        latitude: ipSyncOn ? staticProfile.geolocation.latitude : parseCoordinateInput(latitudeEl.value),
+        longitude: ipSyncOn ? staticProfile.geolocation.longitude : parseCoordinateInput(longitudeEl.value),
+        // 国家只在跟随过程中写入，配置页以前根本没提交它 —— 每点一次保存就丢一次，
+        // 下一轮同步再当作「变了」重写。跟着一起带上。
+        country: staticProfile.geolocation.country,
         accuracy: Number(accuracyEl.value),
         randomize: randomizeEl.checked,
         randomRadiusMeters: Number(randomRadiusMetersEl.value),
@@ -116,7 +148,14 @@ function readForm(): SiteSpoofConfig {
         history: currentConfig.globalProfile.geolocation.history
       })
     },
-    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' })
+    webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ policy: webrtcPolicyEl.value }) : normalizeWebRtc({ globalMode: 'default' }),
+    ipSync: {
+      enabled: ipSyncOn,
+      // 关掉开关时一起落 false：勾选框是 disabled 的，用户没法自己取消勾选，
+      // 留着 true 会让「以后重新打开总开关」无声地把语言也接管过去。
+      syncLanguage: ipSyncOn && ipSyncLanguageEl.checked,
+      intervalMinutes: Number(ipSyncIntervalEl.value)
+    }
   });
 }
 
@@ -143,6 +182,7 @@ async function applyProfile(profileId: string): Promise<void> {
 function createPresetProfileCard(profile: Profile): HTMLElement {
   const card = document.createElement('div');
   card.className = 'profile-card';
+  card.dataset.profile = profile.id;
   card.innerHTML = `
     <div class="profile-header">
       <div class="profile-info">
@@ -412,6 +452,106 @@ async function handleGetFromIP(): Promise<void> {
   }
 }
 
+const IP_SYNC_SKIP_TEXT: Record<string, string> = {
+  'extension-disabled': '全局保护已关闭，这次跳过',
+  'sync-disabled': '「跟随出口 IP」还没打开，这次跳过',
+  'same-ip': '出口 IP 没变，这次跳过'
+};
+
+const IP_SYNC_LAYER_TEXT: Record<string, string> = {
+  timezone: '时区',
+  geolocation: '坐标',
+  language: '语言',
+  profile: '预设选择'
+};
+
+/** 周期与语言开关只有总开关打开时才有意义，一起禁用免得配了个不生效的值 */
+function syncIpSyncControls(): void {
+  const enabled = ipSyncEnabledEl.checked;
+  ipSyncLanguageEl.disabled = !enabled;
+  ipSyncIntervalEl.disabled = !enabled;
+  ipSyncNowBtn.disabled = !enabled;
+}
+
+function describeIpSyncState(state: IpSyncStateResponse | null | undefined): string {
+  const sync = state?.ipSync;
+  if (!sync?.enabled) return '未开启。时区与坐标仍按「当前配置」里手填的值来。';
+
+  const ip = (state?.storedIp || '').trim();
+  const parts: string[] = [ip ? `上次同步出口 IP ${ip}` : '还没成功同步过'];
+  const location = state?.lastLocation;
+  if (location) {
+    const latitude = Number(location.latitude);
+    const longitude = Number(location.longitude);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      parts.push(`当前定位 ${latitude.toFixed(3)}, ${longitude.toFixed(3)}`);
+    }
+    if (location.timezone) parts.push(`时区 ${location.timezone}`);
+  }
+  parts.push(`每 ${sync.intervalMinutes} 分钟检查一次`);
+  parts.push(sync.syncLanguage ? '语言跟随出口国家' : '语言保持当前配置');
+  return `${parts.join(' · ')}。`;
+}
+
+function describeIpSyncOutcome(outcome: ExitIpSyncOutcome | undefined): string {
+  if (!outcome) return '后台没有返回同步结果。';
+  if (!outcome.ok) return `同步失败：${outcome.error}`;
+  if (outcome.skipped) return IP_SYNC_SKIP_TEXT[outcome.skipped] || '这次跳过。';
+  if (!outcome.changed) return `出口 IP ${outcome.ip}，配置已是最新。`;
+  const layers = outcome.layers.map((layer) => IP_SYNC_LAYER_TEXT[layer] || layer).join('、');
+  return `出口 IP ${outcome.ip}，已更新：${layers}。`;
+}
+
+/**
+ * 渲染状态行。返回「这份状态算不算定了」：开关开着但还没拿到出口 IP 时算没定 ——
+ * 刚打开开关的那次同步是后台异步跑的，页面这会儿读到的必然还是旧值。
+ */
+async function refreshIpSyncStatus(): Promise<boolean> {
+  try {
+    const state = await sendRuntimeMessage<IpSyncStateResponse>({ action: 'getExitIpSyncState' });
+    ipSyncStatusEl.textContent = describeIpSyncState(state);
+    if (!state?.ipSync?.enabled) return true;
+    return Boolean((state.storedIp || '').trim());
+  } catch (error) {
+    ipSyncStatusEl.textContent = `读取同步状态失败：${error instanceof Error ? error.message : String(error)}`;
+    return true;
+  }
+}
+
+/** 后台同步是一次异步的查出口，等它落地再收工；最多等 ~4 秒，离线时不至于一直转 */
+async function refreshIpSyncStatusUntilSettled(attempts = 5, delayMs = 800): Promise<void> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await refreshIpSyncStatus()) return;
+    await new Promise((resolve) => { setTimeout(resolve, delayMs); });
+  }
+}
+
+/** 立即同步一次：force 跳过「IP 没变」，用来验证配置是否真的落到了 payload 上 */
+async function handleIpSyncNow(): Promise<void> {
+  const label = ipSyncNowBtn.textContent;
+  ipSyncNowBtn.disabled = true;
+  ipSyncNowBtn.textContent = '同步中...';
+  try {
+    const response = await sendRuntimeMessage<IpSyncStateResponse>({ action: 'checkExitIpSync', force: true });
+    alert(describeIpSyncOutcome(response?.outcome));
+    if (response?.config) {
+      currentConfig = normalizeConfig(response.config);
+      populateForm(currentConfig);
+    } else {
+      await loadConfig();
+    }
+  } catch (error) {
+    // 后台抛错（查接口期间扩展被重载、存储被策略锁住）时 `sendRuntimeMessage` 直接 reject。
+    // 不接住的话用户只看到按钮转一圈又恢复，连"失败了"都不知道。
+    const message = error instanceof Error ? error.message : String(error);
+    ipSyncStatusEl.textContent = `同步失败：${message}`;
+    alert(`同步失败：${message}`);
+  } finally {
+    ipSyncNowBtn.textContent = label;
+    syncIpSyncControls();
+  }
+}
+
 document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     const targetTab = (btn as HTMLElement).dataset.tab;
@@ -427,6 +567,8 @@ saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
 confirmSaveProfileBtn.addEventListener('click', () => { void handleSaveAsCustom(); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
 getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
+ipSyncEnabledEl.addEventListener('change', syncIpSyncControls);
+ipSyncNowBtn.addEventListener('click', () => { void handleIpSyncNow(); });
 exportConfigBtn.addEventListener('click', exportConfiguration);
 exportBakeBtn.addEventListener('click', () => { void exportBakeSnapshot(); });
 importConfigBtn.addEventListener('click', importConfiguration);
