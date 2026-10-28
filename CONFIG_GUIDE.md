@@ -326,7 +326,7 @@ npm run release -- --preset=singapore --domains=claude.ai,anthropic.com
 产物在 `release/`：
 
 ```
-vanishgeo-1.4.0-singapore.zip        93 KB   Asia/Singapore en-SG   20 条静态规则
+vanishgeo-2.2.0-singapore.zip        93 KB   Asia/Singapore en-SG   20 条静态规则
 vanishgeo-1.3.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 域名 / 构建时间
 ```
 
