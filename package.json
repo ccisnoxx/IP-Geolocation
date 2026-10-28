@@ -12,7 +12,9 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "serve:leak-test": "node scripts/serve-leak-test.mjs",
-    "test:e2e:chrome": "node scripts/chrome-acceptance.mjs"
+    "test:e2e:chrome": "node scripts/chrome-acceptance.mjs",
+    "build:persona": "tsx scripts/build-persona.mjs",
+    "smoke:fingerprint": "tsx scripts/smoke-fingerprint.mjs"
   },
   "keywords": [
     "privacy",

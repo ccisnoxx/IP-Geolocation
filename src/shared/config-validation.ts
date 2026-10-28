@@ -38,7 +38,8 @@ const geolocation = {
   accuracy: positive, country: string, randomize: boolean, randomRadiusMeters: nonnegative, spoofPermission: boolean,
   history: array(object({ latitude: coordinate(90), longitude: coordinate(180), accuracy: positive, label: optional(string), createdAt: number }))
 };
-const fontExposure = object({ enabled: boolean, mode: enumeration('vendor-software', 'custom'), blockedFamilies: array(string) });
+const fontExposure = object({ enabled: boolean, mode: enumeration('vendor-software', 'custom'), blockedFamilies: array(string),
+  canvasSpoof: optional(object({ enabled: boolean, platform: enumeration('windows', 'macos') })) });
 const override = (fields: Record<string, Check>) => object({ mode: enumeration('inherit', 'override', 'disable'), value: nullable(partial(fields)) });
 const profile = object({
   id: string, name: string, description: optional(string),
@@ -56,6 +57,7 @@ const legacyCoordinate: Check = (value, path, errors) => {
 };
 const canvas = partial({ enabled: boolean, spoofFonts: boolean, targetFonts: array(string) });
 const ruleFields = { id: string, domain: string, enabled: boolean, exitLocationProfileId: nullable(string),
+  compatibilityPreset: optional(enumeration('native', 'consistency', 'full')),
   overrides: object({ language: override(language), timezone: override(timezone), geolocation: override(geolocation) }) };
 const configFields = {
   schemaVersion: enumeration(2, 3), intlMode: enumeration('strict', 'compatible'), masterEnabled: boolean, debugMode: boolean,

@@ -2,6 +2,8 @@
 
 权限以当前 [manifest.json](manifest.json) 为准。扩展使用 Manifest V3，最低 Chrome 138；没有静态 `content_scripts`，`web_accessible_resources` 为空。外部请求和数据生命周期见 [隐私说明](PRIVACY.md)。
 
+没有声明 `externally_connectable`，没有 `management` 权限；不向页面插入扩展 URL、产品全局标记、DOM 属性或自定义事件，不建立网页配置桥。站点兼容性预设只裁剪已有权限下的效果，不改变授权范围。native 不派发页面、请求头、定位或字体修改；WebRTC 仍为浏览器全局策略。审计及可观察差异见 [可观察面审计](docs/development/observability-audit.md)。
+
 ## 已申请权限
 
 | 权限 | 用途与边界 |

@@ -607,3 +607,54 @@ footer {
 #runtimeSyncStatus[data-status="failed"] { color: var(--danger); }
 
 .auto-save-toast[data-status="partial"] { background: #78350f; color: #fef3c7; }
+
+/* 快速设置：独立面板块（与当前网站/高级配置同级），类名全部限定在 .quick-set 下，
+   避免和既有 .profile-section / .profile-card 语义冲突（那是「出口位置」区域在用的）。 */
+.quick-set { margin-top: 12px; }
+
+.quick-set-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.quick-set-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quick-set-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.quick-set-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* 三张卡：最后一张跨满两列，避免单卡孤零零占半行、副标题还换行。 */
+.quick-set-cards .quick-set-card:last-child { grid-column: 1 / -1; }
+
+.quick-set-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  cursor: pointer;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-strong);
+  color: var(--text);
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.quick-set-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.quick-set-card:active { transform: translateY(0); }
+.quick-set-card[aria-pressed="true"] { border-color: var(--success); }
+.quick-set-card-name { font-size: 13px; font-weight: 600; }
+.quick-set-card-info { font-size: 11px; color: var(--muted); line-height: 1.3; }

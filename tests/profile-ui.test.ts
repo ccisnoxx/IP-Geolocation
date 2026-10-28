@@ -257,7 +257,8 @@ test('Popup 实际填充和保存按目标时区显示偏移，包含冬夏、�
 test('Options 字体自定义和内置模式通过实际导入／导出保留 v3 合同', async () => {
   const ui = harness('options');
   for (const mode of ['custom', 'vendor-software'] as const) {
-    const config = configModel.normalizeConfig({ fontExposure: { enabled: false, mode, blockedFamilies: ['Synthetic Imported Font'] } });
+    const config = configModel.normalizeConfig({ fontExposure: {
+      enabled: false, mode, blockedFamilies: ['Synthetic Imported Font'], canvasSpoof: { enabled: false, platform: 'macos' } } });
     ui.context.importedText = JSON.stringify(config);
     await ui.call('handleImportFile({ target: { files: [{ text: async () => importedText }] } })');
     assert.equal(ui.elements.fontExposureModeEl.value, mode);

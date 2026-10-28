@@ -40,7 +40,7 @@
         </div>
         <div class="input-group">
           <h2>2. 选择站点</h2>
-          <label for="onboardingDomains">每行一个域名，包含子域名；不预选任何站点</label>
+          <label for="onboardingDomains">每行一个域名，包含子域名；已预置常用站点，可删改</label>
           <textarea id="onboardingDomains" class="input" rows="3" placeholder="example.com"></textarea>
           <p class="hint">仅所选站点启用并绑定该 verified 出口；应用出口时区/语言时只写这些站点的对应覆盖，其他设置保留。全局语言、时区和地理位置设置不改；开启总开关也会启用其他已保存的有效规则。未保存的下方表单不参与引导提交。</p>
         </div>
@@ -119,6 +119,36 @@
         <div id="exitLocationProfiles" class="profiles-grid"></div>
       </section>
 
+      <section class="section" id="quickSet">
+        <div class="section-header">
+          <div>
+            <span class="section-kicker">Quick Set</span>
+            <h2>快速设置</h2>
+          </div>
+        </div>
+        <p class="section-description">按出口档案或地区预设，一次写入经纬度、语言和时区三个信号；不影响站点规则、WebRTC 与字体配置。</p>
+        <div class="quick-set-row">
+          <select id="environmentPreset" class="input" aria-label="从 IP 自动配置"></select>
+          <button id="applyEnvironmentPreset" class="btn-secondary" type="button">🌐 应用出口档案</button>
+        </div>
+        <p id="quickSetExitHint" class="hint">出口档案的坐标与时区来自同一次已确认检测，语言只用地区常用候选。</p>
+        <div class="profile-cards quick-set-cards">
+          <button class="profile-card quick-set-card" type="button" data-preset="singapore">
+            <div class="profile-card-name quick-set-card-name">新加坡</div>
+            <div class="profile-card-info quick-set-card-info">🇸🇬 Asia/Singapore</div>
+          </button>
+          <button class="profile-card quick-set-card" type="button" data-preset="japan-tokyo">
+            <div class="profile-card-name quick-set-card-name">日本 · 东京</div>
+            <div class="profile-card-info quick-set-card-info">🇯🇵 Asia/Tokyo</div>
+          </button>
+          <button class="profile-card quick-set-card" type="button" data-preset="us-los-angeles">
+            <div class="profile-card-name quick-set-card-name">美国 · 洛杉矶</div>
+            <div class="profile-card-info quick-set-card-info">🇺🇸 America/Los_Angeles</div>
+          </button>
+        </div>
+        <p class="hint">预设直接写入坐标、语言与时区；保存后仍需总开关与站点规则生效才会作用到页面。</p>
+      </section>
+
       <section class="section">
         <div class="section-header">
           <div>
@@ -129,9 +159,11 @@
         <div class="input-group">
           <label for="ruleList">域名列表（每行一个，自动包含子域名）</label>
           <textarea id="ruleList" class="input domain-textarea" rows="15" placeholder="例如：&#10;chatgpt.com&#10;openai.com&#10;google.com&#10;&#10;不要写通配符；example.com 会匹配 example.com 及其子域名。"></textarea>
+          <button id="fillDefaultDomains" class="btn-secondary btn-sm" type="button">填入常用站点（13 个）</button>
           <div class="hint">保存域名后，还需要在下方“站点特定规则”为 auto 地理位置/时区显式选择出口位置档案。</div>
         </div>
       </section>
+
 
       <section class="section">
         <div class="section-header">
@@ -223,6 +255,7 @@
         </div>
 
         <div class="tab-content" data-tab="webrtc">
+          <p class="hint">浏览器全局策略：影响普通会话的所有站点，不受站点兼容性预设限制，包括 native 站点。实际策略与 ICE 观测分别报告，空候选不证明没有泄漏。</p>
           <label class="checkbox-label">
             <input type="checkbox" id="webrtcEnabled">
             <span>启用 WebRTC 防泄漏</span>
@@ -244,7 +277,16 @@
             <span>保存字体暴露过滤开关</span>
           </label>
           <p id="fontExposureStatus" class="hint" role="status" aria-live="polite">字体暴露过滤注册状态尚未确认；未取得确认前按未应用处理，不影响语言/时区注册状态。</p>
-          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面与普通 iframe 使用相同的 43 项内置厂商／软件及简繁中文字体名单。measureText() 仅移除名单内字体，保留其他显式字体及顺序，无剩余字体时回退 monospace；FontFaceSet.check() 对名单内字体返回 false，其他字体保持原生。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对、OffscreenCanvas 或 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
+          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面与普通 iframe 使用相同的 43 项内置厂商／软件及简繁中文字体名单。measureText() 仅移除名单内字体，保留其他显式字体及顺序，无剩余字体时回退 monospace；FontFaceSet.check() 对名单内字体返回 false，其他字体保持原生。已接管的 Blob Dedicated Worker 链可继承同一名单。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对或未接管的 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
+          <div class="input-group">
+            <label class="checkbox-label"><input type="checkbox" id="fontCanvasEnabled"><span>Canvas 字体伪装（量宽按声称平台替换字体）</span></label>
+            <label for="fontCanvasPlatform">声称平台</label>
+            <select id="fontCanvasPlatform" class="input">
+              <option value="macos">macOS（Windows 专有字体不可用，量宽用 mac 等价字体）</option>
+              <option value="windows">Windows（mac 专有字体不可用，量宽用 Windows 等价字体）</option>
+            </select>
+            <p class="hint">只在匹配站点、字体暴露过滤启用且本开关打开时注册；独立脚本按平台产物加载。改 measureText 与 FontFaceSet.check，不改实际绘制出的像素，因此与截图/图片指纹仍可能不一致。</p>
+          </div>
           <div class="input-group">
             <label for="fontExposureMode">过滤名单模式</label>
             <select id="fontExposureMode" class="input">
@@ -285,6 +327,7 @@
         </div>
         <p class="section-description">每条规则可显式绑定出口位置档案；auto 时区需要已确认档案。语言/时区在注册同步后的新文档使用；地理位置在有效规则和安全上下文下返回配置坐标。</p>
         <div id="siteRules" class="site-rules"></div>
+        <p class="hint">兼容性预设保留高级配置：native 不应用页面、语言请求头、定位或字体修改；consistency 仅使用已有语言／Accept-Language 与时区；full 使用完整配置。预设不自动启用已关闭的信号。WebRTC 是浏览器全局策略，包括 native 站点也受影响。保存并同步后需完整重载。</p>
       </section>
 
       <section class="section danger-zone">

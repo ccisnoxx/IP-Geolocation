@@ -4,6 +4,9 @@ export type GeolocationMode = 'auto' | 'manual';
 export type OverrideMode = 'inherit' | 'override' | 'disable';
 export type WebRtcMode = 'strict' | 'compatible' | 'default';
 export type IntlMode = 'strict' | 'compatible';
+export type CompatibilityPreset = 'native' | 'consistency' | 'full';
+import type { CanvasFontPlatform } from './canvas-fonts';
+
 export type FontExposureMode = 'vendor-software' | 'custom';
 export type ExitLocationVerification = 'verified' | 'unverified';
 
@@ -49,6 +52,8 @@ export interface FontExposureConfig {
   enabled: boolean;
   mode: FontExposureMode;
   blockedFamilies: string[];
+  /** Canvas 字体伪装：按"声称的平台"把对端平台专有字体替换成等价字体。 */
+  canvasSpoof: { enabled: boolean; platform: CanvasFontPlatform };
 }
 
 export interface SignalOverride<T> {
@@ -60,6 +65,8 @@ export interface SiteRule {
   id: string;
   domain: string;
   enabled: boolean;
+  // 缺省 full，保留已有高级覆盖；预设只裁剪派生效果。
+  compatibilityPreset?: CompatibilityPreset;
   exitLocationProfileId: string | null;
   overrides: {
     language: SignalOverride<Partial<LanguageConfig>>;
@@ -194,6 +201,8 @@ export interface LanguageTimezonePayload {
   intlMode: IntlMode;
   language?: { language: string; languages: string[] };
   timezone?: string;
+  /** 字体伪装开启且规则为 full 时下发；Worker 侧据此改写 OffscreenCanvas/FontFaceSet。 */
+  blockedFonts?: string[];
 }
 
 export interface GeolocationPayload {

@@ -120,7 +120,8 @@ for (const page of ['popup', 'options'] as const) {
 for (const page of ['popup', 'options'] as const) {
   test(`${page} 字体模式加载和保存遵循内置名单，自定义编辑切换前后保留`, async () => {
     const customFamilies = ['Synthetic Vendor Font', 'Synthetic Editor Font'];
-    const initial = configModel.normalizeConfig({ fontExposure: { enabled: true, mode: 'custom', blockedFamilies: customFamilies } });
+    const initial = configModel.normalizeConfig({ fontExposure: {
+      enabled: true, mode: 'custom', blockedFamilies: customFamilies, canvasSpoof: { enabled: false, platform: 'macos' } } });
     const ui = createFormHarness(page, initial);
     assert.equal(ui.elements.fontExposureEnabledEl.checked, true);
     assert.equal(ui.elements.fontExposureModeEl.value, 'custom');
@@ -137,7 +138,7 @@ for (const page of ['popup', 'options'] as const) {
     ui.updateFontExposureMode();
     assert.match(ui.elements.fontExposureBlockedFamiliesEl.value, /Synthetic Draft Font/);
     await ui.save();
-    assert.deepEqual(ui.writes[0].fontExposure, { enabled: true, mode: 'custom', blockedFamilies: [...customFamilies, 'Synthetic Draft Font'] });
+    assert.deepEqual(ui.writes[0].fontExposure, { enabled: true, mode: 'custom', blockedFamilies: [...customFamilies, 'Synthetic Draft Font'], canvasSpoof: { enabled: false, platform: 'macos' } });
     ui.elements.fontExposureModeEl.value = 'vendor-software';
     ui.updateFontExposureMode();
     await ui.save();

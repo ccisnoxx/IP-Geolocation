@@ -38,9 +38,15 @@ test('导航按目标站点、子资源按发起站点编译，子域关闭仍�
   value.masterEnabled = false; assert.deepEqual(compileHeaderRules(value), []);
 });
 
-test('请求头来自同一有效页面payload；无verified时区不单独恢复请求头', () => {
+test('请求头只看语言：时区没解析出来时 Accept-Language 照样发，与时区一起失败才是 bug', () => {
+  // P0：以前这里断言"时区拿不到 → 请求头也不发"，结果页面语言和请求头会说的不是一回事。
+  // 现在语言只取决于语言配置；时区/定位缺档案只影响它们自己。
   const value = config(); value.globalProfile.timezone = { enabled: true, mode: 'auto', timezone: '' };
+  assert.equal(compileHeaderRules(value)[0].action.requestHeaders![0].value, 'ja-JP,ja;q=0.9,en;q=0.8');
+  // 语言本身关掉时，请求头也必须消失（这时页面也不会有语言补丁，两边仍然一致）
+  value.globalProfile.language.enabled = false;
   assert.deepEqual(compileHeaderRules(value), []);
+  value.globalProfile.language.enabled = true;
   value.globalProfile.timezone.enabled = false;
   value.rules[0].overrides.language = { mode: 'override', value: { language: 'fr-FR', languages: ['fr-FR', 'fr'] } };
   assert.equal(compileHeaderRules(value)[0].action.requestHeaders![0].value, 'fr-FR,fr;q=0.9');

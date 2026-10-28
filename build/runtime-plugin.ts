@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { generateRuntime, generatePageRuntime, generateFontFilter, generateGeolocationRuntime, geolocationRuntimeSourceId, pageRuntimeSourceId, runtimeModuleId, projectRoot, assertSelfContainedFunction } from './self-contained-runtime';
+import { generateRuntime, generatePageRuntime, generateFontFilter, generateGeolocationRuntime, generateWorkerFontHook, generateCanvasFontSpoof, geolocationRuntimeSourceId, pageRuntimeSourceId, runtimeModuleId, projectRoot, assertSelfContainedFunction } from './self-contained-runtime';
 import type { GeneratedRuntime } from './self-contained-runtime';
 
 export function runtimePlugin(root = projectRoot): Plugin {
@@ -23,6 +23,18 @@ export function runtimePlugin(root = projectRoot): Plugin {
       font.dependencies.forEach(path => this.addWatchFile(path));
       this.emitFile({ type: 'asset', fileName: 'font-exposure/filter.js',
         source: `(${assertSelfContainedFunction(font.code, 'applyFixedFontFilter')})();\n` });
+      // Canvas 字体伪装：两个平台各一份产物，注册时按配置选文件
+      const canvasFonts = await generateCanvasFontSpoof(root);
+      canvasFonts.dependencies.forEach(path => this.addWatchFile(path));
+      for (const platform of ['macos', 'windows'] as const) {
+        this.emitFile({ type: 'asset', fileName: `canvas-fonts/${platform}.js`,
+          source: `(${assertSelfContainedFunction(canvasFonts.code, 'applyCanvasFontSpoof')})(${JSON.stringify(platform)});\n` });
+      }
+      // 文件型 Worker 的字体钩子：独立脚本，不进页面运行时 graph
+      const workerFont = await generateWorkerFontHook(root);
+      workerFont.dependencies.forEach(path => this.addWatchFile(path));
+      this.emitFile({ type: 'asset', fileName: 'worker-fonts/hook.js',
+        source: `(${assertSelfContainedFunction(workerFont.code, 'applyWorkerFontHook')})();\n` });
       generated.dependencies.forEach(path => this.addWatchFile(path));
       page.dependencies.forEach(path => this.addWatchFile(path));
     },

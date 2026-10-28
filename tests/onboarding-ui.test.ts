@@ -113,7 +113,9 @@ test('Options打开不检测，取消不确认，未勾选不启用；按用户�
   assert.equal(ui.element('setupStatus').dataset.setup, 'unconfigured');
   assert.equal(ui.element('setupStatus').dataset.sync, 'ok');
   assert.equal(ui.element('onboardingWebRtc').value, 'default');
-  assert.equal(ui.element('onboardingDomains').value, '');
+  // reset 后回到默认站点预置（13 条常用站点），仍需要显式提交才会写入
+  assert.equal(ui.element('onboardingDomains').value.split('\n').length, 13);
+  assert.match(ui.element('onboardingDomains').value, /^chatgpt\.com/);
   ui.setFailure(true);
   await ui.call('submitOnboarding(true)');
   assert.match(ui.element('onboardingStatus').textContent, /操作未完成.*合成写入失败/);

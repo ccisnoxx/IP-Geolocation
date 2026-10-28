@@ -81,7 +81,9 @@ export function createDiagnosticRuns(getConfig: () => Promise<SiteSpoofConfig>) 
   function resolve(config: SiteSpoofConfig, url: string) {
     const result = getEffectiveProfile(config, new URL(url).hostname);
     if (!result.matched) throw new DiagnosticRunError('not_allowlisted');
-    if (!result.payload) throw new DiagnosticRunError('invalid_configuration');
+    // 诊断要拿"完整预期值"逐项比对，部分生效的 payload（只有语言）不足以做判定，
+    // 这里按 errors 判，而不是按 payload 是否为 null。
+    if (!result.payload || result.errors.length) throw new DiagnosticRunError('invalid_configuration');
     return diagnosticExpectation(result.payload);
   }
   async function prepare(tabId: number, owner: DiagnosticOwner): Promise<DiagnosticRunInfo> {

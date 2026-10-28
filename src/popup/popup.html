@@ -25,10 +25,6 @@
     </header>
 
 
-    <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认同步状态…</p>
-      <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
-    </section>
     <section class="control-card primary-card" aria-label="全局保护">
       <div class="control-copy">
         <span class="section-kicker">Master Switch</span>
@@ -43,6 +39,36 @@
 
     <p class="hint">停止保护：关闭总开关，等待上方同步完成，再完整重载已有网页。如需关闭 Chrome 的 Allow User Scripts，请在此之后操作；直接关闭它可能暂时残留旧语言请求头。</p>
 
+    <section class="quick-set panel-card" id="quickSetGroup" aria-label="快速设置">
+      <div class="section-heading">
+        <h2>快速设置</h2>
+      </div>
+      <div class="quick-set-row">
+        <select id="quickSetExitProfile" class="input" aria-label="从 IP 自动配置"></select>
+        <button id="applyQuickSetExit" class="btn-secondary btn-sm" type="button">🌐 应用</button>
+      </div>
+      <p id="quickSetExitHint" class="hint">出口档案或预设，一次写入经纬度／语言／时区。</p>
+      <div class="profile-cards quick-set-cards">
+        <button class="profile-card quick-set-card" type="button" data-preset="singapore">
+          <div class="profile-card-name quick-set-card-name">新加坡</div>
+          <div class="profile-card-info quick-set-card-info">🇸🇬 Asia/Singapore</div>
+        </button>
+        <button class="profile-card quick-set-card" type="button" data-preset="japan-tokyo">
+          <div class="profile-card-name quick-set-card-name">日本 · 东京</div>
+          <div class="profile-card-info quick-set-card-info">🇯🇵 Asia/Tokyo</div>
+        </button>
+        <button class="profile-card quick-set-card" type="button" data-preset="us-los-angeles">
+          <div class="profile-card-name quick-set-card-name">美国 · 洛杉矶</div>
+          <div class="profile-card-info quick-set-card-info">🇺🇸 America/Los_Angeles</div>
+        </button>
+      </div>
+    </section>
+
+
+    <section class="runtime-sync-panel" aria-label="运行时同步状态">
+      <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认同步状态…</p>
+      <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
+    </section>
     <section class="control-card compact-toggle" aria-label="调试模式">
       <div class="control-copy">
         <span class="section-kicker">Diagnostics</span>
@@ -68,6 +94,15 @@
         <span id="currentSite">-</span>
       </div>
       <p id="siteStatusDetail" class="status-detail">正在读取当前标签状态</p>
+      <div class="input-group">
+        <label for="currentSitePreset">当前域名兼容性预设</label>
+        <select id="currentSitePreset" class="input">
+          <option value="native">native · 页面与请求头原生</option>
+          <option value="consistency">consistency · 仅语言、请求头与时区</option>
+          <option value="full">full · 使用已有完整配置</option>
+        </select>
+      </div>
+      <p class="hint">保留高级配置，保存同步后完整重载。WebRTC 是浏览器全局策略，所有站点均受影响，native 也不单独释放它。</p>
       <div class="site-actions">
         <button id="disableSite" class="btn-secondary">关闭当前网站</button>
         <button id="enableSite" class="btn-primary">启用</button>
@@ -196,8 +231,9 @@
       </details>
 
       <details class="advanced-group">
-        <summary>WebRTC 防泄漏</summary>
+        <summary>WebRTC 全局策略</summary>
         <div class="config-content">
+          <p class="hint">影响浏览器普通会话的所有站点，不受 native／consistency／full 站点预设限制。策略与 ICE 观测分别判断，空候选不能证明没有泄漏。</p>
           <label class="checkbox-label">
             <input type="checkbox" id="webrtcEnabled">
             <span>启用</span>

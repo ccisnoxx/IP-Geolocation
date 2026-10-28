@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { compileFontScripts, reconcileFontScripts, syncFontScriptRegistration, FONT_SCRIPT_PREFIX, FONT_FILTER_PRODUCTION_APPROVED } from '../src/background/font-scripts';
+import { compileFontScripts, compileFontRelatedScripts, reconcileFontScripts, syncFontScriptRegistration, FONT_SCRIPT_PREFIX, FONT_WORKER_SCRIPT_PREFIX, FONT_FILTER_PRODUCTION_APPROVED } from '../src/background/font-scripts';
 import { createInitialConfig, createRule, VENDOR_SOFTWARE_FONT_FAMILIES } from '../src/shared/config-model';
 import { generateFontFilter, assertSelfContainedFunction } from '../build/self-contained-runtime';
 
@@ -35,7 +35,8 @@ test('固定字体候选仅派生启用allowlist，不携带配置；custom/关�
 
 test('获准固定名单按实际注册报告就绪，custom撤销且不触碰其他组件，失败保持未知', async () => {
   const previous = globalThis.chrome;
-  let actual: chrome.scripting.RegisteredContentScript[] = [{ id: FONT_SCRIPT_PREFIX + 'example.test' }, { id: 'other-extension-component' }];
+  let actual: chrome.scripting.RegisteredContentScript[] = [{ id: FONT_SCRIPT_PREFIX + 'example.test' },
+    { id: FONT_WORKER_SCRIPT_PREFIX + 'example.test', js: ['worker-fonts/hook.js'] }, { id: 'other-extension-component' }];
   let writes = 0;
   Object.assign(globalThis, { chrome: { scripting: {
     getRegisteredContentScripts: async () => structuredClone(actual),
@@ -47,7 +48,8 @@ test('获准固定名单按实际注册报告就绪，custom撤销且不触碰�
     const report = await reconcileFontScripts(config());
     assert.equal(report.status, 'ok');
     assert.deepEqual(report.fontRuntime, { state: 'ready', registeredRuleCount: 2, reloadRequired: false });
-    assert.deepEqual(actual, [{ id: 'other-extension-component' }, ...compileFontScripts(config())]);
+    // 撤销实验遗留的文件型 Worker 钩子，仅保留生产允许的字体脚本。
+    assert.deepEqual(actual, [{ id: 'other-extension-component' }, ...compileFontRelatedScripts(config())]);
     assert.equal((await reconcileFontScripts(config())).status, 'ok'); assert.equal(writes, 2);
     const custom = config(); custom.fontExposure.mode = 'custom';
     assert.equal((await reconcileFontScripts(custom)).fontRuntime.state, 'custom-paused');

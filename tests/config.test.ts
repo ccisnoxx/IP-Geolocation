@@ -299,7 +299,7 @@ test('migrateLegacyConfig converts VanishMe bpg_config into siteSpoofConfig rule
   assert.equal(migrated.masterEnabled, true);
   assert.equal(migrated.globalProfile.timezone.timezone, 'UTC');
   assert.equal(migrated.webRtc.globalMode, 'strict');
-  assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['SimSun'] });
+  assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['SimSun'], canvasSpoof: { enabled: false, platform: 'macos' } });
   assert.deepEqual(migrated.rules.map((rule) => rule.domain), ['openai.com', 'chatgpt.com']);
 });
 
@@ -366,7 +366,9 @@ test('字体默认值包含16项厂商软件及27项简繁中文名单，vendor�
     ...LEGACY_DEFAULT_CANVAS_FAMILIES
   ]);
   assert.deepEqual(DEFAULT_FONT_EXPOSURE, {
-    enabled: false, mode: 'vendor-software', blockedFamilies: VENDOR_SOFTWARE_FONT_FAMILIES
+    enabled: false, mode: 'vendor-software', blockedFamilies: VENDOR_SOFTWARE_FONT_FAMILIES,
+    // Canvas 字体伪装默认关闭；平台只有 macos/windows 两个值
+    canvasSpoof: { enabled: false, platform: 'macos' }
   });
   assert.deepEqual(normalizeFontExposure({ enabled: true, mode: 'vendor-software', blockedFamilies: ['Arial'] }), {
     ...DEFAULT_FONT_EXPOSURE, enabled: true
@@ -376,12 +378,14 @@ test('字体默认值包含16项厂商软件及27项简繁中文名单，vendor�
 test('v3旧内置名单读取时升级到当前43项，保留开关和custom名单', () => {
   for (const enabled of [false, true]) {
     const old = normalizeConfig({ rules: [] });
-    old.fontExposure = { enabled, mode: 'vendor-software', blockedFamilies: ['MiSans', 'MIUI'] };
+    old.fontExposure = { enabled, mode: 'vendor-software', blockedFamilies: ['MiSans', 'MIUI'], canvasSpoof: { enabled: false, platform: 'macos' } };
     const upgraded = migrateLegacyConfig({ [SITE_CONFIG_KEY]: old });
-    assert.deepEqual(upgraded.fontExposure, { enabled, mode: 'vendor-software', blockedFamilies: VENDOR_SOFTWARE_FONT_FAMILIES });
+    assert.deepEqual(upgraded.fontExposure, { enabled, mode: 'vendor-software', blockedFamilies: VENDOR_SOFTWARE_FONT_FAMILIES,
+      canvasSpoof: { enabled: false, platform: 'macos' } });
     assert.deepEqual(normalizeConfig(upgraded), upgraded);
-    old.fontExposure = { enabled, mode: 'custom', blockedFamilies: ['Microsoft YaHei', 'Arial'] };
-    assert.deepEqual(migrateLegacyConfig({ [SITE_CONFIG_KEY]: old }).fontExposure, old.fontExposure);
+    old.fontExposure = { enabled, mode: 'custom', blockedFamilies: ['Microsoft YaHei', 'Arial'], canvasSpoof: { enabled: false, platform: 'macos' } };
+    assert.deepEqual(migrateLegacyConfig({ [SITE_CONFIG_KEY]: old }).fontExposure,
+      { ...old.fontExposure, canvasSpoof: { enabled: false, platform: 'macos' } });
   }
 });
 
@@ -405,7 +409,7 @@ test('v2自定义名单trim去空并按runtime规范键去重，保留首次显�
     [['Microsoft YaHei'], ['Microsoft YaHei']]
   ]) {
     const migrated = migrateLegacyConfig({ [SITE_CONFIG_KEY]: v2Config({ enabled: true, targetFonts }) });
-    assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: expected });
+    assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: expected, canvasSpoof: { enabled: false, platform: 'macos' } });
     assert.deepEqual(normalizeConfig(migrated), migrated);
   }
 });
@@ -473,7 +477,7 @@ test('原始非法schema、字体模式或名单类型在归一化前拒绝，�
     assert.equal(validateConfig(input).ok, false, JSON.stringify(input));
   }
   for (const config of [v2Config({ enabled: true, targetFonts: ['My Font'] }),
-    normalizeConfig({ fontExposure: { enabled: true, mode: 'custom', blockedFamilies: ['My Font'] } })]) {
+    normalizeConfig({ fontExposure: { enabled: true, mode: 'custom', blockedFamilies: ['My Font'], canvasSpoof: { enabled: false, platform: 'macos' } } })]) {
     const result = validateConfig(config);
     assert.equal(result.ok, true, result.errors.join('; '));
     assert.equal(result.config.schemaVersion, 3);
@@ -495,7 +499,7 @@ test('storage单次写回v2到v3，v3稳态仅补缺失标记且不覆盖有效�
     assert.equal(writes.length, 1);
     assert.equal(writes[0][RULES_INITIALIZED_KEY], true);
     assert.deepEqual(data[SITE_CONFIG_KEY], migrated);
-    assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['My Font'] });
+    assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['My Font'], canvasSpoof: { enabled: false, platform: 'macos' } });
     assert.deepEqual(await getConfig(async () => {}), migrated);
     assert.equal(writes.length, 1);
     delete data[RULES_INITIALIZED_KEY];
@@ -536,7 +540,7 @@ test('v2迁移写入失败保留原配置与旧键并传播错误，重试后才
     assert.equal(removals, 1);
     assert.equal('lastLocation' in data, false);
     assert.deepEqual(migrated.exitLocationProfiles, []);
-    assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['My Font'] });
+    assert.deepEqual(migrated.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['My Font'], canvasSpoof: { enabled: false, platform: 'macos' } });
   } finally {
     globalThis.chrome = originalChrome;
   }
@@ -645,7 +649,7 @@ test('实际历史 v1/v2 shape 缺少后来引入字段仍合法迁移，未知�
     overrides: { language: { mode: 'inherit', value: null }, timezone: { mode: 'inherit', value: null }, geolocation: { mode: 'inherit', value: null } } };
   const migrated = migrateLegacyConfig({ [SITE_CONFIG_KEY]: { ...v1, schemaVersion: 1, rules: [oldRule] } });
   assert.equal(migrated.intlMode, 'strict');
-  assert.deepEqual(migrated.rules[0], { ...oldRule, exitLocationProfileId: null });
+  assert.deepEqual(migrated.rules[0], { ...oldRule, exitLocationProfileId: null, compatibilityPreset: 'full' });
   assert.equal(validateConfig({ ...oldV2, intlMode: 'bogus' }).ok, false);
 });
 

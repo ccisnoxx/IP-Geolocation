@@ -1,10 +1,12 @@
 import './options.css';
+import { exitProfileSignals, findEnvironmentPreset, presetSignals, type QuickSetSignals } from '../shared/environment-presets';
 import { renderRuntimeSyncReport, renderRuntimeSyncPending, renderFontRuntimeStatus, runtimeSyncMessage } from '../shared/runtime-sync';
 import type { RuntimeSyncReport } from '../shared/types';
 import {
   DEFAULT_FONT_EXPOSURE,
   VENDOR_SOFTWARE_FONT_FAMILIES,
   createInitialConfig,
+  DEFAULT_RULE_DOMAINS,
   getDefaultLanguages,
   getTimezoneOffsetMinutes,
   normalizeConfig,
@@ -49,7 +51,10 @@ let onboardingLoaded = false;
 const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputElement;
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
 const ruleListEl = document.getElementById('ruleList') as HTMLTextAreaElement;
+const fillDefaultDomainsEl = document.getElementById('fillDefaultDomains') as HTMLButtonElement;
 const geolocationEnabledEl = document.getElementById('geolocationEnabled') as HTMLInputElement;
+const environmentPresetEl = document.getElementById('environmentPreset') as HTMLSelectElement;
+const applyEnvironmentPresetEl = document.getElementById('applyEnvironmentPreset') as HTMLButtonElement;
 const latitudeEl = document.getElementById('latitude') as HTMLInputElement;
 const longitudeEl = document.getElementById('longitude') as HTMLInputElement;
 const accuracyEl = document.getElementById('accuracy') as HTMLInputElement;
@@ -70,6 +75,8 @@ const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElem
 const webrtcPolicyStatusEl = document.getElementById('webrtcPolicyStatus') as HTMLElement;
 const fontExposureEnabledEl = document.getElementById('fontExposureEnabled') as HTMLInputElement;
 const fontExposureModeEl = document.getElementById('fontExposureMode') as HTMLSelectElement;
+const fontCanvasEnabledEl = document.getElementById('fontCanvasEnabled') as HTMLInputElement;
+const fontCanvasPlatformEl = document.getElementById('fontCanvasPlatform') as HTMLSelectElement;
 const fontExposureVendorFamiliesEl = document.getElementById('fontExposureVendorFamilies') as HTMLTextAreaElement;
 const fontExposureBlockedFamiliesEl = document.getElementById('fontExposureBlockedFamilies') as HTMLTextAreaElement;
 const fontExposureVendorGroupEl = document.getElementById('fontExposureVendorGroup') as HTMLElement;
@@ -180,6 +187,8 @@ function populateForm(config: SiteSpoofConfig): void {
   webrtcPolicyEl.value = config.webRtc.globalMode;
   fontExposureEnabledEl.checked = config.fontExposure.enabled;
   fontExposureModeEl.value = config.fontExposure.mode;
+  fontCanvasEnabledEl.checked = config.fontExposure.canvasSpoof.enabled;
+  fontCanvasPlatformEl.value = config.fontExposure.canvasSpoof.platform;
   fontExposureVendorFamiliesEl.value = VENDOR_SOFTWARE_FONT_FAMILIES.join('\n');
   fontExposureBlockedFamiliesEl.value = config.fontExposure.blockedFamilies.join('\n');
   updateFontExposureMode();
@@ -319,6 +328,10 @@ function readForm(): SiteSpoofConfig {
     fontExposure: {
       enabled: fontExposureEnabledEl.checked,
       mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
+      canvasSpoof: {
+        enabled: fontCanvasEnabledEl.checked,
+        platform: fontCanvasPlatformEl.value as SiteSpoofConfig['fontExposure']['canvasSpoof']['platform']
+      },
       blockedFamilies: fontExposureModeEl.value === 'vendor-software'
         ? [...VENDOR_SOFTWARE_FONT_FAMILIES]
         : fontExposureBlockedFamiliesEl.value.split('\n').map((item) => item.trim()).filter(Boolean)
@@ -330,6 +343,12 @@ async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'getSiteConfig' });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
+  // 还没有任何规则时，引导框先预置常用站点：只是填好输入框，仍然要用户勾选并提交才生效。
+  if (!currentConfig.rules.length && !onboardingDomainsEl.value.trim()) {
+    onboardingDomainsEl.value = DEFAULT_RULE_DOMAINS.join('\n');
+  }
+  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
+  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
   await loadWebRtcPolicyState();
 }
 
@@ -353,6 +372,8 @@ async function saveSettings(config?: SiteSpoofConfig): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'setSiteConfig', config: config ?? readForm() });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
+  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
+  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
   if (!pendingConfigSaves) alert(runtimeSyncMessage(response.syncReport));
 }
 
@@ -360,6 +381,8 @@ async function applyProfile(profileId: string): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'applyProfile', profileId });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
+  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
+  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
 }
 
 function createProfileCard(profile: Profile): HTMLElement {
@@ -605,6 +628,16 @@ function renderSiteRules(): void {
     profileSelect.onchange = () => {
       rule.exitLocationProfileId = profileSelect.value || null;
     };
+    const presetSelect = document.createElement('select');
+    presetSelect.className = 'input';
+    presetSelect.setAttribute('aria-label', `${rule.domain} 的兼容性预设`);
+    presetSelect.append(new Option('native · 页面与请求头原生', 'native'),
+      new Option('consistency · 仅语言、请求头与时区', 'consistency'),
+      new Option('full · 使用已有完整配置', 'full'));
+    presetSelect.value = rule.compatibilityPreset || 'full';
+    presetSelect.onchange = () => {
+      rule.compatibilityPreset = presetSelect.value as NonNullable<typeof rule.compatibilityPreset>;
+    };
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-danger btn-sm';
     deleteBtn.textContent = '删除';
@@ -613,7 +646,7 @@ function renderSiteRules(): void {
       ruleListEl.value = ruleListToText(currentConfig.rules);
       renderSiteRules();
     };
-    ruleEl.append(info, profileSelect, deleteBtn);
+    ruleEl.append(info, presetSelect, profileSelect, deleteBtn);
     siteRulesEl.appendChild(ruleEl);
   });
 }
@@ -719,7 +752,7 @@ async function resetAllData(): Promise<void> {
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
   onboardingDetailsEl.open = true;
-  onboardingDomainsEl.value = '';
+  onboardingDomainsEl.value = DEFAULT_RULE_DOMAINS.join('\n');
   onboardingWebRtcEl.value = 'default';
   onboardingLanguageEl.value = 'keep';
   onboardingTimezoneEl.value = 'exit';
@@ -749,6 +782,66 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 saveBtn.addEventListener('click', () => { runUiTask(saveSettings()); });
 saveFooterBtn.addEventListener('click', () => { runUiTask(saveSettings()); });
 languageEl.addEventListener('change', updateLanguageList);
+// 快速设置：预设卡片与出口档案共用同一段"填三个信号 + 正常保存"路径。
+const quickSetCards = Array.from(document.querySelectorAll<HTMLButtonElement>('.profile-card[data-preset]'));
+const quickSetExitHintEl = document.getElementById('quickSetExitHint') as HTMLElement;
+
+function applyQuickSetSignals(signals: QuickSetSignals, note: string): void {
+  geolocationEnabledEl.checked = true;
+  latitudeEl.value = String(signals.latitude);
+  longitudeEl.value = String(signals.longitude);
+  timezoneEnabledEl.checked = true;
+  timezoneEl.value = signals.timezone;
+  languageEnabledEl.checked = true;
+  if (signals.language) languageEl.value = signals.language;
+  if (signals.languages.length) languagesEl.value = signals.languages.join(', ');
+  quickSetExitHintEl.textContent = `${note}，正在保存…`;
+  void runUiTask(saveSettings());
+}
+
+function renderQuickSetExitProfiles(): void {
+  // 轻量 UI 夹具的元素只有 value/checked，没有真实 DOM 方法，此时跳过渲染。
+  if (!environmentPresetEl || typeof environmentPresetEl.replaceChildren !== 'function') return;
+  const verified = currentConfig.exitLocationProfiles.filter(profile => profile.verification === 'verified');
+  const previous = environmentPresetEl.value;
+  environmentPresetEl.replaceChildren();
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = verified.length
+    ? '从 IP 自动配置（选择已确认出口档案）'
+    : '没有已确认的出口档案，请先用上方「检测并确认出口」';
+  environmentPresetEl.appendChild(placeholder);
+  for (const profile of verified) {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = `${profile.country || '未知地区'} · ${profile.timezone || '无时区'} · ${profile.publicIp || '无 IP'}`;
+    environmentPresetEl.appendChild(option);
+  }
+  if (verified.some(profile => profile.id === previous)) environmentPresetEl.value = previous;
+  environmentPresetEl.disabled = verified.length === 0;
+  applyEnvironmentPresetEl.disabled = verified.length === 0;
+}
+
+applyEnvironmentPresetEl.addEventListener('click', () => {
+  const profile = currentConfig.exitLocationProfiles.find(item => item.id === environmentPresetEl.value);
+  if (!profile) { quickSetExitHintEl.textContent = '请先选择一个已确认的出口档案。'; return; }
+  const signals = exitProfileSignals(profile, {
+    language: languageEl.value, languages: languagesEl.value.split(',').map(item => item.trim()).filter(Boolean)
+  });
+  if (!signals) { quickSetExitHintEl.textContent = '该档案尚未确认，不能用于自动配置。'; return; }
+  if (!signals.timezone) { quickSetExitHintEl.textContent = '该档案缺少有效时区，无法完整配置。'; return; }
+  applyQuickSetSignals(signals, `已按出口档案「${profile.name}」配置`);
+});
+
+for (const card of quickSetCards) {
+  card.addEventListener('click', () => {
+    const preset = findEnvironmentPreset(card.dataset.preset || '');
+    if (!preset) return;
+    for (const other of quickSetCards) other.setAttribute('aria-pressed', String(other === card));
+    applyQuickSetSignals(presetSignals(preset), `已应用预设「${preset.name}」`);
+  });
+}
+
 saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
 confirmSaveProfileBtn.addEventListener('click', () => { runUiTask(handleSaveAsCustom()); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
@@ -776,3 +869,8 @@ document.getElementById('onboardingSkip')!.addEventListener('click', () => { run
 [onboardingProfileEl, onboardingLanguageEl, onboardingTimezoneEl, onboardingFontExposureEl, onboardingWebRtcEl]
   .forEach((element) => element.addEventListener('change', changeOnboardingChoice));
 onboardingDomainsEl.addEventListener('input', changeOnboardingChoice);
+fillDefaultDomainsEl.addEventListener('click', () => {
+  const existing = rulesFromText(ruleListEl.value, currentConfig.rules).map(rule => rule.domain);
+  const merged = [...existing, ...DEFAULT_RULE_DOMAINS.filter(domain => !existing.includes(domain))];
+  ruleListEl.value = merged.join('\n');
+});

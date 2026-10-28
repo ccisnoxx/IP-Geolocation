@@ -152,7 +152,7 @@ export function getEnabledRuleDomains(config: Partial<SiteSpoofConfig>): string[
 
   const seen = new Set<string>();
   return normalized.rules.reduce<string[]>((domains, rule) => {
-    if (!rule.enabled || !rule.domain || !isValidDomain(rule.domain) || seen.has(rule.domain)) return domains;
+    if (!rule.enabled || rule.compatibilityPreset === 'native' || !rule.domain || !isValidDomain(rule.domain) || seen.has(rule.domain)) return domains;
     seen.add(rule.domain);
     domains.push(rule.domain);
     return domains;
@@ -210,7 +210,25 @@ function resolveSignal<T extends { enabled: boolean }>(
   return resolved.enabled ? resolved : null;
 }
 
+/**
+ * 语言是否可用：只取决于语言配置本身。
+ *
+ * 时区要出口档案、定位要坐标，都可能因为"档案没选/没验证/坐标为空"而不可用；
+ * 但语言跟这些无关。历史上这里用整份 payload 当开关，一旦时区解析失败就把
+ * Accept-Language 一起停掉，结果是"请求头 zh-CN、页面又说 en-US"这种一眼可查的破绽。
+ */
+export function getEffectiveLanguage(config: Partial<SiteSpoofConfig>, hostname: string): LanguageConfig | null {
+  const normalized = normalizeConfig(config);
+  if (!normalized.masterEnabled) return null;
+  const rule = findMatchingRule(normalized, hostname);
+  if (!rule) return null;
+  const language = resolveEffectiveLanguageForRule(normalized, rule);
+  if (!language || !language.enabled || !language.language) return null;
+  return language;
+}
+
 export function resolveEffectiveLanguageForRule(config: SiteSpoofConfig, rule: SiteRule): LanguageConfig | null {
+  if (rule.compatibilityPreset === 'native') return null;
   return resolveSignal(config.globalProfile.language, rule.overrides.language, normalizeLanguage);
 }
 
@@ -270,10 +288,12 @@ function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, incl
   if (!rule) {
     return { matched: false, rule: null, payload: null, errors: [] };
   }
+  if (rule.compatibilityPreset === 'native') return { matched: true, rule, payload: null, errors: [] };
 
   const language = resolveEffectiveLanguageForRule(normalized, rule);
   const timezoneConfig = resolveSignal(normalized.globalProfile.timezone, rule.overrides.timezone, normalizeTimezone);
-  const geolocationConfig = includeGeolocation ? resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation) : null;
+  const geolocationConfig = includeGeolocation && rule.compatibilityPreset !== 'consistency'
+    ? resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation) : null;
   const needsExitLocationProfile = geolocationConfig?.mode === 'auto' || timezoneConfig?.mode === 'auto';
   const selectedProfile = rule.exitLocationProfileId
     ? normalized.exitLocationProfiles.find((profile) => profile.id === rule.exitLocationProfileId) || null
@@ -282,6 +302,7 @@ function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, incl
   const geolocation = resolveGeolocationValue(geolocationConfig, exitLocationProfile);
   const timezone = resolveTimezoneValue(timezoneConfig, exitLocationProfile);
   const fontExposure = normalizeFontExposure(normalized.fontExposure);
+  if (rule.compatibilityPreset === 'consistency') fontExposure.enabled = false;
   const errors: string[] = [];
 
   if (needsExitLocationProfile && !rule.exitLocationProfileId) {
@@ -299,7 +320,31 @@ function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, incl
   }
 
   if (errors.length) {
-    return { matched: true, rule, payload: null, errors };
+    // 部分生效：语言只依赖语言配置，时区/定位失败不该把它一起废掉。
+    // 时区、定位在这里显式置空，注入层只装语言补丁；errors 保留原因给 UI 说明。
+    const usableLanguage = language && language.enabled && language.language ? language : null;
+    if (!usableLanguage) return { matched: true, rule, payload: null, errors };
+    return {
+      matched: true,
+      rule,
+      errors,
+      payload: {
+        extensionEnabled: true,
+        intlMode: normalized.intlMode,
+        debugMode: normalized.debugMode,
+        ruleId: rule.id,
+        domain: rule.domain,
+        geolocation: null,
+        latitude: null,
+        longitude: null,
+        timezone: null,
+        timezoneSource: null,
+        languageConfig: usableLanguage,
+        timezoneConfig: { enabled: false, mode: 'auto', timezone: '' },
+        // 字体伪装与语言同属"不依赖出口档案"的那一半，部分生效时继续保留
+        fontExposureConfig: fontExposure
+      }
+    };
   }
 
   return {
@@ -340,10 +385,15 @@ export function getPageRuntimeProfile(config: Partial<SiteSpoofConfig>, hostname
 export function getLanguageTimezonePayload(config: Partial<SiteSpoofConfig>, hostname: string): LanguageTimezonePayload | null {
   const payload = getPageRuntimeProfile(config, hostname).payload;
   if (!payload || (!payload.languageConfig && !payload.timezone)) return null;
+  // Worker 侧字体补丁与主线程 font-exposure 脚本必须同步开关：主线程改了而 Worker 不改，
+  // 页面里一句 new Worker(...).measureText 就能把真实字体问出来。
+  const blockedFonts = payload.fontExposureConfig?.enabled && payload.fontExposureConfig.mode === 'vendor-software'
+    ? payload.fontExposureConfig.blockedFamilies.slice() : null;
   return {
     intlMode: payload.intlMode,
     ...(payload.languageConfig ? { language: { language: payload.languageConfig.language, languages: payload.languageConfig.languages.slice() } } : {}),
-    ...(payload.timezone ? { timezone: payload.timezone } : {})
+    ...(payload.timezone ? { timezone: payload.timezone } : {}),
+    ...(blockedFonts && blockedFonts.length ? { blockedFonts } : {})
   };
 }
 
@@ -353,6 +403,7 @@ export function getGeolocationPayload(config: Partial<SiteSpoofConfig>, hostname
   if (!normalized.masterEnabled) return null;
   const rule = findMatchingRule(normalized, hostname);
   if (!rule) return null;
+  if (rule.compatibilityPreset === 'native' || rule.compatibilityPreset === 'consistency') return null;
   const geo = resolveSignal(normalized.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
   const profile = rule.exitLocationProfileId
     ? normalized.exitLocationProfiles.find(item => item.id === rule.exitLocationProfileId && item.verification === 'verified') || null : null;

@@ -9,7 +9,24 @@ export function buildWorkerPatchSource(payload: RuntimePayload, workerBootstrap:
     intlMode: payload.intlMode === 'compatible' ? 'compatible' : 'strict',
     timezone: normalizeTimezonePayload(payload).timezone,
     language,
-    languages: config?.languages?.length ? config.languages : language ? [language] : null
+    languages: config?.languages?.length ? config.languages : language ? [language] : null,
+    // 字体伪装是独立的 surface，但 Worker 拿不到页面那个 realm，名单必须随补丁一起带过去
+    blockedFonts: payload.fontExposureConfig?.enabled ? [...(payload.fontExposureConfig.blockedFamilies || [])] : []
+  };
+  return `;(${workerBootstrap.toString()})(${JSON.stringify(patchConfig)});`;
+}
+
+// 独立字体钩子 userScript 用：只带名单，不带语言/时区，避免与页面运行时抢同一份 Worker 行为。
+export function buildWorkerPatchSourceFromFonts(
+  blockedFonts: string[],
+  workerBootstrap: (config: WorkerPatchConfig) => void
+): string {
+  const patchConfig: WorkerPatchConfig = {
+    intlMode: 'strict',
+    timezone: null,
+    language: null,
+    languages: null,
+    blockedFonts: [...blockedFonts]
   };
   return `;(${workerBootstrap.toString()})(${JSON.stringify(patchConfig)});`;
 }
