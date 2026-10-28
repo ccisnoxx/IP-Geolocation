@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BFCache B</title>
+<p id="marker">B</p>
+<script>
+  // 不要加 unload / beforeunload 监听：它们会让这个页面失去 BFCache 资格，
+  // 整个用例就退化成"普通重新加载"，证明不了恢复路径。
+  window.__bf = { persisted: null, pageshow: 0 };
+  window.addEventListener('pageshow', (event) => {
+    window.__bf.persisted = event.persisted;
+    window.__bf.pageshow += 1;
+  });
+  window.__bfProbe = () => ({
+    page: 'B',
+    language: navigator.language,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    persisted: window.__bf.persisted,
+    pageshow: window.__bf.pageshow
+  });
+</script>

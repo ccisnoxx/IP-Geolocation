@@ -1,4 +1,4 @@
-import { updateAcceptLanguageRules } from './dnr';
+import { buildAcceptLanguageRules, updateAcceptLanguageRules } from './dnr';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy } from './webrtc';
 import {
   LAST_LOCATION_KEY,
@@ -12,6 +12,8 @@ import {
 } from '../shared/config-resolver';
 import { createRule, normalizeConfig, normalizeDomain, normalizeWebRtc } from '../shared/config-model';
 import { describeSiteStatus } from '../shared/site-status';
+import { normalizeWorkerFallbackReason } from '../shared/worker-coverage';
+import type { WorkerFallbackReport, WorkerFallbackSummary } from '../shared/worker-coverage';
 import type { EffectiveProfileResult, LastLocation, SiteSpoofConfig } from '../shared/types';
 
 const GEO_API_URLS = [
@@ -211,6 +213,9 @@ export interface BackgroundServices {
   /** 注入层回报的实际生效字体层（诊断页读取） */
   reportFontLayers(url: string, layers: unknown): void;
   getFontLayers(url: string): { count: number; platform: string; hideCjkFonts: boolean; at: number } | null;
+  /** 注入层回报"某个 Worker 没能被包装"（通常是 CSP 拒绝 blob 入口） */
+  reportWorkerFallback(url: string, report: Partial<WorkerFallbackReport> | null | undefined): void;
+  getWorkerFallbacks(url: string): WorkerFallbackSummary | null;
   /** 导出当前配置，给烘焙构建用 */
   getBakeSnapshot(): Promise<{ config: SiteSpoofConfig; lastLocation: LastLocation | null }>;
   getLastLocation(): Promise<LastLocation | null>;
@@ -227,7 +232,12 @@ export interface BackgroundServices {
   /** 内容脚本上报自己的 documentId：说明该文档已经由注册的内容脚本装过 runtime */
   noteDocumentInjected(documentId?: string): Promise<void>;
   getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
-  getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { domain: string; config: SiteSpoofConfig; lastLocation: LastLocation | null }>;
+  getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
+    domain: string;
+    config: SiteSpoofConfig;
+    lastLocation: LastLocation | null;
+    workerFallback: WorkerFallbackSummary | null;
+  }>;
   addDomainRule(domain: string): Promise<SiteSpoofConfig>;
   setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig>;
   deleteDomainRule(domain: string): Promise<SiteSpoofConfig>;
@@ -304,22 +314,32 @@ export function createBackgroundServices(): BackgroundServices {
    */
   let snapshotCache: Record<string, any> | null = null;
   let lastLocationCache: { value: LastLocation | null } | null = null;
+  /**
+   * 缓存代际。冷启动时 `storage.local.get` 很慢，读的过程中用户可能已经保存了新配置
+   * 并触发失效 —— 如果慢读返回时无条件写回缓存，接下来的每一次读都会拿到那份旧快照，
+   * 表现为"界面上是已保存，实际规则还是旧的"。所以写缓存前必须确认期间没被失效过。
+   */
+  let cacheGeneration = 0;
 
   function invalidateStorageCache(): void {
+    cacheGeneration += 1;
     snapshotCache = null;
     lastLocationCache = null;
   }
 
   async function getStorageSnapshot(): Promise<Record<string, any>> {
     if (snapshotCache) return snapshotCache;
-    snapshotCache = await chrome.storage.local.get(null);
-    return snapshotCache;
+    const generation = cacheGeneration;
+    const snapshot = await chrome.storage.local.get(null);
+    if (generation === cacheGeneration && !snapshotCache) snapshotCache = snapshot;
+    return snapshot;
   }
 
   async function getSiteConfig(): Promise<SiteSpoofConfig> {
     const frozen = frozenBakedConfig();
     if (frozen) return frozen;
 
+    const generation = cacheGeneration;
     const data = await getStorageSnapshot();
     if (data.siteSpoofConfig) return migrateLegacyConfig(data);
 
@@ -332,17 +352,22 @@ export function createBackgroundServices(): BackgroundServices {
       ? migrateLegacyConfig({ siteSpoofConfig: baked.config })
       : migrateLegacyConfig(data);
 
-    await chrome.storage.local.set({ siteSpoofConfig: config });
-    // 种子的这次写入也要反映到缓存里，否则接下来每次读都会重新走种子分支
-    snapshotCache = { ...data, siteSpoofConfig: config };
+    // 只在"读到的确实是当前存储"时落种子：读的过程中用户已经保存的话，
+    // 这次种子写入会把用户配置直接盖掉（丢的不只是 DNR，是整个配置）。
+    if (generation === cacheGeneration) {
+      await chrome.storage.local.set({ siteSpoofConfig: config });
+      // 种子的这次写入也要反映到缓存里，否则接下来每次读都会重新走种子分支
+      snapshotCache = { ...data, siteSpoofConfig: config };
+    }
     return config;
   }
 
   async function getLastLocation(): Promise<LastLocation | null> {
     if (lastLocationCache) return lastLocationCache.value;
+    const generation = cacheGeneration;
     const data = await chrome.storage.local.get(LAST_LOCATION_KEY);
     const value = (data[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
-    lastLocationCache = { value };
+    if (generation === cacheGeneration) lastLocationCache = { value };
     return value;
   }
 
@@ -595,6 +620,49 @@ export function createBackgroundServices(): BackgroundServices {
     return fontLayerReports.get(hostname) || null;
   }
 
+  /**
+   * Worker 包装失败：按 hostname 聚合，只放内存。
+   *
+   * 为什么要记：包装只能靠 blob 入口，页面 CSP 的 worker-src / script-src 有权拒绝。
+   * 拒绝时 runtime 回退原生，页面照常跑，但那个 Worker 里读到的是原生值 ——
+   * 这是"部分覆盖"，不能和"已生效"显示成同一件事。
+   *
+   * 内存而不是 storage：页面刷新后 runtime 会重新报；Service Worker 重启丢掉旧记录
+   * 也无所谓，下一次构造会补上。真正要求的是**别把旧状态当现状**。
+   */
+  const workerFallbacks = new Map<string, WorkerFallbackSummary>();
+
+  function hostnameOf(url: string): string {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
+  }
+
+  function reportWorkerFallback(url: string, report: Partial<WorkerFallbackReport> | null | undefined): void {
+    const hostname = hostnameOf(url);
+    if (!hostname || !report || typeof report !== 'object') return;
+    const reason = normalizeWorkerFallbackReason(report.reason);
+    const entry: WorkerFallbackSummary = workerFallbacks.get(hostname)
+      || { hostname, count: 0, reasons: [], lastScript: '', lastMessage: '', at: 0 };
+    entry.count += 1;
+    if (!entry.reasons.includes(reason)) entry.reasons.push(reason);
+    if (typeof report.script === 'string' && report.script) entry.lastScript = report.script.slice(0, 300);
+    if (typeof report.message === 'string' && report.message) entry.lastMessage = report.message.slice(0, 300);
+    entry.at = Date.now();
+    workerFallbacks.set(hostname, entry);
+    if (workerFallbacks.size > 50) {
+      const oldest = [...workerFallbacks.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+      if (oldest) workerFallbacks.delete(oldest[0]);
+    }
+  }
+
+  function getWorkerFallbacks(url: string): WorkerFallbackSummary | null {
+    const hostname = hostnameOf(url);
+    return hostname ? workerFallbacks.get(hostname) || null : null;
+  }
+
   async function buildPayloadForUrl(url: string, configOverride?: SiteSpoofConfig, lastLocationOverride?: LastLocation | null): Promise<EffectiveProfileResult> {
     const hostname = url ? new URL(url).hostname : '';
     const config = configOverride || await getSiteConfig();
@@ -746,6 +814,67 @@ export function createBackgroundServices(): BackgroundServices {
     await runWithConcurrency(jobs, FRAME_SEND_CONCURRENCY);
   }
 
+  /** 上一次落地的「域名 → Accept-Language」表；null 表示还没应用过（安装/冷启动首轮不重载） */
+  let lastHeaderValues: Map<string, string> | null = null;
+
+  function headerValues(config: SiteSpoofConfig, lastLocation: LastLocation | null): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const rule of buildAcceptLanguageRules(config, lastLocation)) {
+      const value = (rule.action.requestHeaders || [])
+        .find((header) => header.header === 'Accept-Language')?.value || '';
+      for (const domain of rule.condition.requestDomains || []) map.set(domain, value);
+    }
+    return map;
+  }
+
+  /**
+   * 请求头值变化后重载受影响的页面。
+   *
+   * 背景：改语言必须写 DNR（`updateDynamicRules`），而 Chromium 实测任何一次写入都会把
+   * BFCache 页面驱逐出缓存 —— 但那只是"回退时不再命中缓存"，前台页面并不会自己重载：
+   * 它的文档仍是用旧 Accept-Language 请求来的，而页面里的 JS 值已经换新，两者当场不一致。
+   *
+   * 只处理**值变了**的域名（同一个域名前后都在、只是 Accept-Language 变了）。域名的增删
+   * 由 `reloadAffectedTabs` 负责，这里再插一手会让同一个标签页被重载两次。
+   * 首轮应用（安装 / Service Worker 冷启动）不重载，避免一开浏览器就整片刷新。
+   */
+  async function reloadTabsForHeaderChange(config: SiteSpoofConfig): Promise<void> {
+    const lastLocation = await getLastLocation();
+    const next = headerValues(config, lastLocation);
+    const previous = lastHeaderValues;
+    lastHeaderValues = next;
+    if (!previous) return;
+    if (typeof __VANISHGEO_BRIDGE__ === 'boolean' && !__VANISHGEO_BRIDGE__) return;
+
+    const changed = new Set<string>();
+    for (const [domain, value] of next) {
+      if (previous.has(domain) && previous.get(domain) !== value) changed.add(domain);
+    }
+    if (changed.size === 0) return;
+
+    let tabs: chrome.tabs.Tab[] = [];
+    try {
+      tabs = await chrome.tabs.query({});
+    } catch {
+      return;
+    }
+    for (const tab of tabs) {
+      if (!tab.id || !tab.url || !isScriptableUrl(tab.url)) continue;
+      let hostname = '';
+      try {
+        hostname = new URL(tab.url).hostname;
+      } catch {
+        continue;
+      }
+      if (![...changed].some((domain) => domainMatches(hostname, domain))) continue;
+      try {
+        await chrome.tabs.reload(tab.id);
+      } catch {
+        /* 标签页可能刚被关掉 */
+      }
+    }
+  }
+
   async function updateAllTabs(
     configOverride?: SiteSpoofConfig,
     lastLocationOverride?: LastLocation | null,
@@ -828,14 +957,21 @@ export function createBackgroundServices(): BackgroundServices {
     return buildPayloadForUrl(url);
   }
 
-  async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { domain: string; config: SiteSpoofConfig; lastLocation: LastLocation | null }> {
+  async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
+    domain: string;
+    config: SiteSpoofConfig;
+    lastLocation: LastLocation | null;
+    workerFallback: WorkerFallbackSummary | null;
+  }> {
     const config = await getSiteConfig();
     const lastLocation = await getLastLocation();
     const domain = tab?.url ? normalizeDomain(tab.url) : '';
     const resolved = domain
       ? getEffectiveProfile(config, domain, lastLocation)
       : { matched: false, rule: null, payload: null, errors: [] };
-    return { domain, config, lastLocation, ...resolved };
+    // 按标签页 hostname 取，不按规则 domain：子域和父域是两份独立记录
+    const workerFallback = getWorkerFallbacks(tab?.url || '');
+    return { domain, config, lastLocation, workerFallback, ...resolved };
   }
 
   /**
@@ -956,10 +1092,12 @@ export function createBackgroundServices(): BackgroundServices {
    * 已经有坐标且没变则直接返回，不会每次都白打一遍 IP 接口。
    */
   async function bootstrap(): Promise<void> {
-    const config = normalizeConfig(await getSiteConfig());
+    // 不传快照：让 applyConfig 在执行时自己读 storage。
+    // 冷启动读出配置到真正应用之间可能隔了几十毫秒，用户完全可能在这段时间里保存 ——
+    // 实测 2/3 次会把用户配置盖回默认值（DNR 与 payload 全是旧的，界面却显示已保存）。
     // 走 applyConfig 而不是直接调副作用：SW 重启后要顺手把 payload 补推给
     // 会话恢复出来的标签页（这些文档可能是在注册生效之前就存在的）。
-    await applyConfig(config);
+    await applyConfig();
     await updateGeolocation(false);
   }
 
@@ -970,12 +1108,32 @@ export function createBackgroundServices(): BackgroundServices {
    * 保存路径 (`saveSiteConfig`) 和 `storage.onChanged` 都会调到这里，
    * 靠签名去重保证一次写入只应用一次。
    */
-  async function applyConfig(configOverride?: SiteSpoofConfig): Promise<void> {
+  /**
+   * 应用链：同一时刻只跑一次应用。
+   *
+   * 并发应用会各写一半副作用（DNR、内容脚本、payload），而且 `lastAppliedSignature`
+   * 记录的是"最后完成的那个"，可能和 storage 里的配置不是同一份。
+   */
+  let applyChain: Promise<void> = Promise.resolve();
+
+  function applyConfig(configOverride?: SiteSpoofConfig): Promise<void> {
+    const run = () => applyConfigNow(configOverride);
+    const next = applyChain.then(run, run);
+    // 链本身不携带失败：一次应用失败不能把后面的应用永久挡住
+    applyChain = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  async function applyConfigNow(configOverride?: SiteSpoofConfig): Promise<void> {
     const config = frozenBakedConfig() || normalizeConfig(configOverride || await getSiteConfig());
     const signature = JSON.stringify(config);
     if (signature === lastAppliedSignature) return;
 
     await applyRuntimeSideEffects(config);
+    // 请求头变了就意味着已打开页面的文档是"旧头"加载的：JS 值已经换新，但文档本身
+    // 仍然是旧 Accept-Language 的产物。重载受影响的页面，让文档与值重新对齐。
+    // 只改时区/定位不碰头规则，这时重载纯属打扰，所以按内容签名判断。
+    await reloadTabsForHeaderChange(config);
     // clearUnmatched：排除站点、关总开关都要主动清掉已开页面上的烘焙值
     await updateAllTabs(config, undefined, { clearUnmatched: true });
     // 只在成功之后记账：中途失败（DNR / 权限被策略锁住）时下一次还能重试，
@@ -997,6 +1155,8 @@ export function createBackgroundServices(): BackgroundServices {
     getBakeSnapshot,
     reportFontLayers,
     getFontLayers,
+    reportWorkerFallback,
+    getWorkerFallbacks,
     getLastLocation,
     getExtensionState,
     setExtensionEnabled,

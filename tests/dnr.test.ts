@@ -262,6 +262,37 @@ test('updateAcceptLanguageRules：动态规则已经一致时不重复写', asyn
   assert.deepEqual(calls, []);
 });
 
+test('updateAcceptLanguageRules：改语言只写一次，随后同样的配置不再写（每次写都会踢掉 BFCache）', async () => {
+  const calls: string[] = [];
+  const chrome = fakeChrome(calls);
+  chrome.declarativeNetRequest.getEnabledRulesets = async () => [];
+  // 有状态的替身：写进去的规则要能被下一次 getDynamicRules 读到，
+  // 否则"同配置不再写"这条性质根本测不出来
+  const dynamic: any[] = [];
+  chrome.declarativeNetRequest.getDynamicRules = async () => dynamic.slice();
+  chrome.declarativeNetRequest.updateDynamicRules = async (details: any) => {
+    calls.push('write');
+    for (const id of details.removeRuleIds || []) {
+      const index = dynamic.findIndex((rule) => rule.id === id);
+      if (index >= 0) dynamic.splice(index, 1);
+    }
+    for (const rule of details.addRules || []) dynamic.push(rule);
+  };
+  (globalThis as any).chrome = chrome;
+
+  const tokyo = staticRulesetConfig('ja-JP,ja;q=0.9');
+  await updateAcceptLanguageRules(tokyo, LOCATION);
+  assert.equal(calls.length, 1, '配置变化必须写一次');
+
+  calls.length = 0;
+  await updateAcceptLanguageRules(tokyo, LOCATION);
+  assert.deepEqual(calls, [], '同样的配置再存一次不能重写规则');
+
+  calls.length = 0;
+  await updateAcceptLanguageRules(staticRulesetConfig('en-US,en;q=0.9'), LOCATION);
+  assert.equal(calls.length, 1, '换语言要写一次（这一次确实会驱逐 BFCache，别无他法）');
+});
+
 test('updateAcceptLanguageRules：没有 API 或 ruleset 查询失败时安全退化', async () => {
   const config = staticRulesetConfig();
   (globalThis as any).chrome = {};

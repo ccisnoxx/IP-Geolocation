@@ -62,8 +62,19 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
     }
   };
 
+  const listeners = new Map<string, Array<(event: any) => void>>();
   const window = {
     location: { href: CHILD_URL },
+    addEventListener: (type: string, fn: (event: any) => void) => {
+      const list = listeners.get(type) || [];
+      list.push(fn);
+      listeners.set(type, list);
+    },
+    removeEventListener: (type: string, fn: (event: any) => void) => {
+      const list = listeners.get(type) || [];
+      const index = list.indexOf(fn);
+      if (index >= 0) list.splice(index, 1);
+    },
     postMessage: (message: any, _target: string, transfer?: MessagePort[]) => {
       if (!message || message.__vanishGeo !== 'handshake' || !transfer || !transfer[0]) return;
       const port = transfer[0];
@@ -94,6 +105,13 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
     handshakes,
     window,
     chrome,
+    /** 模拟页面事件（pageshow 等） */
+    emit(type: string, event: any) {
+      for (const fn of listeners.get(type) || []) fn(event);
+    },
+    listenerCount(type: string) {
+      return (listeners.get(type) || []).length;
+    },
     get listener() { return listener; },
     get runtimePort() { return runtimePort; },
     setResponse(value: any) { response = value; },
@@ -186,6 +204,71 @@ test('字体层回报按本 frame 的 URL 转发', async () => {
   assert.deepEqual(harness.reports[0].layers, ['platform']);
 });
 
+
+test('BFCache 恢复（pageshow.persisted）会按本 frame 重拉 payload', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.pulls.length;
+
+  harness.emit('pageshow', { persisted: true });
+  await waitFor(() => harness.pulls.length === before + 1);
+
+  assert.equal(harness.pulls.length, before + 1);
+  assert.equal(harness.pulls.at(-1), CHILD_URL, '重拉必须用本 frame 的地址，而不是父页的');
+});
+
+test('普通加载的 pageshow（persisted=false）不重复拉取', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.pulls.length;
+
+  harness.emit('pageshow', { persisted: false });
+  harness.emit('pageshow', undefined);
+  await new Promise((done) => setTimeout(done, 30));
+
+  assert.equal(harness.pulls.length, before, '首屏已经在拉，重复拉取会白打一遍后台');
+});
+
+test('stop() 之后 pageshow 不再拉取（监听器要摘掉）', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.pulls.length;
+
+  harness.stop();
+  assert.equal(harness.listenerCount('pageshow'), 0);
+  harness.emit('pageshow', { persisted: true });
+  await new Promise((done) => setTimeout(done, 30));
+
+  assert.equal(harness.pulls.length, before);
+});
+
+test('Worker 包装失败按本 frame 的 URL 转发给后台', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+
+  harness.runtimePort?.postMessage({
+    __vanishGeo: NONCE,
+    kind: 'workerFallback',
+    reason: 'csp-blocked',
+    script: 'http://child.localhost/worker.js',
+    message: "Failed to construct 'Worker': CSP"
+  });
+  await waitFor(() => harness.reports.length === 1);
+
+  assert.equal(harness.reports[0].action, 'reportWorkerFallback');
+  assert.equal(harness.reports[0].url, CHILD_URL);
+  assert.equal(harness.reports[0].reason, 'csp-blocked');
+  assert.equal(harness.reports[0].script, 'http://child.localhost/worker.js');
+});
+
+test('nonce 不对的 workerFallback 回报被丢弃（页面伪造不了）', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+
+  harness.runtimePort?.postMessage({ __vanishGeo: 'wrong', kind: 'workerFallback', reason: 'csp-blocked' });
+  await new Promise((done) => setTimeout(done, 30));
+  assert.equal(harness.reports.length, 0);
+});
 
 test('SW 冷启动连续失败：收到 clear 后重试耗尽必须主动 clear', async () => {
   const harness = createHarness({ retryDelays: [1, 1, 1] });
