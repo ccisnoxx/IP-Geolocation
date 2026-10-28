@@ -14,7 +14,8 @@ function createChrome(calls: RuntimeCall[]) {
     matched: true,
     payload: { hostname: 'claude.ai' },
     errors: [] as string[],
-    config: structuredClone(DEFAULT_CONFIG)
+    config: structuredClone(DEFAULT_CONFIG),
+    workerFallback: null as any
   };
   return {
     state,
@@ -70,6 +71,28 @@ test('popup 加载真实 DOM：站点、全局状态和隐藏告警正确', () =
   assert.equal(el('globalStatus').textContent, '全局保护已启用');
   assert.equal(el('siteWarning').hidden, true);
   assert.equal(el('siteOk').hidden, false);
+});
+
+test('Worker 包装失败在弹窗里可见，并且说清"已回退原生"', async () => {
+  chrome.state.workerFallback = {
+    hostname: 'claude.ai',
+    count: 2,
+    reasons: ['csp-blocked'],
+    lastScript: 'https://claude.ai/worker.js',
+    lastMessage: "Failed to construct 'Worker': CSP",
+    at: Date.now()
+  } as any;
+  // 任意一次 loadConfig 都会重画：用"排除本站"触发（它内部只改规则再重读状态）
+  el<HTMLButtonElement>('disableSite').dispatchEvent(new Event('click', { bubbles: true }));
+  await waitFor(() => el('workerFallback').hidden === false);
+
+  assert.match(el('workerFallbackText').textContent || '', /2 个 Worker 未能包装/);
+  assert.match(el('workerFallbackText').textContent || '', /CSP/);
+  assert.match(el('workerFallbackHint').textContent || '', /回退原生/);
+
+  chrome.state.workerFallback = null;
+  el<HTMLButtonElement>('disableSite').dispatchEvent(new Event('click', { bubbles: true }));
+  await waitFor(() => el('workerFallback').hidden === true);
 });
 
 test('popup 切总开关立即保存并更新状态文案', async () => {

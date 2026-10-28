@@ -18,7 +18,7 @@ export interface WorkerPatchConfig {
  *   Date        构造器（多参数按目标时区解释）、getTimezoneOffset、get* 全家、
  *               **set* 全家**、toLocale* 全家、toString/toDateString/toTimeString
  *   Intl        DateTimeFormat / NumberFormat 的默认 locale 与默认 timeZone
- *   Canvas      OffscreenCanvasRenderingContext2D.measureText + fonts.check
+ *   Canvas      OffscreenCanvasRenderingContext2D.measureText / fillText / strokeText
  *
  * set* 家族是最容易被漏掉的一环：只改 getter 的话，`d.setHours(0,0,0,0)` 仍然按
  * 宿主时区落点，紧接着的 `d.getHours()` 就会返回非 0 —— 一行代码就能看出时区是假的。
@@ -481,7 +481,40 @@ export function workerPatch(config: WorkerPatchConfig): void {
       };
       putValue(proto, 'measureText', wrap(patched, 'measureText'), true);
     };
-    patchMeasure(scope.OffscreenCanvasRenderingContext2D && scope.OffscreenCanvasRenderingContext2D.prototype);
+    /**
+     * 绘制方法必须和度量用同一条改写路径。
+     *
+     * 只改 measureText 时，`fillText` 仍然用本机真实字形落像素：检测方拿候选族和
+     * 一个必然不存在的族各画一遍比像素，不同就说明字体在。主线程和 Worker 各自
+     * 都要覆盖，少一边就等于给检测方留了一条"换个执行上下文再问一次"的路。
+     */
+    const patchDraw = (proto: any) => {
+      const methods = ['fillText', 'strokeText'];
+      for (let index = 0; index < methods.length; index += 1) {
+        const method = methods[index];
+        const nativeDraw = proto && proto[method];
+        if (typeof nativeDraw !== 'function') continue;
+        const patched = function (this: any, text: string, x: number, y: number, maxWidth?: number) {
+          const next = replacement(this.font);
+          if (!next) {
+            return arguments.length > 3
+              ? nativeDraw.call(this, text, x, y, maxWidth)
+              : nativeDraw.call(this, text, x, y);
+          }
+          const original = this.font;
+          this.font = next;
+          try {
+            return arguments.length > 3
+              ? nativeDraw.call(this, text, x, y, maxWidth)
+              : nativeDraw.call(this, text, x, y);
+          } finally { this.font = original; }
+        };
+        putValue(proto, method, wrap(patched, method), true);
+      }
+    };
+    const offscreenProto = scope.OffscreenCanvasRenderingContext2D && scope.OffscreenCanvasRenderingContext2D.prototype;
+    patchMeasure(offscreenProto);
+    patchDraw(offscreenProto);
     // fonts.check 不接管：原生对"字体集里没有的家族"本来就返回 true（它测的是
     // FontFaceSet，不是系统字体的安装情况）。我们一改成 false，反而制造出一个
     // 真机永远不会出现的信号 —— 检测方只需要问一句 check('12px Helvetica')。

@@ -8,6 +8,7 @@ import { buildTargetFontKeys, resolveCanvasTargetFonts } from '../shared/font-al
 import { installGeolocation, uninstallGeolocation } from './geolocation';
 import { createSignalSpoof } from './signal-spoof';
 import { workerPatch } from './worker-patch';
+import type { WorkerFallbackReason } from '../shared/worker-coverage';
 
 /**
  * MAIN world 注入层。
@@ -99,7 +100,8 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     // 检测脚本最常用的绕过方式（只补前者时一行就绕过去了）。
     installCanvasFontPatches(globalThis, { fallbackFont: canvasFonts.fallbackFont, disguise, define });
 
-    // 本地字体清单是另一条路：canvas 只伪装"量出来的宽度"，而 queryLocalFonts
+    // 本地字体清单是另一条路：canvas 伪装的是"量出来的宽度 + 画出来的像素"
+    // （measureText 与 fillText / strokeText 走同一条回落路径），而 queryLocalFonts
     // 直接枚举本机全部字体（实测 667 条，含 24 条 PingFang）。不滤掉它，上面三层
     // 字表全部白做 —— 而且它没有阈值、没有误差，比 canvas 量测更硬。
     installLocalFontsFilter(globalThis, {
@@ -116,6 +118,57 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
   }
 
   // ---------- Worker ----------
+
+  /**
+   * 包装失败的上报通道。
+   *
+   * 端口在握手时收下（见文件末尾），这里只持有引用：拿到之前发生的失败没法上报，
+   * 但那种情况只出现在"payload 还没到、补丁还没装"的窗口里，此时也谈不上包装失败。
+   */
+  let reportPort: MessagePort | null = null;
+  /** 同一次文档里同一个 (原因, 脚本) 只报一次，避免循环建 Worker 的页面刷屏 */
+  const reportedFallbacks = new Set<string>();
+
+  /** 入口地址里的 query / hash 可能带业务参数，回报时只留 origin + path */
+  function workerScriptLabel(scriptURL: any): string {
+    try {
+      const url = new URL(String(scriptURL), location.href);
+      url.search = '';
+      url.hash = '';
+      return url.href;
+    } catch {
+      return String(scriptURL);
+    }
+  }
+
+  /**
+   * CSP 拒绝 blob 时 Chrome 抛 SecurityError 并在消息里点名 Content Security Policy；
+   * 其余构造失败（比如非法 URL）照实记，不硬套成 CSP。
+   */
+  function classifyWorkerFailure(error: any): WorkerFallbackReason {
+    const name = error && error.name ? String(error.name) : '';
+    const message = error && error.message ? String(error.message) : String(error || '');
+    if (name === 'SecurityError' || /content security policy/i.test(message)) return 'csp-blocked';
+    return 'construct-failed';
+  }
+
+  function reportWorkerFallback(scriptURL: any, reason: WorkerFallbackReason, error: any): void {
+    try {
+      if (!reportPort) return;
+      const script = workerScriptLabel(scriptURL);
+      const key = `${reason}|${script}`;
+      if (reportedFallbacks.has(key) || reportedFallbacks.size >= 20) return;
+      reportedFallbacks.add(key);
+      const message = error && error.message ? String(error.message) : String(error || '');
+      reportPort.postMessage({
+        __vanishGeo: NONCE,
+        kind: 'workerFallback',
+        reason,
+        script,
+        message: message.slice(0, 300)
+      });
+    } catch { /* 端口可能已经关闭 */ }
+  }
 
   /** 让 `X.prototype.constructor === X` 继续成立：共享原生原型，并把 constructor 指回来 */
   function adoptPrototype(wrapper: any, Native: any): (() => void) | null {
@@ -193,12 +246,61 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
 
     const NativeWorker = (globalThis as any).Worker;
     if (typeof NativeWorker === 'function') {
+      /**
+       * blob 入口是否被 CSP 拒绝。
+       *
+       * 真 Chrome 实测（worker-src 'self'）：`new Worker(blob:)` **不抛错**，只在稍后
+       * 触发一次 error 事件，message 还是空的。也就是说"构造成功"根本不代表能跑 ——
+       * 只靠 try/catch 的话，页面自己的 Worker 会直接坏掉，而我们既没回退也没记录。
+       *
+       * 取值：null = 探测还没回来；true = 被拒；false = 允许。
+       * 探测未完成时构造走原生：宁可这一毫秒少伪装一次，也不把页面弄坏。
+       */
+      let blobWorkerBlocked: boolean | null = null;
+      try {
+        const probeUrl = URL.createObjectURL(new Blob(['self.postMessage(1);self.close();'], { type: 'text/javascript' }));
+        const probe = new NativeWorker(probeUrl);
+        let settled = false;
+        const finish = (blocked: boolean) => {
+          if (settled) return;
+          settled = true;
+          blobWorkerBlocked = blocked;
+          try { probe.terminate(); } catch { /* ignore */ }
+          try { URL.revokeObjectURL(probeUrl); } catch { /* ignore */ }
+        };
+        probe.onmessage = () => finish(false);
+        probe.onerror = () => finish(true);
+        // 探测本身卡住时按"允许"处理：保持原行为，别因为一次超时永久降级
+        setTimeout(() => finish(false), 800);
+      } catch {
+        // 连探测 Worker 都建不出来：这个文档里 blob 入口用不了
+        blobWorkerBlocked = true;
+      }
+
       const wrapped = disguise(function (this: any, scriptURL: any, options?: any) {
+        // 两段分开 catch：
+        //  - 生成 blob 失败 → 根本没换入口，回退原生即可（blob-failed）
+        //  - 换了入口、构造被 CSP 拒绝 → 页面原本能跑，现在必须回退且**说出来**
+        if (blobWorkerBlocked === true) {
+          // 探测已经确认 blob 被拒：直接原生入口，并且**说出来**（同一个脚本只报一次）
+          reportWorkerFallback(scriptURL, 'csp-blocked', { message: 'blob worker entry blocked by CSP' });
+          return new NativeWorker(scriptURL, options);
+        }
+        if (blobWorkerBlocked === null) {
+          return new NativeWorker(scriptURL, options);
+        }
+        let patchedUrl: string | null = null;
         try {
-          const patchedUrl = makeWorkerUrl(scriptURL, options);
-          if (!patchedUrl) return new NativeWorker(scriptURL, options);
+          patchedUrl = makeWorkerUrl(scriptURL, options);
+        } catch (error) {
+          reportWorkerFallback(scriptURL, 'blob-failed', error);
+          return new NativeWorker(scriptURL, options);
+        }
+        if (!patchedUrl) return new NativeWorker(scriptURL, options);
+        try {
           return new NativeWorker(patchedUrl, options);
-        } catch {
+        } catch (error) {
+          reportWorkerFallback(scriptURL, classifyWorkerFailure(error), error);
           return new NativeWorker(scriptURL, options);
         }
       }, 'Worker', 1);
@@ -207,23 +309,19 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       replaceGlobal('Worker', wrapped);
     }
 
-    const NativeSharedWorker = (globalThis as any).SharedWorker;
-    if (typeof NativeSharedWorker === 'function') {
-      const wrapped = disguise(function (this: any, scriptURL: any, optionsOrName?: any) {
-        try {
-          const options = optionsOrName && typeof optionsOrName === 'object' ? optionsOrName : undefined;
-          const patchedUrl = makeWorkerUrl(scriptURL, options);
-          if (!patchedUrl) return new NativeSharedWorker(scriptURL, optionsOrName);
-          return new NativeSharedWorker(patchedUrl, optionsOrName);
-        } catch {
-          return new NativeSharedWorker(scriptURL, optionsOrName);
-        }
-      }, 'SharedWorker', 1);
-      const restorePrototype = adoptPrototype(wrapped, NativeSharedWorker);
-      if (restorePrototype) undo.push(restorePrototype);
-      replaceGlobal('SharedWorker', wrapped);
-    }
-
+    // SharedWorker 故意**不包装**。
+    //
+    // 包装只能靠"换成带补丁前缀的 blob URL"，而 SharedWorker 的身份就是
+    // (resolved URL, name)：blob URL 每次 createObjectURL 都是新的，于是
+    //   1. 同一份 (脚本, name) 在不同文档里各建一个实例，跨文档共享语义当场消失
+    //      （实测两个标签页各自 connections=1，真共享应该是 1 → 2）；
+    //   2. worker 内部的相对 fetch / new Worker 基准变成 blob:，CSP 的
+    //      worker-src / script-src 也可能直接拦下；
+    //   3. 这些都不是能"修回去"的差异 —— 只能选择放弃共享语义或放弃伪装。
+    //
+    // 所以这里保留原生构造器：SharedWorker 读到的是**真实的** Date / Intl /
+    // navigator，不是"一半伪装"的矛盾值。覆盖面见 shared/worker-coverage.ts，
+    // 诊断页与文档都按 UNSUPPORTED 标注，不宣称覆盖。
     if (!undo.length) return null;
     state.installedWorker = true;
     return () => {
@@ -416,6 +514,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       const port = event.ports && event.ports[0];
       if (!port) return;
       window.removeEventListener('message', onHandshake);
+      reportPort = port;
       // 回报通道：诊断页要显示"页面实际生效的字体层"。三张字表只存在于这个文件里
       // （注入层必须自包含），所以数字只能由这里给，不能在诊断页另算一份。
       // 端口是私有的，页面看不到这条消息。
