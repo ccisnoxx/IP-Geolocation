@@ -17,3 +17,6 @@ coverage/
 release/
 *.zip
 CHANGELOG.txt
+
+# Vite 打包配置文件时的临时产物（构建完成不总会自己删）
+vite.config.ts.timestamp-*.mjs
