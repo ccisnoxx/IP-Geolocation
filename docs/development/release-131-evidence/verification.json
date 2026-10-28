@@ -192,6 +192,7 @@
     }
   ],
   "release": "NOT_PUBLISHED",
-  "integration": "AUTHORIZED_PENDING_GIT_CLOSEOUT",
-  "humanAcceptance": "PENDING"
+  "integration": "CODE_COMMITTED_PUSHED_AND_FAST_FORWARDED_TO_MAIN",
+  "humanAcceptance": "PENDING",
+  "codeCommit": "9c4cc578dfc0d69b7dc40cff137f8b996da4dc2f"
 }

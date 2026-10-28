@@ -71,3 +71,11 @@
 收尾发现Intl runner直接临时加载dist会写Chrome DNR的_metadata索引缓存，使浏览器整体目录摘要与普通ZIP不同。逐文件核对仅该缓存多出，维护产物字节均一致；runner已改为复制到本次临时目录再加载，移除本次写入的dist缓存，重新执行矩阵并核对普通ZIP与正式浏览器的dist指纹。此修复不触及生产runtime。
 
 依据用户最初“提交并推送、有分支合入main”及随后明确要求release功能代码迁移的授权，准备提交全部已审查的任务路径，保持VG-043/044原状态，不打tag或发布。Git实际提交及远端结果以收尾命令为准。
+
+
+## Git实际收尾
+
+- 功能提交9c4cc578dfc0d69b7dc40cff137f8b996da4dc2f：131个已审查任务路径。
+- 主工作区原本clean且位于57d42df；确认新增路径不会覆盖其untracked/ignored文件后，main以--ff-only合入功能分支。origin/main已成功推送至9c4cc57，未使用force、历史ours合并或丢弃主工作区改动。
+- 最终普通ZIP与最终Chrome正式dist指纹一致；Intl runner改用临时副本后不再向dist写DNR缓存。7个本地review包保持未发布，未打tag。
+- VG-045仍为review，人工验收pending。此处仅补实际Git事实，未改运行时或重复执行测试。
