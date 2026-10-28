@@ -8,7 +8,8 @@ import {
   resolveCanvasTargetFonts
 } from '../src/shared/font-aliases';
 import type { FontPlatform } from '../src/shared/font-aliases';
-import { installCanvasFontPatches } from '../src/injected/canvas-patch';
+import { installCanvasFontPatches, uninstallCanvasFontPatches } from '../src/injected/canvas-patch';
+import { createDisguise } from '../src/injected/disguise';
 import { defineNativeLike } from '../src/injected/define';
 import { normalizeConfig } from '../src/shared/config-model';
 import type { CanvasConfig } from '../src/shared/types';
@@ -316,4 +317,145 @@ test('最终列表去重（同名字体不会重复出现）', () => {
   const lowered = list.map((font) => font.toLowerCase());
   assert.equal(new Set(lowered).size, lowered.length, `有重复项：${list.join(', ')}`);
   assert.ok(list.includes('Comic Sans MS'));
+});
+
+// ---------- 绘制面：fillText / strokeText 必须和度量走同一条回落路径 ----------
+
+/**
+ * 这一组测试的来历：只改 measureText 时，`measureText` 报"字体缺失"的宽度，
+ * `fillText` 却仍用本机真实字形落像素。检测方不用阈值 —— 同一句话用候选族和
+ * 一个必然不存在的族各画一遍比像素，不同就说明候选族在。
+ */
+
+function makeDrawingContextClass(nativeWidths: Record<string, number> = {}) {
+  class DrawingCtx {
+    font = '10px monospace';
+    draws: Array<{ kind: string; font: string; argc: number; maxWidth?: number }> = [];
+
+    measureText(text: string) {
+      return { width: (nativeWidths[this.font] ?? 100) + text.length };
+    }
+
+    fillText(text: string, x: number, y: number, maxWidth?: number) {
+      this.draws.push({ kind: 'fillText', font: this.font, argc: arguments.length, maxWidth });
+      void text; void x; void y;
+    }
+
+    strokeText(text: string, x: number, y: number, maxWidth?: number) {
+      this.draws.push({ kind: 'strokeText', font: this.font, argc: arguments.length, maxWidth });
+      void text; void x; void y;
+    }
+  }
+  return DrawingCtx;
+}
+
+const DECLARED = '72px "SimSun", monospace';
+
+test('fillText / strokeText 用的 font 与 measureText 相同（像素和度量不打架）', () => {
+  const scope: any = { CanvasRenderingContext2D: makeDrawingContextClass({ [DECLARED]: 999 }) };
+  const { deps } = makeDeps();
+  installCanvasFontPatches(scope, deps);
+  const expected = deps.fallbackFont(DECLARED);
+  assert.ok(expected, '测试替身应该命中 SimSun');
+  const ctx = new scope.CanvasRenderingContext2D();
+
+  ctx.font = DECLARED;
+  const width = ctx.measureText('中文').width;
+  ctx.fillText('中文', 3, 4);
+  ctx.strokeText('中文', 3, 4);
+
+  // 度量走的是改写后的串（999 的原生宽度不该出现）
+  assert.equal(width, 100 + 2);
+  assert.equal(ctx.draws.length, 2);
+  for (const draw of ctx.draws) {
+    assert.equal(draw.font, expected, `${draw.kind} 仍在用被隐藏的字体绘制`);
+  }
+  // 绘制结束后页面读回的仍是自己写进去的串
+  assert.equal(ctx.font, DECLARED);
+});
+
+test('maxWidth 按实参个数转发：给了才传第四个参数', () => {
+  const scope: any = { CanvasRenderingContext2D: makeDrawingContextClass() };
+  installCanvasFontPatches(scope, makeDeps().deps);
+  const ctx = new scope.CanvasRenderingContext2D();
+  ctx.font = DECLARED;
+
+  ctx.fillText('中文', 1, 2);
+  ctx.fillText('中文', 1, 2, 30);
+  ctx.strokeText('中文', 1, 2);
+  ctx.strokeText('中文', 1, 2, 30);
+
+  assert.deepEqual(ctx.draws.map((draw: any) => draw.argc), [3, 4, 3, 4]);
+  assert.equal(ctx.draws[1].maxWidth, 30);
+  assert.equal(ctx.draws[3].maxWidth, 30);
+});
+
+test('没有命中目标字体时绘制路径原样透传，不改 font', () => {
+  const scope: any = { CanvasRenderingContext2D: makeDrawingContextClass() };
+  installCanvasFontPatches(scope, makeDeps().deps);
+  const ctx = new scope.CanvasRenderingContext2D();
+  ctx.font = '16px Arial';
+  ctx.fillText('hello', 0, 0);
+  assert.equal(ctx.draws[0].font, '16px Arial');
+});
+
+test('OffscreenCanvas 上下文的绘制同样被改写', () => {
+  const scope: any = {
+    CanvasRenderingContext2D: makeDrawingContextClass(),
+    OffscreenCanvasRenderingContext2D: makeDrawingContextClass()
+  };
+  const { deps } = makeDeps();
+  const expected = deps.fallbackFont(DECLARED);
+  installCanvasFontPatches(scope, deps);
+  for (const name of ['CanvasRenderingContext2D', 'OffscreenCanvasRenderingContext2D']) {
+    const ctx = new scope[name]();
+    ctx.font = DECLARED;
+    ctx.fillText('中文', 0, 0);
+    assert.equal(ctx.draws[0].font, expected, `${name} 的 fillText 没有跟着改写`);
+  }
+});
+
+test('绘制方法的 name / length / toString 与原生同形，enumerable 保持可枚举', () => {
+  const disguise = createDisguise();
+  const scope: any = { CanvasRenderingContext2D: makeDrawingContextClass() };
+  const proto = scope.CanvasRenderingContext2D.prototype;
+  Object.defineProperty(proto, 'fillText', {
+    value: proto.fillText, writable: true, enumerable: true, configurable: true
+  });
+  Object.defineProperty(proto, 'strokeText', {
+    value: proto.strokeText, writable: true, enumerable: true, configurable: true
+  });
+
+  installCanvasFontPatches(scope, {
+    fallbackFont: (font: string) => (font.includes('SimSun') ? '72px monospace' : null),
+    disguise,
+    define: defineNativeLike
+  });
+  try {
+    for (const key of ['fillText', 'strokeText']) {
+      assert.equal(proto[key].name, key);
+      assert.equal(proto[key].length, 4, `${key}.length 与 WebIDL 不一致`);
+      assert.equal(String(proto[key]), `function ${key}() { [native code] }`);
+      assert.equal(Object.getOwnPropertyDescriptor(proto, key)!.enumerable, true);
+    }
+  } finally {
+    // 这个文件里其余测试还要用原生 toString，断言完再还原
+    disguise.uninstall();
+  }
+});
+
+test('uninstall 把 fillText / strokeText 还原成安装前的原生引用', () => {
+  const scope: any = { CanvasRenderingContext2D: makeDrawingContextClass() };
+  const proto = scope.CanvasRenderingContext2D.prototype;
+  const nativeFill = proto.fillText;
+  const nativeStroke = proto.strokeText;
+  const nativeMeasure = proto.measureText;
+
+  installCanvasFontPatches(scope, makeDeps().deps);
+  assert.notEqual(proto.fillText, nativeFill);
+
+  uninstallCanvasFontPatches(scope);
+  assert.equal(proto.fillText, nativeFill);
+  assert.equal(proto.strokeText, nativeStroke);
+  assert.equal(proto.measureText, nativeMeasure);
 });
