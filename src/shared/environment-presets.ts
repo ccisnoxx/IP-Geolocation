@@ -1,4 +1,4 @@
-import type { ExitLocationProfile, GeolocationConfig, LanguageConfig, SiteSpoofConfig, TimezoneConfig } from './types';
+import type { ExitLocationProfile } from './types';
 import { recommendExitEnvironment } from './exit-recommendation';
 
 /** 一键环境预设：把经纬度、语言、时区当作一个整体切换，避免三处各填一半。 */
@@ -36,35 +36,6 @@ export const ENVIRONMENT_PRESETS: EnvironmentPreset[] = [
 
 export function findEnvironmentPreset(id: string): EnvironmentPreset | null {
   return ENVIRONMENT_PRESETS.find(preset => preset.id === id) || null;
-}
-
-/**
- * 只改全局信号（经纬度/语言/时区），并把三者显式置为 manual；
- * 站点规则、出口档案、WebRTC、字体配置一律不动。
- */
-export function applyEnvironmentPreset(config: SiteSpoofConfig, preset: EnvironmentPreset): SiteSpoofConfig {
-  const language: LanguageConfig = {
-    ...config.globalProfile.language,
-    enabled: true,
-    mode: 'custom',
-    language: preset.language,
-    languages: [...preset.languages]
-  };
-  const timezone: TimezoneConfig = { ...config.globalProfile.timezone, enabled: true, mode: 'manual', timezone: preset.timezone };
-  const geolocation: GeolocationConfig = {
-    ...config.globalProfile.geolocation,
-    enabled: true,
-    mode: 'manual',
-    latitude: preset.latitude,
-    longitude: preset.longitude,
-    country: preset.country
-  };
-  return { ...config, globalProfile: { ...config.globalProfile, language, timezone, geolocation } };
-}
-
-/** 卡片副标题：旗帜 + 时区，和上游项目的 profile-card-info 一致。 */
-export function presetCardInfo(preset: EnvironmentPreset): string {
-  return `${preset.flag} ${preset.timezone}`;
 }
 
 export interface QuickSetSignals {

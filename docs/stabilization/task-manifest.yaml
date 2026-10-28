@@ -3,6 +3,24 @@ project: VanishGeo
 # 唯一跨任务状态来源；review 不能满足依赖，done 需要人工验收。
 # VG-001 至 VG-014 是本次建立的执行清单，细化设计时保持 ID 和依赖可追溯。
 tasks:
+  - id: VG-044
+    title: 合并基线遗留代码与冗余测试证据审计
+    phase: R8
+    dependencies: [VG-040, VG-042]
+    status: review
+    trellis_task: .trellis/tasks/10-28-vg-044-code-audit
+    authorization:
+      date: '2026-10-28'
+      scope: 用户授权深度审计、删除前举证、修复真实Bug并运行相关检查；不提交推送或发布
+    scope:
+      - 核对维护源、构建、脚本、测试及历史证据消费者，先记录依据再删除
+      - 保留有效覆盖，修复确认缺陷，不以删除或跳过测试掩盖失败
+      - VG-043仍为review，本轮不代替其人工验收或启动暂停功能
+    acceptance:
+      - 删除项有可复核的失效证据和保留覆盖说明
+      - 受影响行为与完整本地门禁有实际结果，未解决项明确记录
+      - 本地实现验证后仅review，人工验收后才可done
+
   - id: VG-043
     title: 扩展可观察面审计与站点兼容性预设
     phase: R8

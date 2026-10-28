@@ -1,0 +1,21 @@
+{
+  "id": "VG-044",
+  "name": "合并基线遗留代码与冗余测试证据审计",
+  "status": "review",
+  "dependencies": ["VG-040", "VG-042"],
+  "baseline_head": "567f65f",
+  "authorization": {
+    "date": "2026-10-28",
+    "scope": "用户要求深度审计，先证明再删除，修复真实Bug并验证；不提交推送发布"
+  },
+  "verification": {
+    "baseline_tests": "398/398 passed",
+    "final_check": "424/424 passed; source and test types; build",
+    "unused_checks": "source and tests passed",
+    "chrome_dry_run": "passed; not browser acceptance",
+    "independent_review": "passed after strict alias expectation fix",
+    "real_chrome": "not run",
+    "diff_check": "passed"
+  },
+  "acceptance": { "status": "pending" }
+}

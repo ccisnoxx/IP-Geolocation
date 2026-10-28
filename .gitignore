@@ -460,3 +460,9 @@ Thumbs.db
 !.trellis/tasks/10-26-vg-043-observability/prd.md
 !.trellis/tasks/10-26-vg-043-observability/implement.md
 !.trellis/tasks/10-26-vg-043-observability/evidence.json
+
+# VG-044 本轮遗留代码与测试审计记录
+!.trellis/tasks/10-28-vg-044-code-audit/
+.trellis/tasks/10-28-vg-044-code-audit/*
+!.trellis/tasks/10-28-vg-044-code-audit/task.json
+!.trellis/tasks/10-28-vg-044-code-audit/implement.md

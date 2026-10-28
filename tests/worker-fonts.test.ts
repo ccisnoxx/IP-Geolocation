@@ -21,7 +21,7 @@ function workerRealm() {
     measureText(text: string) { return { width: widthFor(this.#font) + text.length * 0 }; }
   }
   class FontFaceSet {
-    check(font: string) { return widthFor(font) !== WIDTHS['"simsun"']; }
+    check(font: string) { return font !== '16px Missing'; }
   }
   const root = { OffscreenCanvasRenderingContext2D, FontFaceSet } as any;
   return { root, fonts: new FontFaceSet(), context: new OffscreenCanvasRenderingContext2D() };
@@ -45,9 +45,12 @@ test('Worker 的 OffscreenCanvas.measureText 命中屏蔽字体时改用后备�
 
 test('Worker 的 FontFaceSet.check 对被屏蔽字体返回 false，其余照旧', () => {
   const realm = workerRealm();
+  assert.equal(realm.fonts.check('16px "SimSun"'), true);
+  assert.equal(realm.fonts.check('16px Missing'), false);
   installWorkerFonts(realm.root, { blockedFonts: ['SimSun'] });
   assert.equal(realm.fonts.check('16px "SimSun"'), false);
   assert.equal(realm.fonts.check('16px sans-serif'), true);
+  assert.equal(realm.fonts.check('16px Missing'), false);
 });
 
 test('没有名单时不装补丁（保持原生实现，避免误伤）', () => {
@@ -93,13 +96,17 @@ test('生产 Blob Worker bootstrap 收到名单后在真 Worker realm 里改掉 
       set font(value: string) { this.#font = `${value}`; }
       measureText() { return { width: widthFor(this.#font) }; }
     },
-    FontFaceSet: class { check(font: string) { return widthFor(font) !== WIDTHS['"simsun"']; } },
+    FontFaceSet: class { check(font: string) { return `${font}` !== '16px Missing'; } },
     addEventListener() {}, navigator: { language: 'zh-CN', languages: ['zh-CN'] } }, { codeGeneration: { strings: false, wasm: false } });
   const payload = { intlMode: 'strict', timezone: 'America/Los_Angeles', blockedFonts: ['SimSun'] };
+  assert.equal(vm.runInContext(`new FontFaceSet().check('16px "SimSun"')`, context), true);
+  assert.equal(vm.runInContext(`new FontFaceSet().check('16px Missing')`, context), false);
   vm.runInContext(`globalThis.self = globalThis; (${bootstrap})(${JSON.stringify(payload)})`, context);
   assert.equal(vm.runInContext(`(() => { const c = new OffscreenCanvasRenderingContext2D(); c.font = '16px "SimSun"';
     const width = c.measureText('M').width; return [width, c.font]; })()`, context)[0], WIDTHS.monospace);
   assert.equal(vm.runInContext(`new FontFaceSet().check('16px "SimSun"')`, context), false);
+  assert.equal(vm.runInContext(`new FontFaceSet().check({toString() {return '16px "SimSun"';}})`, context), false);
+  assert.equal(vm.runInContext(`new FontFaceSet().check('16px Missing')`, context), false);
 });
 
 test('解析器把字体名单下发到页面 payload，且与 font-scripts 的注册条件一致', async () => {

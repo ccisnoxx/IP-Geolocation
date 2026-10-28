@@ -112,18 +112,14 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 - **P2 Worker 侧字体伪装**：`surfaces/offscreen-fonts.ts` 把同一份屏蔽名单补到
   `OffscreenCanvasRenderingContext2D.measureText` 与 `FontFaceSet.check`；名单经
   `LanguageTimezonePayload.blockedFonts` 进入 Blob Worker（含嵌套），条件是
-  `fontExposure.enabled && mode === 'vendor-software'`，与 `compileFontScripts()` 同步开关。
-  验证：`tests/worker-fonts.test.ts`（含生产 Blob bootstrap 在 vm realm 内的实测）。
-- **文件型 Worker（P2 第二步）**：`new Worker('/app.js')` 这条链路由**独立 userScript**
-  `worker-fonts/hook.js` 负责（`src/injected/runtime-modules/worker-font-hook-entry.ts`，
-  构建期由 `generateWorkerFontHook()` 产出）。它只带固定内置名单、只用字体补丁源
-  （`buildWorkerPatchSourceFromFonts()`，语言/时区为 null），不碰页面运行时的 graph，
-  `tests/runtime-build.test.ts` 的"页面 graph 不含 `worker/`"契约保持不变。
-  注册与 `font-exposure/filter.js` 同一批域、同一开关（`compileWorkerFontScripts()`，
-  前缀 `vanishgeo-font-worker-`），清单 `js` 只有一行 `worker-fonts/hook.js`。
-  验证：`tests/worker-font-hook.test.ts`（编译门禁＋产物自包含＋vm realm 内实际改包
-  `new Worker('/worker.js')` 的脚本体）。
-- **仍未覆盖**：SharedWorker / 自定义名单维持 VG-025 的暂停范围；跨源 Worker 交由原生。
+  `fontExposure.enabled && mode === 'vendor-software'` 且规则为 full。
+  名单只随已有语言/时区 Blob Worker 链传递；语言和时区均关闭时，单独开启字体不会建立 Worker 链。
+  验证：`tests/worker-fonts.test.ts`（生成的生产 Blob bootstrap 在 Node VM 中执行）。
+- **文件型 Worker 维护实验**：构建保留 `worker-fonts/hook.js` 与
+  `generateWorkerFontHook()`，供隔离研究和回归使用；`compileFontRelatedScripts()` 不生产派发它。
+  `vanishgeo-font-worker-` 前缀仅用于撤销实验残留，不能当作生产支持的证据。
+  `tests/worker-font-hook.test.ts` 分别验证不派发、实验生成自包含及包装行为。
+- **仍未覆盖**：HTTP(S) Dedicated Worker、SharedWorker、外来 Blob 和自定义字体名单继续暂停。
 
 ## Canvas 字体伪装（独立 userScript）
 
@@ -132,13 +128,16 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 - 门禁与字体过滤一致：`FONT_FILTER_PRODUCTION_APPROVED && fontExposure.enabled && canvasSpoof.enabled && 规则预设 full`。
 - 行为：目标平台之外的专有字体（如声称 macOS 时的 `Segoe UI`、`Microsoft YaHei`）在 `measureText` 中改用对端等价字体量宽，
   测量后恢复原 `font`；`FontFaceSet.check()` 对它们返回 `false`。不改实际像素，因此与截图指纹仍可能不一致。
+- 生产会同时安装固定 43 项过滤。原字体或映射目标在该名单内时，结果仍可能使用后备字体，
+  不能将独立 Canvas 补丁的中文等价字体测量结果当作两种补丁组合后的保证。调整优先级需要另行确定合同。
 - 不覆盖：`fillText` 实际字形、`@font-face local()`、像素比对、WebGL。
 
 ## 环境预设（三省一市：新加坡 / 东京 / 洛杉矶）
 
 - `src/shared/environment-presets.ts` 导出 `ENVIRONMENT_PRESETS`，只包含上述三项。
-- `applyEnvironmentPreset()` 只改全局语言/时区/地理位置并把三者置为显式值，规则、出口档案、WebRTC、字体配置不动。
-- Options「一键环境预设」填入表单后走正常保存流程，不绕过校验。
+- Popup/Options 的卡片与已确认出口都通过 `presetSignals()` / `exitProfileSignals()` 填入表单，再走正常保存与校验。
+  同批更新坐标、国家、语言和时区，规则、出口档案、WebRTC、字体配置保留。
+- `tests/quick-set-ui.test.ts` 执行维护源事件与保存路径，验证三信号、非目标配置、往返和失败提示。
 
 ## 烘焙 persona（`npm run build:persona`）
 
@@ -148,9 +147,11 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 
 ## 指纹一致性回归（`npm run smoke:fingerprint`）
 
-- 在顶层 / 同源 iframe / Dedicated Worker 三个独立 realm 内跑**同一份** dist 页面运行时，
-  比对 `Intl` 时区、`getTimezoneOffset`、`locale`、`navigator.language(s)`，任一处不一致即非零退出。
-- `--selftest-mismatch` 故意让 Worker 偏离，用来证明比对逻辑不会假绿。
+- 从维护源生成页面入口与生产 Blob Worker 引导，分别在三个拥有独立 JS 内建对象的 Node VM realm 中执行。
+  页面样本使用页面入口，Worker 样本使用 Blob Worker 入口；不读取 dist，也不创建真实 iframe 或 Worker。
+- 先逐样本核对 payload 预期的时区、固定日期 offset、locale、language/languages，再核对样本间一致性。
+  `--selftest-mismatch` 故意让 Worker 偏离；负例测试还验证全不打补丁、遗漏 Worker 补丁和宿主污染。
+  这是 Node/VM 证据，不验证字体、网络、Chrome 注册或浏览器生命周期。
 
 ## WebRTC：为什么只用浏览器策略
 

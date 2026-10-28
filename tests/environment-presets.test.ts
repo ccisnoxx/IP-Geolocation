@@ -1,21 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ENVIRONMENT_PRESETS, applyEnvironmentPreset, exitProfileSignals, findEnvironmentPreset, presetCardInfo, presetSignals } from '../src/shared/environment-presets';
-import { createRule, normalizeConfig } from '../src/shared/config-model';
-import { getConfigInputErrors } from '../src/shared/config-validation';
-
-const base = () => normalizeConfig({
-  masterEnabled: true,
-  globalProfile: {
-    language: { enabled: false, mode: 'custom', language: '', languages: [] },
-    timezone: { enabled: false, mode: 'manual', timezone: '' },
-    geolocation: { enabled: false, mode: 'manual', latitude: null, longitude: null, accuracy: 50, country: '' }
-  } as any,
-  rules: [createRule('example.com')]
-});
+import { ENVIRONMENT_PRESETS, exitProfileSignals, findEnvironmentPreset, presetSignals } from '../src/shared/environment-presets';
 
 test('只有新加坡、东京、洛杉矶三个预设，坐标/语言/时区自洽', () => {
   assert.deepEqual(ENVIRONMENT_PRESETS.map(preset => preset.id), ['singapore', 'japan-tokyo', 'us-los-angeles']);
+  assert.equal(findEnvironmentPreset('nowhere'), null);
   const byId = Object.fromEntries(ENVIRONMENT_PRESETS.map(preset => [preset.id, preset]));
   assert.equal(byId['singapore'].timezone, 'Asia/Singapore');
   assert.equal(byId['japan-tokyo'].timezone, 'Asia/Tokyo');
@@ -28,34 +17,15 @@ test('只有新加坡、东京、洛杉矶三个预设，坐标/语言/时区自
   }
 });
 
-test('应用预设只改全局三信号，规则/出口档案/WebRTC/字体一律保留', () => {
-  const config = base();
-  config.exitLocationProfiles = [{ id: 'exit-home', label: '家', latitude: 1, longitude: 2, timezone: 'Asia/Tokyo', language: 'ja-JP', verifiedAt: 1, source: 'detected' } as any];
-  config.fontExposure.enabled = true;
-  const next = applyEnvironmentPreset(config, findEnvironmentPreset('japan-tokyo')!);
-  assert.equal(next.globalProfile.language.language, 'ja-JP');
-  assert.deepEqual(next.globalProfile.language.languages, ['ja-JP', 'ja', 'en-US', 'en']);
-  assert.equal(next.globalProfile.language.mode, 'custom');
-  assert.equal(next.globalProfile.language.enabled, true);
-  assert.equal(next.globalProfile.timezone.timezone, 'Asia/Tokyo');
-  assert.equal(next.globalProfile.timezone.mode, 'manual');
-  assert.deepEqual([next.globalProfile.geolocation.latitude, next.globalProfile.geolocation.longitude], [35.6762, 139.6503]);
-  assert.equal(next.globalProfile.geolocation.country, 'Japan');
-  assert.deepEqual(next.rules, config.rules);
-  assert.deepEqual(next.exitLocationProfiles, config.exitLocationProfiles);
-  assert.deepEqual(next.webRtc, config.webRtc);
-  assert.deepEqual(next.fontExposure, config.fontExposure);
-  // 原对象不被就地修改
-  assert.equal(config.globalProfile.timezone.timezone, '');
-});
-
-test('预设结果仍能通过配置校验，并可作为全局信号解析', () => {
-  const next = applyEnvironmentPreset(base(), findEnvironmentPreset('us-los-angeles')!);
-  assert.deepEqual(getConfigInputErrors(next), []);
-  const reloaded = normalizeConfig(JSON.parse(JSON.stringify(next)));
-  assert.equal(reloaded.globalProfile.timezone.timezone, 'America/Los_Angeles');
-  assert.equal(reloaded.globalProfile.language.language, 'en-US');
-  assert.equal(findEnvironmentPreset('nowhere'), null);
+test('预设信号完整携带坐标/语言/时区/国家，并复制语言列表', () => {
+  for (const preset of ENVIRONMENT_PRESETS) {
+    const signals = presetSignals(preset);
+    assert.deepEqual(signals, {
+      latitude: preset.latitude, longitude: preset.longitude, timezone: preset.timezone,
+      language: preset.language, languages: preset.languages, country: preset.country
+    });
+    assert.notEqual(signals.languages, preset.languages);
+  }
 });
 
 // 布局约束：快速设置是独立区块（含旗帜卡片 + 出口档案），不能塞进时区/地理位置的折叠组里。
@@ -104,8 +74,4 @@ test('出口档案推导信号只认 verified，语言取不到就保留现值',
   const unknown = exitProfileSignals({ ...verified, countryCode: null } as any, { language: 'zh-CN', languages: ['zh-CN', 'zh'] });
   assert.equal(unknown!.language, 'zh-CN');
   assert.deepEqual(unknown!.languages, ['zh-CN', 'zh']);
-  // 预设信号与卡片文案一致
-  const preset = ENVIRONMENT_PRESETS[2];
-  assert.equal(presetCardInfo(preset), '🇺🇸 America/Los_Angeles');
-  assert.deepEqual(presetSignals(preset).languages, preset.languages);
 });

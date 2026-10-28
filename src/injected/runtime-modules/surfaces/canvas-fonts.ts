@@ -1,4 +1,5 @@
 import { fontFamilyKey, splitFontFamilies, trimFontWhitespace, FONT_SIZE_PATTERN } from '../font-policy';
+import { createConversionObserver } from './font-conversion';
 
 export type CanvasFontSpoofConfig = {
   /** 声称的平台：macos 时 Windows 专有字体要与 macOS 等价字体量宽，check() 返回 false。 */
@@ -44,6 +45,8 @@ export function installCanvasFontSpoof(
   const keys = Object.keys(replacements);
   if (!keys.length) return;
   const objectCtor = root.Object || Object;
+  const apply = (root.Reflect || Reflect).apply;
+  const observeConversion = createConversionObserver(root, apply);
 
   const patchMeasure = (owner: any): void => {
     const descriptor = objectCtor.getOwnPropertyDescriptor(owner, 'measureText');
@@ -61,16 +64,30 @@ export function installCanvasFontSpoof(
     const fontGet = fontDescriptor?.get;
     const fontSet = fontDescriptor?.set;
     if (!fontGet || !fontSet) return;
-    const measureText = function measureText(this: any, text: string) {
-      let current: string | null = null;
-      try { current = fontGet.call(this); } catch { current = null; }
-      const mapped = typeof current === 'string' ? mapCanvasFont(current, replacements) : null;
-      if (!mapped) return original.call(this, text);
-      fontSet.call(this, mapped);
+    const measureText = function measureText(this: any, text: unknown) {
+      const args = Array.from(arguments);
+      let current: string;
+      try { current = apply(fontGet, this, []); }
+      catch { return apply(original, this, args); }
+      if (!args.length) return apply(original, this, args);
+      let restoreFont: string | null = null;
+      const useMappedFont = () => {
+        // 文本转换可改字体或重入；等用户代码返回 primitive 后再选本次字体。
+        current = apply(fontGet, this, []);
+        const mapped = mapCanvasFont(current, replacements);
+        if (mapped) {
+          apply(fontSet, this, [mapped]);
+          restoreFont = current;
+        }
+      };
+      let forwardedArgs = args;
+      if (text !== null && (typeof text === 'object' || typeof text === 'function')) {
+        forwardedArgs = [observeConversion(text, useMappedFont), ...args.slice(1)];
+      } else useMappedFont();
       try {
-        return original.call(this, text);
+        return apply(original, this, forwardedArgs);
       } finally {
-        if (current !== null) fontSet.call(this, current);
+        if (restoreFont !== null) apply(fontSet, this, [restoreFont]);
       }
     };
     objectCtor.defineProperty(owner, 'measureText', { ...descriptor, value: measureText, writable: true });
@@ -90,9 +107,15 @@ export function installCanvasFontSpoof(
   const fontFaceSetPrototype = root.FontFaceSet?.prototype;
   const originalCheck = fontFaceSetPrototype?.check;
   if (typeof originalCheck === 'function') {
-    const check = function check(this: any, font: unknown, text?: unknown) {
-      if (typeof font === 'string' && mapCanvasFont(font, replacements)) return false;
-      return originalCheck.call(this, font as string, text as string | undefined);
+    const check = function check(this: any, font: unknown, _text?: unknown) {
+      const args = Array.from(arguments);
+      let forwardedArgs = args;
+      if (font !== null && (typeof font === 'object' || typeof font === 'function')) {
+        forwardedArgs = [observeConversion(font, primitive => { font = primitive; }), ...args.slice(1)];
+      }
+      // 原生方法先完成品牌、必填参数和两个 DOMString 的校验。
+      const result = apply(originalCheck, this, forwardedArgs);
+      return typeof font === 'string' && mapCanvasFont(font, replacements) ? false : result;
     };
     const descriptor = objectCtor.getOwnPropertyDescriptor(fontFaceSetPrototype, 'check');
     objectCtor.defineProperty(fontFaceSetPrototype, 'check', { ...descriptor, value: check, writable: true });

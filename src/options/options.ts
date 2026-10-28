@@ -200,6 +200,7 @@ function populateForm(config: SiteSpoofConfig): void {
   renderExitLocationProfiles();
   renderSiteRules();
   renderOnboarding();
+  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
 }
 
 function renderOnboarding(): void {
@@ -347,8 +348,6 @@ async function loadConfig(): Promise<void> {
   if (!currentConfig.rules.length && !onboardingDomainsEl.value.trim()) {
     onboardingDomainsEl.value = DEFAULT_RULE_DOMAINS.join('\n');
   }
-  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
-  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
   await loadWebRtcPolicyState();
 }
 
@@ -372,8 +371,6 @@ async function saveSettings(config?: SiteSpoofConfig): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'setSiteConfig', config: config ?? readForm() });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
-  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
-  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
   if (!pendingConfigSaves) alert(runtimeSyncMessage(response.syncReport));
 }
 
@@ -381,8 +378,6 @@ async function applyProfile(profileId: string): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'applyProfile', profileId });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
-  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
-  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
 }
 
 function createProfileCard(profile: Profile): HTMLElement {
@@ -790,6 +785,8 @@ function applyQuickSetSignals(signals: QuickSetSignals, note: string): void {
   geolocationEnabledEl.checked = true;
   latitudeEl.value = String(signals.latitude);
   longitudeEl.value = String(signals.longitude);
+  // 国家没有独立输入框，与新坐标一起更新 readForm 沿用的字段。
+  currentConfig.globalProfile.geolocation.country = signals.country ?? '';
   timezoneEnabledEl.checked = true;
   timezoneEl.value = signals.timezone;
   languageEnabledEl.checked = true;

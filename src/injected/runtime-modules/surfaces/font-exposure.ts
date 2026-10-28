@@ -1,6 +1,7 @@
 import type { RuntimePayload, RuntimeState } from '../types';
 import { createNativeProxyFunction, replaceMethod } from '../registry';
-import { FONT_SIZE_PATTERN, fontFamilyKey, splitFontFamilies, getFallbackFont } from '../font-policy';
+import { fontFamilyKey, splitFontFamilies, getFallbackFont } from '../font-policy';
+import { createConversionObserver } from './font-conversion';
 
 export { FONT_SIZE_PATTERN, fontFamilyKey, splitFontFamilies, getFallbackFont } from '../font-policy';
 
@@ -17,20 +18,7 @@ export function installFontExposureFilter(
   const apply = (target: Function, receiver: unknown, args: unknown[]) => (
     realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, receiver, args)
   );
-  const ProxyCtor = globals.Proxy || Proxy;
-  const reflectGet = (globals.Reflect || Reflect).get;
-  // 让原方法执行ToPrimitive/DOMString，观察其primitive结果；getter与方法的this仍是原对象。
-  const observeConversion = (value: object, observe: (primitive: unknown) => void) => new ProxyCtor({}, {
-    get(_target, key) {
-      const member = reflectGet(value, key, value);
-      if (typeof member !== 'function') return member;
-      return (...args: unknown[]) => {
-        const primitive = apply(member, value, args);
-        if (primitive === null || typeof primitive !== 'object' && typeof primitive !== 'function') observe(primitive);
-        return primitive;
-      };
-    }
-  });
+  const observeConversion = createConversionObserver(globals, apply);
   const contextPrototype = globals.CanvasRenderingContext2D?.prototype;
   const fontDescriptor = contextPrototype && realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, contextPrototype, 'font');
   if (contextPrototype && fontDescriptor?.get && fontDescriptor.set) {

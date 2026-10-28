@@ -1,5 +1,6 @@
 import type { WorkerPatchConfig } from '../types';
 import { fontFamilyKey, getFallbackFont } from '../font-policy';
+import { createConversionObserver } from './font-conversion';
 
 /**
  * Worker 侧的字体补丁（OffscreenCanvas / FontFaceSet）。
@@ -18,17 +19,47 @@ export function installWorkerFonts(
   if (!blocked.length || !root) return;
   const blockedKeys = new Set<string>(blocked.map((family) => fontFamilyKey(family)));
   const blockedFamily = (font: string): string | null => getFallbackFont(font, blockedKeys);
+  const objectCtor = root.Object || Object;
+  const apply = (root.Reflect || Reflect).apply;
+  const observeConversion = createConversionObserver(root, apply);
 
   const contextPrototype = root.OffscreenCanvasRenderingContext2D?.prototype;
   if (contextPrototype) {
     const originalMeasureText = contextPrototype.measureText;
-    if (typeof originalMeasureText === 'function') {
-      const measureText = function measureText(this: any, text: string) {
-        const applied = applyFallbackFont(this, blockedFamily);
+    let fontOwner = contextPrototype;
+    let fontDescriptor: PropertyDescriptor | undefined;
+    while (fontOwner) {
+      fontDescriptor = objectCtor.getOwnPropertyDescriptor(fontOwner, 'font');
+      if (fontDescriptor?.get) break;
+      fontOwner = objectCtor.getPrototypeOf(fontOwner);
+    }
+    const fontGet = fontDescriptor?.get;
+    const fontSet = fontDescriptor?.set;
+    if (typeof originalMeasureText === 'function' && fontGet && fontSet) {
+      const measureText = function measureText(this: any, text: unknown) {
+        const args = Array.from(arguments);
+        let current: string;
+        try { current = apply(fontGet, this, []); }
+        catch { return apply(originalMeasureText, this, args); }
+        if (!args.length) return apply(originalMeasureText, this, args);
+        let restoreFont: string | null = null;
+        const useFallback = () => {
+          // 与页面合同相同：转换副作用和重入完成后才临时替换字体。
+          current = apply(fontGet, this, []);
+          const fallback = blockedFamily(current);
+          if (fallback) {
+            apply(fontSet, this, [fallback]);
+            restoreFont = current;
+          }
+        };
+        let forwardedArgs = args;
+        if (text !== null && (typeof text === 'object' || typeof text === 'function')) {
+          forwardedArgs = [observeConversion(text, useFallback), ...args.slice(1)];
+        } else useFallback();
         try {
-          return originalMeasureText.call(this, text);
+          return apply(originalMeasureText, this, forwardedArgs);
         } finally {
-          if (applied) restoreFont(this, applied);
+          if (restoreFont !== null) apply(fontSet, this, [restoreFont]);
         }
       };
       definePatchedMethod(root, contextPrototype, 'measureText', measureText);
@@ -38,48 +69,17 @@ export function installWorkerFonts(
   const fontFaceSetPrototype = root.FontFaceSet?.prototype;
   const originalCheck = fontFaceSetPrototype?.check;
   if (typeof originalCheck === 'function') {
-    const check = function check(this: any, font: unknown, text?: unknown) {
-      const result = originalCheck.call(this, font as string, text as string);
-      if (typeof font !== 'string') return result;
-      return blockedFamily(font) ? false : result;
+    const check = function check(this: any, font: unknown, _text?: unknown) {
+      const args = Array.from(arguments);
+      let forwardedArgs = args;
+      if (font !== null && (typeof font === 'object' || typeof font === 'function')) {
+        forwardedArgs = [observeConversion(font, primitive => { font = primitive; }), ...args.slice(1)];
+      }
+      const result = apply(originalCheck, this, forwardedArgs);
+      return typeof font === 'string' && blockedFamily(font) ? false : result;
     };
     definePatchedMethod(root, fontFaceSetPrototype, 'check', check);
   }
-}
-
-// 读取 font 描述符（访问器在原型链上），命中屏蔽字体时临时改成后备字体，并返回原值供还原。
-function applyFallbackFont(target: any, replacement: (font: string) => string | null): string | null {
-  if (!target) return null;
-  const descriptor = findFontDescriptor(target);
-  if (!descriptor?.get || !descriptor.set) return null;
-  let current: string;
-  try {
-    current = descriptor.get.call(target);
-  } catch {
-    return null;
-  }
-  if (typeof current !== 'string') return null;
-  const next = replacement(current);
-  if (!next || next === current) return null;
-  descriptor.set.call(target, next);
-  return current;
-}
-
-function restoreFont(target: any, original: string): void {
-  const descriptor = findFontDescriptor(target);
-  if (descriptor?.set) {
-    try { descriptor.set.call(target, original); } catch { /* 还原失败不影响测量结果 */ }
-  }
-}
-
-function findFontDescriptor(target: any): PropertyDescriptor | undefined {
-  let current = target;
-  while (current) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, 'font');
-    if (descriptor?.get) return descriptor;
-    current = Object.getPrototypeOf(current);
-  }
-  return undefined;
 }
 
 function definePatchedMethod(root: typeof globalThis & Record<string, any>, owner: any, name: string, value: Function): void {

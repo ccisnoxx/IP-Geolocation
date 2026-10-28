@@ -58,7 +58,7 @@ JSON 的 `comparison` 逐字段保留状态，`observed` 保存实际值。顶�
 
 语言／时区替换会改变 API 结果及部分函数反射。strict 会覆盖显式 locale/timeZone，甚至可能覆盖本应触发原生错误的参数；compatible 保留显式参数，但默认值与其他 realm 仍可能不同。合成定位的自有属性、合成 PermissionStatus、原生内部 slot 品牌差异可观察。Blob Worker 包装会改变 Blob URL、location、import.meta.url、错误栈和加载行为。这些是已有产品能力的边界，本轮不增加隐藏它们的逻辑。
 
-固定 43 项 `document.fonts.check()` 都返回 false，而原生浏览器对未安装字体的 check 也可能返回 true。与未列入名单的 Arial／monospace 及 fallback 测量结合，会形成稳定且有辨识力的行为向量；不能据此证明世界上只有 VanishGeo 产生该向量。重复 fonts／webrtc／full 阶段的同一向量是稳定性的实测依据。字体绘制、DOM 尺寸、local()、OffscreenCanvas 和 Worker 字体仍原生，测量与绘制可能不一致。低修改量的应对是 consistency 或 native，不是随机扰动字体结果。
+固定 43 项 `document.fonts.check()` 都返回 false，而原生浏览器对未安装字体的 check 也可能返回 true。与未列入名单的 Arial／monospace 及 fallback 测量结合，会形成稳定且有辨识力的行为向量；不能据此证明世界上只有 VanishGeo 产生该向量。重复 fonts／webrtc／full 阶段的同一向量是稳定性的历史实测依据。字体绘制、DOM 尺寸及 local() 保持原生；当前维护源在已有语言/时区 Blob Worker 链内同步固定字体名单，也有可选 Canvas 平台测量映射，不能再笼统称所有 OffscreenCanvas/Worker 字体均原生。HTTP(S) Dedicated Worker 与 SharedWorker 字体接管仍暂停。测量与绘制可能不一致，Canvas 映射与固定名单组合还有后备字体限制；具体范围见[验证指南](browser-validation.md)。这些维护源与 Node/VM 结果不重签本页历史浏览器样本。低修改量的应对是 consistency 或 native，不是随机扰动字体结果。
 
 WebRTC 的实际 policy 是浏览器全局设置；网页能看到网络行为，通常不能直接读取该 policy。strict、空候选、只有 host 候选都不等于所有网络路径没有泄漏。
 

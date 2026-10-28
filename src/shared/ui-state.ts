@@ -90,23 +90,6 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
     detail: `匹配规则：${matchedRule.domain}。不应用语言、时区、定位或字体修改；WebRTC 仍由浏览器全局策略控制。保存同步后需完整重建文档。`,
     canEnable: false, canDisable: true, disableDomain: domain
   };
-  // 部分生效：语言已注入、时区/定位还没就绪。这时不能笼统说"配置不完整"——
-  // 请求头其实已经在按语言发送了，用户需要知道哪些生效、哪些没生效。
-  if (input.payload && input.errors.length > 0) {
-    const applied = [
-      input.payload.languageConfig ? '语言' : null,
-      input.payload.timezone ? '时区' : null,
-      input.payload.geolocation ? '定位' : null
-    ].filter(Boolean).join('、') || '无';
-    return {
-      kind: 'partial',
-      label: `部分生效：${applied}`,
-      detail: `匹配规则：${matchedRule.domain}。已应用：${applied}；未生效原因：${input.errors.join('；')}。请求头与页面语言保持一致，重新加载后按当前配置重建文档。`,
-      canEnable: false,
-      canDisable: true,
-      disableDomain: domain
-    };
-  }
   if (!input.payload) {
     return {
       kind: 'error',
@@ -147,6 +130,15 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
     detail: `匹配规则：${matchedRule.domain}。${pageRuntimeSummary(input.syncReport)}，详情见完整配置。`,
     ...operation
   };
+  // 解析出部分配置不代表页面或请求头已同步；先展示注册失败与重载欠账。
+  if (input.errors.length && page.state === 'ready' && !page.reloadRequired) {
+    const available = [input.payload.languageConfig ? '语言' : null, input.payload.timezone ? '时区' : null,
+      input.payload.geolocation ? '定位' : null].filter(Boolean).join('、') || '无';
+    const headers = input.syncReport?.components.headers;
+    const headerMessage = !headers ? '请求头同步待确认' : headers.status === 'ok' ? '请求头注册已同步' : '请求头同步未完成，请查看同步详情';
+    return { ...operation, kind: 'partial', label: `部分配置可用：${available}`,
+      detail: `匹配规则：${matchedRule.domain}。可用配置：${available}；未生效原因：${input.errors.join('；')}。页面注册已同步；${headerMessage}。网页实际效果尚未验证。` };
+  }
   return {
     kind: page.state === 'disabled' ? 'disabled' : page.reloadRequired ? 'reload-required' : 'enabled',
     label: page.state === 'disabled' ? '语言/时区未启用' : page.reloadRequired ? '请重新加载网页' : '规则已同步',

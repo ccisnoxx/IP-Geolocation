@@ -9,6 +9,8 @@ import {
 import { compileHeaderRules } from '../src/background/header-rules';
 import { createRule, getAcceptLanguageValue, normalizeConfig } from '../src/shared/config-model';
 import { deriveCurrentSiteStatus } from '../src/shared/ui-state';
+import { RUNTIME_INJECTION_PAUSED } from '../src/shared/runtime-sync';
+import type { RuntimeSyncReport } from '../src/shared/types';
 
 function config(overrides: Record<string, unknown> = {}) {
   return normalizeConfig({
@@ -81,6 +83,37 @@ test('部分生效在弹窗里必须说清"已应用什么、为什么没生效"
   });
   assert.equal(status.kind, 'partial');
   assert.ok(status.label.includes('语言'));
-  assert.ok(status.detail.includes('已应用：语言'));
+  assert.ok(status.detail.includes('可用配置：语言'));
   assert.ok(status.detail.includes('出口位置档案'));
+});
+
+test('部分配置不能遮蔽页面注册故障、暂停或重载欠账，也不能假定请求头已同步', () => {
+  const value = config();
+  const base = { domain: 'example.test', scriptable: true, config: value, ...getPageRuntimeProfile(value, 'example.test') };
+  const ok = { status: 'ok' as const, errors: [] };
+  const ready = (): RuntimeSyncReport => ({ configSignature: 'synthetic', status: 'ok', metadataError: null,
+    components: { contentScripts: ok, webrtc: ok, tabReload: ok },
+    pageRuntime: { state: 'ready', registeredRuleCount: 1, reloadRequired: false } });
+  assert.equal(deriveCurrentSiteStatus(base).kind, 'unknown');
+  for (const state of ['api-unsupported', 'permission-required', 'switch-required', 'sync-failed', 'disabled'] as const) {
+    const report = ready();
+    report.pageRuntime!.state = state;
+    const status = deriveCurrentSiteStatus({ ...base, syncReport: report });
+    assert.equal(status.kind, state === 'disabled' ? 'disabled' : 'runtime-unavailable', state);
+    assert.doesNotMatch(status.detail, /已应用|请求头与页面语言保持一致/);
+  }
+  const paused = ready();
+  delete paused.pageRuntime;
+  paused.components.contentScripts = { status: 'partial', errors: [RUNTIME_INJECTION_PAUSED] };
+  assert.equal(deriveCurrentSiteStatus({ ...base, syncReport: paused }).kind, 'paused');
+  const reload = ready();
+  reload.pageRuntime!.reloadRequired = true;
+  assert.equal(deriveCurrentSiteStatus({ ...base, syncReport: reload }).kind, 'reload-required');
+  const missingHeaders = deriveCurrentSiteStatus({ ...base, syncReport: ready() });
+  assert.match(missingHeaders.detail, /请求头同步待确认/);
+  const failedHeaders = ready();
+  failedHeaders.components.headers = { status: 'failed', errors: [{ code: 'synthetic', message: '合成同步失败' }] };
+  const failed = deriveCurrentSiteStatus({ ...base, syncReport: failedHeaders });
+  assert.match(failed.detail, /请求头同步未完成/);
+  assert.doesNotMatch(failed.detail, /已应用|请求头与页面语言保持一致/);
 });

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { canvasFontReplacementMap, canvasImpossibleFamilies, WINDOWS_TO_MACOS } from '../src/shared/canvas-fonts';
+import { canvasFontReplacementMap, WINDOWS_TO_MACOS } from '../src/shared/canvas-fonts';
 import { installCanvasFontSpoof, mapCanvasFont } from '../src/injected/runtime-modules/surfaces/canvas-fonts';
 import { compileCanvasFontScripts, compileFontRelatedScripts } from '../src/background/font-scripts';
 import { createRule, normalizeConfig } from '../src/shared/config-model';
@@ -31,8 +31,6 @@ test('macOS 平台下 Windows 专有字体按 mac 等价字体重写，未命中
   const ctx = plain.ctx;
   ctx.font = '16px "Segoe UI"';
   assert.equal(ctx.measureText('MMMM').width, WIDTHS['segoe ui']);
-  installCanvasFontSpoof(realm().root, { platform: 'macos', replacements: canvasFontReplacementMap('macos') });
-  // 换到同一个补丁过的 realm 才有意义
   const patched = realm();
   installCanvasFontSpoof(patched.root, { platform: 'macos', replacements: canvasFontReplacementMap('macos') });
   patched.ctx.font = '16px "Segoe UI"';
@@ -55,8 +53,6 @@ test('font 简写解析保留 size/weight，只替换族名；无命中返回 nu
   assert.equal(mapCanvasFont('italic 700 16px "Segoe UI", sans-serif', { 'segoe ui': 'Helvetica Neue' }), 'italic 700 16px Helvetica Neue, sans-serif');
   assert.equal(mapCanvasFont('16px sans-serif', { 'segoe ui': 'Helvetica Neue' }), null);
   assert.equal(WINDOWS_TO_MACOS['microsoft yahei'], 'PingFang SC');
-  assert.ok(canvasImpossibleFamilies('macos').includes('Segoe UI'));
-  assert.ok(canvasImpossibleFamilies('windows').includes('Helvetica Neue'));
 });
 
 test('注册门禁：字体过滤 + canvas 开关 + full 规则，按平台选产物', () => {

@@ -1,5 +1,5 @@
 import './popup.css';
-import { ENVIRONMENT_PRESETS, exitProfileSignals, findEnvironmentPreset, presetSignals, type QuickSetSignals } from '../shared/environment-presets';
+import { exitProfileSignals, findEnvironmentPreset, presetSignals, type QuickSetSignals } from '../shared/environment-presets';
 import { isRuntimeInjectionPaused, renderRuntimeSyncReport, renderRuntimeSyncPending, renderFontRuntimeStatus } from '../shared/runtime-sync';
 import { getPageRuntimeProfile } from '../shared/config-resolver';
 import type { RuntimeSyncReport } from '../shared/types';
@@ -303,6 +303,8 @@ function applyQuickSetSignals(signals: QuickSetSignals, note: string): void {
   geolocationEnabledEl.checked = true;
   latitudeEl.value = String(signals.latitude);
   longitudeEl.value = String(signals.longitude);
+  // 国家没有独立输入框，与新坐标一起更新 readForm 沿用的字段。
+  currentConfig.globalProfile.geolocation.country = signals.country ?? '';
   timezoneEnabledEl.checked = true;
   timezoneEl.value = signals.timezone;
   languageEnabledEl.checked = true;
@@ -310,7 +312,7 @@ function applyQuickSetSignals(signals: QuickSetSignals, note: string): void {
   if (signals.languages.length) languagesEl.value = signals.languages.join(', ');
   updateTimezoneOffset();
   quickSetExitHintEl.textContent = note;
-  void saveChanges();
+  runUiTask(saveChanges());
 }
 
 function renderQuickSetExitProfiles(): void {

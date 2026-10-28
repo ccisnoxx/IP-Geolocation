@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -12,18 +12,22 @@ const root = resolve(import.meta.dirname, '..');
 
 async function persona(args: string[]) {
   const workspace = await mkdtemp(join(tmpdir(), 'vg-persona-'));
-  const dist = join(workspace, 'dist');
-  await mkdir(dist, { recursive: true });
-  await writeFile(join(dist, 'manifest.json'), JSON.stringify({
-    manifest_version: 3, name: 'synthetic', version: '2.1.1',
-    permissions: ['storage'], host_permissions: ['*://example.test/*']
-  }, null, 2));
-  const out = join(workspace, 'out');
-  const { stdout } = await run(join(root, 'node_modules/tsx/dist/cli.mjs'), [join(root, 'scripts/build-persona.mjs'), '--dist', dist, '--out', out, ...args], { cwd: root });
-  const manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8'));
-  const meta = JSON.parse(await readFile(join(out, 'persona/persona.json'), 'utf8'));
-  const code = await readFile(join(out, 'persona/page-runtime.js'), 'utf8');
-  return { stdout, manifest, meta, code };
+  try {
+    const dist = join(workspace, 'dist');
+    await mkdir(dist, { recursive: true });
+    await writeFile(join(dist, 'manifest.json'), JSON.stringify({
+      manifest_version: 3, name: 'synthetic', version: '2.1.1',
+      permissions: ['storage'], host_permissions: ['*://example.test/*']
+    }, null, 2));
+    const out = join(workspace, 'out');
+    const { stdout } = await run(join(root, 'node_modules/tsx/dist/cli.mjs'), [join(root, 'scripts/build-persona.mjs'), '--dist', dist, '--out', out, ...args], { cwd: root });
+    const manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8'));
+    const meta = JSON.parse(await readFile(join(out, 'persona/persona.json'), 'utf8'));
+    const code = await readFile(join(out, 'persona/page-runtime.js'), 'utf8');
+    return { stdout, manifest, meta, code };
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
 }
 
 test('内置预设烘焙：静态 content_scripts + 画像 JSON + 自包含运行时', async () => {

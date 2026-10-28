@@ -4,23 +4,6 @@
 
 export type CanvasFontPlatform = 'windows' | 'macos';
 
-/** 只在 Windows 上随系统存在的字体（大小写不敏感比较）。 */
-export const WINDOWS_ONLY_FAMILIES = [
-  'Segoe UI', 'Segoe UI Variable', 'Segoe UI Emoji', 'Tahoma', 'Microsoft Sans Serif', 'Calibri',
-  'Cambria', 'Candara', 'Consolas', 'Constantia', 'Corbel', 'Verdana', 'Trebuchet MS', 'Georgia',
-  'Comic Sans MS', 'Impact', 'Lucida Console', 'Lucida Sans Unicode', 'Palatino Linotype',
-  'Franklin Gothic Medium', 'Gill Sans MT', 'Century Gothic', 'MS Gothic', 'Meiryo', 'Yu Gothic',
-  'Microsoft YaHei', 'SimSun', 'SimHei', 'NSimSun', 'KaiTi', 'FangSong'
-];
-
-/** 只在 macOS 上随系统存在的字体。 */
-export const MACOS_ONLY_FAMILIES = [
-  'Helvetica Neue', 'Helvetica', 'San Francisco', '.SF NS Text', '.SF NS Display', 'Menlo', 'Monaco',
-  'Geneva', 'Lucida Grande', 'Avenir', 'Avenir Next', 'Optima', 'Futura', 'Baskerville', 'Hoefler Text',
-  'Charter', 'Didot', 'PingFang SC', 'PingFang TC', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
-  'Songti SC', 'Heiti SC', 'STHeiti', 'Apple SD Gothic Neo'
-];
-
 /** 对端平台的等价字体：量宽接近、视觉族一致。 */
 export const WINDOWS_TO_MACOS: Record<string, string> = {
   'segoe ui': 'Helvetica Neue', 'segoe ui variable': 'Helvetica Neue', 'segoe ui emoji': 'Apple Color Emoji',
@@ -46,9 +29,4 @@ export const MACOS_TO_WINDOWS: Record<string, string> = {
 
 export function canvasFontReplacementMap(platform: CanvasFontPlatform): Record<string, string> {
   return platform === 'macos' ? WINDOWS_TO_MACOS : MACOS_TO_WINDOWS;
-}
-
-/** 该平台上"不该存在"的字体名单；量宽与 check() 都要按它判定。 */
-export function canvasImpossibleFamilies(platform: CanvasFontPlatform): string[] {
-  return platform === 'macos' ? [...WINDOWS_ONLY_FAMILIES] : [...MACOS_ONLY_FAMILIES];
 }

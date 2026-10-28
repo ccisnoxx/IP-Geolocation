@@ -585,11 +585,3 @@ export function getTimezoneOffsetMinutes(timezone: string, dateInput?: Date | st
     return null;
   }
 }
-
-export function formatTimezoneOffsetMinutes(offset: number | null): string | null {
-  if (!Number.isFinite(Number(offset))) return null;
-  const normalized = Number(offset);
-  const sign = normalized <= 0 ? '+' : '-';
-  const abs = Math.abs(normalized);
-  return `GMT${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
-}
