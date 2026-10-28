@@ -2,3 +2,4 @@
 export { applyVanishGeoRuntime } from 'virtual:vanishgeo-runtime';
 export { pageRuntimeSource } from 'virtual:vanishgeo-page-runtime-source';
 export { geolocationRuntimeSource } from 'virtual:vanishgeo-geolocation-runtime-source';
+export { fontRuntimeSource } from 'virtual:vanishgeo-font-runtime-source';

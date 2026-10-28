@@ -166,7 +166,7 @@ test('生产Blob bootstrap脱离页面闭包，语言/Intl/Date跟随美西快�
   assert.notEqual(other.root.Worker, other.WorkerMock);
 });
 
-test('生产自包含Blob入口逐层执行：子与孙继承快照，HTTP和外来Blob保持原生', async () => {
+test('生产自包含Blob入口逐层执行：子与孙继承快照，HTTP入口同步而外来Blob保持原生', async () => {
   const bootstrap = assertSelfContainedFunction((await generateBlobWorkerRuntime()).code, 'applyBlobWorkerRuntime');
   const parent = realm();
   const child = realm();
@@ -186,7 +186,8 @@ test('生产自包含Blob入口逐层执行：子与孙继承快照，HTTP和外
   child.context.importScripts = (url: string) => { assert.ok(sources.has(url)); vm.runInContext(sources.get(url)!, child.context); };
   vm.runInContext(await worker.script!.text(), child.context);
   assert.deepEqual(Array.from(child.context.first, (v: unknown) => Array.isArray(v) ? Array.from(v) : v), ['en-US', ['en-US', 'en'], 'America/Los_Angeles']);
-  assert.equal(child.context.http.url, 'https://example.test/native.js');
+  assert.notEqual(child.context.http.url, 'https://example.test/native.js');
+  assert.match(await child.context.http.script.text(), /importScripts\("https:\/\/example.test\/native.js"\)/);
   const grandSources = new Map(await Promise.all([...child.blobs].map(async ([url, blob]) => [url, await blob.text()] as const)));
   grandchild.context.importScripts = (url: string) => { assert.ok(grandSources.has(url)); vm.runInContext(grandSources.get(url)!, grandchild.context); };
   vm.runInContext(await child.context.next.script.text(), grandchild.context);

@@ -59,8 +59,9 @@ export const DEFAULT_WEBRTC: WebRtcConfig = {
 export const DEFAULT_FONT_EXPOSURE: FontExposureConfig = {
   enabled: false,
   canvasSpoof: { enabled: false, platform: 'macos' },
-  mode: 'vendor-software',
-  blockedFamilies: [...VENDOR_SOFTWARE_FONT_FAMILIES]
+  mode: 'layered',
+  layers: { platform: 'auto', hideCjkFonts: true },
+  blockedFamilies: []
 };
 
 // 仅识别 v2 历史默认集合；不随当前内置名单扩展而改变迁移判定。
@@ -248,16 +249,18 @@ function normalizeFontFamilies(value: unknown): string[] {
 
 export function normalizeFontExposure(config: Partial<FontExposureConfig> | null | undefined): FontExposureConfig {
   const input = config || {};
-  const mode = input.mode === 'custom' ? 'custom' : 'vendor-software';
+  const mode = input.mode === 'custom' || input.mode === 'layered' ? input.mode : 'vendor-software';
   const canvasInput = (input.canvasSpoof || {}) as Partial<FontExposureConfig['canvasSpoof']>;
   return {
     enabled: Boolean(input.enabled),
     mode,
+    ...(mode === 'layered' ? { layers: { platform: input.layers?.platform === 'none' ? 'none' as const : 'auto' as const,
+      hideCjkFonts: input.layers?.hideCjkFonts !== false } } : {}),
     canvasSpoof: {
       enabled: Boolean(canvasInput.enabled),
       platform: canvasInput.platform === 'windows' ? 'windows' : 'macos'
     },
-    blockedFamilies: mode === 'custom'
+    blockedFamilies: mode !== 'vendor-software'
       ? normalizeFontFamilies(input.blockedFamilies)
       : [...VENDOR_SOFTWARE_FONT_FAMILIES]
   };
@@ -367,7 +370,7 @@ function defaultRules(): SiteRule[] {
 }
 
 export const DEFAULT_CONFIG: SiteSpoofConfig = {
-  schemaVersion: 3,
+  schemaVersion: 5,
   intlMode: 'strict',
   masterEnabled: true,
   debugMode: false,
@@ -499,7 +502,8 @@ export function normalizeExitLocationProfiles(value: unknown): ExitLocationProfi
         ...(input.countryCode !== undefined ? { countryCode: normalizeCountryCode(input.countryCode) } : {}),
         timezone,
         provider: verified ? provider : null,
-        verifiedAt: verified ? verifiedAt : null
+        verifiedAt: verified ? verifiedAt : null,
+        ...(input.managedBy === 'automatic-exit' ? { managedBy: input.managedBy } : {})
       };
     })
     .filter((profile) => {
@@ -518,8 +522,14 @@ export function normalizeConfig(config: ConfigInput | null | undefined): SiteSpo
   const profile = (input.profile || {}) as Partial<SiteSpoofConfig['profile']>;
   const profiles = normalizeProfiles(profile.profiles);
   const activeProfileId = normalizeString(profile.activeProfileId);
+  const fontExposure = input.fontExposure ? normalizeFontExposure(input.fontExposure)
+    : input.schemaVersion === 3 || input.schemaVersion === 5 ? clone(DEFAULT_FONT_EXPOSURE) : migrateLegacyCanvas(input.canvas);
+  if (input.schemaVersion === 2 || input.schemaVersion === 3) {
+    fontExposure.mode = 'layered';
+    fontExposure.layers = { platform: 'auto', hideCjkFonts: true };
+  }
   return {
-    schemaVersion: 3,
+    schemaVersion: 5,
     intlMode: input.intlMode === 'compatible' ? 'compatible' : 'strict',
     masterEnabled: input.masterEnabled !== false,
     debugMode: Boolean(input.debugMode),
@@ -529,14 +539,18 @@ export function normalizeConfig(config: ConfigInput | null | undefined): SiteSpo
       geolocation: normalizeGeolocation(globalProfile.geolocation || DEFAULT_GEOLOCATION)
     },
     webRtc: normalizeWebRtc(input.webRtc || DEFAULT_WEBRTC),
-    fontExposure: input.fontExposure
-      ? normalizeFontExposure(input.fontExposure)
-      : input.schemaVersion === 3 ? clone(DEFAULT_FONT_EXPOSURE) : migrateLegacyCanvas(input.canvas),
+    fontExposure,
     profile: {
       activeProfileId: profiles.some((item) => item.id === activeProfileId) ? activeProfileId : null,
       profiles
     },
-    exitLocationProfiles: normalizeExitLocationProfiles(input.exitLocationProfiles),
+    exitLocationProfiles: normalizeExitLocationProfiles(input.exitLocationProfiles).map(profile => {
+      if (input.schemaVersion !== undefined && input.schemaVersion < 5) {
+        const { managedBy: _managedBy, ...legacy } = profile;
+        return legacy;
+      }
+      return profile;
+    }),
     rules: Array.isArray(input.rules) ? input.rules.map(normalizeRule) : defaultRules()
   };
 }

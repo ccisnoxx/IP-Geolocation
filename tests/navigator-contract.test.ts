@@ -57,6 +57,8 @@ function assertMutations(probe: Probe) {
 test('生成页面 runtime 不暴露状态、不替换反射 API，descriptor 跟随替换/删除/freeze', () => {
   const page = realm();
   page.install(payload);
+  assert.equal(page.globals.navigator.languages, page.globals.navigator.languages);
+  assert.equal(Object.isFrozen(page.globals.navigator.languages), true);
   assertContract(page.probe);
   assertMutations(page.probe);
 });
@@ -81,6 +83,8 @@ test('实际生成 Worker prelude 保持全局状态、反射和 getter receiver
   const prelude = page.blobs[0].slice(0, page.blobs[0].lastIndexOf('\nimportScripts('));
   const worker = realm();
   vm.runInContext(prelude, worker.context);
+  assert.equal(worker.globals.navigator.languages, worker.globals.navigator.languages);
+  assert.equal(Object.isFrozen(worker.globals.navigator.languages), true);
   assertContract(worker.probe);
   assertMutations(worker.probe);
 });

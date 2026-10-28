@@ -176,7 +176,7 @@ export function compareDiagnosticEvidence(evidence: DiagnosticEvidence | Injecti
     compare('Accept-Language', evidence.actual.header.value, getAcceptLanguageValue(evidence.expectation.language.languages),
       evidence.actual.header.error || '比较目标实际请求头与站点语言列表；旧文档需完整重载。');
   } else unknown('Accept-Language', '此站点语言未启用，请求头保持原生，仅观测。', evidence.actual.header.value);
-  unknown('目标内置字体过滤', '固定内置名单可按已启用HTTP(S)规则注册；本报告未采样目标字体，不能据注册状态判定当前文档字体过滤通过。自定义名单仍暂停。');
+  unknown('目标内置字体过滤', '固定内置名单可按已启用HTTP(S)规则注册；本报告未采样目标字体，不能据注册状态判定当前文档字体过滤通过。自定义及三层名单需要允许用户脚本。');
   unknown('非目标字体原生', '内置名单以外的字体保持原生；本报告未采样字体宽度，不能判定实际字体库存。');
   unknown('字体探测覆盖', '不承诺隐藏全部字体；DOM 尺寸、@font-face local()、Canvas 像素及 Worker 字体探测未覆盖。');
   for (const [name, observation] of [['getCurrentPosition', evidence.actual.position], ['watchPosition', evidence.actual.watch]] as const) {

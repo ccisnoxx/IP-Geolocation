@@ -54,7 +54,7 @@ test('维护实验生成器自包含且能包装文件型 Worker，不作为生�
   const generated = await generateWorkerFontHook();
   const hook = assertSelfContainedFunction(generated.code, 'applyWorkerFontHook');
   assert.match(hook, /OffscreenCanvasRenderingContext2D/);
-  assert.match(hook, /FontFaceSet/);
+  assert.doesNotMatch(hook, /FontFaceSet/); // check 保持原生，不再进入维护补丁。
   assert.match(hook, new RegExp(VENDOR_SOFTWARE_FONT_FAMILIES[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
   const blobs = new Map<string, Blob>();

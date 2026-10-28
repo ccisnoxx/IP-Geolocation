@@ -1,4 +1,4 @@
-import { buildContentScriptMatchesForDomain, domainMatches, getEnabledRuleDomains, getLanguageTimezonePayload, getGeolocationPayload, validateConfig } from '../shared/config-resolver';
+import { buildContentScriptMatchesForDomain, domainMatches, getEnabledRuleDomains, getLanguageTimezonePayload, getGeolocationPayload, getFontExposurePayload, validateConfig } from '../shared/config-resolver';
 import type { PageRuntimeStatus, RuntimeSyncComponentReport, RuntimeSyncError, SiteSpoofConfig } from '../shared/types';
 
 export const PAGE_SCRIPT_PREFIX = 'vanishgeo-language-timezone-';
@@ -6,7 +6,9 @@ export const PAGE_SCRIPT_PREFIX = 'vanishgeo-language-timezone-';
 // 不清理的话再次加载那个构建就会报 Duplicate script ID，本产品也永远看不到它们。
 export const LEGACY_SCRIPT_IDS = ['vanishgeo-main-runtime', 'vanishgeo-bridge'];
 export const GEOLOCATION_SCRIPT_PREFIX = 'vanishgeo-geolocation-';
-type Surface = 'page' | 'geolocation';
+export const FONT_POLICY_SCRIPT_PREFIX = 'vanishgeo-font-policy-';
+type Surface = 'page' | 'geolocation' | 'font';
+const prefixFor = (surface: Surface) => surface === 'page' ? PAGE_SCRIPT_PREFIX : surface === 'font' ? FONT_POLICY_SCRIPT_PREFIX : GEOLOCATION_SCRIPT_PREFIX;
 type Script = chrome.userScripts.RegisteredUserScript;
 export type PageScriptSync = { component: RuntimeSyncComponentReport; pageRuntime: PageRuntimeStatus };
 
@@ -16,12 +18,13 @@ function compileScripts(config: SiteSpoofConfig, source: string, surface: Surfac
   if (!validated.ok) throw new Error('页面脚本配置校验失败');
   const domains = getEnabledRuleDomains(validated.config).sort();
   return domains.flatMap(domain => {
-    const payload = surface === 'page' ? getLanguageTimezonePayload(validated.config, domain) : getGeolocationPayload(validated.config, domain);
+    const payload = surface === 'page' ? getLanguageTimezonePayload(validated.config, domain)
+      : surface === 'font' ? getFontExposurePayload(validated.config, domain) : getGeolocationPayload(validated.config, domain);
     if (!payload) return [];
     if (!source) throw new Error('缺少构建期页面运行时模板');
     const json = JSON.stringify(payload).replace(/[<\u2028\u2029]/g, value => `\\u${value.charCodeAt(0).toString(16).padStart(4, '0')}`);
     return [{
-      id: (surface === 'page' ? PAGE_SCRIPT_PREFIX : GEOLOCATION_SCRIPT_PREFIX) + domain,
+      id: prefixFor(surface) + domain,
       matches: buildContentScriptMatchesForDomain(domain),
       // 即使更具体规则无有效信号，也必须阻止父规则重新覆盖该域。
       excludeMatches: validated.config.rules.map(rule => rule.domain).filter(child => child !== domain && domainMatches(child, domain))
@@ -38,6 +41,10 @@ export function compilePageScripts(config: SiteSpoofConfig, source: string): Scr
 
 export function compileGeolocationScripts(config: SiteSpoofConfig, source: string): Script[] {
   return compileScripts(config, source, 'geolocation');
+}
+
+export function compileFontPolicyScripts(config: SiteSpoofConfig, source: string): Script[] {
+  return compileScripts(config, source, 'font');
 }
 
 export function hasGeolocationScriptsChanged(previous: SiteSpoofConfig, next: SiteSpoofConfig): boolean {
@@ -65,8 +72,8 @@ async function purgeLegacyScripts(): Promise<void> {
 }
 
 async function reconcileScripts(config: SiteSpoofConfig, source: string, surface: Surface, beforeChange?: () => Promise<void>): Promise<PageScriptSync> {
-  const label = surface === 'page' ? '页面语言/时区' : '地理位置';
-  const prefix = surface === 'page' ? PAGE_SCRIPT_PREFIX : GEOLOCATION_SCRIPT_PREFIX;
+  const label = surface === 'page' ? '页面语言/时区' : surface === 'font' ? '三层字体' : '地理位置';
+  const prefix = prefixFor(surface);
   const errors: RuntimeSyncError[] = [];
   const failed = (state: PageRuntimeStatus['state'], code: string, message: string): PageScriptSync => ({
     component: { status: 'failed', errors: [...errors, { code, message }] },
@@ -138,6 +145,10 @@ async function reconcileScripts(config: SiteSpoofConfig, source: string, surface
 
 export function reconcilePageScripts(config: SiteSpoofConfig, source: string, beforeChange?: () => Promise<void>): Promise<PageScriptSync> {
   return reconcileScripts(config, source, 'page', beforeChange);
+}
+
+export function reconcileFontPolicyScripts(config: SiteSpoofConfig, source: string, beforeChange?: () => Promise<void>): Promise<PageScriptSync> {
+  return reconcileScripts(config, source, 'font', beforeChange);
 }
 
 export async function reconcileGeolocationScripts(config: SiteSpoofConfig, source: string, beforeChange?: () => Promise<void>) {

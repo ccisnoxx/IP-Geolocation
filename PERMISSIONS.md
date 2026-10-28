@@ -13,10 +13,12 @@
 | `tabs` | 读取当前及相关标签页 URL、选择诊断目标、打开目标／报告，记录需要用户重载的页面。不会自动调用 tabs.reload，也没有标签页历史上传流程。 |
 | `contextMenus` | 提供站点规则启停、诊断入口和 WebRTC 策略重置菜单。 |
 | `privacy` | 设置、清除并读取浏览器全局 `webRTCIPHandlingPolicy` 及实际控制权，作用范围不限于站点规则。 |
-| `userScripts` | 在新文档的 MAIN／document_start 注册固定语言／时区及独立定位模板；需要用户正常开启 Allow User Scripts。 |
+| `userScripts` | 在新文档MAIN/document_start注册语言/时区、独立定位及参数化三层/自定义字体模板；需要正常开启Allow User Scripts。 |
+| `alarms` | 仅自有5分钟自动出口检测闹钟；启用且存在auto规则时创建，关闭时撤销，worker启动读回恢复。浏览器可能延迟事件，不承诺精确定时。 |
+| `contentSettings` | 按有效定位规则设置本扩展的Chrome真实站点定位allow/block，并用ask遮盖父域下的禁用或原生子规则。关闭定位权限选项时，原生定位可能请求真实传感器。用户于2026-10-28明确授权此行为；JS坐标替换不是Chrome权限隔离。 |
 | `declarativeNetRequestWithHostAccess` | 在已有 host 授权范围内同步站点 Accept-Language，执行请求头规则隔离、迁移和读回核验；不读取请求正文。 |
 
-固定字体注册独立于 Allow User Scripts；语言／时区和定位各有独立注册状态，不能由其中一项成功推定其他项已生效。
+旧固定字体文件独立于Allow User Scripts；三层及自定义字体模板需要该开关；语言／时区和定位各有独立注册状态，不能由其中一项成功推定其他项已生效。
 
 ## 为什么使用广泛站点权限
 
@@ -30,11 +32,11 @@
 
 - 页面功能仅支持普通 HTTP(S) 顶层文档和 iframe，子帧按自身 URL 匹配。`about:blank`、`srcdoc`、`data:`、`blob:` 文档、opaque origin 及特殊 sandbox 场景不支持。
 - 语言／时区和定位需要可用的用户脚本权限及 Allow User Scripts；API、权限或注册不可用时不回退到页面消息、配置桥或 documentId 注入。
-- 合成定位复用既有权限，仅返回配置坐标，不读取真实传感器、不修改 Chrome 站点授权。安全上下文、原生 API 和 Permissions Policy 约束仍然生效；合成权限选项的含义见配置指南。
-- 页面及已同步 Blob 链内各 realm 自身新建的 Blob Dedicated Worker 可继承语言／时区；HTTP(S) Dedicated Worker、SharedWorker、外来 Blob 和未接管父级的后代未覆盖。
-- Blob 包装仍受 CSP、Trusted Types 和 MIME 检查约束；不新增权限或 host 范围，不绕过页面策略。固定字体仅在已启用的 HTTP(S) 规则和内置模式下注册，自定义名单及 Worker 字体未覆盖。
+- 定位按规则修改真实Chrome站点授权；权限选项关闭时委托原生传感器后替换成功坐标。未接管realm/缓存原生方法可使用真实授权，不能保证真实位置永不被读取。安全上下文、原生 API 和 Permissions Policy 约束仍然生效；合成权限选项的含义见配置指南。
+- 匹配文档及已接管Worker链可向未来同源HTTP(S) classic/module Dedicated/SharedWorker及自身Blob传递语言／时区与字体快照；外来Blob、TrustedScriptURL、含extendedLifetime的SharedWorker和未接管父级后代未覆盖。SharedWorker同页同配置代缓存入口，跨页可能分离为独立后台实例。
+- Blob入口仍受创建页面的CSP、Trusted Types和依赖MIME检查；不新增host范围。原HTTP入口响应CSP不作为Blob Worker自身策略，例如其connect-src限制可能不再生效；该变化单独列入C7确认，不能宣称策略原生等价。字体只在已启用的HTTP(S) full规则下注册；支持三层及自定义，已同步Blob链继承同一展开名单。queryLocalFonts保留浏览器本地字体授权，只过滤返回结果，不主动调用、不上传枚举数据；fonts.check原生。
 
-配置按文档快照生效。撤销注册只影响未来文档，已有页面、Worker 和 BFCache 需由用户完整重建；网页已读取的数据无法撤回。
+首屏仍由userScripts同步派发。已初始化文档通过ISOLATED只读桥更新／关闭，BFCache返回重新读取；新域及旧版本文档仍需重建，不自动reload。桥只按Chrome sender读取该frame最小已确认快照，页面请求不触发配置／权限／DNR对账；nonce仅路由，不是网页身份认证。未知快照报错而非清除，消息回执不能证明实际生效，重载欠账保守保留。已有Worker、旧formatter、已交付Position保留各自快照；网页已读取数据无法撤回。Position只读适配器保留到realm销毁，以维持历史对象寿命。
 
 ## 语言请求头规则的控制边界
 
@@ -48,8 +50,10 @@ Allow User Scripts 与 DNR 属于不同 API。直接关闭 Chrome 用户脚本�
 
 ## 未申请的权限与未接管的能力
 
-当前未申请 `alarms`、`activeTab`、`geolocation`、`debugger`、`webRequest` 等额外权限。出口检测只由用户主动触发，没有后台定时刷新。
+当前未申请 `activeTab`、`geolocation`、`debugger`、`webRequest` 等额外权限。有效auto规则会后台每5分钟检测出口，复用现有provider请求；不上传字体、规则、浏览历史或Chrome传感器坐标，provider可观察请求出口地址。
 
 WebGL／GPU、Audio、screen、hardware concurrency、device memory、codec、WebGPU 等未接管设备 API 保持原生。字体过滤、WebRTC 策略或诊断结果不能被解读为所有设备指纹已隐藏或所有网络路径均无泄漏。
 
 功能配置见 [配置指南](CONFIG_GUIDE.md)，安装与故障处理见 [安装指南](INSTALL.md)。内部研发和历史验收内容保留在 [开发记录](docs/development/project-history.md)。
+
+Persona为独立固定语言／时区包：没有普通包后台、popup/options管理入口、DNR或API权限，仅对指定域静态派发，无实时更新、自动出口或在线关闭恢复。完整定位／字体persona不在本次该包验收范围。

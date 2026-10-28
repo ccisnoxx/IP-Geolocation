@@ -3,6 +3,25 @@ project: VanishGeo
 # 唯一跨任务状态来源；review 不能满足依赖，done 需要人工验收。
 # VG-001 至 VG-014 是本次建立的执行清单，细化设计时保持 ID 和依赖可追溯。
 tasks:
+  - id: VG-045
+    title: release/1.3.1 功能代码分阶段迁移
+    phase: R9
+    dependencies: [VG-040, VG-042]
+    status: review
+    trellis_task: .trellis/tasks/10-28-vg-045-release-port
+    authorization:
+      date: '2026-10-28'
+      scope: 用户授权按局部功能、运行时、工具、合同变化顺序实施，并选择第4阶段以release分支行为为目标逐项制定迁移
+    scope:
+      - 在现行main架构内移植功能和对应测试，保留既有修复及唯一配置所有者
+      - 每项合同变化明确行为、数据迁移和验收，不在文件冲突中隐含切换
+      - 现有VG-043和VG-044保持review，真实Chrome与Node/VM证据分开
+    acceptance:
+      - 四阶段有逐项实现、适配或待决状态及证据
+      - 源码和测试类型检查、完整单测与构建通过
+      - 权限与生命周期变化分别验证，未覆盖边界明确记录
+      - 本地验证后仅review，人工验收后才可done
+
   - id: VG-044
     title: 合并基线遗留代码与冗余测试证据审计
     phase: R8

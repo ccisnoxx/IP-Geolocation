@@ -1,5 +1,6 @@
 // 字体策略的纯函数部分：页面侧（CanvasRenderingContext2D/document.fonts）与
 // Worker 侧（OffscreenCanvas/FontFaceSet）共用同一套解析，避免两边判定不一致。
+import { FONT_FAMILY_ALIASES } from '../../shared/font-families';
 export const FONT_SIZE_PATTERN =
   /(?:^|\s)(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|larger|smaller|(?:\d*\.)?\d+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%))(?:\/(?:normal|[\d.]+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%)?))?(?=\s|$)/i;
 
@@ -11,7 +12,7 @@ export function fontFamilyKey(family: string): string {
   const token = trimFontWhitespace(family);
   const quoted = (token[0] === '"' || token[0] === "'") && token[token.length - 1] === token[0];
   // 在解码转义的同一次扫描中折叠分隔空白；转义产生的空格属于字体名称。
-  return (quoted ? token.slice(1, -1) : token)
+  const key = (quoted ? token.slice(1, -1) : token)
     .replace(/\\([0-9a-f]{1,6})(?:\r\n|[\t\n\f\r ])?|\\([^\n\r\f])|\\(?:\r\n|[\n\r\f])|([\t\n\f\r ]+)/gi, (match, hex: string, escaped: string, whitespace: string) => {
       if (hex) {
         const code = parseInt(hex, 16);
@@ -21,6 +22,7 @@ export function fontFamilyKey(family: string): string {
       if (whitespace) return quoted ? match : ' ';
       return '';
     }).toLowerCase();
+  return FONT_FAMILY_ALIASES[key] || key;
 }
 
 export function splitFontFamilies(familyList: string): string[] {
@@ -73,5 +75,5 @@ function filterMeasurementFont(font: string, keepFamily: (family: string) => boo
 }
 
 export function getFallbackFont(font: string, blockedFontFamilyKeys: Set<string>): string | null {
-  return filterMeasurementFont(font, family => !blockedFontFamilyKeys.has(fontFamilyKey(family)), 'monospace');
+  return filterMeasurementFont(font, family => !blockedFontFamilyKeys.has(fontFamilyKey(family)), '"__vg_absent__"');
 }

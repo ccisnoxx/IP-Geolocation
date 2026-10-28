@@ -1,5 +1,6 @@
-import type { RuntimePayload, RuntimeState } from '../types';
+import type { RuntimePayload, RuntimeState, RuntimeGeolocation } from '../types';
 import { createNativeProxyFunction, replaceMethod } from '../registry';
+import { createConversionObserver } from './font-conversion';
 
 export function randomCoordinateInRadius(lat: number, lon: number, radiusMeters: number) {
   if (radiusMeters <= 0) return { latitude: lat, longitude: lon };
@@ -22,7 +23,7 @@ export function randomCoordinateInRadius(lat: number, lon: number, radiusMeters:
   };
 }
 
-export function getStableGeolocationCoordinate(realmState: RuntimeState, geolocation: NonNullable<RuntimePayload['geolocation']>) {
+export function getStableGeolocationCoordinate(realmState: RuntimeState, geolocation: RuntimeGeolocation) {
   const { latitude, longitude } = geolocation;
   const radius = geolocation.randomRadiusMeters || 0;
   const key = [latitude, longitude, geolocation.randomize === true, radius].join('|');
@@ -34,7 +35,7 @@ export function getStableGeolocationCoordinate(realmState: RuntimeState, geoloca
   return realmState.values.geolocationCoordinate;
 }
 
-// 原型兼容不等于浏览器内部 slot；原生 prototype getter 仍会拒绝这些合成对象。
+// 错误对象沿用现有只读字段；Position/Coordinates 的值由私有 WeakMap 持有。
 function readonlyObject(globals: typeof globalThis & Record<string, any>, prototype: object | undefined, fields: Record<string, unknown>) {
   const result = globals.Object.create(prototype || globals.Object.prototype);
   for (const [key, value] of Object.entries(fields)) {
@@ -43,25 +44,57 @@ function readonlyObject(globals: typeof globalThis & Record<string, any>, protot
   return result;
 }
 
+function geolocationObjects(globals: typeof globalThis & Record<string, any>, state: RuntimeState) {
+  if (state.geolocationObjects) return state.geolocationObjects;
+  const coordinates = new WeakMap<object, Record<string, number | null>>();
+  const positions = new WeakMap<object, { coords: GeolocationCoordinates; timestamp: number }>();
+  const apply = state.originals.reflectApply;
+  const install = (prototype: object, store: WeakMap<object, any>, names: string[], serialize: (record: any) => unknown) => {
+    for (const name of names) {
+      const descriptor = state.originals.objectGetOwnPropertyDescriptor(prototype, name)!;
+      state.originals.objectDefineProperty(prototype, name, { ...descriptor,
+        get: createNativeProxyFunction(globals, descriptor.get!, (target, receiver) => {
+          const record = store.get(receiver as object);
+          return record ? record[name] : apply(target, receiver, []);
+        })
+      });
+    }
+    const nativeToJSON = state.originals.objectGetOwnPropertyDescriptor(prototype, 'toJSON')!.value;
+    // 已交付Position的寿命独立于策略；只读适配器保留至realm销毁，不继续产生定位值。
+    state.originals.objectDefineProperty(prototype, 'toJSON', {
+      ...state.originals.objectGetOwnPropertyDescriptor(prototype, 'toJSON'),
+      value: createNativeProxyFunction(globals, nativeToJSON, (target, receiver, args) => {
+        const record = store.get(receiver as object);
+        return record ? serialize(record) : apply(target, receiver, args);
+      })
+    });
+  };
+  install(globals.GeolocationCoordinates.prototype, coordinates,
+    ['latitude', 'longitude', 'accuracy', 'altitude', 'altitudeAccuracy', 'heading', 'speed'], record => ({ ...record }));
+  install(globals.GeolocationPosition.prototype, positions, ['coords', 'timestamp'], record => ({
+    coords: { ...coordinates.get(record.coords)! }, timestamp: record.timestamp
+  }));
+  state.geolocationObjects = { coordinates, positions };
+  return state.geolocationObjects;
+}
+
 export function buildGeolocationPosition(
   globals: typeof globalThis & Record<string, any>,
   realmState: RuntimeState,
-  geolocation: NonNullable<RuntimePayload['geolocation']>
+  geolocation: RuntimeGeolocation
 ): GeolocationPosition {
   const coordinate = getStableGeolocationCoordinate(realmState, geolocation);
   const fields = {
     latitude: coordinate.latitude, longitude: coordinate.longitude, accuracy: geolocation.accuracy ?? 50,
     altitude: null, altitudeAccuracy: null, heading: null, speed: null
   };
-  const coords = readonlyObject(globals, globals.GeolocationCoordinates?.prototype, fields);
-  globals.Object.defineProperty(coords, 'toJSON', { value: function toJSON() { return { ...fields }; } });
-  globals.Object.freeze(coords);
+  const store = geolocationObjects(globals, realmState);
+  const coords = globals.Object.create(globals.GeolocationCoordinates.prototype);
+  store.coordinates.set(coords, fields);
   const timestamp = globals.Date.now();
-  const position = readonlyObject(globals, globals.GeolocationPosition?.prototype, { coords, timestamp });
-  globals.Object.defineProperty(position, 'toJSON', {
-    value: function toJSON() { return { coords: { ...fields }, timestamp }; }
-  });
-  return globals.Object.freeze(position);
+  const position = globals.Object.create(globals.GeolocationPosition.prototype);
+  store.positions.set(position, { coords, timestamp });
+  return position;
 }
 
 type PositionRequest = {
@@ -91,18 +124,16 @@ export function installGeolocationSpoof(
   if (!geoOwner || geoOwner !== globals.Geolocation?.prototype || !['getCurrentPosition', 'watchPosition', 'clearWatch'].every(name =>
     typeof realmState.originals.objectGetOwnPropertyDescriptor(geoOwner, name)?.value === 'function')) return;
   const nativeClearWatch = realmState.originals.objectGetOwnPropertyDescriptor(geoOwner, 'clearWatch')!.value as Geolocation['clearWatch'];
-  const permissions = navigatorTarget.permissions;
-  const queryOwner = permissions && realmState.originals.objectGetPrototypeOf(permissions);
-  const nativeQuery = queryOwner === globals.Permissions?.prototype
-    ? realmState.originals.objectGetOwnPropertyDescriptor(queryOwner, 'query')?.value as Permissions['query'] | undefined
-    : undefined;
   const apply = realmState.originals.reflectApply;
-  const snapshot = { ...geolocation };
-  getStableGeolocationCoordinate(realmState, snapshot);
+  const observeConversion = createConversionObserver(globals, apply);
+  const snapshot = 'unavailable' in geolocation ? null : { ...geolocation };
+  if (snapshot) getStableGeolocationCoordinate(realmState, snapshot);
   realmState.installedSurfaces.add('geolocation');
 
   const requests = new Set<PositionRequest>();
   const watches = new Map<number, PositionRequest>();
+  const nativeWatches = new Set<number>();
+  const nativeRequests = new Set<{ active: boolean; error: Function | null }>();
   const frameElement = globals.frameElement as Element | null;
   let nextWatchId = 1;
   let frozen = false;
@@ -138,12 +169,9 @@ export function installGeolocationSpoof(
     requests.delete(request);
     if (request.id !== null) watches.delete(request.id);
   };
-  const resolvePermission = async (): Promise<{ code: number; status?: PermissionStatus }> => {
+  const resolvePermission = async (): Promise<{ code: number }> => {
     if (!policyAllows()) return { code: 1 };
-    if (snapshot.spoofPermission !== false) return { code: 0 };
-    if (typeof nativeQuery !== 'function') return { code: 2 };
-    const status = await apply(nativeQuery, permissions, [{ name: 'geolocation' }]) as PermissionStatus;
-    return { code: status.state === 'granted' ? 0 : 1, status };
+    return { code: snapshot ? 0 : 2 };
   };
   const schedule = (request: PositionRequest) => {
     if (!request.active || request.delivered || request.timer !== null || request.querying || !visible()) return;
@@ -151,7 +179,7 @@ export function installGeolocationSpoof(
     request.timer = globals.setTimeout(() => {
       request.timer = null;
       request.querying = true;
-      const enqueueResult = (permission: { code: number; status?: PermissionStatus }) => {
+      const enqueueResult = (permission: { code: number }) => {
         if (!request.active || generation !== request.generation) return;
         request.querying = false;
         if (!visible()) return;
@@ -161,7 +189,7 @@ export function installGeolocationSpoof(
           let resultCode = permission.code;
           // 在回调任务交付前再次检查文档策略；权限等待不消耗 acquisition timeout。
           try {
-            if (!policyAllows() || permission.status && permission.status.state !== 'granted') resultCode = 1;
+            if (!policyAllows()) resultCode = 1;
           } catch { resultCode = 2; }
           let position: GeolocationPosition | null = null;
           if (resultCode === 0) {
@@ -170,12 +198,15 @@ export function installGeolocationSpoof(
               && cached.highAccuracy === request.options.enableHighAccuracy) position = cached.position;
             else if (request.options.timeout === 0) resultCode = 3;
             else {
-              position = buildGeolocationPosition(globals, realmState, snapshot);
+              position = buildGeolocationPosition(globals, realmState, snapshot!);
               cached = { position, highAccuracy: request.options.enableHighAccuracy };
             }
           }
           request.delivered = true;
           if (request.id === null || resultCode === 1) retire(request);
+          if (request.id !== null && resultCode === 0) request.timer = globals.setTimeout(() => {
+            request.timer = null; request.delivered = false; schedule(request);
+          }, 3000);
           // 回调异常由浏览器报告，不能被转换为另一次定位 error 回调。
           if (resultCode) { if (request.error) apply(request.error, undefined, [errorPosition(resultCode)]); }
           else apply(request.success, undefined, [position]);
@@ -229,92 +260,46 @@ export function installGeolocationSpoof(
         apply(nativeClearWatch, thisArg, [0]);
         return apply(target, thisArg, args);
       }
+      if (snapshot?.spoofPermission === false) {
+        // release 合同：原生方法拥有授权、传感器、options转换及回调节奏；只替换成功值。
+        if (name === 'clearWatch') {
+          let converted = args[0];
+          const forwarded = converted !== null && (typeof converted === 'object' || typeof converted === 'function')
+            ? [observeConversion(converted, value => { converted = value; }), ...args.slice(1)] : args;
+          const result = apply(target, thisArg, forwarded);
+          // 观察同一次原生转换；异常由原方法拥有，不重复调用用户valueOf。
+          if (args.length && (converted === null || typeof converted !== 'object' && typeof converted !== 'function')) nativeWatches.delete(+(converted as number) >> 0);
+          return result;
+        }
+        if (typeof args[0] !== 'function') return apply(target, thisArg, args);
+        const success = args[0] as PositionCallback;
+        const onError = args[1];
+        const pending = { active: true, error: typeof onError === 'function' ? onError : null };
+        if (name === 'getCurrentPosition') nativeRequests.add(pending);
+        let result;
+        try {
+          result = apply(target, thisArg, [function successPosition() {
+            nativeRequests.delete(pending);
+            if (realmState.active && pending.active) apply(success, undefined, [buildGeolocationPosition(globals, realmState, snapshot)]);
+          }, typeof onError === 'function' ? function nativeError(error: GeolocationPositionError) {
+            nativeRequests.delete(pending);
+            if (realmState.active && pending.active) apply(onError, undefined, [error]);
+          } : onError, ...args.slice(2)]);
+        } catch (error) { pending.active = false; nativeRequests.delete(pending); throw error; }
+        if (name === 'watchPosition') nativeWatches.add(result);
+        return result;
+      }
       if (name === 'clearWatch') {
         if (!args.length) throw new TypeError('Geolocation clearWatch requires a watch id');
         const id = +(args[0] as number) >> 0;
         const request = watches.get(id);
         if (request) retire(request);
+        else return apply(target, thisArg, [id]);
         return;
       }
       const id = requestPosition(name === 'watchPosition', args);
       if (id !== null) return id;
     }));
-  }
-
-  if (snapshot.spoofPermission !== false && typeof nativeQuery === 'function') {
-    const syntheticStatuses = new WeakMap<object, { handler: unknown; listener: EventListener }>();
-    const wrapStatus = (nativeStatus: PermissionStatus): PermissionStatus => {
-      // 原生查询/读取失败继续拒绝；合成授权不随浏览器的真实授权事件改变。
-      void nativeStatus.state;
-      const prototype = realmState.originals.objectGetPrototypeOf(nativeStatus);
-      const stateGetter = realmState.originals.objectGetOwnPropertyDescriptor(prototype, 'state')?.get;
-      const nameGetter = realmState.originals.objectGetOwnPropertyDescriptor(prototype, 'name')?.get;
-      const onchangeDescriptor = realmState.originals.objectGetOwnPropertyDescriptor(prototype, 'onchange');
-      const status = new globals.EventTarget() as PermissionStatus;
-      realmState.originals.objectSetPrototypeOf(status, prototype);
-      const eventState = { handler: null as unknown, listener: ((event: Event) => {
-        if (typeof eventState.handler === 'function' && apply(eventState.handler, status, [event]) === false) event.preventDefault();
-      }) as EventListener };
-      syntheticStatuses.set(status, eventState);
-      const readNative = (getter: Function | undefined, receiver: unknown) => {
-        if (!getter) throw new TypeError('PermissionStatus receiver');
-        return apply(getter, receiver, []);
-      };
-      realmState.originals.objectDefineProperty(status, 'state', {
-        configurable: true, enumerable: true,
-        get: function state(this: object) {
-          return syntheticStatuses.has(this) ? policyAllows() ? 'granted' : 'denied' : readNative(stateGetter, this);
-        }
-      });
-      realmState.originals.objectDefineProperty(status, 'name', {
-        configurable: true, enumerable: true,
-        get: function name(this: object) {
-          return syntheticStatuses.has(this) ? 'geolocation' : readNative(nameGetter, this);
-        }
-      });
-      realmState.originals.objectDefineProperty(status, 'onchange', {
-        configurable: true, enumerable: true,
-        get: function onchange(this: object) {
-          const current = syntheticStatuses.get(this);
-          return current ? current.handler : readNative(onchangeDescriptor?.get, this);
-        },
-        set: function onchange(this: object, value: unknown) {
-          const current = syntheticStatuses.get(this);
-          if (!current) {
-            if (!onchangeDescriptor?.set) throw new TypeError('PermissionStatus receiver');
-            apply(onchangeDescriptor.set, this, [value]);
-            return;
-          }
-          // EventHandler 的非对象转 null；非 callable 对象保留引用但调用时无操作。
-          const next = value !== null && (typeof value === 'object' || typeof value === 'function') ? value : null;
-          if (current.handler === null && next !== null) {
-            apply(globals.EventTarget.prototype.addEventListener, this, ['change', current.listener]);
-          } else if (current.handler !== null && next === null) {
-            apply(globals.EventTarget.prototype.removeEventListener, this, ['change', current.listener]);
-          }
-          current.handler = next;
-        }
-      });
-      return status;
-    };
-    if (queryOwner && realmState.originals.objectGetOwnPropertyDescriptor(queryOwner, 'query')) {
-      replaceMethod(globals, realmState, queryOwner, 'query', createNativeProxyFunction(globals, nativeQuery, (target, thisArg, args) => {
-        if (thisArg !== permissions || args[0] === null || typeof args[0] !== 'object' && typeof args[0] !== 'function') {
-          return apply(target, thisArg, args);
-        }
-        try {
-          const descriptor = args[0] as PermissionDescriptor;
-          const name = `${descriptor.name}`;
-          const converted = new globals.Proxy({}, {
-            get(_object: object, property: PropertyKey) {
-              return property === 'name' ? name : globals.Reflect.get(descriptor, property, descriptor);
-            }
-          });
-          const result = apply(target, thisArg, [converted, ...args.slice(1)]);
-          return name === 'geolocation' ? globals.Promise.resolve(result).then(wrapStatus) : result;
-        } catch (error) { return globals.Promise.reject(error); }
-      }));
-    }
   }
 
   const pause = () => { for (const request of requests) stopPending(request); };
@@ -345,4 +330,48 @@ export function installGeolocationSpoof(
   document.addEventListener('resume', onResume);
   globals.addEventListener('pagehide', onPageHide);
   globals.addEventListener('pageshow', onPageShow);
+  realmState.cleanup.push(() => {
+    const errors: unknown[] = [];
+    const cancelled = [...requests].filter(request => request.id === null && request.active && !request.delivered && request.error).map(request => request.error!)
+      .concat([...nativeRequests].filter(request => request.active && request.error).map(request => request.error as PositionErrorCallback));
+    if (!disposed && !realmState.documentExiting && cancelled.length) {
+      // 同文档更新必须完成oneshot；隐藏/冻结期间等待可见，退出则不再向旧文档交付。
+      let suspended = false, frozen = false, exited = false, timer: ReturnType<typeof setTimeout> | null = null;
+      const stop = () => {
+        exited = true;
+        if (timer !== null) globals.clearTimeout(timer);
+        document.removeEventListener('visibilitychange', attempt); document.removeEventListener('resume', resumed);
+        document.removeEventListener('freeze', freeze); globals.removeEventListener('pageshow', shown); globals.removeEventListener('pagehide', hide);
+      };
+      const attempt = () => {
+        if (exited || timer !== null || suspended || frozen || document.visibilityState === 'hidden') return;
+        timer = globals.setTimeout(() => {
+          timer = null;
+          if (document.visibilityState === 'hidden' || suspended || frozen) return;
+          if (exited || globals.closed || frameElement && !frameElement.isConnected) { stop(); return; }
+          const callback = cancelled.shift()!;
+          // 每个callback独立任务；真正交付前重查生命周期，异常也不吞掉其他请求。
+          try { apply(callback, undefined, [errorPosition(2)]); }
+          finally { if (cancelled.length) attempt(); else stop(); }
+        }, 0);
+      };
+      const freeze = () => { frozen = true; };
+      const resumed = () => { frozen = false; attempt(); };
+      const shown = () => { suspended = false; attempt(); };
+      const hide = (event: PageTransitionEvent) => { if (event.persisted) suspended = true; else stop(); };
+      document.addEventListener('visibilitychange', attempt); document.addEventListener('resume', resumed);
+      document.addEventListener('freeze', freeze); globals.addEventListener('pageshow', shown); globals.addEventListener('pagehide', hide);
+      attempt();
+    }
+    for (const pending of nativeRequests) {
+      pending.active = false;
+    }
+    nativeRequests.clear();
+    for (const id of nativeWatches) {
+      try { apply(nativeClearWatch, geo, [id]); } catch (error) { errors.push(error); }
+    }
+    nativeWatches.clear();
+    onPageHide({ persisted: false } as PageTransitionEvent);
+    if (errors.length) throw Object.assign(new Error('原生定位watch清理未完成'), { errors });
+  });
 }

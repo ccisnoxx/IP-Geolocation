@@ -37,12 +37,11 @@ export function fingerprintFailures(payload: LanguageTimezonePayload, samples: R
     .formatToParts(new Date(probeDate)).find(part => part.type === 'timeZoneName')!.value : '';
   const offsetParts = /^GMT([+-])(\d{2}):(\d{2})$/.exec(offsetName);
   const offset = offsetParts ? (Number(offsetParts[2]) * 60 + Number(offsetParts[3])) * (offsetParts[1] === '+' ? -1 : 1) : 0;
-  const compatible = payload.intlMode === 'compatible';
   const language = payload.language?.language || null;
-  const locale = language ? compatible ? new Intl.DateTimeFormat(language).resolvedOptions().locale : language : null;
+  const locale = language ? new Intl.DateTimeFormat(language).resolvedOptions().locale : null;
   for (const [kind, { native, actual }] of Object.entries(samples)) {
-    // strict 的 resolvedOptions 保留配置字面值，compatible 沿用原生规范化名称。
-    const expected: Fingerprint = { timezone: zone ? compatible ? zone.resolvedOptions().timeZone : payload.timezone! : native.timezone,
+    // resolvedOptions反映实例真实槽，时区别名沿用原生规范化。
+    const expected: Fingerprint = { timezone: zone ? zone.resolvedOptions().timeZone : native.timezone,
       offset: zone ? offset : native.offset, locale: locale || native.locale,
       language: language || native.language,
       languages: language ? payload.language!.languages.length ? payload.language!.languages : [language] : native.languages };

@@ -28,7 +28,7 @@ export function recommendExitEnvironment(profile: ExitLocationProfile): ExitEnvi
     },
     fontExposure: {
       value: normalizeFontExposure({ enabled: true, mode: 'vendor-software' }),
-      reason: '可选内置厂商／软件及27项简繁中文字体探测过滤；可能影响文本测量和站点排版。固定内置名单仅在已启用HTTP(S)规则上注册，自定义名单仍暂停；已有文档需完整重建。'
+      reason: '可选内置厂商／软件及27项简繁中文字体探测过滤；可能影响文本测量和站点排版。固定内置名单仅在已启用HTTP(S)规则上注册，自定义及三层名单也可注册，需要允许用户脚本；旧版本文档需完整重建。'
     },
     webRtc: {
       value: 'compatible',

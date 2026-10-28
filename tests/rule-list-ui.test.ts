@@ -148,7 +148,7 @@ for (const page of ['popup', 'options'] as const) {
     assert.equal(reloaded.elements.fontExposureModeEl.value, 'vendor-software');
     assert.equal(reloaded.elements.fontExposureVendorGroupEl.hidden, false);
     assert.equal(reloaded.elements.fontExposureCustomGroupEl.hidden, true);
-    assert.equal(ui.writes[1].schemaVersion, 3);
+    assert.equal(ui.writes[1].schemaVersion, 5);
     assert.doesNotMatch(JSON.stringify(ui.writes[1]), /acceptLanguage|"canvas"/);
   });
 }

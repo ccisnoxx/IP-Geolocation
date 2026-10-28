@@ -1,6 +1,6 @@
 import type { RuntimePayload, RuntimeState } from '../types';
 import { createNativeProxyFunction, replaceMethod } from '../registry';
-import { fontFamilyKey, splitFontFamilies, getFallbackFont } from '../font-policy';
+import { fontFamilyKey, getFallbackFont } from '../font-policy';
 import { createConversionObserver } from './font-conversion';
 
 export { FONT_SIZE_PATTERN, fontFamilyKey, splitFontFamilies, getFallbackFont } from '../font-policy';
@@ -19,7 +19,7 @@ export function installFontExposureFilter(
     realmState.originals.reflectApply.call(globals.Reflect || Reflect, target, receiver, args)
   );
   const observeConversion = createConversionObserver(globals, apply);
-  const contextPrototype = globals.CanvasRenderingContext2D?.prototype;
+  for (const contextPrototype of new Set([globals.CanvasRenderingContext2D?.prototype, globals.OffscreenCanvasRenderingContext2D?.prototype])) {
   const fontDescriptor = contextPrototype && realmState.originals.objectGetOwnPropertyDescriptor.call(globals.Object || Object, contextPrototype, 'font');
   if (contextPrototype && fontDescriptor?.get && fontDescriptor.set) {
     const originalMeasureText = contextPrototype.measureText;
@@ -58,31 +58,15 @@ export function installFontExposureFilter(
     replaceMethod(globals, realmState, contextPrototype, 'measureText', measureText);
   }
 
-  if (globals.document?.fonts && globals.document.fonts.check) {
-    const originalCheck = globals.document.fonts.check;
-    // 使用浏览器的shorthand解析，不复制calc/行高/样式的CSS语法；元素不连接DOM。
-    const fontStyle = globals.document.createElement('span').style;
-    const setFontProperty = fontStyle.setProperty;
-    const getFontProperty = fontStyle.getPropertyValue;
-    const includesBlockedFamily = (font: string): boolean => {
-      apply(setFontProperty, fontStyle, ['font', '']);
-      apply(setFontProperty, fontStyle, ['font', font]);
-      const families = apply(getFontProperty, fontStyle, ['font-family']) as string;
-      return splitFontFamilies(families).some(family => realmState.values.blockedFontFamilyKeys.has(fontFamilyKey(family)));
-    };
-    const fontFaceSetPrototype = realmState.originals.objectGetPrototypeOf.call(globals.Object || Object, globals.document.fonts);
-    const checkOwner = fontFaceSetPrototype || globals.document.fonts;
-    const check = createNativeProxyFunction(globals, originalCheck, (target, thisArg, args) => {
-      let font = args[0];
-      let forwardedArgs = args;
-      if (font !== null && (typeof font === 'object' || typeof font === 'function')) {
-        const suppliedFont = font;
-        // 原生方法仍拥有转换及异常；只观察同一次结果，不重复转换用户对象。
-        forwardedArgs = [observeConversion(suppliedFont, primitive => { font = primitive; }), ...args.slice(1)];
-      }
-      const result = apply(target, thisArg, forwardedArgs);
-      return typeof font === 'string' && includesBlockedFamily(font) ? false : result;
-    });
-    replaceMethod(globals, realmState, checkOwner, 'check', check);
   }
+
+  // Local Font Access 仍由浏览器完成授权、参数校验和字体枚举；仅过滤返回对象。
+  const nativeQueryLocalFonts = globals.queryLocalFonts;
+  if (typeof nativeQueryLocalFonts === 'function') {
+    replaceMethod(globals, realmState, globals, 'queryLocalFonts', createNativeProxyFunction(globals, nativeQueryLocalFonts,
+      (target, thisArg, args) => apply(target, thisArg, args).then((fonts: Array<{ family: string; fullName: string; postscriptName: string }>) =>
+        fonts.filter(font => ![font.family, font.fullName, font.postscriptName].some(name =>
+          realmState.values.blockedFontFamilyKeys.has(fontFamilyKey(name)))))));
+  }
+  // FontFaceSet.check 保持原生；它检查加载状态，不能作为已安装系统字体的存在判据。
 }

@@ -2,9 +2,9 @@
 // Node 22+；临时最小扩展中的最终函数经 scripting API 执行，不恢复生产派发。
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { build } from 'vite';
 import { runtimePlugin } from '../build/runtime-plugin.ts';
@@ -142,7 +142,10 @@ export function observe(tabId,world){return chrome.scripting.executeScript({targ
     await cdp.send('Target.closeTarget',{targetId:target.targetId});
   }
   // 正式 dist 仅验证配置/迁移与管理页保存；不使用它恢复 MAIN。
-  const production=await cdp.send('Extensions.loadUnpacked',{path:resolve(projectRoot,'dist')});
+  const productionDirectory=join(temporary,'production');
+  // Chrome会写DNR索引缓存，不能直接加载待审查dist并改变产物清单。
+  await cp(resolve(projectRoot,'dist'),productionDirectory,{recursive:true,filter:source=>basename(source)!=='_metadata'});
+  const production=await cdp.send('Extensions.loadUnpacked',{path:productionDirectory});
   const options=await page(`chrome-extension://${production.id}/options/options.html`);
   await until(()=>evaluate(options,"document.getElementById('intlMode')?.value"),v=>v==='strict');
   // 控件的静态默认值早于 module listener 和异步 populateForm；等待初始化末步。
@@ -155,14 +158,14 @@ export function observe(tabId,world){return chrome.scripting.executeScript({targ
   await evaluate(popup,"document.getElementById('intlMode').value='strict';document.getElementById('intlMode').dispatchEvent(new Event('change'))");
   await until(()=>evaluate(popup,"chrome.storage.local.get('siteSpoofConfig').then(v=>v.siteSpoofConfig?.intlMode)"),v=>v==='strict');
   const migration=await evaluate(options,`(async()=>{
-    const data=await chrome.storage.local.get('siteSpoofConfig'),raw=data.siteSpoofConfig;delete raw.intlMode;
+    const data=await chrome.storage.local.get('siteSpoofConfig'),raw=data.siteSpoofConfig;raw.schemaVersion=2;delete raw.intlMode;
     await chrome.storage.local.set({siteSpoofConfig:raw});
     const read=()=>chrome.runtime.sendMessage({action:'getSiteConfig'});
     const first=await read(),second=await read(),stored=(await chrome.storage.local.get('siteSpoofConfig')).siteSpoofConfig;
-    return {strict:first.config.intlMode==='strict',idempotent:JSON.stringify(first.config)===JSON.stringify(second.config),rawUnchanged:JSON.stringify(raw)===JSON.stringify(stored),pausePreserved:!((await chrome.scripting.getRegisteredContentScripts()).length)};
+    return {strict:first.config.intlMode==='strict',idempotent:JSON.stringify(first.config)===JSON.stringify(second.config),schemaMigrated:stored.schemaVersion===5,pausePreserved:!((await chrome.scripting.getRegisteredContentScripts()).length)};
   })()`);
   assert.ok(Object.values(migration).every(Boolean));
-  const result={task:'VG-013',browser:version.Browser,result:'PASS',productionDispatchRestored:false,modes,configuration:{optionsSave:true,popupSave:true,...migration},limitations:['临时扩展当前文档的隔离 runtime 验证，不是生产派发恢复','正式 dist 页面伪装仍暂停；安全闸门另行验证','未执行 Chrome119/其他浏览器或完整人工验收，无 provider/位置/ICE 请求']};
+  const result={task:'VG-013',browser:version.Browser,result:'PASS',productionDispatchRestored:false,modes,configuration:{optionsSave:true,popupSave:true,...migration},limitations:['临时扩展当前文档的隔离 runtime 验证，不是生产派发恢复','正式dist仅验证管理保存及schema迁移；生产首屏/热更新另用正式候选runner','未执行 Chrome119/其他浏览器或完整人工验收，无 provider/位置/ICE 请求']};
   if(args[1])await writeFile(resolve(args[1]),JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify(result));
 } finally {

@@ -56,10 +56,19 @@ export async function capturePage({ position = false } = {}) {
         latitude: value.coords.latitude, longitude: value.coords.longitude, accuracy: value.coords.accuracy,
         prototype: Object.getPrototypeOf(value)?.constructor?.name, ownKeys: Reflect.ownKeys(value).map(String),
         coordsOwnKeys: Reflect.ownKeys(value.coords).map(String),
-        nativeCoordsGetter: (() => {
+        prototypeCoordsGetter: (() => {
           const getter = Object.getOwnPropertyDescriptor(GeolocationPosition.prototype, 'coords')?.get;
           if (!getter) return 'UNKNOWN';
           try { getter.call(value); return 'NATIVE'; } catch { return 'OBSERVABLE'; }
+        })(),
+        nativeCoordsGetter: (() => {
+          const frame = document.createElement('iframe'); document.body.append(frame);
+          try {
+            // about:blank不接管；此getter来自独立原生realm，检查真正的内部slot。
+            const getter = Object.getOwnPropertyDescriptor(frame.contentWindow.GeolocationPosition.prototype, 'coords')?.get;
+            if (!getter) return 'UNKNOWN';
+            try { getter.call(value); return 'NATIVE'; } catch { return 'OBSERVABLE'; }
+          } finally { frame.remove(); }
         })() }), error => resolve({ status: 'UNKNOWN', error: error.code }), { timeout: 1000 }));
   result.header = await fetch('/headers.json', { credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' })
     .then(response => response.json()).catch(error => ({ status: 'UNKNOWN', error: error.name }));

@@ -37,12 +37,12 @@ export function installLanguageSpoof(
   languages: string[] | null
 ): void {
   realmState.values.language = language;
-  realmState.values.languages = languages && languages.length ? languages.slice() : language ? [language] : null;
+  realmState.values.languages = (globals.Object || Object).freeze(languages && languages.length ? languages.slice() : language ? [language] : []);
   if (!language) return;
 
   if (!realmState.installedSurfaces.has('navigator-language')) {
     realmState.installedSurfaces.add('navigator-language');
     installNativeBackedNavigatorGetter(globals, realmState, 'language', () => realmState.values.language);
-    installNativeBackedNavigatorGetter(globals, realmState, 'languages', () => Object.freeze((realmState.values.languages || []).slice()));
+    installNativeBackedNavigatorGetter(globals, realmState, 'languages', () => realmState.values.languages);
   }
 }

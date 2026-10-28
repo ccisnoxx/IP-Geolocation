@@ -209,7 +209,7 @@ function updateLanguageList(): void {
 }
 
 function updateFontExposureMode(): void {
-  const custom = fontExposureModeEl.value === 'custom';
+  const custom = fontExposureModeEl.value !== 'vendor-software';
   fontExposureVendorGroupEl.hidden = custom;
   fontExposureCustomGroupEl.hidden = !custom;
 }
@@ -291,6 +291,7 @@ function readForm(): SiteSpoofConfig {
       enabled: fontExposureEnabledEl.checked,
       canvasSpoof: currentConfig.fontExposure.canvasSpoof,
       mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
+      ...(fontExposureModeEl.value === 'layered' ? { layers: currentConfig.fontExposure.layers || { platform: 'auto', hideCjkFonts: true } } : {}),
       blockedFamilies: fontExposureModeEl.value === 'vendor-software'
         ? [...VENDOR_SOFTWARE_FONT_FAMILIES]
         : fontExposureBlockedFamiliesEl.value.split('\n').map((item) => item.trim()).filter(Boolean)

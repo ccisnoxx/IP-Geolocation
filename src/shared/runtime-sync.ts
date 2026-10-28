@@ -14,16 +14,16 @@ export function isRuntimeInjectionPaused(report?: RuntimeSyncReport): boolean {
   return !report?.pageRuntime && Boolean(report?.components.contentScripts.errors.some((error) => error.code === RUNTIME_INJECTION_PAUSED.code));
 }
 
-export const PAGE_RUNTIME_PAUSED_SURFACES = '本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖。字体过滤与地理位置分别报告注册状态。';
+export const PAGE_RUNTIME_PAUSED_SURFACES = '未来同源HTTP(S)及自身Blob Dedicated/SharedWorker可继承创建时语言/时区与字体快照。SharedWorker跨页可能分离为独立实例；Blob入口的CSP和全局相对URL与原生HTTP入口不同。外来Blob、TrustedScriptURL、未接管父级未覆盖。字体过滤与地理位置分别报告注册状态。';
 export const PAGE_RUNTIME_DOCUMENT_SCOPE = 'about:blank、srcdoc、data:、blob: 和特殊 sandbox 文档不支持（unsupported / UNKNOWN）。';
-const DOCUMENT_SNAPSHOT_MESSAGE = '已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新；当前页面实际值尚未验证。';
+const DOCUMENT_SNAPSHOT_MESSAGE = '已初始化文档会尝试实时更新及关闭恢复，BFCache返回时重新读取；新启用域或旧版本文档需完整重载，不自动刷新。已有Worker保留创建时快照；消息送达不代表实际生效，当前页面实际值尚未验证。';
 
 export function fontRuntimeMessage(report?: RuntimeSyncReport): string {
   const font = report?.fontRuntime;
   if (!font) return '字体暴露过滤注册状态尚未确认，请重试同步；当前页面实际值为 UNKNOWN。';
   const snapshot = `${font.reloadRequired ? '已有受影响页面需完整重载（reload）或关闭后重新打开；提示保守包含可能嵌入受影响 iframe 的页面。' : ''}${DOCUMENT_SNAPSHOT_MESSAGE}`;
   switch (font.state) {
-    case 'ready': return `固定内置名单字体过滤已注册 ${font.registeredRuleCount} 条规则，仅供新建且匹配规则的 HTTP(S) 顶层文档和普通 iframe 使用。仅覆盖 measureText() 和 FontFaceSet.check()；不隐藏 DOM 尺寸、local()、像素比对或 Worker 内字体。${snapshot}`;
+    case 'ready': return `字体过滤已注册 ${font.registeredRuleCount} 条规则，供新建且匹配的 HTTP(S) 顶层文档和普通 iframe 使用。覆盖 measureText() 与原生授权后的 queryLocalFonts() 结果过滤；FontFaceSet.check() 保持原生，新建且接管的Worker继承名单。DOM尺寸、local()、像素比对及未接管Worker未覆盖。${snapshot}`;
     case 'disabled': return `字体过滤当前未注册启用规则。${snapshot}`;
     case 'paused': return `已配置但当前未应用：固定名单字体过滤仍在人工恢复门禁内，未注册字体脚本。${snapshot}`;
     case 'custom-paused': return `已配置但当前未应用：自定义名单仅保存，当前不生产派发。${snapshot}`;
@@ -87,7 +87,7 @@ export function geolocationRuntimeSummary(report?: RuntimeSyncReport): string {
 
 export function geolocationRuntimeMessage(report?: RuntimeSyncReport): string {
   const geo = report?.geolocationRuntime;
-  return `${geolocationRuntimeSummary(report)}${geo?.state === 'ready' ? `（${geo.registeredRuleCount} 条规则）` : ''}。仅普通安全上下文且允许使用定位的匹配网页可用；权限伪装仅代表合成位置授权，不申请真实定位。${geo?.reloadRequired ? '已有受影响页面需重新加载或关闭重开（保守包含 iframe）。' : ''}${DOCUMENT_SNAPSHOT_MESSAGE}`;
+  return `${geolocationRuntimeSummary(report)}${geo?.state === 'ready' ? `（${geo.registeredRuleCount} 条规则）` : ''}。仅普通安全上下文且允许使用定位的匹配网页可用；定位权限开启时会授予Chrome真实站点定位权限；关闭该选项时委托原生定位并替换成功坐标。${geo?.reloadRequired ? '已有受影响页面需重新加载或关闭重开（保守包含 iframe）。' : ''}${DOCUMENT_SNAPSHOT_MESSAGE}`;
 }
 
 export class RuntimeSyncOperationError extends Error {

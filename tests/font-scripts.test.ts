@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { compileFontScripts, compileFontRelatedScripts, reconcileFontScripts, syncFontScriptRegistration, FONT_SCRIPT_PREFIX, FONT_WORKER_SCRIPT_PREFIX, FONT_FILTER_PRODUCTION_APPROVED } from '../src/background/font-scripts';
+import { compileFontScripts, reconcileFontScripts, syncFontScriptRegistration, FONT_SCRIPT_PREFIX, FONT_WORKER_SCRIPT_PREFIX, FONT_FILTER_PRODUCTION_APPROVED } from '../src/background/font-scripts';
+import { compileFontPolicyScripts } from '../src/background/page-scripts';
 import { createInitialConfig, createRule, VENDOR_SOFTWARE_FONT_FAMILIES } from '../src/shared/config-model';
 import { generateFontFilter, assertSelfContainedFunction } from '../build/self-contained-runtime';
 
@@ -9,6 +10,9 @@ function config() {
   const value = createInitialConfig();
   value.masterEnabled = true;
   value.fontExposure.enabled = true;
+  value.fontExposure.mode = 'vendor-software';
+  value.fontExposure.blockedFamilies = [...VENDOR_SOFTWARE_FONT_FAMILIES];
+  delete value.fontExposure.layers;
   value.rules = [createRule('example.test'), createRule('sub.example.test')];
   return value;
 }
@@ -38,35 +42,42 @@ test('获准固定名单按实际注册报告就绪，custom撤销且不触碰�
   let actual: chrome.scripting.RegisteredContentScript[] = [{ id: FONT_SCRIPT_PREFIX + 'example.test' },
     { id: FONT_WORKER_SCRIPT_PREFIX + 'example.test', js: ['worker-fonts/hook.js'] }, { id: 'other-extension-component' }];
   let writes = 0;
-  Object.assign(globalThis, { chrome: { scripting: {
+  let policies: chrome.userScripts.RegisteredUserScript[] = [];
+  Object.assign(globalThis, { chrome: { permissions: { contains: async () => true }, userScripts: {
+    getScripts: async () => structuredClone(policies),
+    register: async (scripts: chrome.userScripts.RegisteredUserScript[]) => { policies.push(...structuredClone(scripts)); },
+    update: async (scripts: chrome.userScripts.RegisteredUserScript[]) => { policies = policies.map(item => scripts.find(script => script.id === item.id) || item); },
+    unregister: async ({ ids }: { ids: string[] }) => { policies = policies.filter(script => !ids.includes(script.id)); }
+  }, scripting: {
     getRegisteredContentScripts: async () => structuredClone(actual),
     unregisterContentScripts: async ({ ids }: { ids: string[] }) => { writes++; actual = actual.filter(s => !ids.includes(s.id)); },
     registerContentScripts: async (scripts: chrome.scripting.RegisteredContentScript[]) => { writes++; actual.push(...structuredClone(scripts)); }
   } } });
   try {
     assert.equal(FONT_FILTER_PRODUCTION_APPROVED, true);
-    const report = await reconcileFontScripts(config());
+    const report = await reconcileFontScripts(config(), undefined, 'function applyFixedFontFilter() {}');
     assert.equal(report.status, 'ok');
     assert.deepEqual(report.fontRuntime, { state: 'ready', registeredRuleCount: 2, reloadRequired: false });
     // 撤销实验遗留的文件型 Worker 钩子，仅保留生产允许的字体脚本。
-    assert.deepEqual(actual, [{ id: 'other-extension-component' }, ...compileFontRelatedScripts(config())]);
-    assert.equal((await reconcileFontScripts(config())).status, 'ok'); assert.equal(writes, 2);
+    assert.deepEqual(actual, [{ id: 'other-extension-component' }]);
+    assert.deepEqual(policies, compileFontPolicyScripts(config(), 'function applyFixedFontFilter() {}'));
+    assert.equal((await reconcileFontScripts(config(), undefined, 'function applyFixedFontFilter() {}')).status, 'ok'); assert.equal(writes, 1);
     const custom = config(); custom.fontExposure.mode = 'custom';
-    assert.equal((await reconcileFontScripts(custom)).fontRuntime.state, 'custom-paused');
+    assert.equal((await reconcileFontScripts(custom, undefined, 'function applyFixedFontFilter() {}')).fontRuntime.state, 'ready');
     assert.deepEqual(actual, [{ id: 'other-extension-component' }]);
     custom.masterEnabled = false;
     assert.equal((await reconcileFontScripts(custom)).fontRuntime.state, 'disabled');
     chrome.scripting.getRegisteredContentScripts = async () => { throw new Error('synthetic'); };
-    const failed = await reconcileFontScripts(config());
+    const failed = await reconcileFontScripts(config(), undefined, 'function applyFixedFontFilter() {}');
     assert.equal(failed.status, 'failed');
     assert.deepEqual(failed.fontRuntime, { state: 'sync-failed', registeredRuleCount: null, reloadRequired: false });
   } finally { globalThis.chrome = previous; }
 });
 
-test('固定候选自包含且无动态输入；不支持文档不修改原型', async () => {
+test('字体候选自包含且只接收最小配置；不支持文档不修改原型', async () => {
   const generated = await generateFontFilter();
   const fn = assertSelfContainedFunction(generated.code, 'applyFixedFontFilter');
-  assert.doesNotMatch(fn, /DEFAULT_RULE_DOMAINS|createInitialConfig|createRule|chrome\.|storage|postMessage|executeScript|installLanguageSpoof|installDateTimeSpoof|installWorkerHooks|installGeolocation/);
+  assert.doesNotMatch(fn, /DEFAULT_RULE_DOMAINS|createInitialConfig|createRule|chrome\.|storage|executeScript|installLanguageSpoof|installDateTimeSpoof|installWorkerHooks|installGeolocation/);
   for (const font of VENDOR_SOFTWARE_FONT_FAMILIES) assert.ok(fn.includes(font));
   for (const [protocol, origin] of [['about:', 'http://example.test'], ['https:', 'null']]) {
     const context = vm.createContext({ location: { protocol }, origin }, { codeGeneration: { strings: false, wasm: false } });
@@ -74,6 +85,43 @@ test('固定候选自包含且无动态输入；不支持文档不修改原型',
     vm.runInContext(`(${fn})();`, context);
     assert.deepEqual(vm.runInContext('Reflect.ownKeys(globalThis)', context), before);
   }
+});
+
+test('所有字体模式使用同一参数化入口，先撤文件旧入口，撤销失败不新增', async () => {
+  const previous = globalThis.chrome;
+  const fixed = config(); fixed.rules.pop();
+  const layered = structuredClone(fixed);
+  layered.fontExposure = { ...fixed.fontExposure, mode: 'layered', layers: { platform: 'none', hideCjkFonts: false }, blockedFamilies: ['Synthetic Custom'] };
+  let content = compileFontScripts(fixed);
+  let policies: chrome.userScripts.RegisteredUserScript[] = [];
+  const calls: string[] = [];
+  Object.assign(globalThis, { chrome: { permissions: { contains: async () => true },
+    scripting: {
+      getRegisteredContentScripts: async () => structuredClone(content),
+      unregisterContentScripts: async ({ ids }: { ids: string[] }) => { calls.push('content-remove'); content = content.filter(item => !ids.includes(item.id)); },
+      registerContentScripts: async (scripts: chrome.scripting.RegisteredContentScript[]) => { calls.push('content-add'); content.push(...structuredClone(scripts)); }
+    }, userScripts: {
+      getScripts: async () => structuredClone(policies), update: async (scripts: chrome.userScripts.RegisteredUserScript[]) => { calls.push('policy-update'); policies = policies.map(item => scripts.find(script => script.id === item.id) || item); },
+      unregister: async ({ ids }: { ids: string[] }) => { calls.push('policy-remove'); policies = policies.filter(item => !ids.includes(item.id)); },
+      register: async (scripts: chrome.userScripts.RegisteredUserScript[]) => { calls.push('policy-add'); policies.push(...structuredClone(scripts)); }
+    }
+  } });
+  try {
+    assert.equal((await reconcileFontScripts(layered, undefined, 'function filter() {}')).status, 'ok');
+    assert.deepEqual(calls, ['content-remove', 'policy-add']);
+    calls.length = 0;
+    assert.equal((await reconcileFontScripts(fixed, undefined, 'function filter() {}')).status, 'ok');
+    assert.deepEqual(calls, ['policy-update']);
+    await reconcileFontScripts(layered, undefined, 'function filter() {}');
+    calls.length = 0;
+    chrome.userScripts.unregister = async () => { calls.push('policy-remove'); throw new Error('synthetic failure'); };
+    const disabled = { ...fixed, masterEnabled: false };
+    const result = await reconcileFontScripts(disabled, undefined, 'function filter() {}');
+    assert.equal(result.status, 'failed');
+    assert.deepEqual(calls, ['policy-remove']);
+    assert.deepEqual(content, []);
+    assert.equal(policies.length, 1);
+  } finally { globalThis.chrome = previous; }
 });
 
 

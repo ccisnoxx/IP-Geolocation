@@ -1,16 +1,18 @@
 import type { Plugin } from 'vite';
 import { resolve } from 'node:path';
 import ts from 'typescript';
-import { generateRuntime, generatePageRuntime, generateFontFilter, generateGeolocationRuntime, generateWorkerFontHook, generateCanvasFontSpoof, geolocationRuntimeSourceId, pageRuntimeSourceId, runtimeModuleId, projectRoot, assertSelfContainedFunction } from './self-contained-runtime';
+import { generateRuntime, generatePageRuntime, generateFontFilter, generateGeolocationRuntime, generateWorkerFontHook, generateCanvasFontSpoof, geolocationRuntimeSourceId, fontRuntimeSourceId, pageRuntimeSourceId, runtimeModuleId, projectRoot, assertSelfContainedFunction } from './self-contained-runtime';
 import type { GeneratedRuntime } from './self-contained-runtime';
 
 export function runtimePlugin(root = projectRoot): Plugin {
   let generated: GeneratedRuntime;
   let page: GeneratedRuntime;
   let geolocation: GeneratedRuntime;
+  let font: GeneratedRuntime;
   const resolvedId = resolve(root, 'src/injected/vanishgeo-runtime.generated.js');
   const pageId = resolve(root, 'src/injected/page-runtime-source.generated.js');
   const geolocationId = resolve(root, 'src/injected/geolocation-runtime-source.generated.js');
+  const fontId = resolve(root, 'src/injected/font-runtime-source.generated.js');
   return {
     name: 'vanishgeo-runtime',
     async buildStart() {
@@ -19,7 +21,7 @@ export function runtimePlugin(root = projectRoot): Plugin {
       page = await generatePageRuntime(root);
       geolocation = await generateGeolocationRuntime(root);
       geolocation.dependencies.forEach(path => this.addWatchFile(path));
-      const font = await generateFontFilter(root);
+      font = await generateFontFilter(root);
       font.dependencies.forEach(path => this.addWatchFile(path));
       this.emitFile({ type: 'asset', fileName: 'font-exposure/filter.js',
         source: `(${assertSelfContainedFunction(font.code, 'applyFixedFontFilter')})();\n` });
@@ -38,8 +40,9 @@ export function runtimePlugin(root = projectRoot): Plugin {
       generated.dependencies.forEach(path => this.addWatchFile(path));
       page.dependencies.forEach(path => this.addWatchFile(path));
     },
-    resolveId(id) { if (id === runtimeModuleId) return resolvedId; if (id === pageRuntimeSourceId) return pageId; if (id === geolocationRuntimeSourceId) return geolocationId; },
+    resolveId(id) { if (id === runtimeModuleId) return resolvedId; if (id === pageRuntimeSourceId) return pageId; if (id === geolocationRuntimeSourceId) return geolocationId; if (id === fontRuntimeSourceId) return fontId; },
     load(id) {
+      if (id === fontId) return `export const fontRuntimeSource = ${JSON.stringify(assertSelfContainedFunction(font.code, 'applyFixedFontFilter'))};`;
       if (id === geolocationId) return `export const geolocationRuntimeSource = ${JSON.stringify(assertSelfContainedFunction(geolocation.code, 'applyGeolocationRuntime'))};`;
       if (id === pageId) return `export const pageRuntimeSource = ${JSON.stringify(assertSelfContainedFunction(page.code, 'applyLanguageTimezoneRuntime'))};`;
       if (id === resolvedId) {
@@ -48,7 +51,7 @@ export function runtimePlugin(root = projectRoot): Plugin {
         return { code: generated.code, map };
       }
     },
-    shouldTransformCachedModule({ id }) { return id === resolvedId || id === pageId || id === geolocationId; },
+    shouldTransformCachedModule({ id }) { return id === resolvedId || id === pageId || id === geolocationId || id === fontId; },
     generateBundle(_options, bundle) {
       for (const item of Object.values(bundle)) {
         if (item.type !== 'chunk') continue;

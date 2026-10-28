@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,8 @@ function fixture(run: (dir: string, write: (name: string, data: string) => void)
     writeFileSync(join(dir, name), data);
   };
   try {
+    mkdirSync(join(dir, 'node_modules'));
+    symlinkSync(join(root, 'node_modules/typescript'), join(dir, 'node_modules/typescript'), 'dir');
     for (const file of ['scripts/audit-release.mjs', 'manifest.json', 'package.json', 'package-lock.json', 'rules/header-migration-guard.json']) {
       write(file, readFileSync(join(root, file), 'utf8'));
     }
@@ -64,6 +66,26 @@ test('产物审查拒绝隔离被关闭或规则被改变，即使维护源同�
     write('rules/header-migration-guard.json', '[]'); write('dist/rules/header-migration-guard.json', '[]');
     const result = audit(dir); assert.notEqual(result.status, 0); assert.match(result.stderr, /默认隔离规则必须/);
   });
+});
+
+test('产物审查区分模板里的导入与实际模块，仍拒绝实际远程导入', () => {
+  fixture((dir, write) => {
+    write('dist/background/service-worker.js', 'const body = `import { probe } from "https://synthetic.invalid/probe.js";`; void body;');
+    zip(dir);
+    const result = audit(dir); assert.equal(result.status, 0, result.stderr);
+  });
+  for (const source of ['import "https://synthetic.invalid/remote.js";', 'import("https://synthetic.invalid/remote.js");']) {
+    fixture((dir, write) => {
+      write('dist/background/service-worker.js', source);
+      const result = audit(dir); assert.notEqual(result.status, 0); assert.match(result.stderr, /非本地模块/);
+    });
+  }
+  for (const source of ['import("https://synthetic.invalid/" + "remote.js");', 'const url = "./local.js"; import(url);', 'import(`https://synthetic.invalid/${"remote"}.js`);']) {
+    fixture((dir, write) => {
+      write('dist/background/service-worker.js', source);
+      const result = audit(dir); assert.notEqual(result.status, 0); assert.match(result.stderr, /无法静态核实的动态模块/);
+    });
+  }
 });
 
 test('产物审查拒绝缺失固定字体入口及其外部模块依赖', () => {

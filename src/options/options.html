@@ -21,8 +21,8 @@
 
 
     <section class="runtime-sync-panel" aria-label="运行时同步状态">
-      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。本页及已同步 Blob Worker 内自身创建的 Blob Dedicated Worker 可继承语言/时区；HTTP(S)、SharedWorker、外来 Blob 及未接管父级未覆盖；地理位置仅在普通安全上下文且允许定位的匹配网页应用合成坐标。固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP(S)站点规则均启用时独立注册，自定义名单仅保存。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
-      <p class="hint">保存后请查看注册同步结果；已有文档与 BFCache 恢复文档保留原快照，不会热更新或自动刷新。同步成功后，已有受影响页面需完整重载（reload）或关闭后重新打开。Accept-Language 与页面语言、WebRTC 分别报告，不代表当前页面已验证生效。</p>
+      <p class="hint">仅恢复匹配规则的新 HTTP(S) 顶层文档和普通 iframe 的语言/时区，需 Chrome 138+、userScripts 权限及 Allow User Scripts 开关。未来同源HTTP(S)及自身Blob Dedicated/SharedWorker可继承创建时语言/时区与字体快照；SharedWorker跨页可能分离为独立实例；Blob入口的CSP和全局相对URL与原生HTTP入口不同；外来Blob、TrustedScriptURL、未接管父级未覆盖；地理位置仅在普通安全上下文且允许定位的匹配网页应用合成坐标。三层及自定义字体过滤需要允许用户脚本，沿用已启用HTTP(S) full规则；所有模式使用同一参数化模板。about:blank、srcdoc、data:、blob: 和特殊 sandbox 为 unsupported / UNKNOWN。</p>
+      <p class="hint">保存后请查看注册同步结果；已初始化文档会尝试实时更新及关闭恢复，BFCache返回时重新读取；新启用域或旧版本文档需完整重载，不自动刷新。已有Worker保留创建时快照，消息送达不证明实际生效。Accept-Language 与页面语言、WebRTC 分别报告，不代表当前页面已验证生效。</p>
       <p id="setupStatus" role="status" aria-live="polite">正在读取配置状态…</p>
       <p id="runtimeSyncStatus" role="status" aria-live="polite">正在确认运行时同步状态…</p>
       <button id="retryRuntimeSync" class="btn-secondary btn-sm" type="button">重试同步</button>
@@ -33,7 +33,7 @@
         <p class="section-description">全新安装默认关闭保护，没有预选站点，WebRTC 使用浏览器默认值。可以随时跳过；已有配置升级不会套用这些默认值。</p>
         <div class="input-group">
           <h2>1. 主动检测并确认出口</h2>
-          <p class="hint">点击后会请求外部 IP 定位服务，对方可见网络出口。先检查检测结果并确认保存；安装、打开页面和跳过均不会自动检测。</p>
+          <p class="hint">点击后会请求外部 IP 定位服务，对方可见网络出口。先检查检测结果并确认保存；默认关闭时不自动检测；启用有效auto规则后启动和每5分钟自动检测。</p>
           <button id="onboardingDetect" class="btn-secondary" type="button">检测并确认出口</button>
           <label for="onboardingProfile">使用已确认的出口档案</label>
           <select id="onboardingProfile" class="input"><option value="">请选择已检测并确认的出口</option></select>
@@ -62,7 +62,7 @@
             <option value="keep">保留当前字体配置</option>
             <option value="vendor-software">启用内置厂商／软件及中文字体过滤（仅已启用规则）</option>
           </select>
-          <p class="hint">选择内置建议会替换自定义名单；固定内置字体过滤按已启用HTTP(S)规则独立注册，自定义过滤仍暂停。地理位置需单独启用并重新加载网页；Accept-Language 随站点语言同步。</p>
+          <p class="hint">选择内置建议会替换自定义名单；所有字体模式按已启用HTTP(S)规则注册，需要允许用户脚本。地理位置需单独启用并重新加载网页；Accept-Language 随站点语言同步。</p>
           <label for="onboardingWebRtc">WebRTC 全局策略（影响范围大于所选站点）</label>
           <select id="onboardingWebRtc" class="input">
             <option value="keep">保留当前 WebRTC 策略</option>
@@ -145,6 +145,18 @@
             <div class="profile-card-name quick-set-card-name">美国 · 洛杉矶</div>
             <div class="profile-card-info quick-set-card-info">🇺🇸 America/Los_Angeles</div>
           </button>
+          <button class="profile-card quick-set-card" type="button" data-preset="germany-berlin">
+            <div class="profile-card-name quick-set-card-name">德国 · 柏林</div>
+            <div class="profile-card-info quick-set-card-info">🇩🇪 Europe/Berlin</div>
+          </button>
+          <button class="profile-card quick-set-card" type="button" data-preset="china-shanghai">
+            <div class="profile-card-name quick-set-card-name">中国 · 上海</div>
+            <div class="profile-card-info quick-set-card-info">🇨🇳 Asia/Shanghai</div>
+          </button>
+          <button class="profile-card quick-set-card" type="button" data-preset="us-new-york">
+            <div class="profile-card-name quick-set-card-name">美国 · 纽约</div>
+            <div class="profile-card-info quick-set-card-info">🇺🇸 America/New_York</div>
+          </button>
         </div>
         <p class="hint">预设直接写入坐标、语言与时区；保存后仍需总开关与站点规则生效才会作用到页面。</p>
       </section>
@@ -210,8 +222,9 @@
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="spoofPermission">
-            <span>合成位置权限伪装（不申请真实定位）</span>
+            <span>自动授予 Chrome 真实站点定位权限并返回配置位置</span>
           </label>
+          <p class="hint">关闭此选项时使用浏览器定位授权及真实传感器，仅替换成功坐标。未接管的页面环境可能使用真实授权访问位置。</p>
         </div>
 
         <div class="tab-content" data-tab="timezone">
@@ -221,7 +234,7 @@
               <option value="strict">strict · 强制一致性（默认）</option>
               <option value="compatible">compatible · 尊重显式参数</option>
             </select>
-            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。模式随新文档快照生效；已有文档与 BFCache 不热更新，需完整重载或关闭重开。</p>
+            <p id="intlModeHelp" class="hint">strict 强制使用已启用的语言/时区；compatible 仅补未指定的默认值，保留页面显式 locale/timeZone，可能降低一致性。Date 本地 getter 均使用配置时区；不改变 WebRTC，也不保证规避检测。模式随保存更新已初始化文档，BFCache返回重新读取；旧formatter和已有Worker保留构造时设置，新域或旧版本文档需完整重载。</p>
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="timezoneEnabled">
@@ -277,7 +290,7 @@
             <span>保存字体暴露过滤开关</span>
           </label>
           <p id="fontExposureStatus" class="hint" role="status" aria-live="polite">字体暴露过滤注册状态尚未确认；未取得确认前按未应用处理，不影响语言/时区注册状态。</p>
-          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面与普通 iframe 使用相同的 43 项内置厂商／软件及简繁中文字体名单。measureText() 仅移除名单内字体，保留其他显式字体及顺序，无剩余字体时回退 monospace；FontFaceSet.check() 对名单内字体返回 false，其他字体保持原生。已接管的 Blob Dedicated Worker 链可继承同一名单。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对或未接管的 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
+          <p class="hint">获准注册后，匹配白名单的 HTTP(S) 顶层页面与普通 iframe 使用相同的 43 项内置厂商／软件及简繁中文字体名单。measureText() 仅移除名单内字体，保留其他显式字体及顺序，无剩余字体时使用缺失字体族回退；FontFaceSet.check() 保持原生，queryLocalFonts() 在原生授权后过滤结果。已接管的 Blob Dedicated Worker 链可继承同一名单。测量与实际绘制字体可能不同，影响 Canvas 排版及结果图片。不覆盖 DOM 尺寸、@font-face local()、像素比对或未接管的 Worker。不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息。</p>
           <div class="input-group">
             <label class="checkbox-label"><input type="checkbox" id="fontCanvasEnabled"><span>Canvas 字体伪装（量宽按声称平台替换字体）</span></label>
             <label for="fontCanvasPlatform">声称平台</label>
@@ -285,14 +298,24 @@
               <option value="macos">macOS（Windows 专有字体不可用，量宽用 mac 等价字体）</option>
               <option value="windows">Windows（mac 专有字体不可用，量宽用 Windows 等价字体）</option>
             </select>
-            <p class="hint">只在匹配站点、字体暴露过滤启用且本开关打开时注册；独立脚本按平台产物加载。改 measureText 与 FontFaceSet.check，不改实际绘制出的像素，因此与截图/图片指纹仍可能不一致。</p>
+            <p class="hint">只在匹配站点、字体暴露过滤启用且本开关打开时注册；独立脚本按平台产物加载。只改 measureText，FontFaceSet.check 保持原生，不改实际绘制出的像素，因此与截图/图片指纹仍可能不一致。</p>
           </div>
           <div class="input-group">
             <label for="fontExposureMode">过滤名单模式</label>
             <select id="fontExposureMode" class="input">
+              <option value="layered">三层过滤：平台、中文及追加名单</option>
               <option value="vendor-software">内置厂商／软件及中文字体</option>
               <option value="custom">自定义名单</option>
             </select>
+          </div>
+          <div id="fontLayersGroup" class="input-group">
+            <label for="fontLayerPlatform">平台层</label>
+            <select id="fontLayerPlatform" class="input">
+              <option value="auto">按真实平台过滤其他平台字体</option>
+              <option value="none">关闭平台层</option>
+            </select>
+            <label class="checkbox-label"><input type="checkbox" id="fontHideCjk"><span>过滤中文／CJK 及厂商字体</span></label>
+            <p class="hint">平台层不声称其他系统。中文层与平台层独立；下方名单在两层之上追加。</p>
           </div>
           <div id="fontExposureVendorGroup" class="input-group">
             <label for="fontExposureVendorFamilies">内置名单（只读）</label>

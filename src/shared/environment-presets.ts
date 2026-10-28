@@ -3,7 +3,7 @@ import { recommendExitEnvironment } from './exit-recommendation';
 
 /** 一键环境预设：把经纬度、语言、时区当作一个整体切换，避免三处各填一半。 */
 export interface EnvironmentPreset {
-  id: 'singapore' | 'japan-tokyo' | 'us-los-angeles';
+  id: 'singapore' | 'japan-tokyo' | 'us-los-angeles' | 'germany-berlin' | 'china-shanghai' | 'us-new-york';
   /** 卡片与下拉里的旗帜图标，和上游项目一致。 */
   flag: string;
   name: string;
@@ -31,6 +31,21 @@ export const ENVIRONMENT_PRESETS: EnvironmentPreset[] = [
     id: 'us-los-angeles', flag: '🇺🇸', name: '美国 · 洛杉矶', description: '洛杉矶 · en-US',
     latitude: 34.0522, longitude: -118.2437, country: 'United States',
     language: 'en-US', languages: ['en-US', 'en'], timezone: 'America/Los_Angeles'
+  },
+  {
+    id: 'germany-berlin', flag: '🇩🇪', name: '德国 · 柏林', description: '柏林 · de-DE',
+    latitude: 52.52, longitude: 13.405, country: 'Germany',
+    language: 'de-DE', languages: ['de-DE', 'de', 'en-US', 'en'], timezone: 'Europe/Berlin'
+  },
+  {
+    id: 'china-shanghai', flag: '🇨🇳', name: '中国 · 上海', description: '上海 · zh-CN',
+    latitude: 31.2304, longitude: 121.4737, country: 'China',
+    language: 'zh-CN', languages: ['zh-CN', 'zh', 'en-US', 'en'], timezone: 'Asia/Shanghai'
+  },
+  {
+    id: 'us-new-york', flag: '🇺🇸', name: '美国 · 纽约', description: '纽约 · en-US',
+    latitude: 40.7128, longitude: -74.006, country: 'United States',
+    language: 'en-US', languages: ['en-US', 'en'], timezone: 'America/New_York'
   }
 ];
 

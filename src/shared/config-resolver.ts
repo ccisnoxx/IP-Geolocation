@@ -1,4 +1,4 @@
-import { getConfigInputErrors, getLegacyConfigErrors } from './config-validation';
+import { getConfigInputErrors, getLegacyConfigErrors, getReleaseConfigErrors } from './config-validation';
 import {
   DEFAULT_GEOLOCATION,
   DEFAULT_LANGUAGE,
@@ -73,6 +73,19 @@ export type ConfigValidationResult = { ok: true; errors: string[]; config: SiteS
   | { ok: false; errors: string[]; config?: never };
 
 export function validateConfig(config: unknown): ConfigValidationResult {
+  if (config && typeof config === 'object' && 'schemaVersion' in config && config.schemaVersion === 4) {
+    const errors = getReleaseConfigErrors(config);
+    if (errors.length) return { ok: false, errors };
+    const release = config as unknown as Omit<SiteSpoofConfig, 'schemaVersion'> & { canvas: {
+      enabled: boolean; spoofFonts: boolean; platform: 'auto' | 'none'; hideCjkFonts: boolean; targetFonts: string[]
+    } };
+    config = { ...release, schemaVersion: 5, intlMode: 'strict', exitLocationProfiles: [],
+      fontExposure: { enabled: release.canvas.enabled && release.canvas.spoofFonts, mode: 'layered',
+        blockedFamilies: release.canvas.targetFonts, layers: { platform: release.canvas.platform, hideCjkFonts: release.canvas.hideCjkFonts },
+        canvasSpoof: { enabled: false, platform: 'macos' } },
+      rules: release.rules.map(rule => ({ ...rule, exitLocationProfileId: null }))
+    };
+  }
   const errors = getConfigInputErrors(config);
   if (errors.length) return { ok: false, errors };
   const input = config as Parameters<typeof normalizeConfig>[0];
@@ -323,7 +336,7 @@ function resolveProfile(config: Partial<SiteSpoofConfig>, hostname: string, incl
     // 部分生效：语言只依赖语言配置，时区/定位失败不该把它一起废掉。
     // 时区、定位在这里显式置空，注入层只装语言补丁；errors 保留原因给 UI 说明。
     const usableLanguage = language && language.enabled && language.language ? language : null;
-    if (!usableLanguage) return { matched: true, rule, payload: null, errors };
+    if (!usableLanguage && !fontExposure.enabled) return { matched: true, rule, payload: null, errors };
     return {
       matched: true,
       rule,
@@ -384,17 +397,28 @@ export function getPageRuntimeProfile(config: Partial<SiteSpoofConfig>, hostname
 
 export function getLanguageTimezonePayload(config: Partial<SiteSpoofConfig>, hostname: string): LanguageTimezonePayload | null {
   const payload = getPageRuntimeProfile(config, hostname).payload;
-  if (!payload || (!payload.languageConfig && !payload.timezone)) return null;
+  if (!payload || (!payload.languageConfig && !payload.timezone
+    && !payload.fontExposureConfig.enabled)) return null;
   // Worker 侧字体补丁与主线程 font-exposure 脚本必须同步开关：主线程改了而 Worker 不改，
   // 页面里一句 new Worker(...).measureText 就能把真实字体问出来。
-  const blockedFonts = payload.fontExposureConfig?.enabled && payload.fontExposureConfig.mode === 'vendor-software'
-    ? payload.fontExposureConfig.blockedFamilies.slice() : null;
+  const font = payload.fontExposureConfig;
+  const blockedFonts = font.enabled && font.mode !== 'layered' ? font.blockedFamilies.slice() : null;
   return {
     intlMode: payload.intlMode,
     ...(payload.languageConfig ? { language: { language: payload.languageConfig.language, languages: payload.languageConfig.languages.slice() } } : {}),
     ...(payload.timezone ? { timezone: payload.timezone } : {}),
-    ...(blockedFonts && blockedFonts.length ? { blockedFonts } : {})
+    ...(blockedFonts && blockedFonts.length ? { blockedFonts } : {}),
+    ...(font.enabled && font.mode === 'layered' ? { fontPolicy: {
+      enabled: true, mode: font.mode, layers: font.layers, blockedFamilies: font.blockedFamilies.slice()
+    } } : {})
   };
+}
+
+export function getFontExposurePayload(config: Partial<SiteSpoofConfig>, hostname: string): NonNullable<LanguageTimezonePayload['fontPolicy']> | null {
+  const font = getPageRuntimeProfile(config, hostname).payload?.fontExposureConfig;
+  if (!font?.enabled) return null;
+  return { enabled: true, mode: font.mode, blockedFamilies: font.blockedFamilies.slice(), ...(font.layers ? { layers: { ...font.layers } } : {}),
+    ...(font.canvasSpoof.enabled ? { canvasSpoof: { ...font.canvasSpoof } } : {}) };
 }
 
 // 定位单独解析，语言/时区配置错误不阻断位置，匹配和verified边界仍复用同一所有者。
@@ -408,14 +432,31 @@ export function getGeolocationPayload(config: Partial<SiteSpoofConfig>, hostname
   const profile = rule.exitLocationProfileId
     ? normalized.exitLocationProfiles.find(item => item.id === rule.exitLocationProfileId && item.verification === 'verified') || null : null;
   const value = resolveGeolocationValue(geo, profile);
-  if (!value) return null;
+  if (!geo) return null;
+  if (!value) return { unavailable: true };
   return { latitude: value.latitude, longitude: value.longitude, accuracy: value.accuracy,
     randomize: value.randomize, randomRadiusMeters: value.randomRadiusMeters, spoofPermission: value.spoofPermission };
 }
 
+export function getGeolocationPermissionSetting(config: SiteSpoofConfig, hostname: string): 'allow' | 'block' | null {
+  const payload = getGeolocationPayload(config, hostname);
+  return !payload ? null : 'unavailable' in payload ? 'block' : payload.spoofPermission ? 'allow' : null;
+}
+
+export function getAutomaticExitRuleIds(config: SiteSpoofConfig): string[] {
+  if (!config.masterEnabled) return [];
+  return config.rules.filter(rule => {
+    if (findMatchingRule(config, rule.domain)?.id !== rule.id || rule.compatibilityPreset === 'native') return false;
+    const timezone = resolveSignal(config.globalProfile.timezone, rule.overrides.timezone, normalizeTimezone);
+    const geolocation = rule.compatibilityPreset === 'consistency' ? null
+      : resolveSignal(config.globalProfile.geolocation, rule.overrides.geolocation, normalizeGeolocation);
+    return timezone?.mode === 'auto' || geolocation?.mode === 'auto';
+  }).map(rule => rule.id).sort();
+}
+
 function migrateLegacyLastLocation(config: SiteSpoofConfig, storageData: Record<string, any>): SiteSpoofConfig {
   const rawConfig = storageData[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-  if (rawConfig?.schemaVersion === 2 || rawConfig?.schemaVersion === 3
+  if (rawConfig?.schemaVersion === 2 || rawConfig?.schemaVersion === 3 || rawConfig?.schemaVersion === 5
     || config.exitLocationProfiles.some((profile) => profile.id === LEGACY_EXIT_LOCATION_PROFILE_ID)) {
     return config;
   }
@@ -502,7 +543,7 @@ function withDefaultRules(config: SiteSpoofConfig): SiteSpoofConfig {
 
 function shouldRepairUninitializedRules(storageData: Record<string, any>, config: SiteSpoofConfig): boolean {
   const rawConfig = storageData[SITE_CONFIG_KEY] as { schemaVersion?: number; rules?: SiteRule[] } | undefined;
-  if (rawConfig?.schemaVersion === 2 || rawConfig?.schemaVersion === 3 || storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
+  if (rawConfig?.schemaVersion === 2 || rawConfig?.schemaVersion === 3 || rawConfig?.schemaVersion === 4 || rawConfig?.schemaVersion === 5 || storageData[RULES_INITIALIZED_KEY] === true || !rawConfig || !Array.isArray(rawConfig.rules) || rawConfig.rules.length > 0) {
     return false;
   }
 

@@ -644,8 +644,8 @@ test('字体维护 runtime 仅过滤目标测量，普通中文/拉丁字体和�
       webgl:new HTMLCanvasElement().getContext('webgl'),pixels:ctx.getImageData(),
       data:new HTMLCanvasElement().toDataURL(),blob:new HTMLCanvasElement().toBlob() };
   })()`, context);
-  assert.deepEqual(Array.from(value.targets, (row: any) => row.measured), ['12px monospace', '12px monospace', '12px Arial']);
-  assert.deepEqual(Array.from(value.targets, (row: any) => row.width), [20, 20, 40]);
+  assert.deepEqual(Array.from(value.targets, (row: any) => row.measured), ['12px "__vg_absent__"', '12px "__vg_absent__"', '12px Arial']);
+  assert.deepEqual(Array.from(value.targets, (row: any) => row.width), [40, 40, 40]);
   assert.ok(value.targets.every((row: any) => row.restored && row.fill === row.font && row.stroke === row.font));
   assert.ok(value.ordinary.every(Boolean));
   assert.equal(value.untouched, true);
@@ -655,7 +655,7 @@ test('字体维护 runtime 仅过滤目标测量，普通中文/拉丁字体和�
   assert.equal(value.blob, 'native-blob');
 });
 
-test('FontFaceSet.check 目标过滤，非目标、原生异常和单次参数转换保持合同', () => {
+test('FontFaceSet.check 保持原生恒等、返回、异常和单次参数转换', () => {
   const context = createFontExposureContext();
   applyPayload(context, fontExposurePayload());
   const value = vm.runInContext(`(() => {
@@ -682,10 +682,10 @@ test('FontFaceSet.check 目标过滤，非目标、原生异常和单次参数�
     return {objectTarget,conversions,ordinary,errors,invalidReceiverConversions,
       blocked:document.fonts.check('12px MiSans'),native:nativeFontCheck.call(document.fonts,'12px MiSans')};
   })()`, context);
-  assert.equal(value.objectTarget, false);
+  assert.equal(value.objectTarget, true);
   assert.equal(value.conversions, 1);
   assert.equal(value.invalidReceiverConversions, 0);
-  assert.equal(value.blocked, false);
+  assert.equal(value.blocked, true);
   assert.equal(value.native, true);
   assert.ok(value.ordinary.every(Boolean));
   assert.ok(value.errors.every(Boolean));
@@ -699,6 +699,7 @@ test('字体代理保持 descriptor/函数形状/toString 和非法 receiver，�
       const current = owner[key], old = fontSnapshot.find(row=>row.owner===owner&&row.key===key).descriptor;
       const descriptor = Object.getOwnPropertyDescriptor(owner,key);
       const constructible = f => {try { Reflect.construct(f, []);return true;} catch {return false;}};
+      if (key === 'check') return current === native && sameDescriptor(descriptor, old);
       return current !== native && current.name === native.name && current.length === native.length
         && Object.getPrototypeOf(current) === Object.getPrototypeOf(native)
         && Reflect.ownKeys(current).length === Reflect.ownKeys(native).length
@@ -766,7 +767,7 @@ test('非目标字体的参数转换改成目标字体后仍过滤，且保留�
     return { count, font: result.font, restored: ctx.font };
   })()`, context);
   assert.equal(value.count, 1);
-  assert.equal(value.font, '12px monospace');
+  assert.equal(value.font, '12px "__vg_absent__"');
   assert.equal(value.restored, '12px MiSans');
 });
 
@@ -774,6 +775,6 @@ test('非目标字体的参数转换改成目标字体后仍过滤，且保留�
 test('FontFaceSet.check 的合法CSS escape字体名与目标名字等价', () => {
   const context = createFontExposureContext();
   applyPayload(context, fontExposurePayload());
-  assert.equal(vm.runInContext(`document.fonts.check('12px "Mi'+String.fromCharCode(92)+'53 ans"')`, context), false);
+  assert.equal(vm.runInContext(`document.fonts.check('12px "Mi'+String.fromCharCode(92)+'53 ans"')`, context), true);
   assert.equal(vm.runInContext(`document.fonts.check('12px "Ar'+String.fromCharCode(92)+'69 al"')`, context), true);
 });

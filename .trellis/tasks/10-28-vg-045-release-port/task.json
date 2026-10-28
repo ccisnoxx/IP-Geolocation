@@ -1,0 +1,35 @@
+{
+  "id": "VG-045",
+  "name": "release/1.3.1 功能代码分阶段迁移",
+  "status": "review",
+  "dependencies": [
+    "VG-040",
+    "VG-042"
+  ],
+  "baseline_head": "57d42df9ea69bd108663263634d85eeecf295bd2",
+  "source_head": "5b6190527c307a57d95f30a86f591930339e6f6b",
+  "stages": {
+    "local_features": "review",
+    "runtime": "review",
+    "tooling": "review",
+    "contracts": "review"
+  },
+  "acceptance": {
+    "status": "pending"
+  },
+  "contract_items": {
+    "C1_fonts_check_local_fonts": "local_verified",
+    "C2_layers_schema5": "local_verified",
+    "C3_geolocation_shape": "local_verified",
+    "C4_geolocation_permissions": "local_verified",
+    "C5_automatic_exit": "local_verified",
+    "C6_hot_update": "local_and_chrome155_verified",
+    "C7_workers": "local_and_chrome155_verified"
+  },
+  "authorization_notes": [
+    "2026-10-28 用户明确选择定位按release：允许自动站点授权和原生定位委托",
+    "2026-10-28 用户明确接受按release包装SharedWorker及跨页实例分离",
+    "2026-10-28 用户明确接受release Blob入口CSP语义，并要求文档明确标注"
+  ],
+  "verification": "docs/development/release-131-evidence/verification.json"
+}

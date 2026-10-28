@@ -3,6 +3,8 @@ import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, getWebRTCPolicyState } from '.
 import {
   findMatchingRule,
   getLanguageTimezonePayload,
+  getFontExposurePayload,
+  getGeolocationPayload,
   getPageRuntimeProfile,
   isUrlMatchedByEnabledRule,
   repairInvalidRuleDomains,
@@ -55,8 +57,15 @@ import { rulesFromText } from '../shared/rule-list';
 import { clearHeaderRules, finishHeaderRules, migrateLegacyHeaderRules, prepareHeaderRules, quarantineBeforeHeaderConfigWrite, quarantineHeaderRules } from './header-rules';
 import { recommendExitEnvironment } from '../shared/exit-recommendation';
 import { reconcilePageScripts, reconcileGeolocationScripts, hasGeolocationScriptsChanged } from './page-scripts';
-import { hasFontScriptScopeChanged, reconcileFontScripts, syncFontScriptRegistration } from './font-scripts';
+import { hasFontScriptScopeChanged, reconcileFontScripts } from './font-scripts';
+import { reconcileGeolocationPermissions, revokeGeolocationPermissions } from './geolocation-permissions';
+import { getAutomaticExitRuleIds } from '../shared/config-resolver';
+import { AUTOMATIC_EXIT_PROFILE_ID, AUTOMATIC_EXIT_STATE_KEY, AUTOMATIC_EXIT_INTERVAL_MINUTES, reconcileAutomaticExitAlarm } from './automatic-exit';
+import { reconcileLiveBridge, notifyLiveDocuments } from './live-updates';
+import type { LiveRuntimePayloads } from '../content/content-bridge';
 import { createDiagnosticRuns } from './diagnostic-runs';
+import { applyConfigAuditFix as applyAuditFix } from '../shared/config-audit';
+import { deriveActionBadge } from '../shared/action-badge';
 import type { DiagnosticOwner } from './diagnostic-runs';
 import type { DiagnosticEvidence, DiagnosticRunInfo, InjectionTimingEvidence } from '../shared/diagnostic-report';
 
@@ -89,6 +98,15 @@ function isScriptableUrl(url: string | undefined): boolean {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function fetchExitCandidate(): Promise<DetectedExitLocation> {
+  const errors: string[] = [];
+  for (const apiUrl of GEO_API_URLS) {
+    try { return await fetchGeoApiLocation(apiUrl); }
+    catch (error) { errors.push(`${apiUrl} ${formatError(error)}`); }
+  }
+  throw new Error(`所有 IP 定位服务均检测失败：${errors.join(' | ')}`);
 }
 
 function runtimeConfigSignature(config: SiteSpoofConfig): Promise<string> {
@@ -235,6 +253,9 @@ export interface BackgroundServices {
   getConfigState(): Promise<ConfigSaveResult>;
   reconcileRuntime(): Promise<ConfigSaveResult>;
   saveSiteConfig(config: unknown): Promise<ConfigSaveResult>;
+  applyConfigAuditFix(findingId: string): Promise<ConfigSaveResult>;
+  refreshActionBadges(tabId?: number): Promise<void>;
+  refreshAutomaticExit(force?: boolean): Promise<ConfigSaveResult | null>;
   resetSiteConfig(): Promise<ConfigSaveResult>;
   completeOnboarding(domains: string, profileId: string, webRtcMode: string, recommendation?: ExitRecommendationSelection): Promise<ConfigSaveResult>;
   skipOnboarding(): Promise<ConfigSaveResult>;
@@ -245,6 +266,7 @@ export interface BackgroundServices {
   getWebRtcPolicyState(): Promise<WebRtcPolicyState>;
   setWebRtcGlobalMode(mode: string): Promise<ConfigSaveResult>;
   getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
+  getLiveRuntimeUpdate(url: string): Promise<LiveRuntimePayloads>;
   getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & { url: string; domain: string; scriptable: boolean; config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>;
   detectExitLocation(targetProfileId?: string | null): Promise<ExitLocationDetectionPreview>;
   confirmExitLocationDetection(detectionId: string, name: string): Promise<ConfigSaveResult>;
@@ -265,10 +287,15 @@ export interface BackgroundServices {
   initializeExtension(): Promise<RuntimeSyncReport>;
 }
 
-export function createBackgroundServices(pageRuntimeSource: string, geolocationRuntimeSource: string): BackgroundServices {
+export function createBackgroundServices(pageRuntimeSource: string, geolocationRuntimeSource: string, fontRuntimeSource = ''): BackgroundServices {
   const diagnosticRuns = createDiagnosticRuns(getSiteConfig);
   let configMutationQueue: Promise<void> = Promise.resolve();
+  let liveSnapshot: { config: SiteSpoofConfig; report: RuntimeSyncReport } | null = null;
   let detectionGeneration = 0;
+  let automaticExitGeneration = 0;
+  let automaticExitInFlight: Promise<ConfigSaveResult | null> | null = null;
+  let automaticExitRequestedGeneration = 0;
+  let automaticExitFlightGeneration = 0;
 
   function enqueue<T>(work: () => Promise<T>): Promise<T> {
     const operation = configMutationQueue.then(work);
@@ -281,17 +308,24 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
 
   async function readSiteConfig(cleanupInvalid = true): Promise<SiteSpoofConfig> {
     let stored: SiteSpoofConfig;
-    try { stored = await getStoredConfig(quarantineHeaderRules); }
+    try { stored = await getStoredConfig(quarantineConfigWrite); }
     catch (error) {
       if (cleanupInvalid && error instanceof StoredConfigError) return rejectUnsafeRuntimeState(error);
       throw error;
     }
     const { config, repaired } = repairInvalidRuleDomains(stored);
     if (repaired) {
-      await quarantineHeaderRules();
+      await quarantineConfigWrite();
       await chrome.storage.local.set({ siteSpoofConfig: config });
     }
     return config;
+  }
+
+  async function quarantineConfigWrite(): Promise<void> {
+    liveSnapshot = null;
+    await quarantineHeaderRules();
+    const revoked = await revokeGeolocationPermissions();
+    if (revoked.status !== 'ok') throw new RuntimeSyncOperationError(revoked.errors[0].code, revoked.errors[0].message);
   }
 
   async function unregisterSpoofContentScript(): Promise<void> {
@@ -333,6 +367,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
   }
 
   async function reconcile(config: SiteSpoofConfig, metadata?: RuntimeSyncMetadata): Promise<RuntimeSyncReport> {
+    liveSnapshot = null;
     let headerRules: chrome.declarativeNetRequest.Rule[] = [];
     const signature = await runtimeConfigSignature(config);
     const stored = metadata || await getRuntimeSyncMetadata();
@@ -353,6 +388,9 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     };
     const beforeFontChange = () => beforeScopeChange('pendingFontScopeChange');
     const beforePageChange = () => beforeScopeChange('pendingPageScopeChange');
+    let automaticAlarmFailed = false;
+    try { await reconcileAutomaticExitAlarm(getAutomaticExitRuleIds(config).length > 0); }
+    catch { automaticAlarmFailed = true; }
     const preparedHeaders = await runRuntimeSideEffect('headers', async () => {
       headerRules = await prepareHeaderRules(config, beforePageChange);
     });
@@ -363,22 +401,33 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
           // 旧路径撤销未确认时拒绝新增，仍撤销各自命名空间的既有注册。
           const inactiveConfig = { ...config, masterEnabled: false };
           const page = await reconcilePageScripts(inactiveConfig, pageRuntimeSource, beforePageChange);
-          const font = await reconcileFontScripts(inactiveConfig, beforeFontChange);
+          const font = await reconcileFontScripts(inactiveConfig, beforeFontChange, fontRuntimeSource);
           const geo = await reconcileGeolocationScripts(inactiveConfig, geolocationRuntimeSource);
-          return { component: { status: legacy.status, errors: [...legacy.errors, ...page.component.errors, ...font.errors, ...geo.component.errors] },
+          const permissions = await revokeGeolocationPermissions();
+          const bridge = await reconcileLiveBridge(inactiveConfig);
+          return { component: { status: legacy.status, errors: [...legacy.errors, ...page.component.errors, ...font.errors, ...geo.component.errors, ...permissions.errors, ...bridge.errors] },
             geolocationRuntime: { state: 'sync-failed' as const, registeredRuleCount: geo.geolocationRuntime.registeredRuleCount, reloadRequired: false },
             pageRuntime: { state: 'sync-failed' as const, registeredRuleCount: null, reloadRequired: false },
             fontRuntime: { state: 'sync-failed' as const, registeredRuleCount: font.fontRuntime.registeredRuleCount, reloadRequired: false } };
         }
         const page = await reconcilePageScripts(config, pageRuntimeSource, beforePageChange);
-        const geo = await reconcileGeolocationScripts(config, geolocationRuntimeSource, async () => {
+        let geo = await reconcileGeolocationScripts(config, geolocationRuntimeSource, async () => {
           // 注册漂移/升级恢复也有旧文档窗口；必须先持久化再改变实际注册。
           await beforeScopeChange('pendingGeolocationScopeChange');
         });
-        const font = await reconcileFontScripts(config, beforeFontChange);
+        // 先确认新文档定位模板，再授予真实站点权限；脚本不可用时撤销本扩展授权。
+        const permissions = geo.component.status === 'ok'
+          ? await reconcileGeolocationPermissions(config) : await revokeGeolocationPermissions();
+        if (permissions.status !== 'ok') {
+          const cleanup = await reconcileGeolocationScripts({ ...config, masterEnabled: false }, geolocationRuntimeSource, () => beforeScopeChange('pendingGeolocationScopeChange'));
+          geo = { component: { status: 'failed', errors: [...geo.component.errors, ...permissions.errors, ...cleanup.component.errors] },
+            geolocationRuntime: { state: 'sync-failed', registeredRuleCount: cleanup.geolocationRuntime.registeredRuleCount, reloadRequired: false } };
+        }
+        const font = await reconcileFontScripts(config, beforeFontChange, fontRuntimeSource);
+        const bridge = await reconcileLiveBridge(config);
         return { ...page, geolocationRuntime: geo.geolocationRuntime, fontRuntime: font.fontRuntime, component: {
-          status: page.component.status !== 'ok' ? page.component.status : geo.component.status !== 'ok' ? geo.component.status : font.status,
-          errors: [...page.component.errors, ...geo.component.errors, ...font.errors]
+          status: page.component.status !== 'ok' ? page.component.status : geo.component.status !== 'ok' ? geo.component.status : font.status !== 'ok' ? font.status : bridge.status,
+          errors: [...page.component.errors, ...geo.component.errors, ...font.errors, ...bridge.errors]
         } };
       })(),
       runRuntimeSideEffect('webrtc', () => applyWebRTCPolicy(config,
@@ -391,6 +440,15 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     state.report.components.headers = preparedHeaders.status === 'ok'
       ? await runRuntimeSideEffect('headers', () => finishHeaderRules(headerRules, ['ready', 'disabled'].includes(pageSync.pageRuntime.state)))
       : preparedHeaders;
+    if (automaticAlarmFailed) state.report.warnings = [{ code: 'automatic-exit-alarm-failed', message: '自动出口闹钟创建或撤销未能确认，请检查alarms权限后重试同步。' }];
+    if (getAutomaticExitRuleIds(config).length) {
+      const automatic = (await chrome.storage.session.get(AUTOMATIC_EXIT_STATE_KEY))[AUTOMATIC_EXIT_STATE_KEY];
+      if (automatic?.version === 1 && ['failed', 'pending'].includes(automatic.status) && automatic.signature === signature) {
+        state.report.warnings = [...(state.report.warnings || []), { code: `automatic-exit-${automatic.status}`,
+          message: automatic.status === 'pending' ? '自动出口正在检测，当前出口尚未确认。'
+            : '自动出口检测或调度失败，保留上次已验证结果；当前出口尚未确认，请检查网络后重试或等待下一轮。' }];
+      }
+    }
     if (state.report.components.headers.status !== 'ok') {
       const cleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
       state.report.components.headers.errors.push(...cleanup.errors);
@@ -435,10 +493,12 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     state.report.geolocationRuntime.reloadRequired = ['ready', 'disabled'].includes(state.report.geolocationRuntime.state) && reloadKnown
       && state.pendingReloads.some(item => item.surfaces?.includes('geolocation'));
     await checkpoint(state, checkpointBaseline);
+    liveSnapshot = { config: structuredClone(config), report: structuredClone(state.report) };
     return state.report;
   }
 
   async function persistConfig(previousConfig: SiteSpoofConfig | null, candidate: Partial<SiteSpoofConfig>): Promise<ConfigSaveResult> {
+    liveSnapshot = null;
     const previous = previousConfig ?? createInitialConfig();
     const result = validateConfig(candidate);
     if (!result.ok) throw new Error(result.errors.join('; '));
@@ -446,7 +506,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     const oldMetadata = await getRuntimeSyncMetadata();
     const previousSignature = await runtimeConfigSignature(previous);
     const nextSignature = await runtimeConfigSignature(result.config);
-    if (previousConfig && nextSignature === previousSignature) return { config: result.config, syncReport: await reconcile(result.config) };
+    if (previousConfig && nextSignature === previousSignature) return notifyRuntimeUpdate({ config: result.config, syncReport: await reconcile(result.config) });
     // 损坏配置无法证明旧文档快照；恢复时保留既有欠账并提示所有普通页面重建。
     const oldPending = previousConfig ? pendingForSignature(oldMetadata, previousSignature) : oldMetadata?.pendingReloads ?? [];
     const oldFontWindow = pendingFontWindow(oldMetadata, previousSignature);
@@ -476,13 +536,28 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     };
     // 先准备恢复记录。配置写入失败时恢复旧欠账；成功后不回滚用户期望。
     await quarantineBeforeHeaderConfigWrite(previous, result.config);
+    if (geolocationChanged) {
+      const revoked = await revokeGeolocationPermissions();
+      if (revoked.status !== 'ok') throw new RuntimeSyncOperationError(revoked.errors[0].code, revoked.errors[0].message);
+    }
     await setRuntimeSyncMetadata(metadata);
     try { await chrome.storage.local.set({ [SITE_CONFIG_KEY]: result.config }); }
     catch (error) {
       await setRuntimeSyncMetadata(oldMetadata);
       throw error;
     }
-    return { config: result.config, syncReport: await reconcile(result.config, metadata) };
+    automaticExitGeneration++;
+    return notifyRuntimeUpdate({ config: result.config, syncReport: await reconcile(result.config, metadata) });
+  }
+
+  async function notifyRuntimeUpdate(saved: ConfigSaveResult): Promise<ConfigSaveResult> {
+    try { await notifyLiveDocuments(); }
+    catch {
+      saved.syncReport = summarizeSyncReport({ ...saved.syncReport, warnings: [...(saved.syncReport.warnings || []), {
+        code: 'live-update-notification-failed', message: '已有文档更新通知未完成；配置已保存，请完整重载相关页面。'
+      }] });
+    }
+    return saved;
   }
 
   function mutateConfig(
@@ -603,13 +678,16 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       const imported = validated.config;
       return {
         ...imported,
-        exitLocationProfiles: imported.exitLocationProfiles.map((profile) => ({
-          ...profile,
-          verification: 'unverified' as const,
-          publicIp: null,
-          provider: null,
-          verifiedAt: null
-        })),
+        exitLocationProfiles: imported.exitLocationProfiles.map((profile) => {
+          const { managedBy: _managedBy, ...manual } = profile;
+          return {
+            ...manual,
+            verification: 'unverified' as const,
+            publicIp: null,
+            provider: null,
+            verifiedAt: null
+          };
+        }),
         rules: imported.rules.map((rule) => ({ ...rule, exitLocationProfileId: null }))
       };
     }, undefined, true);
@@ -637,6 +715,25 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     return getPageRuntimeProfile(await getSiteConfig(), new URL(url).hostname);
   }
 
+  async function getLiveRuntimeUpdate(url: string): Promise<LiveRuntimePayloads> {
+    const empty: LiveRuntimePayloads = { page: null, font: null, geolocation: null };
+    const snapshot = liveSnapshot;
+    if (!isScriptableUrl(url)) return empty;
+    if (!snapshot) throw new Error('页面更新快照尚未确认，请等待同步或完整重载');
+    // 网页只读请求不能发起迁移或浏览器策略对账；只使用已确认且仍对应当前存储的快照。
+    const raw = (await chrome.storage.local.get(SITE_CONFIG_KEY))[SITE_CONFIG_KEY];
+    const valid = raw?.schemaVersion === 5 && validateConfig(raw);
+    if (!valid || !valid.ok || await runtimeConfigSignature(valid.config) !== snapshot.report.configSignature
+      || liveSnapshot !== snapshot) throw new Error('页面更新快照已失效，请等待同步或完整重载');
+    const { config, report: syncReport } = snapshot;
+    const hostname = new URL(url).hostname;
+    return {
+      page: syncReport.pageRuntime?.state === 'ready' ? getLanguageTimezonePayload(config, hostname) : null,
+      font: syncReport.fontRuntime?.state === 'ready' ? getFontExposurePayload(config, hostname) : null,
+      geolocation: syncReport.geolocationRuntime?.state === 'ready' ? getGeolocationPayload(config, hostname) : null
+    };
+  }
+
   async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
     url: string;
     domain: string;
@@ -662,17 +759,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       : null;
     if (targetProfileId && !previous) throw new Error('要重新检测的出口位置档案不存在');
 
-    const errors: string[] = [];
-    let candidate: DetectedExitLocation | null = null;
-    for (const apiUrl of GEO_API_URLS) {
-      try {
-        candidate = await fetchGeoApiLocation(apiUrl);
-        break;
-      } catch (error) {
-        errors.push(`${apiUrl} ${formatError(error)}`);
-      }
-    }
-    if (!candidate) throw new Error(`所有 IP 定位服务均检测失败：${errors.join(' | ')}`);
+    const candidate = await fetchExitCandidate();
 
     const pending: PendingExitLocationDetection = {
       detectionId: crypto.randomUUID(),
@@ -687,6 +774,86 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       await chrome.storage.session.set({ [PENDING_DETECTION_KEY]: pending });
     });
     return { ...pending, previous };
+  }
+
+  function refreshAutomaticExit(force = false): Promise<ConfigSaveResult | null> {
+    automaticExitRequestedGeneration = automaticExitGeneration;
+    if (automaticExitInFlight) return automaticExitInFlight;
+    const task = (async () => {
+      let result: ConfigSaveResult | null;
+      do {
+        result = await performAutomaticExit(force);
+        force = true;
+      } while (automaticExitRequestedGeneration > automaticExitFlightGeneration);
+      return result;
+    })();
+    automaticExitInFlight = task.finally(() => { automaticExitInFlight = null; });
+    return automaticExitInFlight;
+  }
+
+  async function performAutomaticExit(force: boolean): Promise<ConfigSaveResult | null> {
+      const request = await enqueue(async () => {
+        const config = await readSiteConfig();
+        automaticExitFlightGeneration = automaticExitGeneration;
+        const ruleIds = getAutomaticExitRuleIds(config);
+        const signature = await runtimeConfigSignature(config);
+        try { await reconcileAutomaticExitAlarm(ruleIds.length > 0); }
+        catch {
+          await chrome.storage.session.set({ [AUTOMATIC_EXIT_STATE_KEY]: { version: 1, status: 'failed', signature, lastAttemptAt: Date.now() } });
+          await reconcile(config);
+          throw new Error('自动出口调度未确认，请检查alarms权限后重试');
+        }
+        if (!ruleIds.length) {
+          await chrome.storage.session.remove(AUTOMATIC_EXIT_STATE_KEY);
+          return null;
+        }
+        const state = (await chrome.storage.session.get(AUTOMATIC_EXIT_STATE_KEY))[AUTOMATIC_EXIT_STATE_KEY];
+        if (!force && state?.version === 1 && state.status !== 'pending' && state.signature === signature
+          && Date.now() - state.lastAttemptAt < AUTOMATIC_EXIT_INTERVAL_MINUTES * 60_000) return null;
+        await chrome.storage.session.set({ [AUTOMATIC_EXIT_STATE_KEY]: { version: 1, status: 'pending', signature, lastAttemptAt: Date.now() } });
+        await reconcile(config);
+        return { signature, ruleIds, generation: automaticExitGeneration };
+      });
+      if (!request) return null;
+      let candidate: DetectedExitLocation;
+      try { candidate = await fetchExitCandidate(); }
+      catch {
+        return enqueue(async () => {
+          const current = await currentAutomaticRequest(request);
+          if (!current) return null;
+          await chrome.storage.session.set({ [AUTOMATIC_EXIT_STATE_KEY]: { version: 1, status: 'failed', signature: request.signature, lastAttemptAt: Date.now() } });
+          return { config: current, syncReport: await reconcile(current) };
+        });
+      }
+      // 网络不持有配置锁；提交前重读并拒绝旧代次，不能覆盖期间发生的开关/绑定/导入/重置。
+      return enqueue(async () => {
+        const current = await currentAutomaticRequest(request);
+        if (!current) return null;
+        const managed = current.exitLocationProfiles.find(profile => profile.managedBy === 'automatic-exit');
+        const profileId = managed?.id || (current.exitLocationProfiles.some(profile => profile.id === AUTOMATIC_EXIT_PROFILE_ID)
+          ? `${AUTOMATIC_EXIT_PROFILE_ID}-${crypto.randomUUID()}` : AUTOMATIC_EXIT_PROFILE_ID);
+        const profile: ExitLocationProfile = { id: profileId, managedBy: 'automatic-exit', name: '自动出口', verification: 'verified',
+          publicIp: candidate.publicIp, latitude: candidate.latitude, longitude: candidate.longitude, country: candidate.country,
+          countryCode: candidate.countryCode ?? null, timezone: candidate.timezone, provider: candidate.provider, verifiedAt: candidate.detectedAt };
+        const next = { ...current, exitLocationProfiles: [...current.exitLocationProfiles.filter(item => item.id !== profileId), profile],
+          rules: current.rules.map(rule => request.ruleIds.includes(rule.id) ? { ...rule, exitLocationProfileId: profileId } : rule) };
+        const saved = await persistConfig(current, next);
+        await chrome.storage.session.set({ [AUTOMATIC_EXIT_STATE_KEY]: { version: 1, status: 'ok',
+          signature: saved.syncReport.configSignature, lastAttemptAt: Date.now() } });
+        if (saved.syncReport.warnings?.some(warning => warning.code.startsWith('automatic-exit-'))) saved.syncReport = await reconcile(saved.config);
+        return saved;
+      });
+  }
+
+  async function currentAutomaticRequest(request: { generation: number; signature: string }): Promise<SiteSpoofConfig | null> {
+    const current = await readSiteConfig();
+    if (request.generation === automaticExitGeneration && await runtimeConfigSignature(current) === request.signature) return current;
+    const state = (await chrome.storage.session.get(AUTOMATIC_EXIT_STATE_KEY))[AUTOMATIC_EXIT_STATE_KEY];
+    if (state?.version === 1 && state.status === 'pending' && state.signature === request.signature) {
+      await chrome.storage.session.remove(AUTOMATIC_EXIT_STATE_KEY);
+      await reconcile(current);
+    }
+    return null;
   }
 
   async function getPendingDetection(detectionId: string): Promise<PendingExitLocationDetection> {
@@ -737,7 +904,8 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
         countryCode: pending.candidate.countryCode ?? null,
         timezone: pending.candidate.timezone,
         provider: pending.candidate.provider,
-        verifiedAt: pending.candidate.detectedAt
+        verifiedAt: pending.candidate.detectedAt,
+        ...(confirmed?.managedBy ? { managedBy: confirmed.managedBy } : {})
       };
       if (targetIndex >= 0) profiles[targetIndex] = profile;
       else profiles.push(profile);
@@ -833,6 +1001,29 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     }));
   }
 
+  function refreshActionBadges(tabId?: number): Promise<void> {
+    return enqueue(async () => {
+      const config = await readSiteConfig();
+      const metadata = await getRuntimeSyncMetadata();
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (typeof tab.id !== 'number' || !tab.url || tabId !== undefined && tab.id !== tabId) continue;
+        const report = metadata ? structuredClone(metadata.report) : undefined;
+        if (report && metadata) {
+          const signature = await syncSignature(tab.url);
+          const debt = metadata.pendingReloads.find(item => item.tabId === tab.id && item.urlSignature === signature);
+          if (report.pageRuntime) report.pageRuntime.reloadRequired = Boolean(debt && (!debt.surfaces || debt.surfaces.includes('page')));
+          if (report.fontRuntime) report.fontRuntime.reloadRequired = Boolean(debt?.surfaces?.includes('font'));
+          if (report.geolocationRuntime) report.geolocationRuntime.reloadRequired = Boolean(debt?.surfaces?.includes('geolocation'));
+        }
+        const badge = deriveActionBadge(config, tab.url, report);
+        await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: badge.color });
+        await chrome.action.setBadgeText({ tabId: tab.id, text: badge.text });
+        await chrome.action.setTitle({ tabId: tab.id, title: badge.title });
+      }
+    });
+  }
+
   async function openDiagnosticPage(): Promise<void> {
     await chrome.tabs.create({ url: chrome.runtime.getURL('diagnostic/report.html') });
   }
@@ -853,10 +1044,13 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
   }
 
   async function rejectUnsafeRuntimeState(error: unknown): Promise<never> {
+    liveSnapshot = null;
+    const permissionCleanup = await revokeGeolocationPermissions();
     const headerCleanup = await runRuntimeSideEffect('headers', clearHeaderRules);
     // 启动状态不可确认时撤销各自命名空间；清理仍占用配置队列，不猜测或覆盖配置。
     const legacyCleanup = await runRuntimeSideEffect('contentScripts', unregisterSpoofContentScript);
-    const cleanup = await syncFontScriptRegistration([]);
+    const cleanup = await reconcileFontScripts(createInitialConfig(), undefined, fontRuntimeSource);
+    const bridgeCleanup = await reconcileLiveBridge(createInitialConfig());
     const pageCleanup = await reconcilePageScripts(createInitialConfig(), pageRuntimeSource);
     const geolocationCleanup = await reconcileGeolocationScripts(createInitialConfig(), geolocationRuntimeSource);
     const webrtcCleanup = error instanceof StoredConfigError
@@ -866,6 +1060,8 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
       { code: 'page-scripts-sync-failed', message: '旧页面语言/时区注册清理未能确认', component: pageCleanup.component },
       { code: 'geolocation-scripts-sync-failed', message: '旧地理位置注册清理未能确认', component: geolocationCleanup.component },
       { code: 'font-scripts-sync-failed', message: '旧字体注册清理未能确认', component: cleanup },
+      { code: 'live-bridge-sync-failed', message: '旧页面更新通道清理未能确认', component: bridgeCleanup },
+      { code: 'geolocation-permissions-sync-failed', message: '旧真实定位授权撤销未能确认', component: permissionCleanup },
       ...(webrtcCleanup ? [{ code: 'webrtc-cleanup-failed', message: 'WebRTC 策略释放未确认，请检查浏览器控制权', component: webrtcCleanup }] : []),
       { code: 'header-cleanup-failed', message: '请求头隔离或撤销未确认，请关闭扩展并检查权限', component: headerCleanup }
     ].filter(item => item.component.status !== 'ok');
@@ -885,7 +1081,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
         await runRuntimeSideEffect('headers', async () => { migratedHeaders = await migrateLegacyHeaderRules(); });
         const before = await chrome.storage.local.get(null);
         const storedConfig = before[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-        const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 3)
+        const hadLegacyConfig = Boolean(storedConfig && storedConfig.schemaVersion !== 5)
           || Boolean(before[LEGACY_VANISHME_CONFIG_KEY]) || Boolean(before[LAST_LOCATION_KEY])
           || [OLD_EXTENSION_ENABLED_KEY, OLD_LANGUAGE_KEY, OLD_TIMEZONE_KEY, OLD_WEBRTC_KEY]
             .some((key) => Object.prototype.hasOwnProperty.call(before, key));
@@ -903,7 +1099,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
             ...(pendingGeolocationWindow(old, signature) ? { pendingGeolocationScopeChange: true } : {}),
             ...(old?.pendingDetectionCleanup ? { pendingDetectionCleanup: old.pendingDetectionCleanup } : {}) });
         }
-        return await reconcile(config);
+        return (await notifyRuntimeUpdate({ config, syncReport: await reconcile(config) })).syncReport;
       } catch (error) {
         return rejectUnsafeRuntimeState(error);
       }
@@ -914,8 +1110,14 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     webRtcPolicies: WEBRTC_POLICY_VALUES,
     getSiteConfig,
     getConfigState,
-    reconcileRuntime: getConfigState,
+    reconcileRuntime: () => enqueue(async () => {
+      const config = await readSiteConfig();
+      return notifyRuntimeUpdate({ config, syncReport: await reconcile(config) });
+    }),
     saveSiteConfig,
+    applyConfigAuditFix: (findingId: string) => mutateConfig(config => applyAuditFix(config, findingId)),
+    refreshActionBadges,
+    refreshAutomaticExit,
     resetSiteConfig,
     completeOnboarding,
     skipOnboarding,
@@ -926,6 +1128,7 @@ export function createBackgroundServices(pageRuntimeSource: string, geolocationR
     getWebRtcPolicyState,
     setWebRtcGlobalMode,
     getPayloadForUrl,
+    getLiveRuntimeUpdate,
     getCurrentTabState,
     detectExitLocation,
     confirmExitLocationDetection,

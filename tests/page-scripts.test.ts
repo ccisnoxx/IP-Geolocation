@@ -150,7 +150,7 @@ test('缺少权限/API或读取、注册、确认失败均fail closed，不能�
 test('生产自包含函数安装语言/Intl/Date与Blob Worker，不恢复历史完整runtime', async () => {
   const generated = await generatePageRuntime();
   const fn = assertSelfContainedFunction(generated.code, 'applyLanguageTimezoneRuntime');
-  assert.doesNotMatch(fn, /installGeolocationSpoof|installFontExposureFilter|installWorkerHooks|workerBootstrap|postMessage|executeScript/);
+  assert.doesNotMatch(fn, /installGeolocationSpoof|installFontExposureFilter|installWorkerHooks|workerBootstrap|executeScript/);
   const context = vm.createContext({ location: { protocol: 'http:' }, origin: 'http://localhost' }, { codeGeneration: { strings: false, wasm: false } });
   vm.runInContext(`class Navigator { get language(){return 'zh-CN'} get languages(){return ['zh-CN', 'zh', 'en-US']} }
     globalThis.navigator = new Navigator(); globalThis.Worker=function Worker(){}; globalThis.SharedWorker=function SharedWorker(){};
@@ -185,7 +185,9 @@ test('定位最小payload、父子域覆盖和语言时区注册相互独立，a
     assert.equal(result.geolocationRuntime.state, 'ready');
     assert.deepEqual(mock.read().filter(script => script.id.startsWith(PAGE_SCRIPT_PREFIX)), page);
     value.globalProfile.geolocation.mode = 'auto';
-    assert.deepEqual(compileGeolocationScripts(value, source), []);
+    const denied = compileGeolocationScripts(value, source);
+    assert.equal(denied.length, 1);
+    assert.match(denied[0].js[0].code!, /unavailable/);
     assert.equal(compilePageScripts(value, source).length, 2);
   } finally { mock.restore(); }
 });

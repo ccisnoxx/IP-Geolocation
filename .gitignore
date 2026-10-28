@@ -466,3 +466,11 @@ Thumbs.db
 .trellis/tasks/10-28-vg-044-code-audit/*
 !.trellis/tasks/10-28-vg-044-code-audit/task.json
 !.trellis/tasks/10-28-vg-044-code-audit/implement.md
+
+# release/1.3.1 功能迁移记录
+coverage/
+!.trellis/tasks/10-28-vg-045-release-port/
+.trellis/tasks/10-28-vg-045-release-port/*
+!.trellis/tasks/10-28-vg-045-release-port/task.json
+!.trellis/tasks/10-28-vg-045-release-port/prd.md
+!.trellis/tasks/10-28-vg-045-release-port/implement.md

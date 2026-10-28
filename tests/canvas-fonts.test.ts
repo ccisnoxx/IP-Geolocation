@@ -1,4 +1,4 @@
-// Canvas 字体伪装：按声称平台把对端专有字体换成等价字体，量宽与 check() 都要跟着变。
+// Canvas 字体伪装：按声称平台把对端专有字体换成等价字体，量宽按策略替换，check() 保持原生。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -42,10 +42,10 @@ test('macOS 平台下 Windows 专有字体按 mac 等价字体重写，未命中
   assert.equal(patched.ctx.measureText('MMMM').width, WIDTHS['helvetica neue']);
 });
 
-test('FontFaceSet.check 对声称平台装不上的字体一律 false', () => {
+test('FontFaceSet.check 保持原生系统字体语义', () => {
   const patched = realm();
   installCanvasFontSpoof(patched.root, { platform: 'macos', replacements: canvasFontReplacementMap('macos') });
-  assert.equal(patched.fonts.check('16px "Microsoft YaHei"'), false);
+  assert.equal(patched.fonts.check('16px "Microsoft YaHei"'), true);
   assert.equal(patched.fonts.check('16px "PingFang SC"'), true);
 });
 

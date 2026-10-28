@@ -4,7 +4,7 @@ import type { WorkerState } from './registry';
 export function installWorkerNavigator(state: WorkerState, patchConfig: WorkerPatchConfig) {
   const { root } = state;
   const language = patchConfig.language;
-  const languages = patchConfig.languages && patchConfig.languages.length ? patchConfig.languages.slice() : language ? [language] : null;
+  const languages = root.Object.freeze(patchConfig.languages && patchConfig.languages.length ? patchConfig.languages.slice() : language ? [language] : []);
   const nav = root.navigator;
   if (nav && language) {
     const navProto = root.Object.getPrototypeOf(nav);
@@ -14,7 +14,7 @@ export function installWorkerNavigator(state: WorkerState, patchConfig: WorkerPa
         const nativeGetter = descriptor.get;
         const getter = new root.Proxy(nativeGetter, {
           apply(target: Function, thisArg: unknown, args: unknown[]) {
-            if (thisArg === nav) return property === 'language' ? language : root.Object.freeze((languages || []).slice());
+            if (thisArg === nav) return property === 'language' ? language : languages;
             return root.Reflect.apply(target, thisArg, args);
           }
         });

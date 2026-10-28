@@ -1,4 +1,4 @@
-// 页面运行时由Chrome直接执行；消息动作只服务扩展管理页。
+// 首屏由Chrome直接执行；管理写入仅扩展页，content仅有当前frame最小更新读取。
 import { normalizeWebRtc } from '../shared/config-model';
 import { applyProfileToConfig } from '../shared/profile';
 import type { BackgroundServices } from './services';
@@ -25,6 +25,15 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
   }
 
   async function respond(request: any, sender: chrome.runtime.MessageSender): Promise<any> {
+    if (request?.action === 'getLiveRuntimeUpdate') {
+      const url = sender.url ? new URL(sender.url) : null;
+      if (sender.id !== chrome.runtime.id || !url || !/^https?:$/.test(url.protocol) || sender.origin !== url.origin
+        || typeof sender.tab?.id !== 'number' || !Number.isInteger(sender.frameId) || sender.frameId! < 0 || !sender.documentId) {
+        throw new Error('页面更新只允许普通HTTP(S)文档的本扩展content调用');
+      }
+      // URL只取Chrome提供的当前frame sender；页面不能指定其他域或取得完整配置。
+      return { status: 'ok', payloads: await services.getLiveRuntimeUpdate(url.href) };
+    }
     requireExtensionPage(sender);
     switch (request?.action) {
       case 'getExtensionState':
@@ -39,6 +48,9 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
       }
       case 'setSiteConfig':
         return savedResponse(await services.saveSiteConfig(request.config || {}));
+      case 'applyConfigAuditFix':
+        if (typeof request.findingId !== 'string') throw new Error('配置体检项目无效');
+        return savedResponse(await services.applyConfigAuditFix(request.findingId));
       case 'importSiteConfig':
         return savedResponse(await services.importSiteConfig(request.config || {}));
       case 'resetSiteConfig':

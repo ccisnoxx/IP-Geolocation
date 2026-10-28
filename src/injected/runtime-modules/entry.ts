@@ -7,6 +7,7 @@ import { installDateTimeSpoof } from './surfaces/intl-date';
 import { installGeolocationSpoof } from './surfaces/geolocation-permissions';
 import { installFontExposureFilter } from './surfaces/font-exposure';
 import { buildWorkerPatchSource, installWorkerHooks } from './surfaces/workers';
+import { resolveFontFamilies } from '../../shared/font-layers';
 
 // 每次安装创建独立闭包；后续更新必须复用返回的句柄，不从网页对象找回状态。
 export function applyRuntime(payload: RuntimePayload): RuntimeController {
@@ -22,6 +23,8 @@ export function applyRuntime(payload: RuntimePayload): RuntimeController {
   function applySpoofToRealm(globals: typeof globalThis & Record<string, any>, payload: RuntimePayload): void {
     if (!payload) return;
     if (payload.extensionEnabled === false || payload.enabled === false) return;
+    if (payload.fontExposureConfig) payload = { ...payload, fontExposureConfig: { ...payload.fontExposureConfig,
+      blockedFamilies: resolveFontFamilies(payload.fontExposureConfig, globals.navigator || {}) } };
 
     const realmState = state;
     realmState.debugMode = Boolean(payload.debugMode);

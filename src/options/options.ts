@@ -75,6 +75,9 @@ const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElem
 const webrtcPolicyStatusEl = document.getElementById('webrtcPolicyStatus') as HTMLElement;
 const fontExposureEnabledEl = document.getElementById('fontExposureEnabled') as HTMLInputElement;
 const fontExposureModeEl = document.getElementById('fontExposureMode') as HTMLSelectElement;
+const fontLayerPlatformEl = document.getElementById('fontLayerPlatform') as HTMLSelectElement;
+const fontHideCjkEl = document.getElementById('fontHideCjk') as HTMLInputElement;
+const fontLayersGroupEl = document.getElementById('fontLayersGroup') as HTMLElement;
 const fontCanvasEnabledEl = document.getElementById('fontCanvasEnabled') as HTMLInputElement;
 const fontCanvasPlatformEl = document.getElementById('fontCanvasPlatform') as HTMLSelectElement;
 const fontExposureVendorFamiliesEl = document.getElementById('fontExposureVendorFamilies') as HTMLTextAreaElement;
@@ -148,9 +151,10 @@ async function retryRuntimeSync(): Promise<void> {
 }
 
 function updateFontExposureMode(): void {
-  const custom = fontExposureModeEl.value === 'custom';
+  const custom = fontExposureModeEl.value !== 'vendor-software';
   fontExposureVendorGroupEl.hidden = custom;
   fontExposureCustomGroupEl.hidden = !custom;
+  fontLayersGroupEl.hidden = fontExposureModeEl.value !== 'layered';
 }
 
 function updateLanguageList(): void {
@@ -187,6 +191,8 @@ function populateForm(config: SiteSpoofConfig): void {
   webrtcPolicyEl.value = config.webRtc.globalMode;
   fontExposureEnabledEl.checked = config.fontExposure.enabled;
   fontExposureModeEl.value = config.fontExposure.mode;
+  fontLayerPlatformEl.value = config.fontExposure.layers?.platform || 'auto';
+  fontHideCjkEl.checked = config.fontExposure.layers?.hideCjkFonts !== false;
   fontCanvasEnabledEl.checked = config.fontExposure.canvasSpoof.enabled;
   fontCanvasPlatformEl.value = config.fontExposure.canvasSpoof.platform;
   fontExposureVendorFamiliesEl.value = VENDOR_SOFTWARE_FONT_FAMILIES.join('\n');
@@ -281,7 +287,7 @@ async function submitOnboarding(skip = false): Promise<void> {
     currentConfig = normalizeConfig(response.config);
     populateForm(currentConfig);
     onboardingConfirmEl.checked = false;
-    onboardingStatusEl.textContent = `${skip ? '已跳过，保护关闭；已保存的档案和规则保留。' : '所选推荐配置已保存；定位、语言/时区与固定字体分别报告同步状态，自定义字体过滤仍暂停。'} ${runtimeSyncMessage(response.syncReport)}`;
+    onboardingStatusEl.textContent = `${skip ? '已跳过，保护关闭；已保存的档案和规则保留。' : '所选推荐配置已保存；定位、语言/时区与字体过滤分别报告同步状态。'} ${runtimeSyncMessage(response.syncReport)}`;
     // 跳过只收起当前页面；不创建另一份持久化引导状态。
     if (skip && response.syncReport.status === 'ok') onboardingDetailsEl.open = false;
     await loadWebRtcPolicyState();
@@ -329,6 +335,9 @@ function readForm(): SiteSpoofConfig {
     fontExposure: {
       enabled: fontExposureEnabledEl.checked,
       mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
+      ...(fontExposureModeEl.value === 'layered' ? { layers: {
+        platform: fontLayerPlatformEl.value as 'auto' | 'none', hideCjkFonts: fontHideCjkEl.checked
+      } } : {}),
       canvasSpoof: {
         enabled: fontCanvasEnabledEl.checked,
         platform: fontCanvasPlatformEl.value as SiteSpoofConfig['fontExposure']['canvasSpoof']['platform']

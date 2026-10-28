@@ -1,0 +1,197 @@
+{
+  "task": "VG-045",
+  "sourceHead": "5b6190527c307a57d95f30a86f591930339e6f6b",
+  "baselineHead": "57d42df9ea69bd108663263634d85eeecf295bd2",
+  "workingTreeDirty": true,
+  "authorization": {
+    "geolocationRealPermissionAndNativeDelegation": "accepted",
+    "sharedWorkerCrossPageSeparation": "accepted",
+    "httpWorkerEntryCspChange": "accepted_2026-10-28"
+  },
+  "localChecks": {
+    "lint": "PASS",
+    "sourceTypes": "PASS",
+    "testTypes": "PASS",
+    "unit": {
+      "passed": 488,
+      "failed": 0
+    },
+    "build": "PASS",
+    "diffCheck": "PASS",
+    "coreCoverage": {
+      "perFileBranchMinimum": 85,
+      "result": "PASS",
+      "overallLines": 62.69,
+      "overallBranches": 86.21,
+      "note": "VM/generated/DOM归因不完整；不是Chrome覆盖率"
+    }
+  },
+  "browser": {
+    "environment": {
+      "browser": "Chrome/155.0.8059.86",
+      "temporaryProfile": true,
+      "userProfileAccessed": false,
+      "fixtureTraffic": "loopback only; no STUN/TURN",
+      "otherExtensions": []
+    },
+    "matrix": [
+      {
+        "check": "intl",
+        "browser": "browser-1",
+        "status": "PASS",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 3404,
+        "scope": "临时最小扩展，Intl/Date定向；不代表生产注册",
+        "evidence": "intl-1.json",
+        "evidenceStatus": "PASS"
+      },
+      {
+        "check": "native-parity",
+        "browser": "browser-1",
+        "status": "PASS",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 6043,
+        "scope": "正式dist、独立Profile、loopback原生/补丁对照；不证明不可检测",
+        "evidence": "native-parity-1.json",
+        "evidenceStatus": "OBSERVABLE"
+      }
+    ],
+    "build": {
+      "fileCount": 58,
+      "sha256": "4e8c1d45f0c7d0d6d15062eb1a50b6efcac90c50e7c0422846b6277c71852776"
+    },
+    "status": "OBSERVABLE",
+    "errors": [],
+    "liveContracts": {
+      "firstInline": true,
+      "actualSameDocumentUpdate": true,
+      "clearRestoresNative": true,
+      "existingFormatterRetained": true,
+      "existingWorkerSnapshot": true,
+      "moduleRelativeImportAndTla": true,
+      "globalRelativeUrlChanged": true,
+      "samePageSharedReused": true,
+      "crossPageSharedSeparated": true,
+      "changedGenerationSharedSeparated": true
+    },
+    "workerEntryCsp": {
+      "native": {
+        "connectionAllowed": false
+      },
+      "wrapped": {
+        "connectionAllowed": true
+      }
+    },
+    "persona": {
+      "artifactKind": "persona-language-timezone",
+      "firstInline": true,
+      "httpModuleWorkerSnapshot": true,
+      "noBackgroundOrManagementEntry": true,
+      "apiPermissions": [],
+      "fullGeolocationFontPersona": "NOT_INCLUDED"
+    },
+    "ui": {
+      "optionsPresetSaved": true,
+      "actualActionPopup": true,
+      "inheritedPresetCreatesChild": true,
+      "advancedOverridesPreserved": true,
+      "parentPreset": "consistency",
+      "childPreset": "native"
+    },
+    "rawEvidence": {
+      "path": "chrome155-native-parity.json.gz",
+      "uncompressedSha256": "d8e9f2620f4a93bfc7d474f38d0536ad0405eec9eaf9144ebfc5af00695d4f7d",
+      "uncompressedBytes": 2010130
+    },
+    "limitations": [
+      "NATIVE仅表示本探针对照字段相同，不证明不可检测",
+      "同源HTTP(S)/SharedWorker按Blob入口同步；跨页Shared身份及入口CSP不等价",
+      "未覆盖嵌套Blob、BFCache、重启、任意CSP/沙箱、HTTPS、跨站进程、其他OS或Chrome138",
+      "ICE只含无STUN/TURN的host候选类别数量；空候选保持UNKNOWN，不证明网络无泄漏",
+      "定位仅spoofPermission=true合成读取；native内部slot由未接管about:blank原生getter对照；不读取真实位置",
+      "全局键及DOM扫描不能穷举非枚举闭包、执行时间、错误栈或所有事件监听器"
+    ],
+    "matchesRegularArtifactDistHash": true
+  },
+  "artifacts": [
+    {
+      "kind": "regular",
+      "name": "vanishgeo-2.1.1-regular.zip",
+      "sha256": "191e82d9480b834d7913305a5710023b7a870744379028f28ef5f6ab50ae3265",
+      "audit": "PASS",
+      "scope": "current-release-artifact",
+      "browserPerZipAcceptance": "NOT_RUN"
+    },
+    {
+      "kind": "persona",
+      "name": "vanishgeo-2.1.1-singapore.zip",
+      "sha256": "4ebf748d7d8a80e78b4bd9baf0667fc490b7ec9a7f782aa5e5150bee3f8fda54",
+      "audit": "PASS",
+      "scope": [
+        "language",
+        "timezone"
+      ],
+      "browserPerZipAcceptance": "NOT_RUN"
+    },
+    {
+      "kind": "persona",
+      "name": "vanishgeo-2.1.1-japan-tokyo.zip",
+      "sha256": "f909264e5a6428064d37800b847bb48317ac01c9fb9a418026387b275eb0a398",
+      "audit": "PASS",
+      "scope": [
+        "language",
+        "timezone"
+      ],
+      "browserPerZipAcceptance": "NOT_RUN"
+    },
+    {
+      "kind": "persona",
+      "name": "vanishgeo-2.1.1-us-los-angeles.zip",
+      "sha256": "a98fd47401f2438e263d15b37eafd6c93dd36967a49988e00ec80c550356950b",
+      "audit": "PASS",
+      "scope": [
+        "language",
+        "timezone"
+      ],
+      "browserPerZipAcceptance": "NOT_RUN"
+    },
+    {
+      "kind": "persona",
+      "name": "vanishgeo-2.1.1-germany-berlin.zip",
+      "sha256": "d439168689240aa447d8b9125380614fead818f2f59b2ab6d13c7b3fa6b84118",
+      "audit": "PASS",
+      "scope": [
+        "language",
+        "timezone"
+      ],
+      "browserPerZipAcceptance": "NOT_RUN"
+    },
+    {
+      "kind": "persona",
+      "name": "vanishgeo-2.1.1-china-shanghai.zip",
+      "sha256": "69f008c653fd7c9b2773474104902d016971e3a81b5a2cf3a62753c08e890577",
+      "audit": "PASS",
+      "scope": [
+        "language",
+        "timezone"
+      ],
+      "browserPerZipAcceptance": "NOT_RUN"
+    },
+    {
+      "kind": "persona",
+      "name": "vanishgeo-2.1.1-us-new-york.zip",
+      "sha256": "e90f4f5feb44784230080e34db6092b44f3a9f7e5b14a1af849080b5085e6f75",
+      "audit": "PASS",
+      "scope": [
+        "language",
+        "timezone"
+      ],
+      "browserPerZipAcceptance": "NOT_RUN"
+    }
+  ],
+  "release": "NOT_PUBLISHED",
+  "integration": "AUTHORIZED_PENDING_GIT_CLOSEOUT",
+  "humanAcceptance": "PENDING"
+}

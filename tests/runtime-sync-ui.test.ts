@@ -124,9 +124,9 @@ for (const page of ['popup', 'options'] as const) {
       const text = element('runtimeSyncStatus').textContent;
       assert.match(text, /新建且匹配规则的 HTTP\(S\) 顶层文档和普通 iframe/);
       assert.match(text, /已有受影响页面需完整重载（reload）或关闭后重新打开/);
-      assert.match(text, /BFCache 恢复文档保留原快照，不会热更新或自动刷新/);
+      assert.match(text, /BFCache返回时重新读取.*不自动刷新/);
       assert.match(text, /当前页面实际值尚未验证/);
-      assert.match(text, /Blob Dedicated Worker 可继承语言\/时区.*SharedWorker.*未覆盖/);
+      assert.match(text, /同源HTTP\(S\).*Dedicated\/SharedWorker.*跨页可能分离.*未覆盖/);
       assert.match(text, /about:blank、srcdoc、data:、blob:.*sandbox.*unsupported \/ UNKNOWN/);
       assert.doesNotMatch(text, /全部保护.*生效|当前页面已.*生效/);
     } else {
@@ -159,7 +159,7 @@ for (const page of ['popup', 'options'] as const) {
     if (page === 'popup') assert.equal(element('siteStatusBadge').textContent, '总开关已关闭');
     element('globalEnabled').checked = true;
     const fontStates = {
-      ready: /固定内置名单字体过滤已注册 1 条规则.*仅覆盖 measureText\(\) 和 FontFaceSet.check\(\).*不隐藏 DOM 尺寸/,
+      ready: /字体过滤已注册 1 条规则.*measureText\(\).*queryLocalFonts\(\).*FontFaceSet.check\(\) 保持原生.*DOM尺寸/,
       disabled: /字体过滤当前未注册启用规则/,
       paused: /已配置但当前未应用.*人工恢复门禁/,
       'custom-paused': /自定义名单仅保存，当前不生产派发/,
@@ -241,9 +241,9 @@ test('面板保留简短操作提示，完整能力边界和引导留在配置�
   const html = readFileSync(new URL('../src/options/options.html', import.meta.url), 'utf8');
   assert.match(html, /onboardingDetails/);
   assert.match(html, /Chrome 138\+、userScripts 权限及 Allow User Scripts 开关/);
-  assert.match(html, /Blob Dedicated Worker 可继承语言\/时区.*SharedWorker.*未覆盖/);
-  assert.match(html, /固定内置名单字体过滤已获恢复授权，仅在总开关、字体开关及HTTP\(S\)站点规则均启用时独立注册，自定义名单仅保存/);
+  assert.match(html, /同源HTTP\(S\).*Dedicated\/SharedWorker.*跨页可能分离.*未覆盖/);
+  assert.match(html, /三层及自定义字体过滤需要允许用户脚本，沿用已启用HTTP\(S\) full规则/);
   assert.match(html, /about:blank、srcdoc、data:、blob:.*unsupported \/ UNKNOWN/);
-  assert.match(html, /BFCache 恢复文档保留原快照/);
+  assert.match(html, /BFCache返回时重新读取/);
   assert.doesNotMatch(html, /时区（页面伪装已暂停）|语言（DNR 可用，页面伪装暂停）|当前不在页面执行|保存配置不会恢复页面注入/);
 });

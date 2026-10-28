@@ -1,8 +1,10 @@
 import { fontFamilyKey, splitFontFamilies, trimFontWhitespace, FONT_SIZE_PATTERN } from '../font-policy';
 import { createConversionObserver } from './font-conversion';
+import { replaceMethod } from '../registry';
+import type { RuntimeState } from '../types';
 
 export type CanvasFontSpoofConfig = {
-  /** 声称的平台：macos 时 Windows 专有字体要与 macOS 等价字体量宽，check() 返回 false。 */
+  /** 声称的平台：macos 时 Windows 专有字体要与 macOS 等价字体量宽。 */
   platform: 'windows' | 'macos';
   /** 大小写无关：原字体 key → 替换字体族名。 */
   replacements: Record<string, string>;
@@ -39,7 +41,8 @@ export function mapCanvasFont(font: string, replacements: Record<string, string>
  */
 export function installCanvasFontSpoof(
   root: typeof globalThis & Record<string, any>,
-  config: CanvasFontSpoofConfig
+  config: CanvasFontSpoofConfig,
+  state?: RuntimeState
 ): void {
   const replacements = config.replacements;
   const keys = Object.keys(replacements);
@@ -90,7 +93,8 @@ export function installCanvasFontSpoof(
         if (restoreFont !== null) apply(fontSet, this, [restoreFont]);
       }
     };
-    objectCtor.defineProperty(owner, 'measureText', { ...descriptor, value: measureText, writable: true });
+    if (state) replaceMethod(root, state, owner, 'measureText', measureText);
+    else objectCtor.defineProperty(owner, 'measureText', { ...descriptor, value: measureText, writable: true });
     try {
       objectCtor.defineProperty(measureText, 'toString', {
         value: (root.Function || Function).prototype.toString.bind(original), configurable: true
@@ -103,21 +107,5 @@ export function installCanvasFontSpoof(
   if (root.CanvasRenderingContext2D?.prototype) patchMeasure(root.CanvasRenderingContext2D.prototype);
   if (root.OffscreenCanvasRenderingContext2D?.prototype) patchMeasure(root.OffscreenCanvasRenderingContext2D.prototype);
 
-  // check()：声称平台装不上的字体必须答 false，否则一句话就能问出来
-  const fontFaceSetPrototype = root.FontFaceSet?.prototype;
-  const originalCheck = fontFaceSetPrototype?.check;
-  if (typeof originalCheck === 'function') {
-    const check = function check(this: any, font: unknown, _text?: unknown) {
-      const args = Array.from(arguments);
-      let forwardedArgs = args;
-      if (font !== null && (typeof font === 'object' || typeof font === 'function')) {
-        forwardedArgs = [observeConversion(font, primitive => { font = primitive; }), ...args.slice(1)];
-      }
-      // 原生方法先完成品牌、必填参数和两个 DOMString 的校验。
-      const result = apply(originalCheck, this, forwardedArgs);
-      return typeof font === 'string' && mapCanvasFont(font, replacements) ? false : result;
-    };
-    const descriptor = objectCtor.getOwnPropertyDescriptor(fontFaceSetPrototype, 'check');
-    objectCtor.defineProperty(fontFaceSetPrototype, 'check', { ...descriptor, value: check, writable: true });
-  }
+  // FontFaceSet.check 保留原生，不把测量策略写成系统字体存在判据。
 }

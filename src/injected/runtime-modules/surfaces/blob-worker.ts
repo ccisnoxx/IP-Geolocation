@@ -8,7 +8,7 @@ export function installBlobWorker(
   payload: LanguageTimezonePayload,
   bootstrap: (payload: LanguageTimezonePayload) => void
 ): void {
-  if (!payload.language && !payload.timezone || typeof root.Worker !== 'function'
+  if (!payload.language && !payload.timezone && !payload.blockedFonts?.length || typeof root.Worker !== 'function'
     || typeof root.URL?.createObjectURL !== 'function') return;
   const NativeWorker = root.Worker;
   const NativeURL = root.URL;
@@ -21,8 +21,9 @@ export function installBlobWorker(
   const revokeURL = root.URL.revokeObjectURL;
   const apply = root.Reflect.apply;
   const construct = root.Reflect.construct;
-  const owned = new Map<string, Blob>();
-  const pending = new WeakMap<Worker, () => void>();
+  const registry = state.blobWorkerRegistry || (state.blobWorkerRegistry = { owned: new Map<string, Blob>(), pending: new WeakMap<Worker, () => void>() });
+  registry.createURL = createURL; registry.revokeURL = revokeURL;
+  const { owned, pending } = registry;
   const patch = `;(${bootstrap.toString()})(${JSON.stringify(payload)});`;
   const replace = (owner: object, key: string, value: Function) => {
     defineRuntimeProperty(root, state, owner, key, {
@@ -56,7 +57,7 @@ export function installBlobWorker(
       return result;
     }
   }));
-  replace(root, 'Worker', new root.Proxy(NativeWorker, {
+  const workerWrapper = new root.Proxy(NativeWorker, {
     construct(target: Function, args: unknown[], newTarget: Function) {
       if (!args.length || root.trustedTypes?.isScriptURL(args[0])) return construct(target, args, newTarget);
       // 普通URL对象与字符串均执行一次WebIDL转换；TrustedScriptURL保持原生验证路径。
@@ -123,5 +124,7 @@ export function installBlobWorker(
         throw error;
       }
     }
-  }));
+  });
+  replace(root, 'Worker', workerWrapper);
+  replace(NativeWorker.prototype, 'constructor', workerWrapper);
 }

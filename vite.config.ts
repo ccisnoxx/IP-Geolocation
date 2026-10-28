@@ -61,7 +61,8 @@ export default defineConfig({
         'popup/popup': resolve(__dirname, 'src/popup/popup.ts'),
         'options/options': resolve(__dirname, 'src/options/options.ts'),
         'leak-test/leak-test': resolve(__dirname, 'src/leak-test/leak-test.ts'),
-        'diagnostic/report': resolve(__dirname, 'src/diagnostic/report.ts')
+        'diagnostic/report': resolve(__dirname, 'src/diagnostic/report.ts'),
+        'diagnostic/config-audit': resolve(__dirname, 'src/diagnostic/config-audit.ts')
       },
       output: {
         entryFileNames: '[name].js',

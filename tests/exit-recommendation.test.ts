@@ -62,7 +62,7 @@ test('未验证档案与非法时区不产生可信候选；多语言地区仅�
 test('countryCode 增量归一化兼容旧 verified 档案，不补造旧代码或改变 schema', () => {
   const { countryCode: _omitted, ...oldProfile } = profile;
   const old = normalizeConfig({ exitLocationProfiles: [oldProfile] });
-  assert.equal(old.schemaVersion, 3);
+  assert.equal(old.schemaVersion, 5);
   assert.deepEqual(old.exitLocationProfiles[0], oldProfile);
   const current = normalizeConfig({ exitLocationProfiles: [{ ...profile, countryCode: ' jp ' }] });
   assert.equal(current.exitLocationProfiles[0].countryCode, 'JP');

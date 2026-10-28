@@ -16,7 +16,15 @@ export function createObservabilityServer() {
     if (path === '/headers.json') { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify({ acceptLanguage: request.headers['accept-language'] || null })); return; }
     if (path === '/font-list.json') { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(families)); return; }
     response.setHeader('Content-Type', path.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
-    if (path === '/worker-classic.js') response.end(`${classic}\npostMessage(captureSurface());`);
+    if (path === '/live.html') response.end('<!doctype html><meta charset="utf-8"><title>Live contract</title><script>document.documentElement.dataset.first=JSON.stringify({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});</script>');
+    else if (path === '/entry-csp.js') {
+      response.setHeader('Content-Security-Policy', "connect-src 'none'");
+      response.end(`fetch(new URL('/headers.json',self.location.origin).href).then(()=>postMessage({connectionAllowed:true}),()=>postMessage({connectionAllowed:false}));`);
+    }
+    else if (path === '/shared-counter.js') response.end('let count=0;onconnect=event=>{const port=event.ports[0];port.postMessage({count:++count,language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});port.onmessage=()=>port.postMessage({count,language:navigator.language});};');
+    else if (path === '/worker-helper.js') response.end('export const relativeImport=true;');
+    else if (path === '/worker-contract-module.js') response.end(`import {relativeImport} from './worker-helper.js';await Promise.resolve();let relativeURL;try{relativeURL=new URL('asset.json',location.href).protocol}catch(error){relativeURL=error.name}postMessage({relativeImport,relativeURL,entryIsBlob:location.protocol==='blob:',businessIsHttp:import.meta.url.startsWith('http:'),language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});`);
+    else if (path === '/worker-classic.js') response.end(`${classic}\npostMessage(captureSurface());`);
     else if (path === '/worker.js') response.end(request.url.includes('module')
       ? "import { captureSurface } from '/probe.js'; postMessage(captureSurface());"
       : `importScripts('/worker-classic.js');`);

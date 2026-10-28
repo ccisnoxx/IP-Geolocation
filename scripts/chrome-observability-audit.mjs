@@ -8,6 +8,7 @@ import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createObservabilityServer } from './serve-observability.mjs';
+import { ENVIRONMENT_PRESETS } from '../src/shared/environment-presets.ts';
 import { createInitialConfig, createRule } from '../src/shared/config-model.ts';
 
 const args = process.argv.slice(2);
@@ -24,11 +25,12 @@ await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `http://localhost:${server.address().port}`;
 const evidence = { schemaVersion: 1, head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   environment: { browser: null, temporaryProfile: true, userProfileAccessed: false, fixtureTraffic: 'loopback only; no STUN/TURN', otherExtensions: [] },
+  workingTreeDirty: Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()),
   build: {}, contracts: {}, scenarios: {}, status: 'UNKNOWN', errors: [],
-  limitations: ['NATIVE仅表示本探针对照字段相同，不证明不可检测', 'HTTP(S) Worker和SharedWorker不应用生产同步；实际值仍逐项报告',
+  limitations: ['NATIVE仅表示本探针对照字段相同，不证明不可检测', '同源HTTP(S)/SharedWorker按Blob入口同步；跨页Shared身份及入口CSP不等价',
     '未覆盖嵌套Blob、BFCache、重启、任意CSP/沙箱、HTTPS、跨站进程、其他OS或Chrome138',
     'ICE只含无STUN/TURN的host候选类别数量；空候选保持UNKNOWN，不证明网络无泄漏',
-    '定位只在临时Profile中合成读取，原生权限预先设denied；不读取真实位置',
+    '定位仅spoofPermission=true合成读取；native内部slot由未接管about:blank原生getter对照；不读取真实位置',
     '全局键及DOM扫描不能穷举非枚举闭包、执行时间、错误栈或所有事件监听器'] };
 let socket, child; let sequence = 0;
 const pending = new Map();
@@ -111,7 +113,6 @@ try {
   evidence.environment.otherExtensions = await evaluate(manager, inventory);
   assert.ok(evidence.environment.otherExtensions.every(item => !item.enabled), '原生基线仍有其他启用扩展');
   await close(manager);
-  await send('Browser.setPermission', { permission: { name: 'geolocation' }, setting: 'denied' });
   const take = async () => {
     const page = await open(`${origin}/?position=1`);
     try { await until(() => evaluate(page, `document.querySelector('#result')?.dataset.complete`), value => value === 'true', '审计采样', 30000);
@@ -120,6 +121,10 @@ try {
   };
   const native = await take();
   evidence.scenarios.native = { observed: native, comparison: comparison(native, native), policy: { status: 'UNKNOWN', reason: '无扩展上下文，网页无法读取全局policy' } };
+  const cspWorker = page => evaluate(page, `new Promise((done,fail)=>{const worker=new Worker('/entry-csp.js');const timer=setTimeout(()=>fail(new Error('CSP worker timeout')),4000);worker.onmessage=event=>{clearTimeout(timer);worker.terminate();done(event.data)};worker.onerror=()=>{clearTimeout(timer);fail(new Error('CSP worker failed'))}})`);
+  const cspBaselinePage = await open(`${origin}/live.html`);
+  evidence.workerEntryCsp = { native: await cspWorker(cspBaselinePage) }; await close(cspBaselinePage);
+  assert.equal(evidence.workerEntryCsp.native.connectionAllowed, false);
   const extension = join(temporary, 'extension'); await cp(resolve('dist'), extension, { recursive: true });
   const { id } = await send('Extensions.loadUnpacked', { path: extension });
   const details = await open(`chrome://extensions/?id=${id}`);
@@ -147,6 +152,7 @@ try {
     if (stage.startsWith('preset-')) seed.rules.forEach(rule => { rule.compatibilityPreset = stage.slice(7); });
     if (stage === 'disabled-new-document') seed.masterEnabled = false;
     const saved = await message(controller, { action: 'setSiteConfig', config: seed });
+    evidence.lastSyncReport = saved.syncReport;
     assert.equal(saved.saved, true, `配置未保存：${stage}`); assert.equal(saved.syncReport?.status, 'ok', `同步未完成：${stage}`);
     const registry = await evaluate(controller, `Promise.all([chrome.userScripts.getScripts(),chrome.scripting.getRegisteredContentScripts(),chrome.declarativeNetRequest.getDynamicRules()]).then(([page,font,headers])=>({page:page.map(item=>({id:item.id,matches:item.matches,excludeMatches:item.excludeMatches})),font:font.map(item=>({id:item.id,matches:item.matches,excludeMatches:item.excludeMatches})),headers:headers.length}))`);
     const policy = await evaluate(controller, 'chrome.privacy.network.webRTCIPHandlingPolicy.get({})');
@@ -168,14 +174,14 @@ try {
       assert.equal(realm.page.header.acceptLanguage, pageActive ? 'fr-FR,fr;q=0.9,en;q=0.8' : baseline.page.header.acceptLanguage);
       assert.equal(realm.page.permission.state, geoActive ? 'granted' : baseline.page.permission.state);
       if (geoActive) { assert.equal(realm.page.position.latitude, 0); assert.equal(realm.page.position.longitude, 0); assert.equal(realm.page.position.nativeCoordsGetter, 'OBSERVABLE'); }
-      if (fontsActive) assert.ok(realm.page.fonts.slice(0, 43).every(font => font.check === false));
+      if (fontsActive) assert.deepEqual(realm.page.fonts.map(font => [font.family, font.check]), baseline.page.fonts.map(font => [font.family, font.check]));
       else assert.deepEqual(realm.page.fonts, baseline.page.fonts);
       assert.deepEqual(realm.page.dom.extensionUrls, []); assert.deepEqual(realm.page.dom.markers, []); assert.deepEqual(realm.page.globals, []);
       if (!pageActive) for (const key of passive) assert.deepEqual(realm.page[key], baseline.page[key], `${stage}/${name}/${key}`);
     }
     for (const [name, worker] of Object.entries(observed.workers)) {
       assert.ok(worker.language, `${stage}/${name}缺少Worker样本`);
-      const patched = pageActive && name.startsWith('blob-');
+      const patched = pageActive;
       assert.deepEqual(worker.language.languages, patched ? seed.globalProfile.language.languages : native.workers[name].language.languages);
       assert.equal(worker.timezone.timezone, patched && stage !== 'language' ? seed.globalProfile.timezone.timezone : native.workers[name].timezone.timezone);
     }
@@ -188,13 +194,52 @@ try {
       assert.equal(observed.page.header.acceptLanguage, 'fr-FR,fr;q=0.9,en;q=0.8');
     }
     if (stage === 'preset-consistency') {
-      assert.deepEqual(observed.page.fonts, native.page.fonts); assert.equal(registry.font.length, 0);
+      assert.deepEqual(observed.page.fonts, native.page.fonts); assert.ok(registry.font.every(item => item.id.startsWith('vanishgeo-live-bridge-')));
       assert.equal(observed.page.permission.state, native.page.permission.state);
       assert.ok(registry.page.every(item => !item.id.includes('geolocation')));
     }
     assert.deepEqual(observed.page.dom.extensionUrls, []); assert.deepEqual(observed.page.dom.markers, []); assert.deepEqual(observed.page.globals, []);
     console.log('采样完成', stage);
   }
+  // 正式派发热更新与Shared身份：保持同一批文档，不reload，不从页面ack推定成功。
+  seed.masterEnabled = true; seed.rules.forEach(rule => { rule.compatibilityPreset = 'full'; });
+  await message(controller, { action: 'setSiteConfig', config: seed });
+  const live = await open(`${origin}/live.html`), second = await open(`${origin}/live.html`);
+  evidence.workerEntryCsp.wrapped = await cspWorker(live);
+  assert.equal(evidence.workerEntryCsp.wrapped.connectionAllowed, true);
+  const state = page => evaluate(page, `({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,first:JSON.parse(document.documentElement.dataset.first)})`);
+  assert.deepEqual((await state(live)).first, { language: 'fr-FR', timezone: 'Pacific/Honolulu' });
+  const shared = (page, key, type = 'classic') => evaluate(page, `new Promise((done,fail)=>{
+    const worker=new SharedWorker('/shared-counter.js',{name:'vg045-${type}',type:${JSON.stringify(type)}});globalThis[${JSON.stringify(key)}]=worker;
+    const timer=setTimeout(()=>fail(new Error('SharedWorker timeout')),4000);worker.onerror=()=>{clearTimeout(timer);fail(new Error('SharedWorker failed'))};
+    worker.port.onmessage=event=>{clearTimeout(timer);done(event.data)};worker.port.start();})`);
+  for (const type of ['classic', 'module']) {
+    assert.equal((await shared(live, `shared1${type}`, type)).count, 1);
+    assert.equal((await shared(live, `shared2${type}`, type)).count, 2);
+    assert.equal((await shared(second, `sharedOther${type}`, type)).count, 1);
+  }
+  await evaluate(live, `globalThis.oldFormatter=new Intl.DateTimeFormat();globalThis.oldDate=Date;globalThis.oldLanguage=Object.getOwnPropertyDescriptor(Navigator.prototype,'language').get;
+    globalThis.blobURL=URL.createObjectURL(new Blob(['onmessage=()=>postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone});'],{type:'text/javascript'}));
+    globalThis.snapshotWorker=new Worker(blobURL);`);
+  seed.globalProfile.language.language = 'de-DE'; seed.globalProfile.language.languages = ['de-DE', 'de']; seed.globalProfile.timezone.timezone = 'Europe/Berlin';
+  assert.equal((await message(controller, { action: 'setSiteConfig', config: seed })).saved, true);
+  await until(() => state(live), value => value.language === 'de-DE' && value.timezone === 'Europe/Berlin', '真实文档热更新');
+  assert.equal((await state(live)).first.language, 'fr-FR');
+  assert.equal(await evaluate(live, 'oldFormatter.resolvedOptions().timeZone'), 'Pacific/Honolulu');
+  const workerSnapshot = await evaluate(live, `new Promise(done=>{snapshotWorker.onmessage=event=>done(event.data);snapshotWorker.postMessage(null)})`);
+  assert.deepEqual(workerSnapshot, { language: 'fr-FR', timezone: 'Pacific/Honolulu' });
+  const moduleContract = await evaluate(live, `new Promise((done,fail)=>{const worker=new Worker('/worker-contract-module.js',{type:'module'});const timer=setTimeout(()=>fail(new Error('module timeout')),4000);worker.onmessage=event=>{clearTimeout(timer);worker.terminate();done(event.data)};worker.onerror=()=>{clearTimeout(timer);fail(new Error('module failed'))}})`);
+  assert.deepEqual(moduleContract, { relativeImport: true, relativeURL: 'TypeError', entryIsBlob: true, businessIsHttp: true, language: 'de-DE', timezone: 'Europe/Berlin' });
+  assert.equal((await shared(live, 'sharedNew')).count, 1);
+  await message(controller, { action: 'setExtensionEnabled', enabled: false });
+  await until(() => state(live), value => value.language === native.page.language.language && value.timezone === native.page.timezone.timezone, '真实文档关闭恢复');
+  assert.equal(await evaluate(live, 'oldLanguage.call(navigator)'), native.page.language.language);
+  await evaluate(live, `snapshotWorker.terminate();URL.revokeObjectURL(blobURL);for(const key of ['shared1classic','shared2classic','shared1module','shared2module','sharedNew'])globalThis[key].port.close()`);
+  await evaluate(second, `sharedOtherclassic.port.close();sharedOthermodule.port.close()`);
+  evidence.scenarios.liveContracts = { firstInline: true, actualSameDocumentUpdate: true, clearRestoresNative: true, existingFormatterRetained: true,
+    existingWorkerSnapshot: true, moduleRelativeImportAndTla: true, globalRelativeUrlChanged: true, samePageSharedReused: true,
+    crossPageSharedSeparated: true, changedGenerationSharedSeparated: true };
+  await close(live); await close(second);
   // 正式Options及action Popup事件链：父域继承转为当前域名子规则，保存后读回。
   seed.masterEnabled = true;
   const parent = createRule('vg-audit.test');
@@ -232,6 +277,22 @@ try {
   const popupImage = await send('Page.captureScreenshot', { format: 'png' }, popup.sessionId);
   await writeFile(output.replace(/\.json$/, '-popup.png'), Buffer.from(popupImage.data, 'base64'));
   await close(popup); await close(site);
+  await message(controller, { action: 'setExtensionEnabled', enabled: false });
+  const personaDirectory = join(temporary, 'persona');
+  execFileSync(process.execPath, [resolve('node_modules/tsx/dist/cli.mjs'), resolve('scripts/build-persona.mjs'), '--dist', resolve('dist'),
+    '--out', personaDirectory, '--preset', 'singapore', '--domains', 'localhost,127.0.0.1'], { stdio: 'pipe' });
+  const personaManifest = JSON.parse(await readFile(join(personaDirectory, 'manifest.json'), 'utf8'));
+  assert.deepEqual(personaManifest.permissions, []); assert.equal(personaManifest.background, undefined);
+  assert.equal(personaManifest.options_page, undefined); assert.equal(personaManifest.action.default_popup, undefined);
+  await send('Extensions.loadUnpacked', { path: personaDirectory });
+  const personaPage = await open(`${origin}/live.html`);
+  const preset = ENVIRONMENT_PRESETS.find(item => item.id === 'singapore');
+  assert.deepEqual((await state(personaPage)).first, { language: preset.language, timezone: preset.timezone });
+  const personaWorker = await evaluate(personaPage, `new Promise((done,fail)=>{const worker=new Worker('/worker-contract-module.js',{type:'module'});const timer=setTimeout(()=>fail(new Error('persona worker timeout')),4000);worker.onmessage=event=>{clearTimeout(timer);worker.terminate();done(event.data)};worker.onerror=()=>{clearTimeout(timer);fail(new Error('persona worker failed'))}})`);
+  assert.equal(personaWorker.language, preset.language); assert.equal(personaWorker.timezone, preset.timezone);
+  evidence.persona = { artifactKind: 'persona-language-timezone', firstInline: true, httpModuleWorkerSnapshot: true,
+    noBackgroundOrManagementEntry: true, apiPermissions: [], fullGeolocationFontPersona: 'NOT_INCLUDED' };
+  await close(personaPage);
   delete evidence.uiPhase;
   evidence.status = 'OBSERVABLE';
 } catch (error) {

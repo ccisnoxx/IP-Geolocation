@@ -72,7 +72,7 @@ function fontRealm(surface: typeof SURFACES[number]) {
     installCanvasFontSpoof(root, { platform: 'macos', replacements: { simsun: 'Helvetica Neue' } });
   }
   return { context, fonts, nativeCheck, nativeMeasure,
-    fallback: surface === 'canvas' ? '16px Helvetica Neue' : '16px monospace' };
+    fallback: surface === 'canvas' ? '16px Helvetica Neue' : '16px "__vg_absent__"' };
 }
 
 function outcome(run: () => unknown) {
@@ -82,7 +82,8 @@ function outcome(run: () => unknown) {
 
 for (const surface of SURFACES) {
   test(`${surface} check 只转换一次对象字体，保留 getter receiver、this 和 string hint`, () => {
-    const { fonts } = fontRealm(surface);
+    const { fonts, nativeCheck } = fontRealm(surface);
+    assert.equal(fonts.check, nativeCheck);
     let reads = 0, calls = 0;
     const font = {
       get [Symbol.toPrimitive]() {
@@ -96,10 +97,10 @@ for (const surface of SURFACES) {
         };
       }
     };
-    assert.equal(fonts.check(font), false);
+    assert.equal(fonts.check(font), true);
     assert.equal(reads, 1);
     assert.equal(calls, 1);
-    assert.equal(fonts.check({ toString() { return TARGET; } }), false);
+    assert.equal(fonts.check({ toString() { return TARGET; } }), true);
     assert.equal(fonts.check('16px Missing'), false);
     assert.equal(fonts.check(ORDINARY), true);
   });

@@ -1,6 +1,7 @@
 import type { WorkerPatchConfig } from '../types';
 import type { WorkerState } from './registry';
 import { createIntlPolicy } from '../intl-policy';
+import { createDateWallClock } from '../date-wall-clock';
 
 export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPatchConfig) {
   const { root, originalGetOwnPropertyDescriptor, originalSetPrototypeOf } = state;
@@ -8,7 +9,6 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
   if (patchConfig.timezone || language) {
     const OriginalDate = root.Date;
     const OriginalDateTimeFormat = root.Intl && (root.Intl.DateTimeFormat as any);
-    const originalResolvedOptions = OriginalDateTimeFormat && OriginalDateTimeFormat.prototype.resolvedOptions;
     const originalDateToString = OriginalDate && OriginalDate.prototype.toString;
     const originalDateToDateString = OriginalDate && OriginalDate.prototype.toDateString;
     const originalDateToTimeString = OriginalDate && OriginalDate.prototype.toTimeString;
@@ -43,18 +43,6 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
         ...(originalGetOwnPropertyDescriptor.call(root.Object, root.Intl, 'DateTimeFormat') || { configurable: true, enumerable: false, writable: true }),
         value: SpoofedDateTimeFormat
       });
-
-      if (typeof originalResolvedOptions === 'function') {
-        replaceMethod(OriginalDateTimeFormat.prototype, 'resolvedOptions', function resolvedOptions(this: Intl.DateTimeFormat) {
-          const options = originalResolvedOptions.call(this);
-          if (policy.compatible) return options;
-          return {
-            ...options,
-            locale: language || options.locale,
-            timeZone: patchConfig.timezone || options.timeZone
-          };
-        });
-      }
 
       const intlRecord = root.Intl as unknown as Record<string, any>;
       ['NumberFormat', 'Collator', 'RelativeTimeFormat', 'ListFormat', 'PluralRules', 'DisplayNames', 'Segmenter']
@@ -119,26 +107,12 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
         const asUTC = dateFromParts(parts).getTime();
         return Math.round((date.getTime() - asUTC) / 60000);
       };
-      const makeWallTime = (args: unknown[]) => {
-        const year = Number(args[0]);
-        const month = Number(args[1]);
-        const day = args.length > 2 ? Number(args[2]) : 1;
-        const hour = args.length > 3 ? Number(args[3]) : 0;
-        const minute = args.length > 4 ? Number(args[4]) : 0;
-        const second = args.length > 5 ? Number(args[5]) : 0;
-        const ms = args.length > 6 ? Number(args[6]) : 0;
-        let utc = OriginalDate.UTC(year, month, day, hour, minute, second, ms);
-        for (let index = 0; index < 3; index += 1) {
-          utc = OriginalDate.UTC(year, month, day, hour, minute, second, ms)
-            + resolveOffset(new OriginalDate(utc)) * 60000;
-        }
-        return utc;
-      };
       const getWallDate = (date: Date) => {
         const parts = getParts(date);
         if (!parts) return null;
         return dateFromParts(parts, date.getUTCMilliseconds());
       };
+      const wallClock = createDateWallClock(root, OriginalDate, getWallDate);
       const pad = (value: number) => String(value).padStart(2, '0');
       const formatOffset = (date: Date) => {
         const offset = resolveOffset(date);
@@ -149,17 +123,19 @@ export function installWorkerDateTime(state: WorkerState, patchConfig: WorkerPat
 
       function SpoofedDate(...args: unknown[]) {
         if (!new.target) return new OriginalDate().toString();
-        return reflectConstruct(OriginalDate, args.length > 1 ? [makeWallTime(args)] : args, new.target);
+        return wallClock.construct(args, new.target);
       }
       originalSetPrototypeOf.call(root.Object, SpoofedDate, OriginalDate);
       SpoofedDate.prototype = OriginalDate.prototype;
       SpoofedDate.now = OriginalDate.now.bind(OriginalDate);
       SpoofedDate.UTC = OriginalDate.UTC.bind(OriginalDate);
-      SpoofedDate.parse = OriginalDate.parse.bind(OriginalDate);
+      SpoofedDate.parse = wallClock.parse;
       root.Object.defineProperty(root, 'Date', {
         ...(originalGetOwnPropertyDescriptor.call(root.Object, root, 'Date') || { configurable: true, enumerable: false, writable: true }),
         value: SpoofedDate
       });
+
+      for (const [name, setter] of Object.entries(wallClock.setters)) replaceMethod(OriginalDate.prototype, name, setter);
 
       replaceMethod(OriginalDate.prototype, 'getTimezoneOffset', function getTimezoneOffset(this: Date) {
         return resolveOffset(this);

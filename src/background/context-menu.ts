@@ -62,11 +62,15 @@ export function handleContextMenuClick(services: BackgroundServices, info: chrom
         break;
       case 'open-leak-test':
         await services.openDiagnosticPage();
-        break;
+        return;
       case 'reset-webrtc':
         await services.setWebRtcGlobalMode('default');
         break;
+      default:
+        return;
     }
+    try { await services.refreshAutomaticExit(); }
+    finally { await services.refreshActionBadges(); }
   })().catch((error) => {
     console.error('右键菜单操作失败：', error);
   });

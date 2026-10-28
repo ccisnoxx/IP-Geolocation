@@ -12,7 +12,7 @@ import { generateRuntime, generatePageRuntime, assertSelfContainedFunction, proj
 import { runtimePlugin } from '../build/runtime-plugin';
 import { normalizeTimezonePayload } from '../src/injected/runtime-modules/payload';
 import { fontFamilyKey, splitFontFamilies, getFallbackFont } from '../src/injected/runtime-modules/surfaces/font-exposure';
-import { VENDOR_SOFTWARE_FONT_FAMILIES } from '../src/shared/font-families';
+import { FONT_FAMILY_ALIASES, VENDOR_SOFTWARE_FONT_FAMILIES } from '../src/shared/font-families';
 import { randomCoordinateInRadius } from '../src/injected/runtime-modules/surfaces/geolocation-permissions';
 
 function page() {
@@ -27,6 +27,32 @@ function page() {
 const payload = { extensionEnabled: true, languageConfig: { enabled: true, language: 'fr-FR', languages: ['fr-FR'] },
   timezoneConfig: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' } };
 
+test('本地字体别名只归入既定43族，过滤后保留普通族或使用自然缺失回退', () => {
+  const canonical = new Set(VENDOR_SOFTWARE_FONT_FAMILIES.map(fontFamilyKey));
+  assert.equal(VENDOR_SOFTWARE_FONT_FAMILIES.length, 43);
+  for (const [alias, family] of Object.entries(FONT_FAMILY_ALIASES)) {
+    assert.ok(canonical.has(family), alias);
+    assert.equal(fontFamilyKey(`"${alias}"`), family);
+  }
+  const blocked = new Set(['microsoft yahei', 'pingfang sc']);
+  assert.equal(getFallbackFont('12px "微软雅黑", Arial', blocked), '12px Arial');
+  assert.equal(getFallbackFont('12px "苹方-简"', blocked), '12px "__vg_absent__"');
+  assert.equal(getFallbackFont('12px "微软雅黑 Plus"', blocked), null);
+  assert.equal(fontFamilyKey('"Arial Narrow"'), 'arial narrow');
+  const prototype = Object.prototype as Record<string, unknown>;
+  const previous = Object.getOwnPropertyDescriptor(prototype, 'arial');
+  try {
+    Object.defineProperty(prototype, 'arial', { configurable: true, value: 'misans' });
+    assert.equal(fontFamilyKey('Arial'), 'arial');
+    assert.equal(fontFamilyKey('constructor'), 'constructor');
+    assert.equal(fontFamilyKey('__proto__'), '__proto__');
+    assert.equal(getFallbackFont('12px Arial', new Set(['misans'])), null);
+  } finally {
+    if (previous) Object.defineProperty(prototype, 'arial', previous);
+    else delete prototype.arial;
+  }
+});
+
 test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有合同', () => {
   assert.deepEqual(normalizeTimezonePayload({ timezone: 'UTC' }), { timezone: null });
   assert.deepEqual(normalizeTimezonePayload({ timezone: 'UTC', timezoneConfig: { enabled: true, mode: 'auto', timezone: '' } }), { timezone: 'UTC' });
@@ -40,10 +66,10 @@ test('纯逻辑模块直接导入：timezone、位置和字体解析保持既有
 test('字体测量仅过滤固定名单，名单外显式字体与混合列表顺序保持', () => {
   const blocked = new Set(VENDOR_SOFTWARE_FONT_FAMILIES.map(fontFamilyKey));
   assert.equal(blocked.size, 43);
-  assert.equal(getFallbackFont('20px PingFang   SC', blocked), '20px monospace');
-  assert.equal(getFallbackFont('20px "Mi\\53 ans"', blocked), '20px monospace');
+  assert.equal(getFallbackFont('20px PingFang   SC', blocked), '20px "__vg_absent__"');
+  assert.equal(getFallbackFont('20px "Mi\\53 ans"', blocked), '20px "__vg_absent__"');
   for (const name of VENDOR_SOFTWARE_FONT_FAMILIES) {
-    assert.equal(getFallbackFont(`20px "${name}"`, blocked), '20px monospace');
+    assert.equal(getFallbackFont(`20px "${name}"`, blocked), '20px "__vg_absent__"');
     assert.equal(getFallbackFont(`20px "${name}", Arial, serif`, blocked), '20px Arial, serif');
   }
   for (const font of ['20px Arial', '20px "Mi Sans"', '20px PingFangSC', '20px PingFang\\a0 SC', '20px PingFang\\20\\20SC', '20px PingFang\u00a0SC', '20px MiSans\u00a0', '20px "PingFang  SC"', '20px "Future Font"', '20px "serif"', '20px "Font, With Comma"', '20px "测试字体"', '20px monospace, sans-serif, serif']) {
@@ -169,6 +195,7 @@ test('build watch 对 page/worker 依赖重建，缺源和循环依赖显式失�
     await cp(resolve(projectRoot, 'src/injected'), join(temporary, 'src/injected'), { recursive: true });
     await mkdir(join(temporary, 'src/shared'), { recursive: true });
     await cp(resolve(projectRoot, 'src/shared/font-families.ts'), join(temporary, 'src/shared/font-families.ts'));
+    await cp(resolve(projectRoot, 'src/shared/font-layers.ts'), join(temporary, 'src/shared/font-layers.ts'));
     // Canvas 字体伪装的平台表在 src/shared，构建期也要能解析到
     await cp(resolve(projectRoot, 'src/shared/canvas-fonts.ts'), join(temporary, 'src/shared/canvas-fonts.ts'));
     const generated = await generateRuntime(temporary);

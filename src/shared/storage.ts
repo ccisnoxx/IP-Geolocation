@@ -48,7 +48,7 @@ export async function getConfig(beforeConfigWrite: () => Promise<void>): Promise
   const data = await chrome.storage.local.get(null);
   const config = migrateLegacyConfig(data);
   const storedConfig = data[SITE_CONFIG_KEY] as { schemaVersion?: number } | undefined;
-  const needsMigration = storedConfig?.schemaVersion !== 3;
+  const needsMigration = storedConfig?.schemaVersion !== 5;
   if (needsMigration) {
     await beforeConfigWrite();
     await chrome.storage.local.set({ [SITE_CONFIG_KEY]: config, [RULES_INITIALIZED_KEY]: true });

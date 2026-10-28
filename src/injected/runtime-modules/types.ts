@@ -1,4 +1,15 @@
-// 完整隔离 runtime 的输入；生产 userScripts 只消费独立语言/时区 payload。
+import type { FontRuntimePayload } from '../../shared/types';
+export type RuntimeGeolocation = {
+  enabled?: boolean;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  country?: string;
+  randomize?: boolean;
+  randomRadiusMeters?: number;
+  spoofPermission?: boolean;
+};
+// 完整隔离 runtime 的输入；生产 userScripts 消费各自最小 payload。
 export type RuntimePayload = {
   intlMode?: 'strict' | 'compatible';
   extensionEnabled?: boolean;
@@ -15,23 +26,10 @@ export type RuntimePayload = {
     mode: 'auto' | 'manual';
     timezone: string;
   };
-  geolocation?: {
-    enabled?: boolean;
-    latitude: number;
-    longitude: number;
-    accuracy?: number;
-    country?: string;
-    randomize?: boolean;
-    randomRadiusMeters?: number;
-    spoofPermission?: boolean;
-  } | null;
+  geolocation?: RuntimeGeolocation | { unavailable: true; enabled?: boolean } | null;
   latitude?: number | null;
   longitude?: number | null;
-  fontExposureConfig?: {
-    enabled: boolean;
-    mode: 'vendor-software' | 'custom';
-    blockedFamilies: string[];
-  };
+  fontExposureConfig?: FontRuntimePayload;
 };
 
 export type RuntimeOriginals = {
@@ -43,6 +41,13 @@ export type RuntimeOriginals = {
 };
 
 export type RuntimeState = {
+  active: boolean;
+  documentExiting?: boolean;
+  workerSourceURL?: string;
+  restores: Array<{ owner: object; property: PropertyKey; original: PropertyDescriptor | undefined; installed: PropertyDescriptor }>;
+  guardedFunctions: WeakMap<Function, { native: Function; wrapped: Function }>;
+  cleanup: Array<() => void>;
+  blobWorkerRegistry?: { owned: Map<string, Blob>; pending: WeakMap<Worker, () => void>; createURL?: typeof URL.createObjectURL; revokeURL?: typeof URL.revokeObjectURL };
   runtimeReady: boolean;
   debugMode: boolean;
   originals: RuntimeOriginals;
@@ -50,9 +55,13 @@ export type RuntimeState = {
   spoofOriginals: Record<string, any>;
   workerPatchSource: string;
   sharedWorkerUrls: Map<string, string>;
+  geolocationObjects?: {
+    coordinates: WeakMap<object, Record<string, number | null>>;
+    positions: WeakMap<object, { coords: GeolocationCoordinates; timestamp: number }>;
+  };
   values: {
     language: string | null;
-    languages: string[] | null;
+    languages: readonly string[] | null;
     timezone: string | null;
     geolocationCoordinate: { key: string; latitude: number; longitude: number } | null;
     blockedFontFamilyKeys: Set<string>;

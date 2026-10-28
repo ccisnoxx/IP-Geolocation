@@ -9,6 +9,7 @@ export const runtimeModuleId = 'virtual:vanishgeo-runtime';
 export const workerModuleId = 'virtual:vanishgeo-worker';
 export const pageRuntimeSourceId = 'virtual:vanishgeo-page-runtime-source';
 export const geolocationRuntimeSourceId = 'virtual:vanishgeo-geolocation-runtime-source';
+export const fontRuntimeSourceId = 'virtual:vanishgeo-font-runtime-source';
 export type GeneratedRuntime = { code: string; map: string; dependencies: string[] };
 
 // 只检查被序列化的函数；不能用扩展模块中的其他声明满足其自由变量。
@@ -72,7 +73,7 @@ export function assertSelfContainedFunction(code: string, name: string): string 
   return `function ${name}(${fn.parameters.map(p => p.getText(tree)).join(', ')}) ${fn.body.getText(tree)}`;
 }
 
-async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false, fontOnly = false, geolocationOnly = false, blobWorkerOnly = false, workerFontHookOnly = false, canvasFontsOnly = false): Promise<GeneratedRuntime> {
+async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly = false, fontOnly = false, geolocationOnly = false, blobWorkerOnly = false, workerFontHookOnly = false, canvasFontsOnly = false, liveUpdates = true): Promise<GeneratedRuntime> {
   const isWorker = !worker && !pageOnly && !fontOnly && !geolocationOnly && !blobWorkerOnly && !workerFontHookOnly && !canvasFontsOnly;
   const name = blobWorkerOnly ? 'applyBlobWorkerRuntime' : workerFontHookOnly ? 'applyWorkerFontHook' : canvasFontsOnly ? 'applyCanvasFontSpoof' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFixedFontFilter' : pageOnly ? 'applyLanguageTimezoneRuntime' : isWorker ? 'workerBootstrap' : 'applyVanishGeoRuntime';
   const fileName = blobWorkerOnly ? 'vanishgeo-blob-worker.js' : workerFontHookOnly ? 'vanishgeo-worker-font-hook.js' : canvasFontsOnly ? 'vanishgeo-canvas-fonts.js' : geolocationOnly ? 'vanishgeo-geolocation-runtime.js' : fontOnly ? 'vanishgeo-font-filter.js' : pageOnly ? 'vanishgeo-page-runtime.js' : isWorker ? 'vanishgeo-worker.js' : 'vanishgeo-runtime.js';
@@ -105,8 +106,8 @@ async function generateGraph(root: string, worker?: GeneratedRuntime, pageOnly =
         if (['CIRCULAR_DEPENDENCY', 'UNRESOLVED_IMPORT'].includes(warning.code || '')) throw new Error(warning.message);
         warn(warning);
       }, output: { format: isWorker ? 'es' : 'iife', name: 'runtimeExports', entryFileNames: fileName,
-        banner: `export function ${name}(${fontOnly ? '' : canvasFontsOnly ? 'platform' : isWorker ? 'patchConfig' : 'payload'}) {`,
-        footer: isWorker ? '}' : `return runtimeExports.${blobWorkerOnly ? 'applyBlobWorkerRuntime' : workerFontHookOnly ? 'applyWorkerFontHook' : canvasFontsOnly ? 'applyCanvasFontSpoof' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${fontOnly || workerFontHookOnly ? '' : canvasFontsOnly ? 'platform' : blobWorkerOnly ? 'payload, applyBlobWorkerRuntime' : 'payload'});\n}`,
+        banner: `export function ${name}(${canvasFontsOnly ? 'platform' : isWorker ? 'patchConfig' : blobWorkerOnly ? 'payload, sourceURL, classic' : 'payload'}) {`,
+        footer: isWorker ? '}' : `return runtimeExports.${blobWorkerOnly ? 'applyBlobWorkerRuntime' : workerFontHookOnly ? 'applyWorkerFontHook' : canvasFontsOnly ? 'applyCanvasFontSpoof' : geolocationOnly ? 'applyGeolocationRuntime' : fontOnly ? 'applyFontFilter' : pageOnly ? 'applyPageRuntime' : 'applyRuntime'}(${workerFontHookOnly ? '' : canvasFontsOnly ? 'platform' : blobWorkerOnly ? 'payload, applyBlobWorkerRuntime, sourceURL, classic' : pageOnly ? `payload, ${liveUpdates}` : 'payload'});\n}`,
         sourcemapPathTransform(source) { return isAbsolute(source) ? relative(root, source).replace(/\\/g, '/') : source; }
       } }
     }
@@ -126,9 +127,9 @@ export async function generateRuntime(root = projectRoot): Promise<GeneratedRunt
   return generateGraph(root, worker);
 }
 
-export async function generatePageRuntime(root = projectRoot): Promise<GeneratedRuntime> {
+export async function generatePageRuntime(root = projectRoot, liveUpdates = true): Promise<GeneratedRuntime> {
   const worker = await generateBlobWorkerRuntime(root);
-  return generateGraph(root, worker, true);
+  return generateGraph(root, worker, true, false, false, false, false, false, liveUpdates);
 }
 
 export function generateBlobWorkerRuntime(root = projectRoot): Promise<GeneratedRuntime> {

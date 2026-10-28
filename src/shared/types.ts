@@ -7,7 +7,7 @@ export type IntlMode = 'strict' | 'compatible';
 export type CompatibilityPreset = 'native' | 'consistency' | 'full';
 import type { CanvasFontPlatform } from './canvas-fonts';
 
-export type FontExposureMode = 'vendor-software' | 'custom';
+export type FontExposureMode = 'vendor-software' | 'custom' | 'layered';
 export type ExitLocationVerification = 'verified' | 'unverified';
 
 export interface LanguageConfig {
@@ -52,9 +52,14 @@ export interface FontExposureConfig {
   enabled: boolean;
   mode: FontExposureMode;
   blockedFamilies: string[];
+  /** release 三层策略；blockedFamilies 在此模式下表示手动追加层。 */
+  layers?: { platform: 'auto' | 'none'; hideCjkFonts: boolean };
   /** Canvas 字体伪装：按"声称的平台"把对端平台专有字体替换成等价字体。 */
   canvasSpoof: { enabled: boolean; platform: CanvasFontPlatform };
 }
+export type FontRuntimePayload = Pick<FontExposureConfig, 'enabled' | 'mode' | 'blockedFamilies' | 'layers'> & {
+  canvasSpoof?: FontExposureConfig['canvasSpoof'];
+};
 
 export interface SignalOverride<T> {
   mode: OverrideMode;
@@ -112,6 +117,8 @@ export interface ExitLocationProfile {
   timezone: string | null;
   provider: string | null;
   verifiedAt: number | null;
+  /** 仅后台自动检测事务建立；外部导入删除该所有权标记。 */
+  managedBy?: 'automatic-exit';
 }
 
 export interface DetectedExitLocation {
@@ -152,7 +159,7 @@ export interface ExitRecommendationSelection {
 }
 
 export interface SiteSpoofConfig {
-  schemaVersion: 3;
+  schemaVersion: 5;
   intlMode: IntlMode;
   masterEnabled: boolean;
   debugMode: boolean;
@@ -203,16 +210,17 @@ export interface LanguageTimezonePayload {
   timezone?: string;
   /** 字体伪装开启且规则为 full 时下发；Worker 侧据此改写 OffscreenCanvas/FontFaceSet。 */
   blockedFonts?: string[];
+  fontPolicy?: FontRuntimePayload;
 }
 
-export interface GeolocationPayload {
+export type GeolocationPayload = {
   latitude: number;
   longitude: number;
   accuracy: number;
   randomize: boolean;
   randomRadiusMeters: number;
   spoofPermission: boolean;
-}
+} | { unavailable: true };
 
 export interface PageRuntimeStatus {
   state: 'ready' | 'disabled' | 'api-unsupported' | 'permission-required' | 'switch-required' | 'sync-failed';

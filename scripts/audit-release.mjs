@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -30,7 +31,7 @@ assert.equal(manifest.version, pkg.version); assert.equal(lock.version, pkg.vers
 assert.equal(manifest.manifest_version, 3); assert.equal(manifest.content_scripts, undefined);
 assert.deepEqual(manifest.web_accessible_resources, []);
 assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
-assert.deepEqual(manifest.permissions, ['storage', 'scripting', 'tabs', 'contextMenus', 'privacy', 'userScripts', 'declarativeNetRequestWithHostAccess']);
+assert.deepEqual(manifest.permissions, ['storage', 'scripting', 'tabs', 'contextMenus', 'privacy', 'userScripts', 'declarativeNetRequestWithHostAccess', 'contentSettings', 'alarms']);
 
 assert.equal(manifest.minimum_chrome_version, '138');
 assert.deepEqual(manifest.background, { service_worker: 'background/service-worker.js', type: 'module' });
@@ -71,7 +72,18 @@ for (const [name, bytes] of files) {
   }
   if (name.endsWith('.js')) {
     assert.doesNotMatch(text, /\beval\s*\(|\bnew\s+Function\s*\(/, `运行期编译：${name}`);
-    const imports = [...text.matchAll(/(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)["']([^"']+)["']/g)].map(m => m[1]);
+    // 解析实际模块语句；模板内的 Worker 源代码不是本文件的依赖。
+    const imports = [];
+    const source = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    const visit = node => {
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) imports.push(node.moduleSpecifier.text);
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        assert.ok(node.arguments.length === 1 && ts.isStringLiteralLike(node.arguments[0]), `无法静态核实的动态模块：${name}`);
+        imports.push(node.arguments[0].text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
     const dependencies = imports.map(specifier => {
       assert.ok(specifier.startsWith('.'), `非本地模块：${name}`);
       const target = posix.normalize(posix.join(posix.dirname(name), specifier));

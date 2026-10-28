@@ -61,6 +61,18 @@
           <div class="profile-card-name quick-set-card-name">美国 · 洛杉矶</div>
           <div class="profile-card-info quick-set-card-info">🇺🇸 America/Los_Angeles</div>
         </button>
+        <button class="profile-card quick-set-card" type="button" data-preset="germany-berlin">
+          <div class="profile-card-name quick-set-card-name">德国 · 柏林</div>
+          <div class="profile-card-info quick-set-card-info">🇩🇪 Europe/Berlin</div>
+        </button>
+        <button class="profile-card quick-set-card" type="button" data-preset="china-shanghai">
+          <div class="profile-card-name quick-set-card-name">中国 · 上海</div>
+          <div class="profile-card-info quick-set-card-info">🇨🇳 Asia/Shanghai</div>
+        </button>
+        <button class="profile-card quick-set-card" type="button" data-preset="us-new-york">
+          <div class="profile-card-name quick-set-card-name">美国 · 纽约</div>
+          <div class="profile-card-info quick-set-card-info">🇺🇸 America/New_York</div>
+        </button>
       </div>
     </section>
 
@@ -178,8 +190,9 @@
           </div>
           <label class="checkbox-label">
             <input type="checkbox" id="spoofPermission">
-            <span>合成位置权限伪装</span>
+            <span>自动授予真实站点定位权限</span>
           </label>
+          <p class="hint">关闭时使用原生授权及传感器，只替换成功坐标；未接管环境可能访问真实位置。</p>
           <button id="saveCoordinate" class="btn-secondary btn-sm">保存当前坐标</button>
         </div>
       </details>
@@ -257,10 +270,11 @@
             <span>启用字体过滤</span>
           </label>
           <p id="fontExposureStatus" class="hint" role="status" aria-live="polite">字体过滤：待确认</p>
-          <p class="hint">仅支持内置名单；自定义名单暂不应用。覆盖范围见完整配置。</p>
+          <p class="hint">支持三层、固定及自定义名单。三层和自定义需要允许用户脚本；平台/CJK开关在完整配置中编辑。</p>
           <div class="input-group">
             <label for="fontExposureMode">过滤名单模式</label>
             <select id="fontExposureMode" class="input">
+              <option value="layered">三层过滤（平台/CJK层在设置页编辑）</option>
               <option value="vendor-software">内置厂商／软件及中文字体</option>
               <option value="custom">自定义名单</option>
             </select>

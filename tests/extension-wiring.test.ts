@@ -14,7 +14,7 @@ function exists(relativePath: string): boolean {
   return fs.existsSync(path.join(projectRoot, relativePath));
 }
 
-test('manifest uses dynamic injection without background alarms or static all-url content scripts', () => {
+test('manifest retains scoped dynamic injection and declares explicit location/automatic-exit permissions', () => {
   const manifest = JSON.parse(read('manifest.json'));
   assert.equal(manifest.background.service_worker, 'background/service-worker.js');
   assert.equal(manifest.name, 'VanishGeo');
@@ -29,10 +29,12 @@ test('manifest uses dynamic injection without background alarms or static all-ur
     'contextMenus',
     'privacy',
     'userScripts',
-    'declarativeNetRequestWithHostAccess'
+    'declarativeNetRequestWithHostAccess',
+    'contentSettings',
+    'alarms'
   ]);
   assert.equal(manifest.permissions.includes('activeTab'), false);
-  assert.equal(manifest.permissions.includes('alarms'), false);
+  assert.equal(manifest.permissions.includes('alarms'), true);
   assert.equal(manifest.minimum_chrome_version, '138');
   assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
 });
@@ -52,7 +54,7 @@ test('生产页面由 userScripts 提前注册，仅清理旧初始化脚本', (
   assert.doesNotMatch(services, /matches: \['<all_urls>'\]/);
 });
 
-test('content initialization exposes no page-controlled postMessage bridge or payload input', () => {
+test('content只读桥不承担首屏注入，管理接口不接受网页写入', () => {
   const content = read('src/content/content.ts');
   const runtime = read('src/injected/runtime.ts');
   const router = read('src/background/message-router.ts');
@@ -67,6 +69,11 @@ test('content initialization exposes no page-controlled postMessage bridge or pa
   assert.doesNotMatch(content, /window\.(postMessage|addEventListener)/);
   assert.doesNotMatch(content, /payload|location\.href/);
   assert.doesNotMatch(runtime, /apply-spoof|vanishgeo-extension|window\.postMessage/);
+  const bridge = read('src/content/content-bridge.ts');
+  assert.match(bridge, /action: 'getLiveRuntimeUpdate'/);
+  assert.doesNotMatch(bridge, /setSiteConfig|detectExitLocation|contentSettings|userScripts|executeScript/);
+  assert.match(router, /sender\.origin !== url\.origin/);
+  assert.match(router, /sender\.documentId/);
   assert.match(router, /requireExtensionPage/);
   assert.match(router, /sender\.id !== chrome\.runtime\.id/);
   assert.match(router, /sender\.url\?\.startsWith\(extensionRoot\)/);
@@ -217,7 +224,7 @@ test('manifest permission boundary documents active detection and avoids redunda
   });
   assert.match(permissionsDoc, /`<all_urls>`/);
   assert.match(permissionsDoc, /没有将其改为逐站点可选授权/);
-  assert.match(permissionsDoc, /当前未申请[^\n]*`alarms`[^\n]*`activeTab`/);
+  assert.match(permissionsDoc, /当前未申请[^\n]*`activeTab`[^\n]*`geolocation`/);
 });
 
 test('configuration UI wires explicit exit-profile selection, active detection, WebRTC, and selective font exposure controls', () => {
@@ -296,7 +303,7 @@ test('运行时对账在 worker 启动及生命周期事件接线，管理页有
   const worker = read('src/background/service-worker.ts');
   assert.match(worker, /onInstalled\.addListener/);
   assert.match(worker, /onStartup\.addListener/);
-  assert.match(worker, /runBackgroundTask\('运行时对账', services\.initializeExtension\(\)\)/);
+  assert.match(worker, /runBackgroundTask\('运行时对账', services\.initializeExtension\(\)\.then\(\(\) => refreshAutomaticExit\(\)\)\)/);
   const router = read('src/background/message-router.ts');
   assert.ok(router.indexOf('requireExtensionPage(sender);') < router.indexOf("case 'reconcileRuntime'"));
   assert.match(router, /saved: true/);
@@ -342,13 +349,13 @@ test('字体 UI 无请求头编辑，内置名单只读、Canvas 伪装独立开
     assert.match(script, /renderFontRuntimeStatus\(fontExposureStatusEl, report(?:, 'compact')?\)/);
     if (page === 'options') {
       assert.match(html, /不影响语言\/时区注册状态/);
-      assert.match(html, /顶层.*iframe.*43 项.*measureText\(\).*保留其他显式字体.*monospace/);
-      assert.match(html, /FontFaceSet.check\(\).*名单内字体返回 false.*其他字体保持原生/);
+      assert.match(html, /顶层.*iframe.*43 项.*measureText\(\).*保留其他显式字体.*缺失字体族回退/);
+      assert.match(html, /FontFaceSet.check\(\) 保持原生.*queryLocalFonts\(\).*原生授权后过滤结果/);
       assert.match(html, /不覆盖 DOM 尺寸.*local\(\).*像素比对.*未接管的 Worker/);
       assert.match(html, /不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息/);
       assert.match(html, /兼容性/);
     } else {
-      assert.match(html, /自定义名单暂不应用。覆盖范围见完整配置/);
+      assert.match(html, /三层和自定义需要允许用户脚本/);
     }
     assert.match(html, /value="vendor-software"/);
     assert.match(html, /value="custom"/);

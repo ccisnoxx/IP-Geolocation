@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ENVIRONMENT_PRESETS, exitProfileSignals, findEnvironmentPreset, presetSignals } from '../src/shared/environment-presets';
 
-test('只有新加坡、东京、洛杉矶三个预设，坐标/语言/时区自洽', () => {
-  assert.deepEqual(ENVIRONMENT_PRESETS.map(preset => preset.id), ['singapore', 'japan-tokyo', 'us-los-angeles']);
+test('保留原有三个预设并增加柏林、上海、纽约，坐标/语言/时区自洽', () => {
+  assert.deepEqual(ENVIRONMENT_PRESETS.map(preset => preset.id), ['singapore', 'japan-tokyo', 'us-los-angeles', 'germany-berlin', 'china-shanghai', 'us-new-york']);
   assert.equal(findEnvironmentPreset('nowhere'), null);
   const byId = Object.fromEntries(ENVIRONMENT_PRESETS.map(preset => [preset.id, preset]));
   assert.equal(byId['singapore'].timezone, 'Asia/Singapore');
@@ -38,7 +38,7 @@ test('快速设置是独立区块，且含旗帜卡片与"从 IP 自动配置"�
     assert.match(html, /id="quickSetGroup"|id="quickSet"/, `${page} 需要独立容器`);
     assert.match(html, /从 IP 自动配置/, `${page} 需要出口档案入口`);
     const cards = [...html.matchAll(/data-preset="([^"]+)"/g)].map(match => match[1]);
-    assert.deepEqual(cards, ['singapore', 'japan-tokyo', 'us-los-angeles'], `${page} 卡片必须是这三个预设`);
+    assert.deepEqual(cards, ['singapore', 'japan-tokyo', 'us-los-angeles', 'germany-berlin', 'china-shanghai', 'us-new-york'], `${page} 卡片必须与共享预设一致`);
     // 卡片副标题带旗帜
     assert.match(html, /🇸🇬 Asia\/Singapore/, `${page} 新加坡卡片缺旗帜`);
     assert.match(html, /🇯🇵 Asia\/Tokyo/, `${page} 东京卡片缺旗帜`);

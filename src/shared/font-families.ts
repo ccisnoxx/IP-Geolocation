@@ -45,3 +45,27 @@ export const VENDOR_SOFTWARE_FONT_FAMILIES = [
   'Source Han Sans TW',
   'Noto Sans CJK TC'
 ];
+
+// 仅为既定字体族提供本地名称；不引入分支的额外平台/CJK名单或宽泛字重匹配。
+export const FONT_FAMILY_ALIASES: Readonly<Record<string, string>> = Object.assign(Object.create(null), {
+  '微软雅黑': 'microsoft yahei', '微软雅黑 ui': 'microsoft yahei ui',
+  '宋体': 'simsun', '中易宋体': 'simsun', '新宋体': 'nsimsun',
+  '黑体': 'simhei', '中易黑体': 'simhei', '楷体': 'kaiti', '楷体_gb2312': 'kaiti', '中易楷体': 'kaiti',
+  '仿宋': 'fangsong', '仿宋_gb2312': 'fangsong', '中易仿宋': 'fangsong', '等线': 'dengxian',
+  '苹方-简': 'pingfang sc', '苹方': 'pingfang sc', '苹方简体': 'pingfang sc',
+  '苹方-繁': 'pingfang tc', '苹方繁體': 'pingfang tc', '苹方-港': 'pingfang hk',
+  '冬青黑体简体中文': 'hiragino sans gb', 'ヒラギノ角ゴシック gb': 'hiragino sans gb',
+  '华文黑体': 'stheiti', '华文宋体': 'stsong', '宋体-简': 'songti sc', '宋體': 'songti sc',
+  '微軟正黑體': 'microsoft jhenghei', '微软正黑体': 'microsoft jhenghei',
+  '新細明體': 'pmingliu', '新细明体': 'pmingliu', '細明體': 'mingliu', '细明体': 'mingliu',
+  '標楷體': 'dfkai-sb', '标楷体': 'dfkai-sb',
+  '思源黑体': 'source han sans sc', '思源黑體': 'source han sans sc',
+  '思源黑体 cn': 'source han sans cn', '思源黑体 sc': 'source han sans sc',
+  '思源黑體 tc': 'source han sans tw', '思源黑體 tw': 'source han sans tw',
+  '文泉驿微米黑': 'wenquanyi micro hei', '文泉驿正黑': 'wenquanyi zen hei',
+  '小米兰亭': 'misans', '小米兰亭 pro': 'miui', '鸿蒙黑体': 'harmonyos sans sc',
+  '荣耀字体': 'honor sans', '阿里巴巴普惠体': 'alibaba puhuiti', '钉钉进步体': 'dingtalk jinbuti',
+  '抖音美好体': 'douyin sans', '汉仪旗黑': 'hyqihei',
+  '方正书宋': 'fzshusong-z01s', '方正楷体': 'fzkai-z03s',
+  '方正黑体': 'fzhei-b01s', '方正仿宋': 'fzfangsong-z02s'
+});

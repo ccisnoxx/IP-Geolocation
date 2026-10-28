@@ -13,8 +13,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { generatePageRuntime, assertSelfContainedFunction } from '../build/self-contained-runtime.ts';
+import { freezePersonaManifest } from './lib/persona-artifact.ts';
 import { ENVIRONMENT_PRESETS, findEnvironmentPreset } from '../src/shared/environment-presets.ts';
-import { normalizeConfig } from '../src/shared/config-model.ts';
+import { normalizeConfig, isValidDomain } from '../src/shared/config-model.ts';
+import { buildContentScriptMatchesForDomain } from '../src/shared/config-resolver.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const { values } = parseArgs({ options: {
@@ -31,7 +33,7 @@ const fail = message => { console.error(`persona: ${message}`); process.exit(1);
 const domains = (values.domains || '').split(',').map(item => item.trim().toLowerCase()).filter(Boolean);
 if (!domains.length) fail('需要 --domains（逗号分隔，不带通配符）');
 for (const domain of domains) {
-  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) fail(`域名不合法：${domain}`);
+  if (!isValidDomain(domain)) fail('域名不合法');
 }
 
 const preset = values.preset ? findEnvironmentPreset(values.preset) : null;
@@ -72,20 +74,15 @@ const baked = normalizeConfig({ intlMode: persona.intlMode,
 await cp(source, out, { recursive: true });
 await mkdir(join(out, 'persona'), { recursive: true });
 const payload = { intlMode: baked.intlMode, language: { language: persona.language, languages: persona.languages }, timezone: persona.timezone };
-const generated = await generatePageRuntime(root);
+const generated = await generatePageRuntime(root, false);
 const code = assertSelfContainedFunction(generated.code, 'applyLanguageTimezoneRuntime');
 await writeFile(join(out, 'persona', 'page-runtime.js'), `(${code})(${JSON.stringify(payload)});\n`);
 
 const manifestPath = join(out, 'manifest.json');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-const matches = domains.flatMap(domain => [`*://${domain}/*`, `*://*.${domain}/*`]);
-manifest.content_scripts = [...(manifest.content_scripts || []), {
-  matches, js: ['persona/page-runtime.js'], run_at: 'document_start', all_frames: true, world: 'MAIN', match_about_blank: false
-}];
-const hostPermissions = new Set([...(manifest.host_permissions || []), ...domains.map(domain => `*://*.${domain}/*`)]);
-manifest.host_permissions = [...hostPermissions];
+const matches = domains.flatMap(buildContentScriptMatchesForDomain);
+freezePersonaManifest(manifest, domains);
 await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 await writeFile(join(out, 'persona', 'persona.json'), JSON.stringify({ persona, domains, bakedAt: 'build-time' }, null, 2) + '\n');
-const host = `${persona.latitude},${persona.longitude} ${persona.timezone} ${persona.language}`;
-console.log(`persona 产物：${values.out}\n  画像：${host}${persona.country ? ` (${persona.country})` : ''}`);
+console.log(`persona 产物已生成\n  语言/时区：${persona.language} ${persona.timezone}；配置位置仅保存在本地persona产物中。`);
 console.log(`  静态注入：${matches.length} 条 matches → persona/page-runtime.js (MAIN/document_start/all_frames)`);

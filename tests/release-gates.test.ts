@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const read = (file: string) => readFileSync(join(root, file), 'utf8');
 const pkg = JSON.parse(read('package.json'));
-const gates = ['npm ci', 'npm run typecheck', 'npm run typecheck:tests', 'npm test', 'npm run build'];
+const gates = ['npm ci', 'npm run lint', 'npm run typecheck', 'npm run typecheck:tests', 'npm test', 'npm run build'];
 
 test('push/PR 与 tag 发布按同一顺序运行门禁，失败不能绕过到产物步骤', () => {
   for (const file of ['ci.yml', 'release.yml']) {
@@ -74,7 +74,7 @@ test('发布版本必须与 tag、锁文件两处版本及 manifest 一致，缺
 });
 
 test('本地 check 中任一检查失败均传播非零，测试失败不会执行构建', () => {
-  const components = ['typecheck', 'typecheck:tests', 'test', 'build'];
+  const components = ['lint', 'typecheck', 'typecheck:tests', 'test', 'build'];
   assert.equal(pkg.scripts.check, components.map((name) => name === 'test' ? 'npm test' : `npm run ${name}`).join(' && '));
   const dir = mkdtempSync(join(tmpdir(), 'vanishgeo-gates-'));
   try {

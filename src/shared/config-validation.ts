@@ -38,7 +38,8 @@ const geolocation = {
   accuracy: positive, country: string, randomize: boolean, randomRadiusMeters: nonnegative, spoofPermission: boolean,
   history: array(object({ latitude: coordinate(90), longitude: coordinate(180), accuracy: positive, label: optional(string), createdAt: number }))
 };
-const fontExposure = object({ enabled: boolean, mode: enumeration('vendor-software', 'custom'), blockedFamilies: array(string),
+const fontExposure = object({ enabled: boolean, mode: enumeration('vendor-software', 'custom', 'layered'), blockedFamilies: array(string),
+  layers: optional(object({ platform: enumeration('auto', 'none'), hideCjkFonts: boolean })),
   canvasSpoof: optional(object({ enabled: boolean, platform: enumeration('windows', 'macos') })) });
 const override = (fields: Record<string, Check>) => object({ mode: enumeration('inherit', 'override', 'disable'), value: nullable(partial(fields)) });
 const profile = object({
@@ -50,7 +51,7 @@ const profile = object({
 const exitProfile = object({
   id: string, name: string, verification: enumeration('verified', 'unverified'), publicIp: nullable(string),
   latitude: coordinate(90), longitude: coordinate(180), country: string, countryCode: optional(nullable(string)),
-  timezone: nullable(string), provider: nullable(string), verifiedAt: nullable(positive)
+  timezone: nullable(string), provider: nullable(string), verifiedAt: nullable(positive), managedBy: optional(enumeration('automatic-exit'))
 });
 const legacyCoordinate: Check = (value, path, errors) => {
   if (value !== null && value !== '' && typeof value !== 'number') errors.push(`${path}：旧坐标必须是数值或空值`);
@@ -60,7 +61,7 @@ const ruleFields = { id: string, domain: string, enabled: boolean, exitLocationP
   compatibilityPreset: optional(enumeration('native', 'consistency', 'full')),
   overrides: object({ language: override(language), timezone: override(timezone), geolocation: override(geolocation) }) };
 const configFields = {
-  schemaVersion: enumeration(2, 3), intlMode: enumeration('strict', 'compatible'), masterEnabled: boolean, debugMode: boolean,
+  schemaVersion: enumeration(2, 3, 5), intlMode: enumeration('strict', 'compatible'), masterEnabled: boolean, debugMode: boolean,
   globalProfile: object({ language: object(language), timezone: object(timezone), geolocation: object(geolocation) }),
   webRtc: object({ globalMode: enumeration('default', 'compatible', 'strict') }),
   fontExposure: optional(fontExposure), canvas: optional(canvas),
@@ -72,7 +73,20 @@ export function getConfigInputErrors(value: unknown): string[] {
   const errors: string[] = [];
   const isV2 = value !== null && typeof value === 'object' && 'schemaVersion' in value && value.schemaVersion === 2;
   object({ ...configFields, intlMode: isV2 ? optional(configFields.intlMode) : configFields.intlMode })(value, '', errors);
+  const font = (value as { fontExposure?: { mode?: unknown; layers?: unknown } } | null)?.fontExposure;
+  if (font?.mode === 'layered' && font.layers === undefined) errors.push('fontExposure.layers：三层模式需要完整的平台及CJK设置');
   // 旧 v3 尚无 fontExposure 时只补关闭默认；其余核心结构必须完整。
+  return errors;
+}
+
+// release 的 schema 4 与 main 的历史 schema 不同，先验证其真实结构再显式转换。
+export function getReleaseConfigErrors(value: unknown): string[] {
+  const errors: string[] = [];
+  object({ ...configFields, schemaVersion: enumeration(4), intlMode: optional(configFields.intlMode),
+    fontExposure: optional(fontExposure), exitLocationProfiles: optional(configFields.exitLocationProfiles),
+    canvas: object({ enabled: boolean, spoofFonts: boolean, platform: enumeration('auto', 'none'), hideCjkFonts: boolean, targetFonts: array(string) }),
+    rules: array(object({ ...ruleFields, exitLocationProfileId: optional(ruleFields.exitLocationProfileId) }))
+  })(value, '', errors);
   return errors;
 }
 

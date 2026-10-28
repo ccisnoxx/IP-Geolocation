@@ -224,7 +224,7 @@ test('模式缺省 strict、当前 schema 无损幂等归一化，compatible 进
   const migrated = migrateLegacyConfig({ siteSpoofConfig: old });
   assert.equal((migrated as any).intlMode, 'strict');
   assert.deepEqual(migrateLegacyConfig({ siteSpoofConfig: migrated }), migrated);
-  assert.deepEqual(migrated, { ...old, schemaVersion: 3, intlMode: 'strict' });
+  assert.deepEqual(migrated, { ...old, schemaVersion: 5, intlMode: 'strict' });
   const compatible = normalizeConfig({ ...config, intlMode: 'compatible', globalProfile: { ...config.globalProfile,
     timezone: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' }, geolocation: { ...config.globalProfile.geolocation, enabled: false } } } as any);
   assert.equal((getEffectiveProfile(compatible, 'example.test').payload as any).intlMode, 'compatible');

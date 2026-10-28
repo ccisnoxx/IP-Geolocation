@@ -1,0 +1,49 @@
+{
+  "task": "VG-013",
+  "browser": "Chrome/155.0.8059.86",
+  "result": "PASS",
+  "productionDispatchRestored": false,
+  "modes": {
+    "strict": {
+      "topAndIframe": true,
+      "isolatedUnchanged": true,
+      "defaultAndExplicit": true,
+      "dateDstAndNativeErrors": true,
+      "otherIntlConstructors": true,
+      "workers": [
+        "classic",
+        "module",
+        "shared",
+        "shared-module",
+        "nested"
+      ]
+    },
+    "compatible": {
+      "topAndIframe": true,
+      "isolatedUnchanged": true,
+      "defaultAndExplicit": true,
+      "dateDstAndNativeErrors": true,
+      "otherIntlConstructors": true,
+      "workers": [
+        "classic",
+        "module",
+        "shared",
+        "shared-module",
+        "nested"
+      ]
+    }
+  },
+  "configuration": {
+    "optionsSave": true,
+    "popupSave": true,
+    "strict": true,
+    "idempotent": true,
+    "schemaMigrated": true,
+    "pausePreserved": true
+  },
+  "limitations": [
+    "临时扩展当前文档的隔离 runtime 验证，不是生产派发恢复",
+    "正式dist仅验证管理保存及schema迁移；生产首屏/热更新另用正式候选runner",
+    "未执行 Chrome119/其他浏览器或完整人工验收，无 provider/位置/ICE 请求"
+  ]
+}

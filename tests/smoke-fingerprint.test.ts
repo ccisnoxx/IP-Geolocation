@@ -67,7 +67,7 @@ test('未知预设直接拒绝，不产生假绿报告', async () => {
   assert.match(result.stderr, /未知预设/);
 });
 
-test('时区别名遵循 strict 字面值与 compatible 原生名称，空备用语言列表回退主语言', async () => {
+test('时区别名及locale均沿用原生构造器规范化，空备用语言列表回退主语言', async () => {
   const result = await smoke(['--timezone', 'Asia/Kolkata', '--language', 'en-US', '--languages', 'en-US,en']);
   assert.equal(result.code, 0, result.stdout + result.stderr);
   const page = assertSelfContainedFunction((await generatePageRuntime()).code, 'applyLanguageTimezoneRuntime');
@@ -78,7 +78,7 @@ test('时区别名遵循 strict 字面值与 compatible 原生名称，空备用
       worker: sampleFingerprintRealm(worker, payload, 'worker') };
     assert.deepEqual(fingerprintFailures(payload, samples), []);
     assert.deepEqual(samples.worker.actual.languages, ['ja-jp']);
-    assert.equal(samples.worker.actual.locale, intlMode === 'strict' ? 'ja-jp' : 'ja-JP');
+    assert.equal(samples.worker.actual.locale, 'ja-JP');
     assert.equal(samples.worker.actual.offset, -330);
   }
 });

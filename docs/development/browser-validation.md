@@ -11,7 +11,7 @@ npm run check
 npm run test:e2e:chrome -- --dry-run
 ```
 
-`npm run check` 执行源码与测试类型检查、单元测试和构建。Chrome dry-run 只检查 dist 必需文件并打印清单，不安装扩展、不执行浏览器断言。`npm run test:e2e:chrome` 是半自动浏览器入口，仍需人工执行并记录场景。
+`npm run check` 执行Lint、源码与测试类型检查、单元测试和构建。Chrome dry-run 只检查 dist 必需文件并打印清单，不安装扩展、不执行浏览器断言。`npm run test:e2e:chrome` 是半自动浏览器入口，仍需人工执行并记录场景。
 
 真实 Chrome 结果应记录浏览器版本、平台、候选构建身份、合成配置、覆盖范围和实际结果。Node、VM、mock、静态检查及 dry-run 均不能替代真实 Chrome 验收；历史脚本的全能力预期也不代表当前生产支持范围。
 
@@ -56,6 +56,12 @@ VG-032语言请求头验证：构建后执行 `node scripts/chrome-header-sync-s
 可靠关闭流程的独立验证使用同一命令追加 `--master-off-restore`：正常 Popup 总开关关闭、界面确认保存并同步后写入 `master-disabled`，随后正常关闭 Chrome 用户脚本开关并写入 `user-scripts-disabled`。先验证新顶层/iframe及同源、跨源请求均原生，再完整退出并自动恢复一个HTTP标签，在CDP连接前采集首导航头与首inline。Chrome149本轮9项通过，见[总开关关闭及重启证据](../../.trellis/tasks/10-22-vg-032-header-sync/chrome-master-off-restore-evidence.json)。正常安装和恢复设置的信号与上文相同。
 
 `--user-scripts-off-restore` 则保留直接关闭Chrome开关的负例，不执行插件总开关关闭；此模式及默认冷启动模式现在把首请求失配纳入整体FAIL，后台后续收敛不再代替首请求验收。旧JSON保留其当时判据，不覆盖历史失败观测。本轮用户选择插件总开关作为关闭入口，未宣称消除直接关闭Chrome开关的窗口。
+
+## VG-045当前Worker及热更新候选
+
+当前合同见[迁移说明](release-131-contract-migration.md)。普通包新增只读热更新、同源HTTP(S) classic/module Dedicated/SharedWorker，保留自身Blob递归。Shared跨页／配置代可能分离，原HTTP响应CSP与Blob入口策略不等价；不把Intl首读成功当原生兼容证明。旧版本文档／无控制器surface仍需完整重载；已有Worker快照不改。
+
+下列VG-033/034/035章节记录历史人工验收和当时暂停范围，不能作为VG-045候选验收结论。VG-045使用`chrome-observability-audit.mjs`加载实际dist，以临时Chrome profile及loopback夹具验证，并单列Worker入口CSP差异、同文档更新/关闭、旧实例寿命和Shared跨页分离；定位委托传感器、BFCache、完整重启/升级及Chrome138仍需单独证据。
 
 ## Blob Worker 语言与时区
 
@@ -119,7 +125,7 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
   `generateWorkerFontHook()`，供隔离研究和回归使用；`compileFontRelatedScripts()` 不生产派发它。
   `vanishgeo-font-worker-` 前缀仅用于撤销实验残留，不能当作生产支持的证据。
   `tests/worker-font-hook.test.ts` 分别验证不派发、实验生成自包含及包装行为。
-- **仍未覆盖**：HTTP(S) Dedicated Worker、SharedWorker、外来 Blob 和自定义字体名单继续暂停。
+- **仍未覆盖**：HTTP(S) Dedicated Worker、SharedWorker、外来 Blob 和自定义名单已接入参数化模板，需开启允许用户脚本。
 
 ## Canvas 字体伪装（独立 userScript）
 
@@ -127,17 +133,20 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 - 产物：`dist/canvas-fonts/{macos,windows}.js`，`(${applyCanvasFontSpoof})('macos' | 'windows')`。
 - 门禁与字体过滤一致：`FONT_FILTER_PRODUCTION_APPROVED && fontExposure.enabled && canvasSpoof.enabled && 规则预设 full`。
 - 行为：目标平台之外的专有字体（如声称 macOS 时的 `Segoe UI`、`Microsoft YaHei`）在 `measureText` 中改用对端等价字体量宽，
-  测量后恢复原 `font`；`FontFaceSet.check()` 对它们返回 `false`。不改实际像素，因此与截图指纹仍可能不一致。
+  测量后恢复原 `font`；`FontFaceSet.check()` 保持原生。不改实际像素，因此与截图指纹仍可能不一致。
 - 生产会同时安装固定 43 项过滤。原字体或映射目标在该名单内时，结果仍可能使用后备字体，
   不能将独立 Canvas 补丁的中文等价字体测量结果当作两种补丁组合后的保证。调整优先级需要另行确定合同。
 - 不覆盖：`fillText` 实际字形、`@font-face local()`、像素比对、WebGL。
 
-## 环境预设（三省一市：新加坡 / 东京 / 洛杉矶）
+## 环境预设（新加坡 / 东京 / 洛杉矶 / 柏林 / 上海 / 纽约）
 
-- `src/shared/environment-presets.ts` 导出 `ENVIRONMENT_PRESETS`，只包含上述三项。
+- `src/shared/environment-presets.ts` 导出上述六项 `ENVIRONMENT_PRESETS`；保留原有 ID 与洛杉矶取值，纽约使用独立 ID。
 - Popup/Options 的卡片与已确认出口都通过 `presetSignals()` / `exitProfileSignals()` 填入表单，再走正常保存与校验。
   同批更新坐标、国家、语言和时区，规则、出口档案、WebRTC、字体配置保留。
 - `tests/quick-set-ui.test.ts` 执行维护源事件与保存路径，验证三信号、非目标配置、往返和失败提示。
+- `tests/real-dom-ui.test.ts` 通过 jsdom 执行完整 Popup/Options 维护源及真实 HTML，覆盖六项卡片保存与失败提示；它不代表 Chrome 验收。
+- 扩展诊断报告新增配置体检；修复只发送 finding ID，由后台配置事务重新分析最新配置后保存。外部目标页不接收配置。
+- 图标 `!` 表示配置或同步故障，`↻` 表示该标签页的重载欠账，`?` 表示同步待确认；清除角标不代表已验证网页实际效果。
 
 ## 烘焙 persona（`npm run build:persona`）
 

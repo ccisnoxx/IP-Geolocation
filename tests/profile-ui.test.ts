@@ -267,7 +267,7 @@ test('Options 字体自定义和内置模式通过实际导入／导出保留 v3
     await ui.call('exportConfiguration()');
     const exported = ui.downloads.at(-1)!;
     assert.match(exported.filename, /^vanishgeo-config-.*\.json$/);
-    assert.equal(exported.config.schemaVersion, 3);
+    assert.equal(exported.config.schemaVersion, 5);
     assert.deepEqual(exported.config.fontExposure, config.fontExposure);
     assert.doesNotMatch(JSON.stringify(exported.config), /acceptLanguage|"canvas"/);
   }

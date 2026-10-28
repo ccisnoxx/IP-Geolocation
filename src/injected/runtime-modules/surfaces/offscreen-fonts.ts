@@ -7,7 +7,7 @@ import { createConversionObserver } from './font-conversion';
  *
  * 主线程的字体伪装挂在 CanvasRenderingContext2D 与 document.fonts 上，Worker 里这两个
  * 都不存在，于是 OffscreenCanvas 的 measureText 和 FontFaceSet.check 会直接暴露真实字体。
- * 这里按同一份名单做同样的替换：命中被屏蔽字体时改用后备字体测量、check 返回 false。
+ * 这里按同一份名单做同样的替换：命中被屏蔽字体时改用后备字体测量。
  * 刻意不放进 runtime-modules/worker/：Blob Worker 的引导也用它，页面运行时 graph
  * 不允许出现 worker/ 依赖。
  */
@@ -66,20 +66,8 @@ export function installWorkerFonts(
     }
   }
 
-  const fontFaceSetPrototype = root.FontFaceSet?.prototype;
-  const originalCheck = fontFaceSetPrototype?.check;
-  if (typeof originalCheck === 'function') {
-    const check = function check(this: any, font: unknown, _text?: unknown) {
-      const args = Array.from(arguments);
-      let forwardedArgs = args;
-      if (font !== null && (typeof font === 'object' || typeof font === 'function')) {
-        forwardedArgs = [observeConversion(font, primitive => { font = primitive; }), ...args.slice(1)];
-      }
-      const result = apply(originalCheck, this, forwardedArgs);
-      return typeof font === 'string' && blockedFamily(font) ? false : result;
-    };
-    definePatchedMethod(root, fontFaceSetPrototype, 'check', check);
-  }
+  // 与页面一致，FontFaceSet.check 保留原生方法及返回语义。
+
 }
 
 function definePatchedMethod(root: typeof globalThis & Record<string, any>, owner: any, name: string, value: Function): void {

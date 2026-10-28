@@ -8,13 +8,21 @@
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "check": "npm run typecheck && npm run typecheck:tests && npm test && npm run build",
+    "check": "npm run lint && npm run typecheck && npm run typecheck:tests && npm test && npm run build",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "serve:leak-test": "node scripts/serve-leak-test.mjs",
     "test:e2e:chrome": "node scripts/chrome-acceptance.mjs",
     "build:persona": "tsx scripts/build-persona.mjs",
-    "smoke:fingerprint": "tsx scripts/smoke-fingerprint.mjs"
+    "smoke:fingerprint": "tsx scripts/smoke-fingerprint.mjs",
+    "lint": "eslint src tests",
+    "test:coverage": "c8 --all --include=\"src/**/*.ts\" --exclude=\"src/**/*.d.ts\" --reporter=text --reporter=json-summary --reporter=lcov npm test",
+    "release:prepare": "tsx scripts/prepare-release.mjs",
+    "audit:persona": "tsx scripts/audit-persona.mjs",
+    "validate:matrix": "tsx scripts/validation-matrix.mjs",
+    "audit:parity": "tsx scripts/chrome-observability-audit.mjs",
+    "browser:env": "tsx scripts/browser-environment.mjs",
+    "test:coverage:core": "npm run test:coverage && c8 check-coverage --all --include=\"src/background/services.ts\" --include=\"src/shared/config-model.ts\" --include=\"src/shared/config-resolver.ts\" --include=\"src/shared/storage.ts\" --include=\"src/shared/ui-state.ts\" --include=\"src/shared/config-audit.ts\" --include=\"src/shared/action-badge.ts\" --per-file --branches=85 --lines=0 --functions=0 --statements=0"
   },
   "keywords": [
     "privacy",
@@ -28,10 +36,15 @@
   "license": "MIT",
   "devDependencies": {
     "@types/chrome": "^0.0.268",
+    "@types/jsdom": "21.1.7",
     "@types/node": "^20.12.7",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.10",
+    "c8": "12.0.0",
+    "eslint": "9.39.4",
+    "jsdom": "26.1.0",
     "tsx": "^4.20.3",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "8.72.1",
+    "vite": "^5.2.10",
     "vite-plugin-static-copy": "^1.0.4"
   }
 }

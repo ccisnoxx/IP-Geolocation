@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createContextMenus } from '../src/background/context-menu';
+import { createContextMenus, handleContextMenuClick } from '../src/background/context-menu';
+import type { BackgroundServices } from '../src/background/services';
+
+test('菜单直接保存配置后刷新角标，不依赖页面重载或runtime消息', async () => {
+  const events: string[] = [];
+  const services = {
+    setExtensionEnabled: async () => { events.push('saved'); },
+    refreshAutomaticExit: async () => { events.push('automatic-exit'); },
+    refreshActionBadges: async () => { events.push('badges'); }
+  } as unknown as BackgroundServices;
+  handleContextMenuClick(services, { menuItemId: 'disable-globally' } as chrome.contextMenus.OnClickData);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(events, ['saved', 'automatic-exit', 'badges']);
+});
 
 const menuIds = [
   'enable-globally', 'disable-globally', 'separator-1', 'enable-on-site',

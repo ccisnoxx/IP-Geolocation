@@ -1,6 +1,7 @@
 import type { RuntimeState } from '../types';
 import { defineRuntimeProperty, replaceMethod } from '../registry';
 import { createIntlPolicy } from '../intl-policy';
+import { createDateWallClock } from '../date-wall-clock';
 
 export function installDateTimeSpoof(
   globals: typeof globalThis & Record<string, any>,
@@ -24,7 +25,6 @@ export function installDateTimeSpoof(
     PluralRules: globals.Intl && globals.Intl.PluralRules,
     DisplayNames: globals.Intl && globals.Intl.DisplayNames,
     Segmenter: globals.Intl && (globals.Intl as unknown as Record<string, any>).Segmenter,
-    resolvedOptions: globals.Intl && globals.Intl.DateTimeFormat && globals.Intl.DateTimeFormat.prototype.resolvedOptions,
     dateToString: globals.Date && globals.Date.prototype.toString,
     dateToDateString: globals.Date && globals.Date.prototype.toDateString,
     dateToTimeString: globals.Date && globals.Date.prototype.toTimeString,
@@ -38,7 +38,6 @@ export function installDateTimeSpoof(
   const OriginalDateTimeFormat = originals.DateTimeFormat;
   if (!OriginalDate || !OriginalDateTimeFormat) return;
 
-  const originalResolvedOptions = originals.resolvedOptions;
   const originalGetTimezoneOffset = originals.getTimezoneOffset;
   const reflectApply = realmState.originals.reflectApply;
   const reflectConstruct = globals.Reflect.construct;
@@ -87,27 +86,12 @@ export function installDateTimeSpoof(
     return Math.round((date.getTime() - asUTC) / 60000);
   };
 
-  const makeWallTime = (args: unknown[]) => {
-    const year = Number(args[0]);
-    const month = Number(args[1]);
-    const day = args.length > 2 ? Number(args[2]) : 1;
-    const hour = args.length > 3 ? Number(args[3]) : 0;
-    const minute = args.length > 4 ? Number(args[4]) : 0;
-    const second = args.length > 5 ? Number(args[5]) : 0;
-    const ms = args.length > 6 ? Number(args[6]) : 0;
-    let utc = OriginalDate.UTC(year, month, day, hour, minute, second, ms);
-    for (let index = 0; index < 3; index += 1) {
-      utc = OriginalDate.UTC(year, month, day, hour, minute, second, ms)
-        + resolveOffset(new OriginalDate(utc)) * 60000;
-    }
-    return utc;
-  };
-
   const getWallDate = (date: Date) => {
     const parts = getParts(date);
     if (!parts) return null;
     return dateFromParts(parts, date.getUTCMilliseconds());
   };
+  const wallClock = createDateWallClock(globals, OriginalDate, getWallDate);
 
   const policy = createIntlPolicy(config.intlMode, spoofLanguage, timezone);
   const normalizeLocale = policy.locale;
@@ -153,18 +137,7 @@ export function installDateTimeSpoof(
       value: SpoofedDateTimeFormat
     });
 
-    if (typeof originalResolvedOptions === 'function') {
-      replaceMethod(globals, realmState, globals.Intl.DateTimeFormat.prototype, 'resolvedOptions', function resolvedOptions(this: Intl.DateTimeFormat) {
-        const options = originalResolvedOptions.call(this);
-        if (policy.compatible) return options;
-        return {
-          ...options,
-          locale: realmState.values.language || options.locale,
-          timeZone: realmState.values.timezone || options.timeZone
-        };
-      });
-    }
-
+    // 原生resolvedOptions返回实例构造时的实际设置；热更新不改写已创建formatter的内部槽。
     ['NumberFormat', 'Collator', 'RelativeTimeFormat', 'ListFormat', 'PluralRules', 'DisplayNames', 'Segmenter']
       .forEach(installLocaleConstructorSpoof);
   }
@@ -174,19 +147,27 @@ export function installDateTimeSpoof(
 
     function SpoofedDate(...args: unknown[]) {
       if (!new.target) return new OriginalDate().toString();
-      return reflectConstruct(OriginalDate, args.length > 1 ? [makeWallTime(args)] : args, new.target);
+      return wallClock.construct(args, new.target);
     }
     realmState.originals.objectSetPrototypeOf.call(globals.Object || Object, SpoofedDate, OriginalDate);
     SpoofedDate.prototype = OriginalDate.prototype;
     SpoofedDate.now = OriginalDate.now.bind(OriginalDate);
     SpoofedDate.UTC = OriginalDate.UTC.bind(OriginalDate);
-    SpoofedDate.parse = OriginalDate.parse.bind(OriginalDate);
+    SpoofedDate.parse = new globals.Proxy(OriginalDate.parse, {
+      apply(target: Function, receiver: unknown, args: unknown[]) {
+        return reflectApply(realmState.active ? wallClock.parse : target, receiver, args);
+      }
+    });
     defineRuntimeProperty(globals, realmState, globals, 'Date', {
       configurable: true,
       enumerable: false,
       writable: true,
       value: SpoofedDate
     });
+
+    replaceMethod(globals, realmState, OriginalDate.prototype, 'constructor', SpoofedDate);
+
+    for (const [name, setter] of Object.entries(wallClock.setters)) replaceMethod(globals, realmState, OriginalDate.prototype, name, setter);
 
     replaceMethod(globals, realmState, OriginalDate.prototype, 'getTimezoneOffset', function getTimezoneOffset(this: Date) {
       return resolveOffset(this);
