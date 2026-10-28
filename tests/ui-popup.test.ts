@@ -141,6 +141,11 @@ test('popup 快捷配置、重试定位、打开选项页都发对应 action', a
   card.click();
   await waitFor(() => calls.some((call) => call.action === 'applyProfile' && call.profileId === 'japan'));
 
+  // 新增的 preset 卡片走同一条通路：HTML 里加卡片即可，不需要额外接线
+  const west = ui.document.querySelector('.profile-card[data-profile="us-west"]') as HTMLButtonElement;
+  west.click();
+  await waitFor(() => calls.some((call) => call.action === 'applyProfile' && call.profileId === 'us-west'));
+
   el<HTMLButtonElement>('retryLocation').click();
   await waitFor(() => calls.some((call) => call.action === 'manualUpdate'));
 

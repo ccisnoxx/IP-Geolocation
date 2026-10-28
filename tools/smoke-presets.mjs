@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /*
- * 五个内置 preset 的浏览器 E2E。
+ * 全部内置 preset 的浏览器 E2E。
  *
- * 结构校验只能证明 ZIP 里有 13 条静态规则；这里真的把每个 preset 装进浏览器，
+ * 结构校验只能证明 ZIP 里有 20 条静态规则；这里真的把每个 preset 装进浏览器，
  * 用本地 HTTP 服务承接 claude.ai（host resolver 映射到 127.0.0.1），核对：
  *   - navigator.language / navigator.languages
  *   - Intl 时区
@@ -21,6 +21,7 @@ import { join, resolve } from 'node:path';
 import { CDP, killChrome, launchChrome } from './lib/cdp.mjs';
 import { loadExtension } from './lib/extension.mjs';
 import { evaluate, openPageStable } from './lib/e2e.mjs';
+import { readPresets } from '../scripts/lib/presets.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -28,33 +29,24 @@ const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
   return [key, value === undefined ? true : value];
 }));
 
-function parsePresets() {
-  const source = readFileSync(join(ROOT, 'src', 'shared', 'config-model.ts'), 'utf8');
-  const block = source.slice(source.indexOf('export const DEFAULT_PROFILES'));
-  const end = block.indexOf('\n];');
-  const text = block.slice(0, end);
-  const entries = text.split(/\n  \{\n/).slice(1);
-  return entries.map((entry) => {
-    const id = entry.match(/id: '([^']+)'/)?.[1];
-    const language = entry.match(/language: '([^']+)'/)?.[1];
-    const languages = entry.match(/languages: \[([^\]]+)\]/)?.[1];
-    const acceptLanguage = entry.match(/acceptLanguage: '([^']+)'/)?.[1];
-    const timezone = entry.match(/timezone: '([^']+)'/)?.[1];
-    if (!id || !language || !timezone) return null;
-    return {
-      id,
-      language,
-      languages: languages
-        ? languages.split(',').map((item) => item.trim().replace(/^'|'$/g, '')).filter(Boolean)
-        : [language],
-      acceptLanguage: acceptLanguage || language,
-      timezone
-    };
-  }).filter(Boolean);
-}
+const presets = readPresets(ROOT);
 
-const presets = parsePresets();
-if (presets.length !== 5) throw new Error(`期望 5 个 preset，解析到 ${presets.length} 个`);
+/*
+ * 第二信源校验：解析器和源文本是同一份代码，它看错了这里也会跟着看错。
+ * 弹窗卡片是别人手写的静态 HTML，两边 id 集合必须一致 —— 少了就说明解析器
+ * 静默漏了 preset（曾经因为一行注释就吞掉五个），这时候跑下去只会打印"1/1 通过"。
+ */
+const cardIds = [...readFileSync(join(ROOT, 'src', 'popup', 'popup.html'), 'utf8')
+  .matchAll(/data-profile="([^"]+)"/g)].map((match) => match[1]);
+const missing = cardIds.filter((id) => !presets.some((preset) => preset.id === id));
+const extra = presets.map((preset) => preset.id).filter((id) => !cardIds.includes(id));
+if (missing.length || extra.length || !presets.length) {
+  throw new Error(
+    `内置 preset 与弹窗卡片对不上：解析到 ${presets.length} 个 [${presets.map((p) => p.id).join(', ')}]，`
+    + `弹窗有 ${cardIds.length} 张 [${cardIds.join(', ')}]；`
+    + `缺 [${missing.join(', ')}]，多 [${extra.join(', ')}]`
+  );
+}
 
 const results = [];
 function check(name, ok, detail = '') {
@@ -96,7 +88,7 @@ await new Promise((done) => server.listen(0, '127.0.0.1', done));
 const port = server.address().port;
 const pageUrl = `http://claude.ai:${port}/`;
 
-console.log(`构建 5 个 preset 到临时目录 …`);
+console.log(`构建 ${presets.length} 个 preset 到临时目录 …`);
 execFileSync(process.execPath, [
   join(ROOT, 'scripts', 'release.mjs'),
   '--all-presets',
@@ -139,11 +131,11 @@ for (const preset of presets) {
     const actual = `${value.language}/${value.timezone}/${value.acceptLanguage}`;
     check(
       `${preset.id} 页面语言/时区/请求头一致`,
-      value.language === preset.language
-        && value.languages[0] === preset.languages[0]
-        && value.timezone === preset.timezone
-        && value.acceptLanguage === preset.acceptLanguage,
-      `${actual} want ${preset.language}/${preset.timezone}/${preset.acceptLanguage}`
+      value.language === preset.language.language
+        && value.languages[0] === preset.language.languages[0]
+        && value.timezone === preset.timezone.timezone
+        && value.acceptLanguage === preset.language.acceptLanguage,
+      `${actual} want ${preset.language.language}/${preset.timezone.timezone}/${preset.language.acceptLanguage}`
     );
   } catch (error) {
     check(`${preset.id} 浏览器加载`, false, error instanceof Error ? error.message : String(error));

@@ -319,3 +319,13 @@ test('旧的 VanishMe domainList / matchMode / siteRules 都能迁移', () => {
   const blacklist = migrateLegacyConfig({ bpg_config: { matchMode: 'blacklist', domainList: ['ignored.example'] } });
   assert.equal(blacklist.rules.some((rule) => rule.domain === 'ignored.example'), false);
 });
+
+test('activeProfileId 的 null 是合法状态，不会被归一化复活成默认预设', () => {
+  // options 删除当前预设时写的就是 null（见 deleteProfile）；
+  // 曾经的 `|| DEFAULTS` 兜底会把它悄悄变回 'united-states'，
+  // 于是"取消选择"刷新一下就失效了。
+  assert.equal(normalizeConfig({ profile: { activeProfileId: null } as any }).profile.activeProfileId, null);
+  // 字段整个缺失（老配置 / 首次运行）仍然要给出默认预设，界面才有选中项
+  assert.equal(normalizeConfig({}).profile.activeProfileId, 'united-states');
+  assert.equal(normalizeConfig({ profile: { activeProfileId: 'japan' } as any }).profile.activeProfileId, 'japan');
+});
