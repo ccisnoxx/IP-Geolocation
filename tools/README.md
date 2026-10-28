@@ -40,14 +40,15 @@ canvas 像素 hash、时区语言，再看 WebRTC 候选里有没有真实 IP：
 修的是两处：
 
 1. **Worker 侧原本没有任何字体补丁**，页面只要开个 Worker 量一下宽度就能看出主线程被动过。
-   现在 `workerPatch` 会把同一份目标字体表带进去，补 `OffscreenCanvasRenderingContext2D.measureText`
-   和 `fonts.check`。
+   现在 `workerPatch` 会把同一份目标字体表带进去，补 `OffscreenCanvasRenderingContext2D`
+   的 `measureText` / `fillText` / `strokeText`；`fonts.check` 不接管（原生对系统字体本来就返回 true）。
 2. **persona 构建原本关着消息通道**（`bridge: false`），烘焙值写死在 bundle 里，选项页的改动
    （包括字体伪装开关）对注入层完全没有影响——开关是个死开关。现在 persona 构建默认
    `bridge: on`，烘焙值只当初始状态；想要"完全冻结"就 `--no-bridge`。
 
-注意：`measureText` 只影响"量宽度"这条路径，`FontFace local()` 和真实渲染是够不到的，
-所以它能否骗过目标站点，取决于对方只用 measureText/`fonts.check` 探测。
+注意：canvas 侧的三条路径（量宽度 + 填充 + 描边）已经对齐，但 `FontFace local()`、
+DOM/CSS 布局和 SVG 文字尺寸仍然够不到，所以它能否骗过目标站点，取决于对方是否只用
+canvas 探测。
 
 ## frame 隔离（动态 payload 投递）
 
@@ -65,6 +66,130 @@ fixture 在 `fixtures/iframe/`，端口由页面自身决定，不依赖固定�
 
 单测另外覆盖嵌套不透明 frame 链、`blob:` / `data:`、`getAllFrames` 失败回退和
 frame 投递并发上限（最多 8 个同时发送）。
+
+## Worker 覆盖面（SharedWorker 不包装）
+
+```bash
+npm run smoke:workers                                             # 默认 dist
+npm run smoke:workers -- --extension=/path/to/ext                 # 烘焙包
+```
+
+fixture：`fixtures/workers/shared-counter.js` + `fixtures/workers/top.html`。
+两个标签页各连一次**同名** `(脚本, name)`，用 `connections` 累加判断是不是同一个实例：
+
+| 观测 | 包装时（改前实测） | 不包装（改后实测） |
+|---|---|---|
+| `workerUrl` | `blob:http://localhost:...` | `http://localhost:.../shared-counter.js` |
+| 两个标签页 + 再连一次 | 1 / 1 / 1（各建一个） | 1 / 2 / 3（同一实例） |
+| 时区 / 语言 | `Asia/Tokyo` / `ja-JP`（被伪装） | `Asia/Shanghai` / `zh-CN`（原生，符合声明） |
+
+结论：SharedWorker 的身份是 `(resolved URL, name)`，换成 blob 入口就让每个文档各建
+一个实例，跨文档共享语义消失且无法在 JS 层修回去 —— 所以它**不包装**，读到原生值。
+classic / module Worker 继续包装（同一个工具里第一条断言守住它没被顺手删掉）。
+
+覆盖面声明在 `src/shared/worker-coverage.ts`，诊断快照（`buildWorkerDiagnosticsSnapshot`）
+和 `fixtures/workers/top.html` 都按它标注；UNSUPPORTED 的项即使探测成功也不显示成通过。
+
+### CSP 拒绝 blob 的处理（同一工具内的 `?csp=1` 页面）
+
+服务器对 `?csp=1` 的 HTML 只加一条 `worker-src 'self'`，所以同源脚本照常、blob 入口被拒。
+真 Chrome 在这种拒绝下**不抛错**（`threw:false`，随后才 `error`），因此只靠 try/catch 会得到
+"页面 Worker 直接坏掉 + 没有任何记录"。现在的行为：
+
+```
+✓ CSP 页面本身仍被伪装（顶层 payload 不受 worker-src 影响）
+✓ CSP 拒绝 blob 后 Worker 仍能跑（回退原生入口，不是直接坏掉）
+✓ 回退后的 Worker 读到原生值（明确知道它没被接管）    zh-CN/Asia/Shanghai
+✓ 包装失败被上报到后台（弹窗/诊断因此能显示）          count=3 reasons=[csp-blocked]
+```
+
+上报走私有端口 → ISOLATED 桥 → 后台，按 hostname 聚合，弹窗显示「本页 N 个 Worker 未能包装」，
+诊断快照把 classic / module 标成 `degraded`。断言用 `getWorkerFallbacks` 读，不依赖弹窗 DOM。
+
+### blob 探测的开销（`probe:cost`）
+
+探测要回答"当前文档能不能开 blob Worker"，代价是每个文档一次 `new Worker(blob:)`。三个数都由
+`npm run probe:cost` 实测（30 个 iframe，共 31 个文档；`--frames=60` 可改规模）：
+
+```text
+| 模式                | 探测 Worker 数 | navigation duration |
+| 无扩展              | 0              | 50ms                |
+| 有扩展（含探测）    | 31             | 89ms                |
+| 有扩展（探测已短路）| 0              | 88ms                |
+
+探测的系统开销: 1ms / 31 个文档
+CSP 站点上 Worker 包装延迟: p50=43.4ms p95=57.2ms max=59.2ms（n=30）
+每个文档的 CSP 违规数: 1
+```
+
+读法：
+
+- **每文档恰好 1 个**探测 Worker（31 文档 → 31 个 target），与 iframe 数线性；"探测已短路"的对照组
+  是把 `dist/injected/runtime.js` 里那段 probe 删掉后重新加载，用来隔离探测本身的影响。
+- 首屏几乎不受影响：89ms vs 88ms（每个文档 ≈0.03ms）。单次 `new Worker` + `terminate` 在主线程
+  上只花 0.015ms（另做 100 次微基准），真正的成本是每个文档一次 worker 线程创建。
+- **CSP 站点**：探测必然失败，每文档产生 1 条 `securitypolicyviolation`；`Worker` 全局要等探测
+  出结果才会被换掉，实测窗口 p50 ≈ 43ms、p95 ≈ 57ms —— 这段时间内页面自己创建的 Worker 拿到的
+  是原生实现（文档里写的"少覆盖，不是假通过"就是这条）。不接受这个窗口的话只剩两条路：不包装
+  Worker，或对 CSP 站点放弃 blob 入口、只做经典脚本路径（后者会把 `type: 'module'` 的 Worker 也
+  变成不受支持）。
+- 探测在**非 CSP** 页面上不产生任何网络请求，也不留 DOM 痕迹；`blob:` 请求不出现在 Network 面板。
+
+## BFCache 恢复
+
+```bash
+npm run smoke:bfcache                                            # 默认 dist
+npm run smoke:bfcache -- --extension=/path/to/ext                # 烘焙包
+```
+
+fixture：`fixtures/bfcache/page.html` + `other.html`（刻意不挂 `unload` / `beforeunload`，
+否则页面失去 BFCache 资格，用例会退化成"普通重新加载"）。同一标签页 A → B → `history.back()`，
+页面自己记录 `pageshow.persisted`，所以"这次恢复确实来自 BFCache"是页面证实的。
+
+```
+✓ 场景1 A 从 BFCache 恢复（pageshow.persisted=true）   ← 也证明常开端口/新监听没把页面挡在缓存外
+✓ 场景1 恢复后值不变（配置没动，不该被重启或清掉）
+✓ 场景2 前台页面 B 立刻拿到新时区（广播链路正常）
+✓ 场景2 A 仍然从 BFCache 恢复（改时区不把页面踢出缓存）
+✓ 场景2 恢复后读到新时区（不是冻结前的旧值）
+✓ 场景3 冻结期间排除站点：回到 A 是原生值（clear 不被旧 payload 挡住）
+```
+
+脚本会打印一个观察值（**不作为断言**）：冻结期间改**语言** → `persisted=false`。
+
+原因查清了，是 DNR 写入本身，不是语义变化（Chromium 实测，同一个用例框架逐个变量跑）：
+
+| 冻结期间做的动作 | 恢复时 `persisted` |
+|---|---|
+| 什么都不做 | `true` |
+| 只改时区（不碰 DNR） | `true` |
+| `updateDynamicRules` remove+add **同内容** | `false` |
+| `updateDynamicRules` 改 Accept-Language 值 | `false` |
+| `updateSessionRules` 首写一条规则 | `false` |
+| `updateContentScripts` 原样重注册 | `true` |
+| `updateEnabledRulesets` 空操作 | `true` |
+| `setSiteConfig` 只改语言（产品路径） | `false` |
+
+结论：**没有"只 updateDynamicRules 而不失效 BFCache"的 API 路径** —— 只要真的写入就驱逐，
+连同内容重写都算。所以能做的只有两件事：不需要时**绝不写**（签名一致就跳过，
+`tests/dnr.test.ts` 有状态替身盯着），以及把"改语言 = 页面重载一次"变成明确行为而不是副作用。
+
+场景 4 就是这个行为的回归：
+
+```
+✓ 场景4 只改时区：前台页面不被重载（请求头没变）        marker 仍在
+✓ 场景4 改语言：前台页面被重载（文档与 JS 值重新对齐）    marker 消失
+✓ 场景4 重载后页面读到新语言                            en-US
+✓ 场景4 重新加载的文档请求带新 Accept-Language          en-US,en;q=0.9
+```
+
+实现是「按域名比较请求头值」：只重载**值变了**的域名下的标签页；域名增删仍由
+`reloadAffectedTabs` 负责，否则同一个标签页会被重载两次。首轮应用（安装 / SW 冷启动）不重载。
+
+单测（`tests/content-bridge.test.ts`）覆盖触发条件本身：`persisted === true` 才重拉、
+`persisted === false` 与 `undefined` 不重拉、`stop()` 后监听器摘掉且不再拉取。
+**smoke 证明的是终态与 BFCache 没被破坏；"重拉到新值"与"排队消息在恢复时送达"两条路都产出
+正确结果，脚本不区分它们 —— 触发条件的证明在单测里。**
 
 ## 烘焙 fail-closed（P1-5）
 
@@ -296,6 +421,32 @@ node tools/chrome-env.mjs --persona=us-la-1 --warmup=0      # 关掉（热 profi
 
 判定依据是 `<profile>/Default/Preferences` 是否存在：全新 profile 才等 12s，之后每次启动
 直接开页面（实测热启动 2s 就绪）。只对原生模式生效，headless/CDP 模式不启用。
+
+## 冷启动窗口内保存（storage 与 DNR 必须一致）
+
+```bash
+npm run smoke:cold-save     # 3 轮，每轮全新 profile
+```
+
+盯的是这条链路：`bootstrap()` 先读配置、后应用副作用，两次之间用户可能已经保存。旧实现的
+风险是"读到的旧快照在保存之后被应用回去" —— storage 里是用户配置，DNR 规则与 payload 却是
+默认值，界面上还写着"已保存"。同一类问题还有两处：慢读返回的旧快照会被写进内存缓存
+（之后每次读都停在保存前），以及首次运行的种子写入可能把用户配置直接盖掉。
+
+现在的实现有三道防线：
+
+| 防线 | 位置 | 作用 |
+|---|---|---|
+| 应用串行化 | `applyConfig` 的 promise 链 | 两次并发应用不会交错写 DNR / 内容脚本 / payload |
+| 代际守卫 | `getStorageSnapshot` / `getLastLocation` | 慢读返回时若期间被失效过，不写缓存 |
+| 种子守卫 | `getSiteConfig` 的首次运行分支 | 只在"读到的确实是当前存储"时落种子，避免覆盖用户配置 |
+| 应用时重读 | `bootstrap` 不传快照 | 旧快照没有机会在保存之后被应用 |
+
+诚实说明：最初观察到的失败率是 3 轮里 2 轮（DNR 停在 13 条默认域名、值 `en-US`）。但现在把
+四处修复**全部撤掉**再跑，3/3 仍然一致 —— 说明当时的失败依赖机器时序（新 profile 首次编译
+扩展更慢），这个 smoke 复现不稳，不能当作"回归必失败"的证据。它保留的意义是**终态断言**：
+冷启动窗口内保存之后，storage 与 DNR 必须一致。缓存守卫本身有确定性单测
+（`tests/injection-idempotency.test.ts`，撤掉守卫即失败）。
 
 ## options 页端到端冒烟
 
