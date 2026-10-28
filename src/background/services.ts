@@ -1086,11 +1086,20 @@ export function createBackgroundServices(): BackgroundServices {
     // 走 applyConfig 而不是直接调副作用：SW 重启后要顺手把 payload 补推给
     // 会话恢复出来的标签页（这些文档可能是在注册生效之前就存在的）。
     await applyConfig();
-    await updateGeolocation(false);
     // 「跟随出口 IP」要在启动时就对齐一次：alarm 的首次触发可能还在几分钟之后，
     // 期间用户看到的会是上一次会话留下的旧出口画像。
+    //
+    // 跟随时只打一轮接口：`checkExitIp` 自己就会查归属地并写 lastLocation（与
+    // `updateGeolocation` 用的是同一组接口）。两边各查一次的话，离线时启动要顺序
+    // 等两轮超时（2 × 3 家 × 5s），而第二轮注定拿不到新东西。
     if (isIpSyncEnabled(await getSiteConfig())) {
       await checkExitIp();
+      if (!(await getLastLocation())) {
+        // IP 接口全挂时 ip-sync 不会写 lastLocation：退回常规定位，至少别让坐标空着
+        await updateGeolocation(false);
+      }
+    } else {
+      await updateGeolocation(false);
     }
   }
 

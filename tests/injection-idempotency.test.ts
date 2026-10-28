@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_CONFIG, normalizeConfig } from '../src/shared/config-model';
 import { createBackgroundServices, configNeedsLocation, fetchJson, parseGeoApiResponse } from '../src/background/services';
+import { LAST_SYNCED_IP_KEY } from '../src/background/ip-sync';
 
 /**
  * 这两组不变量是重构后必须一直成立的：
@@ -48,6 +49,7 @@ function createHarness(options: {
   sessionError?: boolean;
   mainInjectError?: boolean;
   reloadError?: boolean;
+  geoPayload?: any;
 } = {}): Harness {
   const stats = {
     fileInjections: 0,
@@ -77,7 +79,7 @@ function createHarness(options: {
     return [{ frameId: 0, url: tab ? tab.url : TAB_URL, parentFrameId: -1 }];
   };
 
-  const geoPayload = {
+  const geoPayload = options.geoPayload ?? {
     success: true,
     latitude: 34.0522,
     longitude: -118.2437,
@@ -1018,4 +1020,28 @@ test('getExitIpSyncState 在没同步过时给出空 IP 与 null 定位', async 
   const state = await harness.services.getExitIpSyncState();
   assert.equal(state.storedIp, '');
   assert.equal(state.lastLocation, null);
+});
+
+test('开着跟随时 bootstrap 只打一轮归属地接口（不再 updateGeolocation + checkExitIp 各打一次）', async () => {
+  const harness = createHarness({
+    // ip-sync 要的是"同一次出口"的 IP + 归属地，所以响应里必须有 ip 字段
+    geoPayload: { ip: '203.0.113.7', success: true, latitude: 34.0522, longitude: -118.2437, country: 'United States', timezone: { id: 'America/Los_Angeles', offset: -25200 } }
+  });
+  const base = await harness.services.getSiteConfig();
+  // 打开开关本身会立刻同步一次（跃变），这是设计行为；先把已记录的 IP 清掉，
+  // 让 bootstrap 必须自己查一遍 —— 这才是"冷启动"的形态
+  await harness.services.saveSiteConfig({ ...base, ipSync: { enabled: true, syncLanguage: false, intervalMinutes: 5 } });
+  // 打开开关那次同步是 fire-and-forget：等它落地再清 IP，否则它会在清掉之后再把 IP 写回来
+  for (let i = 0; i < 40 && !(await harness.services.getExitIpSyncState()).storedIp; i += 1) {
+    await new Promise((resolve) => { setTimeout(resolve, 25); });
+  }
+  delete harness.storage[LAST_SYNCED_IP_KEY];
+  assert.equal((await harness.services.getExitIpSyncState()).storedIp, '', '清干净才能验证冷启动');
+  const before = harness.stats.fetches;
+
+  await harness.services.bootstrap();
+  assert.equal(harness.stats.fetches - before, 1, '一轮接口：checkExitIp 查到的归属地会自己写进 lastLocation');
+  const state = await harness.services.getExitIpSyncState();
+  assert.equal(state.storedIp, '203.0.113.7');
+  assert.ok(state.lastLocation, '启动同步应该把坐标写下来');
 });
