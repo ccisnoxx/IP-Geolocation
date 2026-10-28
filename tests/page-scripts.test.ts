@@ -189,3 +189,31 @@ test('定位最小payload、父子域覆盖和语言时区注册相互独立，a
     assert.equal(compilePageScripts(value, source).length, 2);
   } finally { mock.restore(); }
 });
+
+test('重载时清掉上一条产品线遗留的持久注册，且只认那两个固定 id', async () => {
+  const value = config();
+  const env = browser();
+  const scripting = {
+    registered: [
+      { id: 'vanishgeo-main-runtime', matches: ['*://*/*'], js: ['content.js'] },
+      { id: 'vanishgeo-bridge', matches: ['*://*/*'], js: ['bridge.js'] },
+      { id: 'someone-else', matches: ['*://*/*'], js: ['other.js'] }
+    ] as chrome.scripting.RegisteredContentScript[],
+    unregistered: [] as string[]
+  };
+  Object.assign(globalThis.chrome, { scripting: {
+    getRegisteredContentScripts: async () => structuredClone(scripting.registered),
+    unregisterContentScripts: async ({ ids }: { ids: string[] }) => {
+      scripting.unregistered.push(...ids);
+      scripting.registered = scripting.registered.filter(script => !ids.includes(script.id));
+    }
+  } });
+  try {
+    await reconcilePageScripts(value, source);
+    assert.deepEqual(scripting.unregistered.sort(), ['vanishgeo-bridge', 'vanishgeo-main-runtime']);
+    assert.deepEqual(scripting.registered.map(script => script.id), ['someone-else']);
+    // 幂等：第二次没有可清理的东西，不重复撤销
+    await reconcilePageScripts(value, source);
+    assert.equal(scripting.unregistered.length, 2);
+  } finally { env.restore(); }
+});

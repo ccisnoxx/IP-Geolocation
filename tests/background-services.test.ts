@@ -510,7 +510,7 @@ test('非法字体或schema输入在旧存储迁移前拒绝，合法v2导入去
     legacy.globalProfile.language.acceptLanguage = 'obsolete';
     const imported = (await services.importSiteConfig(legacy)).config;
     assert.equal(imported.schemaVersion, 3);
-    assert.deepEqual(imported.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['MiSans', 'Custom Font'] });
+    assert.deepEqual(imported.fontExposure, { enabled: true, mode: 'custom', blockedFamilies: ['MiSans', 'Custom Font'], canvasSpoof: { enabled: false, platform: 'macos' } });
     assert.doesNotMatch(JSON.stringify(imported), /"(?:acceptLanguage|canvas)"/);
     assert.equal(imported.exitLocationProfiles[0].verification, 'unverified');
     assert.equal(imported.rules[0].exitLocationProfileId, null);
@@ -814,7 +814,9 @@ test('启动读取失败且字体撤销失败时保留启动原因并明确清�
       assert.match(failure.message, /字体.*清理.*未.*确认/);
       return true;
     });
-    assert.equal((await chrome.scripting.getRegisteredContentScripts()).length, 1);
+    // 撤销本身失败：旧注册必须仍可见（不能把失败报成清理完成）
+    assert.equal((await chrome.scripting.getRegisteredContentScripts())
+      .filter(script => /^vanishgeo-font-(?:exposure|worker)-/.test(script.id)).length, 1);
     assert.deepEqual(mock.registeredScripts, []);
     assert.deepEqual(mock.sessionStorage, {});
     chrome.storage.local.get = originalGet;
@@ -1740,7 +1742,8 @@ test('推荐应用保留我的语言和未选规则/全局信号；只给所选�
   const config = createSingleRuleConfig('other.example', { automatic: false });
   config.masterEnabled = false;
   config.exitLocationProfiles = [verifiedProfile({ countryCode: 'JP' })];
-  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['Synthetic Font'] };
+  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['Synthetic Font'],
+    canvasSpoof: { enabled: false, platform: 'macos' } };
   const selected = configModel.normalizeRule({ domain: 'selected.example', enabled: false, overrides: {
     language: { mode: 'override', value: { enabled: true, mode: 'custom', language: 'zh-CN', languages: ['zh-CN', 'zh'] } },
     timezone: { mode: 'disable', value: null }, geolocation: { mode: 'disable', value: null }
@@ -1897,7 +1900,9 @@ test('字体撤销窗口中新开顶层不匹配的页面也保守覆盖 iframe�
     chrome.storage.local.set = (async (items: Record<string, any>) => {
       await originalSet(items);
       if (items[SITE_CONFIG_KEY]?.fontExposure.enabled === false) {
-        oldHookPossible = (await chrome.scripting.getRegisteredContentScripts()).length === 1;
+        // 页面过滤仍在注册时，旧文档的字体 hook 仍可能生效。
+        oldHookPossible = (await chrome.scripting.getRegisteredContentScripts())
+          .filter(script => script.id.startsWith('vanishgeo-font-exposure-')).length === 1;
         // 顶层 URL 不匹配，但其普通 iframe 可以匹配 example.com。
         tabs.push({ id: 9, url: 'https://unmatched.test/with-iframe' } as chrome.tabs.Tab);
       }
@@ -2269,8 +2274,10 @@ test('关闭当前子域保留父域兄弟及出口覆盖，四种投影一致�
     assert.equal(scripts.length, 2);
     for (const script of scripts) assert.deepEqual(script.excludeMatches, exclusions);
     const fonts = await chrome.scripting.getRegisteredContentScripts();
+    // 文件型 Worker/SharedWorker 继续暂停；页面过滤沿用同一份域范围与排除。
     assert.equal(fonts.length, 1);
-    assert.deepEqual(fonts[0].excludeMatches, exclusions);
+    for (const script of fonts) assert.deepEqual(script.excludeMatches, exclusions);
+    assert.deepEqual(fonts.map(script => script.js?.[0]), ['font-exposure/filter.js']);
     const headers = await chrome.declarativeNetRequest.getDynamicRules();
     assert.equal(headers.length, 2);
     assert.deepEqual(headers[0].condition.excludedRequestDomains, ['news.example.com']);
@@ -2334,7 +2341,8 @@ test('损坏配置撤销失败可见，保留数据并继续清理其他组件',
 test('配置导出 JSON 再导入保留合法信号、规则、方案及模式；仅按合同清除出口验证', async () => {
   const config = createSingleRuleConfig();
   config.webRtc.globalMode = 'compatible'; config.intlMode = 'compatible';
-  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['Synthetic Font'] };
+  config.fontExposure = { enabled: true, mode: 'custom', blockedFamilies: ['Synthetic Font'],
+    canvasSpoof: { enabled: false, platform: 'macos' } };
   config.profile = { activeProfileId: 'saved', profiles: [{ id: 'saved', name: '合成方案', description: '保留说明',
     geolocation: { latitude: 0, longitude: 0, accuracy: 50, country: 'Synthetic' },
     language: { language: 'ja-JP', languages: ['ja-JP', 'ja'] }, timezone: { timezone: 'UTC' } }] };

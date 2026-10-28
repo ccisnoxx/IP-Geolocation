@@ -58,6 +58,7 @@ export const DEFAULT_WEBRTC: WebRtcConfig = {
 
 export const DEFAULT_FONT_EXPOSURE: FontExposureConfig = {
   enabled: false,
+  canvasSpoof: { enabled: false, platform: 'macos' },
   mode: 'vendor-software',
   blockedFamilies: [...VENDOR_SOFTWARE_FONT_FAMILIES]
 };
@@ -89,7 +90,7 @@ export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
   value: null
 };
 
-const DEFAULT_RULE_DOMAINS = [
+export const DEFAULT_RULE_DOMAINS = [
   'chatgpt.com',
   'openai.com',
   'claude.ai',
@@ -248,9 +249,14 @@ function normalizeFontFamilies(value: unknown): string[] {
 export function normalizeFontExposure(config: Partial<FontExposureConfig> | null | undefined): FontExposureConfig {
   const input = config || {};
   const mode = input.mode === 'custom' ? 'custom' : 'vendor-software';
+  const canvasInput = (input.canvasSpoof || {}) as Partial<FontExposureConfig['canvasSpoof']>;
   return {
     enabled: Boolean(input.enabled),
     mode,
+    canvasSpoof: {
+      enabled: Boolean(canvasInput.enabled),
+      platform: canvasInput.platform === 'windows' ? 'windows' : 'macos'
+    },
     blockedFamilies: mode === 'custom'
       ? normalizeFontFamilies(input.blockedFamilies)
       : [...VENDOR_SOFTWARE_FONT_FAMILIES]
@@ -333,6 +339,7 @@ export function normalizeRule(rule: Partial<SiteRule> | null | undefined): SiteR
     id: normalizeString(input.id) || `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     domain: normalizeDomain(input.domain),
     enabled: input.enabled !== false,
+    compatibilityPreset: input.compatibilityPreset ?? 'full',
     exitLocationProfileId: normalizeString(input.exitLocationProfileId) || null,
     overrides: {
       language,

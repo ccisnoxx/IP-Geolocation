@@ -2,6 +2,9 @@ import { buildContentScriptMatchesForDomain, domainMatches, getEnabledRuleDomain
 import type { PageRuntimeStatus, RuntimeSyncComponentReport, RuntimeSyncError, SiteSpoofConfig } from '../shared/types';
 
 export const PAGE_SCRIPT_PREFIX = 'vanishgeo-language-timezone-';
+// 上一条产品线（VanishMe 二开构建）注册过的 content script id。它们会随 profile 持久化，
+// 不清理的话再次加载那个构建就会报 Duplicate script ID，本产品也永远看不到它们。
+export const LEGACY_SCRIPT_IDS = ['vanishgeo-main-runtime', 'vanishgeo-bridge'];
 export const GEOLOCATION_SCRIPT_PREFIX = 'vanishgeo-geolocation-';
 type Surface = 'page' | 'geolocation';
 type Script = chrome.userScripts.RegisteredUserScript;
@@ -48,6 +51,19 @@ function scope(script: Script): string {
 function signature(script: Script): string { return JSON.stringify([scope(script), script.js]); }
 
 // services 配置队列是唯一调用方；不创建第二条注册队列或配置事实来源。
+/** 一次性清理历史产品的持久注册；只认这两个固定 id，不按前缀误伤其他组件。 */
+async function purgeLegacyScripts(): Promise<void> {
+  const api = chrome.scripting;
+  if (!api?.getRegisteredContentScripts || !api?.unregisterContentScripts) return;
+  try {
+    const leftovers = (await api.getRegisteredContentScripts())
+      .filter(script => LEGACY_SCRIPT_IDS.includes(script.id));
+    if (leftovers.length) await api.unregisterContentScripts({ ids: leftovers.map(script => script.id) });
+  } catch {
+    // 清理失败不阻断页面注册：这些 id 本产品不会再用，最坏只是留一行死注册。
+  }
+}
+
 async function reconcileScripts(config: SiteSpoofConfig, source: string, surface: Surface, beforeChange?: () => Promise<void>): Promise<PageScriptSync> {
   const label = surface === 'page' ? '页面语言/时区' : '地理位置';
   const prefix = surface === 'page' ? PAGE_SCRIPT_PREFIX : GEOLOCATION_SCRIPT_PREFIX;
@@ -70,6 +86,7 @@ async function reconcileScripts(config: SiteSpoofConfig, source: string, surface
   if (['getScripts', 'register', 'update', 'unregister'].some(name => typeof api[name as keyof typeof api] !== 'function')) {
     return failed('api-unsupported', 'userscripts-unsupported', '浏览器缺少必要的 userScripts API。');
   }
+  if (surface === 'page') await purgeLegacyScripts();
   let desired: Script[];
   try { desired = compileScripts(config, source, surface); }
   catch { return failed('sync-failed', 'page-config-invalid', `${label}配置或构建模板无效，未注册新脚本。`); }

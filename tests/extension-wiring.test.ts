@@ -20,6 +20,8 @@ test('manifest uses dynamic injection without background alarms or static all-ur
   assert.equal(manifest.name, 'VanishGeo');
   assert.equal(manifest.content_scripts, undefined);
   assert.deepEqual(manifest.web_accessible_resources, []);
+  assert.equal(manifest.externally_connectable, undefined);
+  assert.equal(manifest.permissions.includes('management'), false);
   assert.deepEqual(manifest.permissions, [
     'storage',
     'scripting',
@@ -270,7 +272,8 @@ test('Popup 与 Options 共用规则文本显示及合并实现', () => {
     assert.match(script, /import\s*\{\s*ruleListToText,\s*rulesFromText\s*\}\s*from\s*'\.\.\/shared\/rule-list'/);
     assert.match(script, /rulesFromText\(ruleListEl\.value,\s*currentConfig\.rules\)/);
     assert.match(script, /ruleListEl\.value\s*=\s*ruleListToText\(config\.rules\)/);
-    assert.doesNotMatch(script, /function\s+rulesFromText|existingByDomain|normalizeDomain|createRule/);
+    // createRule 也用于当前域名预设子规则；这里只约束文本解析不能另建实现。
+    assert.doesNotMatch(script, /function\s+rulesFromText|existingByDomain|normalizeDomain/);
   }
 });
 
@@ -323,11 +326,17 @@ test('VG-009 Chrome入口和扩展时序报告接线，fixture没有预期桥或
   assert.doesNotMatch(read('scripts/chrome-injection-smoke.mjs'), /playwright|puppeteer|stun:|https:\/\//i);
 });
 
-test('字体 UI 无请求头编辑或 Canvas 伪装，内置名单只读且独立报告运行状态', () => {
+test('字体 UI 无请求头编辑，内置名单只读、Canvas 伪装独立开关并独立报告运行状态', () => {
   for (const page of ['popup', 'options']) {
     const html = read(`src/${page}/${page}.html`);
     const script = read(`src/${page}/${page}.ts`);
-    assert.doesNotMatch(html + script, /acceptLanguage|Canvas spoof|Canvas 指纹伪装|Canvas 字体伪装|DNR 请求头规则|DNR Accept-Language/);
+    assert.doesNotMatch(html + script, /acceptLanguage|DNR 请求头规则|DNR Accept-Language/);
+    if (page === 'options') {
+      // Canvas 伪装是独立开关 + 平台选择，不与过滤名单共用一套产物
+      assert.match(html, /id="fontCanvasEnabled"/);
+      assert.match(html, /id="fontCanvasPlatform"/);
+      assert.match(html, /Canvas 字体伪装/);
+    }
     assert.match(html, /字体暴露过滤/);
     assert.match(html, /id="fontExposureStatus".*aria-live="polite"/);
     assert.match(script, /renderFontRuntimeStatus\(fontExposureStatusEl, report(?:, 'compact')?\)/);
@@ -335,7 +344,7 @@ test('字体 UI 无请求头编辑或 Canvas 伪装，内置名单只读且独�
       assert.match(html, /不影响语言\/时区注册状态/);
       assert.match(html, /顶层.*iframe.*43 项.*measureText\(\).*保留其他显式字体.*monospace/);
       assert.match(html, /FontFaceSet.check\(\).*名单内字体返回 false.*其他字体保持原生/);
-      assert.match(html, /不覆盖 DOM 尺寸.*local\(\).*像素比对.*OffscreenCanvas.*Worker/);
+      assert.match(html, /不覆盖 DOM 尺寸.*local\(\).*像素比对.*未接管的 Worker/);
       assert.match(html, /不会随机化 Canvas 图像，也不会修改 WebGL、GPU 或硬件信息/);
       assert.match(html, /兼容性/);
     } else {
@@ -369,4 +378,18 @@ test('DNR仅恢复host约束权限，随包默认隔离覆盖全部HTTP资源并
   assert.ok(migration, '权限文档链接的迁移段落必须存在');
   assert.match(migration, /磁盘/);
   assert.match(migration, /1001、1002及1100\.\.2099/);
+});
+
+// 每个 getElementById 都必须在该页 HTML 里真的有对应 id：
+// 否则运行时拿到 null，用户在"开启全局保护"时只会看到 Cannot read properties of null。
+test('页面脚本引用的元素 id 与 HTML 一致，没有悬空 getElementById', () => {
+  for (const page of ['popup', 'options'] as const) {
+    const html = read(`src/${page}/${page}.html`);
+    const script = read(`src/${page}/${page}.ts`);
+    const declared = new Set([...html.matchAll(/id="([^"]+)"/g)].map(match => match[1]));
+    const used = [...script.matchAll(/getElementById\('([^']+)'\)/g)].map(match => match[1]);
+    assert.ok(used.length > 10, `${page} 至少应有十余个元素引用`);
+    const missing = used.filter(id => !declared.has(id));
+    assert.deepEqual(missing, [], `${page}.html 缺少这些 id，运行时会是 null`);
+  }
 });

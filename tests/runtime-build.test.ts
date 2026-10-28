@@ -169,6 +169,8 @@ test('build watch 对 page/worker 依赖重建，缺源和循环依赖显式失�
     await cp(resolve(projectRoot, 'src/injected'), join(temporary, 'src/injected'), { recursive: true });
     await mkdir(join(temporary, 'src/shared'), { recursive: true });
     await cp(resolve(projectRoot, 'src/shared/font-families.ts'), join(temporary, 'src/shared/font-families.ts'));
+    // Canvas 字体伪装的平台表在 src/shared，构建期也要能解析到
+    await cp(resolve(projectRoot, 'src/shared/canvas-fonts.ts'), join(temporary, 'src/shared/canvas-fonts.ts'));
     const generated = await generateRuntime(temporary);
     assert.ok(generated.dependencies.some(p => p.endsWith('/worker/navigator.ts')));
     const result = await build({ root: temporary, configFile: false, publicDir: false, logLevel: 'silent', plugins: [runtimePlugin(temporary)],

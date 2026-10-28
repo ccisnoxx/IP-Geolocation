@@ -29,7 +29,7 @@ export function renderSetupStatus(element: HTMLElement, config: SiteSpoofConfig,
   element.textContent = `${state.message}${report?.status === 'ok' ? '' : ' 同步尚未完成或确认，请查看同步详情并重试。'}`;
 }
 
-export type CurrentSiteStatusKind = 'unsupported' | 'global-disabled' | 'not-allowlisted' | 'enabled' | 'disabled' | 'reload-required' | 'runtime-unavailable' | 'unknown' | 'paused' | 'error';
+export type CurrentSiteStatusKind = 'unsupported' | 'global-disabled' | 'not-allowlisted' | 'enabled' | 'disabled' | 'reload-required' | 'runtime-unavailable' | 'unknown' | 'paused' | 'error' | 'partial';
 
 export interface CurrentSiteStatusInput {
   domain: string;
@@ -85,7 +85,29 @@ export function deriveCurrentSiteStatus(input: CurrentSiteStatusInput): CurrentS
       disableDomain: null
     };
   }
-  if (!input.payload || input.errors.length > 0) {
+  if (matchedRule.compatibilityPreset === 'native') return {
+    kind: 'disabled', label: 'native · 页面与请求头原生',
+    detail: `匹配规则：${matchedRule.domain}。不应用语言、时区、定位或字体修改；WebRTC 仍由浏览器全局策略控制。保存同步后需完整重建文档。`,
+    canEnable: false, canDisable: true, disableDomain: domain
+  };
+  // 部分生效：语言已注入、时区/定位还没就绪。这时不能笼统说"配置不完整"——
+  // 请求头其实已经在按语言发送了，用户需要知道哪些生效、哪些没生效。
+  if (input.payload && input.errors.length > 0) {
+    const applied = [
+      input.payload.languageConfig ? '语言' : null,
+      input.payload.timezone ? '时区' : null,
+      input.payload.geolocation ? '定位' : null
+    ].filter(Boolean).join('、') || '无';
+    return {
+      kind: 'partial',
+      label: `部分生效：${applied}`,
+      detail: `匹配规则：${matchedRule.domain}。已应用：${applied}；未生效原因：${input.errors.join('；')}。请求头与页面语言保持一致，重新加载后按当前配置重建文档。`,
+      canEnable: false,
+      canDisable: true,
+      disableDomain: domain
+    };
+  }
+  if (!input.payload) {
     return {
       kind: 'error',
       label: '配置不完整',

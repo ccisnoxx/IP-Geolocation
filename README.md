@@ -11,6 +11,7 @@
 | 功能 | 说明 |
 | --- | --- |
 | 站点规则 | 按域名及子域名启用保护，更具体的规则优先；语言、时区和位置支持继承、覆盖或禁用。 |
+| 兼容性预设 | 每站点可选 native、consistency 或 full，保留已有高级配置；WebRTC 仍是浏览器全局策略。 |
 | 语言与时区 | 配置网页语言、语言列表、Intl 与 Date 的语言和时区；提供严格与兼容模式。 |
 | 语言请求头 | 从站点语言列表生成对应的 Accept-Language，保持其他请求头原生。 |
 | 合成定位 | 使用手工坐标或经用户检测、确认并绑定的出口档案，向支持的页面提供合成位置。 |
@@ -84,6 +85,7 @@ npm run build
 | [权限说明](PERMISSIONS.md) | Chrome 权限用途和作用范围 |
 | [开发指南](CONTRIBUTING.md) | 开发环境、检查要求与问题报告 |
 | [浏览器验证](docs/development/browser-validation.md) | 诊断工具、定向验证命令和历史实验边界 |
+| [可观察面审计](docs/development/observability-audit.md) | 原生对照、七阶段观测、固定字体签名和兼容预设边界 |
 | [构建与发布](RELEASE.md) | CI、打包与发布流程 |
 | [验收证据](docs/stabilization/evidence-index.md) | 已记录的浏览器覆盖范围与已知缺口 |
 

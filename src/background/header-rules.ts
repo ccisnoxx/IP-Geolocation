@@ -1,4 +1,4 @@
-import { domainMatches, getEnabledRuleDomains, getLanguageTimezonePayload, validateConfig } from '../shared/config-resolver';
+import { domainMatches, getEffectiveLanguage, getEnabledRuleDomains, validateConfig } from '../shared/config-resolver';
 import { getAcceptLanguageValue } from '../shared/config-model';
 import { RuntimeSyncOperationError } from '../shared/runtime-sync';
 import { establishHeaderRuleOwnership, hasHeaderRuleOwnership } from '../shared/storage';
@@ -18,7 +18,8 @@ export function compileHeaderRules(config: SiteSpoofConfig): Rule[] {
   const domains = getEnabledRuleDomains(validated.config).sort();
   const rules: Rule[] = [];
   for (const domain of domains) {
-    const language = getLanguageTimezonePayload(validated.config, domain)?.language;
+    // 只看语言本身：时区/定位解析失败不该让 Accept-Language 停发（页面语言那边同样只看语言）
+    const language = getEffectiveLanguage(validated.config, domain);
     if (!language) continue;
     const children = validated.config.rules.map(rule => rule.domain).filter(child => child !== domain && domainMatches(child, domain));
     const common = { regexFilter: '^https?://' };

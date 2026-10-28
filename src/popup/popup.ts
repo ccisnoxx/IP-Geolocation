@@ -1,4 +1,5 @@
 import './popup.css';
+import { ENVIRONMENT_PRESETS, exitProfileSignals, findEnvironmentPreset, presetSignals, type QuickSetSignals } from '../shared/environment-presets';
 import { isRuntimeInjectionPaused, renderRuntimeSyncReport, renderRuntimeSyncPending, renderFontRuntimeStatus } from '../shared/runtime-sync';
 import { getPageRuntimeProfile } from '../shared/config-resolver';
 import type { RuntimeSyncReport } from '../shared/types';
@@ -6,6 +7,7 @@ import {
   DEFAULT_FONT_EXPOSURE,
   VENDOR_SOFTWARE_FONT_FAMILIES,
   createInitialConfig,
+  createRule,
   getDefaultLanguages,
   getTimezoneOffsetMinutes,
   normalizeConfig,
@@ -27,12 +29,17 @@ const globalEnabledEl = document.getElementById('globalEnabled') as HTMLInputEle
 const debugModeEl = document.getElementById('debugMode') as HTMLInputElement;
 const globalStatusEl = document.getElementById('globalStatus') as HTMLElement;
 const currentSiteEl = document.getElementById('currentSite') as HTMLElement;
+const currentSitePresetEl = document.getElementById('currentSitePreset') as HTMLSelectElement;
 const siteStatusBadgeEl = document.getElementById('siteStatusBadge') as HTMLElement;
 const siteStatusDetailEl = document.getElementById('siteStatusDetail') as HTMLElement;
 const enableSiteBtn = document.getElementById('enableSite') as HTMLButtonElement;
 const disableSiteBtn = document.getElementById('disableSite') as HTMLButtonElement;
 const ruleListEl = document.getElementById('ruleList') as HTMLTextAreaElement;
 const openOptionsHeaderBtn = document.getElementById('openOptionsHeader') as HTMLButtonElement;
+const quickSetExitProfileEl = document.getElementById('quickSetExitProfile') as HTMLSelectElement;
+const applyQuickSetExitEl = document.getElementById('applyQuickSetExit') as HTMLButtonElement;
+const quickSetExitHintEl = document.getElementById('quickSetExitHint') as HTMLElement;
+const quickSetCards = Array.from(document.querySelectorAll<HTMLButtonElement>('.profile-card[data-preset]'));
 const geolocationEnabledEl = document.getElementById('geolocationEnabled') as HTMLInputElement;
 const latitudeEl = document.getElementById('latitude') as HTMLInputElement;
 const longitudeEl = document.getElementById('longitude') as HTMLInputElement;
@@ -171,6 +178,8 @@ function renderCurrentSiteStatus(state: any): void {
 
 function updateExitLocationProfile(config: SiteSpoofConfig): void {
   const rule = currentRuleId ? config.rules.find((item) => item.id === currentRuleId) || null : null;
+  currentSitePresetEl.value = rule?.compatibilityPreset || 'full';
+  currentSitePresetEl.disabled = !rule;
   currentExitProfileSelectEl.innerHTML = '';
   currentExitProfileSelectEl.append(new Option('未选择出口', ''));
   config.exitLocationProfiles
@@ -280,6 +289,7 @@ function readForm(): SiteSpoofConfig {
     webRtc: webrtcEnabledEl.checked ? normalizeWebRtc({ globalMode: parseWebRtcMode(webrtcPolicyEl.value) }) : normalizeWebRtc({ globalMode: 'default' }),
     fontExposure: {
       enabled: fontExposureEnabledEl.checked,
+      canvasSpoof: currentConfig.fontExposure.canvasSpoof,
       mode: fontExposureModeEl.value as SiteSpoofConfig['fontExposure']['mode'],
       blockedFamilies: fontExposureModeEl.value === 'vendor-software'
         ? [...VENDOR_SOFTWARE_FONT_FAMILIES]
@@ -288,10 +298,64 @@ function readForm(): SiteSpoofConfig {
   });
 }
 
+// 快速设置：独立区块，一次写入经纬度/语言/时区；WebRTC 与字体配置不动。
+function applyQuickSetSignals(signals: QuickSetSignals, note: string): void {
+  geolocationEnabledEl.checked = true;
+  latitudeEl.value = String(signals.latitude);
+  longitudeEl.value = String(signals.longitude);
+  timezoneEnabledEl.checked = true;
+  timezoneEl.value = signals.timezone;
+  languageEnabledEl.checked = true;
+  if (signals.language) languageEl.value = signals.language;
+  if (signals.languages.length) languagesEl.value = signals.languages.join(', ');
+  updateTimezoneOffset();
+  quickSetExitHintEl.textContent = note;
+  void saveChanges();
+}
+
+function renderQuickSetExitProfiles(): void {
+  // 轻量 UI 夹具的元素只有 value/checked，没有真实 DOM 方法，此时跳过渲染。
+  if (!quickSetExitProfileEl || typeof quickSetExitProfileEl.replaceChildren !== 'function') return;
+  const verified = currentConfig.exitLocationProfiles.filter(profile => profile.verification === 'verified');
+  const previous = quickSetExitProfileEl.value;
+  quickSetExitProfileEl.replaceChildren();
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = verified.length
+    ? '从 IP 自动配置（选择已确认出口档案）'
+    : '没有已确认的出口档案，请先在完整配置里检测出口';
+  quickSetExitProfileEl.appendChild(placeholder);
+  for (const profile of verified) {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = `${profile.country || '未知地区'} · ${profile.timezone || '无时区'} · ${profile.publicIp || '无 IP'}`;
+    quickSetExitProfileEl.appendChild(option);
+  }
+  if (verified.some(profile => profile.id === previous)) quickSetExitProfileEl.value = previous;
+  quickSetExitProfileEl.disabled = verified.length === 0;
+  applyQuickSetExitEl.disabled = verified.length === 0;
+  quickSetExitHintEl.textContent = verified.length
+    ? '出口档案的坐标与时区来自同一次已确认检测；语言只用地区常用候选，取不到就保留当前语言。'
+    : '出口档案要来自一次完整检测并确认；现在没有可用档案。';
+}
+
+function applyQuickSetFromExitProfile(): void {
+  const profile = currentConfig.exitLocationProfiles.find(item => item.id === quickSetExitProfileEl.value);
+  if (!profile) { quickSetExitHintEl.textContent = '请先选择一个已确认的出口档案。'; return; }
+  const signals = exitProfileSignals(profile, {
+    language: languageEl.value, languages: languagesEl.value.split(',').map(item => item.trim()).filter(Boolean)
+  });
+  if (!signals) { quickSetExitHintEl.textContent = '该档案尚未确认，不能用于自动配置。'; return; }
+  if (!signals.timezone) { quickSetExitHintEl.textContent = '该档案缺少有效时区，无法完整配置。'; return; }
+  applyQuickSetSignals(signals, `已按出口档案「${profile.name}」配置`);
+}
+
 async function saveChanges(): Promise<void> {
   updateTimezoneOffset();
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig; syncReport: RuntimeSyncReport }>({ action: 'setSiteConfig', config: readForm() });
   currentConfig = normalizeConfig(response.config);
+  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
+  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
   showAutoSaveToast(response.syncReport);
 }
 
@@ -304,6 +368,8 @@ async function loadConfig(): Promise<void> {
   currentRuleId = state.rule?.id || null;
   currentSiteEl.textContent = currentHostname || 'N/A';
   populateForm(currentConfig);
+  // 单测的 UI 夹具只注入白名单函数，这里按需刷新，缺函数时保持原样。
+  if (typeof renderQuickSetExitProfiles === 'function') renderQuickSetExitProfiles();
   renderCurrentSiteStatus(state);
 }
 
@@ -367,6 +433,15 @@ timezoneEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); }
 timezoneEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languageEnabledEl.addEventListener('change', () => { runUiTask(saveChanges()); });
 languageEl.addEventListener('change', updateLanguageList);
+applyQuickSetExitEl.addEventListener('click', () => applyQuickSetFromExitProfile());
+for (const card of quickSetCards) {
+  card.addEventListener('click', () => {
+    const preset = findEnvironmentPreset(card.dataset.preset || '');
+    if (!preset) return;
+    for (const other of quickSetCards) other.setAttribute('aria-pressed', String(other === card));
+    applyQuickSetSignals(presetSignals(preset), `已应用预设「${preset.name}」`);
+  });
+}
 languageEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 languagesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 webrtcEnabledEl.addEventListener('change', () => {
@@ -382,6 +457,21 @@ fontExposureModeEl.addEventListener('change', () => { updateFontExposureMode(); 
 fontExposureBlockedFamiliesEl.addEventListener('blur', () => { runUiTask(saveChanges()); });
 saveCoordinateBtn.addEventListener('click', () => { runUiTask(handleSaveCoordinate()); });
 currentExitProfileSelectEl.addEventListener('change', () => { runUiTask(saveExitLocationBinding()); });
+currentSitePresetEl.addEventListener('change', () => { runUiTask((async () => {
+  const inherited = currentConfig.rules.find(rule => rule.id === currentRuleId);
+  if (!inherited || !currentHostname) return;
+  // 从父域继承时创建当前域名子规则，避免改变兄弟站点。
+  let rule = currentConfig.rules.find(item => item.domain === currentHostname);
+  if (!rule) {
+    rule = { ...inherited, ...createRule(currentHostname), overrides: structuredClone(inherited.overrides),
+      exitLocationProfileId: inherited.exitLocationProfileId };
+    currentConfig.rules.push(rule);
+  }
+  rule.compatibilityPreset = currentSitePresetEl.value as NonNullable<typeof rule.compatibilityPreset>;
+  ruleListEl.value = ruleListToText(currentConfig.rules);
+  await saveChanges();
+  await loadConfig();
+})()); });
 manageExitProfilesBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });
 resetFontsBtn.addEventListener('click', () => { runUiTask(handleResetFonts()); });
 openOptionsBtn.addEventListener('click', () => { runUiTask(sendRuntimeMessage({ action: 'openOptions' })); });

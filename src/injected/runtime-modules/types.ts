@@ -61,7 +61,14 @@ export type RuntimeState = {
 
 
 export type RuntimeGlobals = typeof globalThis & Record<string, any>;
-export type WorkerPatchConfig = { timezone: string | null; language: string | null; languages: string[] | null; intlMode?: 'strict' | 'compatible' };
+export type WorkerPatchConfig = {
+  timezone: string | null;
+  language: string | null;
+  languages: string[] | null;
+  intlMode?: 'strict' | 'compatible';
+  /** 被屏蔽字体名单；只在字体伪装开启时带值，Worker 侧据此改写 OffscreenCanvas 测量。 */
+  blockedFonts?: string[] | null;
+};
 
 // 仅供持有本次安装结果的可信调用方更新未来 Worker；不得发布到页面全局。
 export type RuntimeController = { update(payload: RuntimePayload): void };

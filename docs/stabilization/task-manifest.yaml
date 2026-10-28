@@ -3,6 +3,24 @@ project: VanishGeo
 # 唯一跨任务状态来源；review 不能满足依赖，done 需要人工验收。
 # VG-001 至 VG-014 是本次建立的执行清单，细化设计时保持 ID 和依赖可追溯。
 tasks:
+  - id: VG-043
+    title: 扩展可观察面审计与站点兼容性预设
+    phase: R8
+    dependencies: [VG-040, VG-042]
+    status: review
+    trellis_task: .trellis/tasks/10-26-vg-043-observability
+    authorization:
+      date: '2026-10-26'
+      scope: 用户授权审计工具、native/consistency/full预设及Helium干净对照和真实Chrome定向验证；不修改版本权限、不提交推送发布
+    scope:
+      - 对照原生、总开关关闭及语言到WebRTC逐项启用，记录描述符与行为差异
+      - 同一配置解析器裁剪站点页面、请求头、定位与字体效果，保留高级配置
+      - 固定字体签名、无直接标记合同与未覆盖面明确记录，不实现隐藏扩展或风控绕过
+    acceptance:
+      - 审计只使用NATIVE、OBSERVABLE、UNKNOWN、UNSUPPORTED，不承诺不可检测
+      - Helium与Chrome真实结果、dry-run和本地检查分开记录
+      - 本地实现验证后为review，人工验收后才可done
+
   - id: VG-000
     title: 建立稳定化执行基线并校准仓库规范
     phase: R0

@@ -83,7 +83,7 @@ test('Profile 名称可重复但 trim 后 ID 不可重复，非法列表条目�
 test('非法存量方案不被应用，合法零坐标方案 ID 在归一化和应用后保持', () => {
   const profile = validProfile();
   const config = normalizeConfig({ intlMode: 'compatible',
-    fontExposure: { enabled: true, mode: 'custom', blockedFamilies: ['My Font'] },
+    fontExposure: { enabled: true, mode: 'custom', blockedFamilies: ['My Font'], canvasSpoof: { enabled: false, platform: 'macos' } },
     profile: { activeProfileId: profile.id, profiles: [profile] } });
   const applied = applyProfileToConfig(config, profile.id);
   assert.equal(applied.globalProfile.geolocation.mode, 'manual');

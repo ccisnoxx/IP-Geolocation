@@ -207,3 +207,23 @@ test('未知领域模式和遗留原始值不能进入内部 WebRTC 归一化', 
     assert.equal(validateConfig({ ...normalizeConfig({}), webRtc: { globalMode: mode } }).ok, false);
   }
 });
+
+// 方案对比结论的回归锚点：WebRTC 只走浏览器策略，不在页面里伪造 RTC 对象。
+test('WebRTC 只映射到浏览器策略值，不注入页面级 RTC 伪造', async () => {
+  const { WEBRTC_POLICY_VALUES } = await import('../src/background/webrtc');
+  assert.deepEqual(WEBRTC_POLICY_VALUES, {
+    strict: 'disable_non_proxied_udp',
+    compatible: 'default_public_interface_only',
+    default: null
+  });
+  // default = null：交还浏览器默认，而不是在页面里伪造本地候选
+  assert.equal(WEBRTC_POLICY_VALUES.default, null);
+});
+
+test('strict 是唯一被判定为"防泄漏生效"的策略', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../src/background/webrtc.ts', import.meta.url), 'utf8');
+  // 页面侧不得出现 RTCPeerConnection 伪造：一旦有人加回来，这条会失败
+  assert.doesNotMatch(source, /RTCPeerConnection|RTCSessionDescription|createOffer/);
+  assert.match(source, /leakProtectionActive: actualPolicy === 'disable_non_proxied_udp'/);
+});

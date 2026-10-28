@@ -3,10 +3,12 @@ import { createWorkerState } from './registry';
 import { installWorkerNavigator } from './navigator';
 import { installWorkerDateTime } from './intl-date';
 import { installNestedWorker } from './nested-worker';
+import { installWorkerFonts } from '../surfaces/offscreen-fonts';
 
 export function applyWorkerRuntime(patchConfig: WorkerPatchConfig, workerBootstrap: (config: WorkerPatchConfig) => void): void {
   const state = createWorkerState(self as unknown as RuntimeGlobals);
   installWorkerNavigator(state, patchConfig);
   installWorkerDateTime(state, patchConfig);
+  installWorkerFonts(state.root as typeof globalThis & Record<string, any>, patchConfig);
   installNestedWorker(state, patchConfig, workerBootstrap);
 }

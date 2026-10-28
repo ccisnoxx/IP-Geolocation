@@ -15,6 +15,12 @@ npm run test:e2e:chrome -- --dry-run
 
 真实 Chrome 结果应记录浏览器版本、平台、候选构建身份、合成配置、覆盖范围和实际结果。Node、VM、mock、静态检查及 dry-run 均不能替代真实 Chrome 验收；历史脚本的全能力预期也不代表当前生产支持范围。
 
+## 可观察面审计与兼容预设
+
+独立工具 `node --import tsx scripts/chrome-observability-audit.mjs --output <新JSON>` 使用正式 dist 和临时 Profile，先采未安装扩展的原生对照，再比较总开关关闭及语言、时区、定位、字体、WebRTC 逐项叠加，最后比较三种预设与再次关闭的新文档。可通过 CHROME_BIN 指定 Helium；内置 uBlock 正常停用后采样，不操作个人配置。
+
+顶层、同源／跨源 iframe、HTTP／Blob classic/module Worker、SharedWorker 分别采样。只使用 NATIVE、OBSERVABLE、UNKNOWN、UNSUPPORTED；WebRTC policy 与无 STUN/TURN 的 ICE 计数分开记录。工具还有正式 Options 及实际 action Popup 保存链断言。精确字段、数据流、命令与未覆盖面见 [可观察面审计](observability-audit.md)。dry-run 不执行这些观测。
+
 ## 扩展侧诊断
 
 从 Popup、Options 或扩展菜单打开“隐私检测”，进入仅扩展可访问的 `diagnostic/report.html`。报告可打开固定 hosted 目标或 localhost，也可选择已有普通 HTTP(S) 标签页；先启用目标规则、配置有效信号并刷新目标。
@@ -95,3 +101,59 @@ VG-024 历史权限退出升级验证使用 `node scripts/chrome-native-headers-
 [稳定化记录](../../docs/stabilization/README.md) 说明证据与缺口；[证据索引](../../docs/stabilization/evidence-index.md) 汇总人工验收和原始记录。[任务清单](../../docs/stabilization/task-manifest.yaml) 是稳定化任务范围、依赖和状态的唯一来源。本地实现结束为 `review`，人工验收后才为 `done`。
 
 从根目录正式文档迁出的配置实现、存储字段、规则迁移和发布准备说明见 [项目实现与历史记录](project-history.md)。
+
+## 语言与定位解耦（P0）＋ Worker 侧字体（P2）
+
+- **P0 语言不再跟时区/定位连坐**：`getEffectiveLanguage()` 只看语言配置本身；`resolveProfile()`
+  在时区/定位解析失败但语言可用时返回**部分生效** payload（只有语言，`timezone: null`），
+  `Accept-Language` 与页面语言仍来自同一份语言解析，不会出现"请求头说 en-US、页面说 zh-CN"。
+  Popup 当前站点状态新增 `partial`：写明已应用什么、为什么没生效。
+  验证：`tests/p0-language-decoupling.test.ts`、`tests/header-rules.test.ts`。
+- **P2 Worker 侧字体伪装**：`surfaces/offscreen-fonts.ts` 把同一份屏蔽名单补到
+  `OffscreenCanvasRenderingContext2D.measureText` 与 `FontFaceSet.check`；名单经
+  `LanguageTimezonePayload.blockedFonts` 进入 Blob Worker（含嵌套），条件是
+  `fontExposure.enabled && mode === 'vendor-software'`，与 `compileFontScripts()` 同步开关。
+  验证：`tests/worker-fonts.test.ts`（含生产 Blob bootstrap 在 vm realm 内的实测）。
+- **文件型 Worker（P2 第二步）**：`new Worker('/app.js')` 这条链路由**独立 userScript**
+  `worker-fonts/hook.js` 负责（`src/injected/runtime-modules/worker-font-hook-entry.ts`，
+  构建期由 `generateWorkerFontHook()` 产出）。它只带固定内置名单、只用字体补丁源
+  （`buildWorkerPatchSourceFromFonts()`，语言/时区为 null），不碰页面运行时的 graph，
+  `tests/runtime-build.test.ts` 的"页面 graph 不含 `worker/`"契约保持不变。
+  注册与 `font-exposure/filter.js` 同一批域、同一开关（`compileWorkerFontScripts()`，
+  前缀 `vanishgeo-font-worker-`），清单 `js` 只有一行 `worker-fonts/hook.js`。
+  验证：`tests/worker-font-hook.test.ts`（编译门禁＋产物自包含＋vm realm 内实际改包
+  `new Worker('/worker.js')` 的脚本体）。
+- **仍未覆盖**：SharedWorker / 自定义名单维持 VG-025 的暂停范围；跨源 Worker 交由原生。
+
+## Canvas 字体伪装（独立 userScript）
+
+- 配置：`fontExposure.canvasSpoof = { enabled, platform: 'macos' | 'windows' }`，默认关闭。
+- 产物：`dist/canvas-fonts/{macos,windows}.js`，`(${applyCanvasFontSpoof})('macos' | 'windows')`。
+- 门禁与字体过滤一致：`FONT_FILTER_PRODUCTION_APPROVED && fontExposure.enabled && canvasSpoof.enabled && 规则预设 full`。
+- 行为：目标平台之外的专有字体（如声称 macOS 时的 `Segoe UI`、`Microsoft YaHei`）在 `measureText` 中改用对端等价字体量宽，
+  测量后恢复原 `font`；`FontFaceSet.check()` 对它们返回 `false`。不改实际像素，因此与截图指纹仍可能不一致。
+- 不覆盖：`fillText` 实际字形、`@font-face local()`、像素比对、WebGL。
+
+## 环境预设（三省一市：新加坡 / 东京 / 洛杉矶）
+
+- `src/shared/environment-presets.ts` 导出 `ENVIRONMENT_PRESETS`，只包含上述三项。
+- `applyEnvironmentPreset()` 只改全局语言/时区/地理位置并把三者置为显式值，规则、出口档案、WebRTC、字体配置不动。
+- Options「一键环境预设」填入表单后走正常保存流程，不绕过校验。
+
+## 烘焙 persona（`npm run build:persona`）
+
+- 把一次出口画像固化进产物：manifest 增加 `content_scripts`（`world: MAIN`、`document_start`、`all_frames`），
+  注入 `persona/page-runtime.js`（自包含函数 + 内联 payload），不依赖运行期 `userScripts` 注册。
+- `persona/persona.json` 记录坐标/语言/时区/域名，便于复核；`--preset` 与 `--lat/--lon/--timezone/--language` 可混用，显式参数优先。
+
+## 指纹一致性回归（`npm run smoke:fingerprint`）
+
+- 在顶层 / 同源 iframe / Dedicated Worker 三个独立 realm 内跑**同一份** dist 页面运行时，
+  比对 `Intl` 时区、`getTimezoneOffset`、`locale`、`navigator.language(s)`，任一处不一致即非零退出。
+- `--selftest-mismatch` 故意让 Worker 偏离，用来证明比对逻辑不会假绿。
+
+## WebRTC：为什么只用浏览器策略
+
+对比过两条路线：页面侧伪造 `RTCPeerConnection`（fork 的 `WebRtcMode + spoof`）与浏览器策略（本项目的 `privacy.network.webRTCIPHandlingPolicy`）。
+本项目保留策略路线：它在网络栈执行、页面无法探测（无 proxy 函数、无 toString 痕迹、无 SDP 自相矛盾），且覆盖 Worker 与无脚本场景；
+JS 伪造则只能覆盖注入的 realm，且 SDP 与真实 DTLS/候选天然冲突，可被指纹识别。回归锚点见 `tests/webrtc.test.ts`（源码中不得出现 `RTCPeerConnection` 伪造）。

@@ -1,0 +1,17 @@
+{
+  "id": "VG-043",
+  "name": "扩展可观察面审计与站点兼容性预设",
+  "status": "review",
+  "dependencies": ["VG-040", "VG-042"],
+  "baseline_head": "9b5d9be6205c4098ec75dc7338be767e6dd87536",
+  "authorization": {
+    "date": "2026-10-26",
+    "scope": "可观察面审计、native/consistency/full预设、Helium干净对照和真实Chrome定向验证；不修改版本权限、不提交推送发布"
+  },
+  "evidence": "evidence.json",
+  "delivery_authorization": {
+    "date": "2026-10-28",
+    "scope": "用户明确要求提交并推送本地最新代码，并合并分支；不等于浏览器人工验收或发布授权"
+  },
+  "acceptance": { "status": "pending", "local_commit_authorized": true, "push_authorized": true, "merge_authorized": true, "publication_authorized": false }
+}

@@ -452,3 +452,11 @@ Thumbs.db
 !.trellis/tasks/10-26-vg-042-config-validation/task.json
 !.trellis/tasks/10-26-vg-042-config-validation/implement.md
 !.trellis/tasks/10-26-vg-042-config-validation/chrome-evidence.json
+
+# VG-043 可观察面审计、预设与精简合成证据；完整原始输出保留在忽略的 release/。
+!.trellis/tasks/10-26-vg-043-observability/
+.trellis/tasks/10-26-vg-043-observability/*
+!.trellis/tasks/10-26-vg-043-observability/task.json
+!.trellis/tasks/10-26-vg-043-observability/prd.md
+!.trellis/tasks/10-26-vg-043-observability/implement.md
+!.trellis/tasks/10-26-vg-043-observability/evidence.json

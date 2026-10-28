@@ -489,7 +489,7 @@ h2 {
 
 .site-rule {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 320px) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 1.2fr) minmax(160px, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 14px;
@@ -652,3 +652,41 @@ h2 {
 .onboarding-content > .input-group { min-width: 0; }
 #onboardingStatus { color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
 #setupStatus { line-height: 1.6; overflow-wrap: anywhere; }
+
+/* 快速设置卡片：与 popup 同一套结构，便于两边视觉对齐。 */
+.profile-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.profile-card {
+  text-align: left;
+  cursor: pointer;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 11px);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.profile-card:hover { border-color: var(--line-strong); }
+.profile-card[aria-pressed="true"] { border-color: var(--success); }
+.profile-card-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.profile-card-info { font-size: 11px; color: var(--muted); }
+
+/* 快速设置：下拉占满剩余宽度，按钮保持自身宽度，避免两个 1fr 大块并排。 */
+.quick-set-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 8px;
+}
+
+.quick-set-row select { flex: 1 1 auto; min-width: 0; }
+.quick-set-row button { flex: 0 0 auto; white-space: nowrap; }
+
+.quick-set-cards.profile-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.quick-set-card { display: flex; flex-direction: column; gap: 2px; }
+.quick-set-card-info { line-height: 1.3; }
