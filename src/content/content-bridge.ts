@@ -172,6 +172,18 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
           ?.catch(() => undefined);
         return;
       }
+      // 包装失败的上报：同样只搬运，判定与聚合都在后台。
+      // 放在 `if (port) return` 之前 —— 端口常开后回报仍会继续来。
+      if (data && data.__vanishGeo === NONCE && data.kind === 'workerFallback') {
+        environment.chrome.runtime.sendMessage({
+          action: 'reportWorkerFallback',
+          url: payloadUrl(),
+          reason: data.reason,
+          script: data.script,
+          message: data.message
+        })?.catch(() => undefined);
+        return;
+      }
       if (port) return;
       // ack 里带 nonce：确认对面真的是那个 runtime，而不是页面伪造的端口
       if (!data || data.__vanishGeo !== 'ack' || data.nonce !== NONCE) return;
@@ -199,6 +211,22 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   };
   scheduleRetry();
 
+  /**
+   * BFCache 恢复：内容脚本不会重新注入，payload 也不会自己再来一遍。
+   *
+   * 页面冻结期间配置可能已经变了（规则开关、时区、排除站点、定位刷新），恢复后它
+   * 仍跑旧值，而弹窗照样显示"已生效" —— 这是状态与事实不符，跟静默回退是同一类问题。
+   * 所以 persisted 恢复时按本 frame 的规则重拉一次；普通加载的 pageshow
+   * （persisted === false）不重拉，首屏拉取已经在跑了。
+   */
+  const onPageShow = (event: any): void => {
+    if (!event || event.persisted !== true) return;
+    requestPull();
+  };
+  try {
+    environment.window.addEventListener?.('pageshow', onPageShow);
+  } catch { /* 非浏览器环境（测试替身）忽略 */ }
+
   // 后台推来的增量更新（配置变更、定位刷新）走这里，不再经 window.postMessage。
   // clear 也要先重拉自己的 payload：父页未命中而子域 iframe 命中时，广播 clear
   // 不能把子框架的伪装一起清掉；重拉后按本 frame 的规则决定 apply / clear。
@@ -216,6 +244,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   });
   return {
     stop(): void {
+      try { environment.window.removeEventListener?.('pageshow', onPageShow); } catch { /* ignore */ }
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = null;
       if (pullTimer) clearTimeout(pullTimer);

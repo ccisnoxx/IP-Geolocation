@@ -375,6 +375,72 @@ test('删除规则同样重载受影响标签页，规则真的消失', async ()
   assert.deepEqual(harness.stats.reloads, [1]);
 });
 
+test('慢读返回的旧快照不许写回缓存：失效之后必须读到保存后的配置', async () => {
+  const harness = createHarness({ tabs: [] });
+  const chrome = (globalThis as any).chrome;
+  const originalGet = chrome.storage.local.get;
+  // 冷启动那次读：先把空快照读出来，再拖 40ms 才返回（用户就在这段窗口里保存）
+  let slowPending = true;
+  chrome.storage.local.get = async (keys: any) => {
+    if (!slowPending) return originalGet(keys);
+    slowPending = false;
+    const stale = await originalGet(keys);
+    await new Promise((done) => setTimeout(done, 40));
+    return stale;
+  };
+
+  const slow = harness.services.getSiteConfig();
+  await new Promise((done) => setTimeout(done, 10));
+
+  const base = await harness.services.getSiteConfig();
+  await chrome.storage.local.set({
+    siteSpoofConfig: { ...base, rules: [{ id: 'late', domain: 'late.example', enabled: true }] }
+  });
+  harness.services.invalidateStorageCache();     // 等价于 storage.onChanged 做的事
+
+  await slow;                                    // 旧快照在这之后才落回
+  const later = await harness.services.getSiteConfig();
+  assert.deepEqual(later.rules.map((rule: any) => rule.domain), ['late.example'],
+    '慢读的旧快照被写进缓存了：后续读会一直停在保存前');
+  assert.deepEqual(harness.storage.siteSpoofConfig.rules.map((rule: any) => rule.domain), ['late.example'],
+    '种子写入把用户配置盖掉了');
+});
+
+test('改语言重载命中的已打开页面（文档请求头要对齐），只改时区不重载', async () => {
+  const harness = createHarness({
+    tabs: [
+      { id: 1, url: 'https://claude.ai/login' },
+      { id: 2, url: 'https://mail.google.com/u/0' },
+      { id: 3, url: 'https://unrelated.example/' }
+    ]
+  });
+  const base = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({
+    ...base,
+    rules: [{ id: 'a', domain: 'claude.ai', enabled: true }, { id: 'b', domain: 'google.com', enabled: true }] as any
+  });
+  harness.stats.reloads.length = 0;
+
+  // 只改时区：请求头没动，页面不该被重载
+  const tokyo = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({
+    ...tokyo,
+    globalProfile: { ...tokyo.globalProfile, timezone: { enabled: true, mode: 'manual', timezone: 'Asia/Tokyo' } } as any
+  });
+  assert.deepEqual(harness.stats.reloads, [], '时区变化不碰 DNR，重载纯属打扰');
+
+  // 改语言：命中的两个标签页都要重载，未命中的不碰
+  const withTz = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({
+    ...withTz,
+    globalProfile: {
+      ...withTz.globalProfile,
+      language: { enabled: true, mode: 'preset', language: 'ja-JP', languages: ['ja-JP', 'ja'], acceptLanguage: 'ja-JP,ja;q=0.9' }
+    } as any
+  });
+  assert.deepEqual(harness.stats.reloads.slice().sort(), [1, 2]);
+});
+
 test('内存快照跟着存储走：保存后立刻读到新值，lastLocation 写入也能看见', async () => {
   const harness = createHarness();
   const initial = await harness.services.getSiteConfig();
@@ -679,6 +745,44 @@ test('getCurrentTabState 无 URL / 有 URL，getPayloadForUrl 覆盖空 URL', as
   assert.equal(state.domain, 'claude.ai');
   assert.equal(state.matched, true);
   assert.equal((await harness.services.getPayloadForUrl('')).matched, false);
+});
+
+test('Worker 包装失败被记录、聚合，并按 hostname 出现在标签页状态里', async () => {
+  const harness = createHarness({ tabs: [{ id: 7, url: TAB_URL }] });
+  const base = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({ ...base, rules: [{ id: 'r', domain: 'claude.ai', enabled: true }] as any });
+
+  assert.equal(await harness.services.getWorkerFallbacks(TAB_URL), null);
+
+  harness.services.reportWorkerFallback(TAB_URL, {
+    reason: 'csp-blocked',
+    script: 'https://claude.ai/worker.js',
+    message: "Failed to construct 'Worker': Access to the script is denied by CSP"
+  });
+  harness.services.reportWorkerFallback(TAB_URL, { reason: 'csp-blocked', script: 'https://claude.ai/worker.js' });
+  harness.services.reportWorkerFallback(TAB_URL, { reason: 'construct-failed', script: 'https://claude.ai/a.js' });
+
+  const summary = harness.services.getWorkerFallbacks(TAB_URL);
+  assert.ok(summary, '记录之后必须能读回来');
+  assert.equal(summary.count, 3);
+  assert.deepEqual(summary.reasons.slice().sort(), ['construct-failed', 'csp-blocked']);
+  assert.equal(summary.lastScript, 'https://claude.ai/a.js', '最近一次脚本要更新');
+  assert.equal(summary.hostname, 'claude.ai');
+
+  // 只有 hostname 相同才命中：别的站点不能被这条记录影响
+  assert.equal(harness.services.getWorkerFallbacks('https://example.com/'), null);
+
+  const state = await harness.services.getCurrentTabState({ id: 7, url: TAB_URL } as any);
+  assert.equal(state.workerFallback?.count, 3);
+  assert.equal(state.matched, true, '记录失败不能影响原本的匹配结果');
+});
+
+test('非法 url / 空回报不会污染记录表', async () => {
+  const harness = createHarness({ tabs: [] });
+  harness.services.reportWorkerFallback('', { reason: 'csp-blocked' });
+  harness.services.reportWorkerFallback('not-a-url', { reason: 'csp-blocked' });
+  harness.services.reportWorkerFallback('https://a.test/x', null as any);
+  assert.equal(harness.services.getWorkerFallbacks('https://a.test/x'), null);
 });
 
 test('refreshActionBadge 覆盖 broken / active / 非白名单标签页', async () => {

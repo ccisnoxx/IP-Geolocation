@@ -239,3 +239,40 @@ test('manifest 声明最低 Chrome 版本（world: MAIN / matchOriginAsFallback 
   const manifest = JSON.parse(read('manifest.json'));
   assert.equal(manifest.minimum_chrome_version, '119');
 });
+
+test('Worker 包装失败必须上报，不是静默回退', () => {
+  const runtime = read('dist/injected/runtime.js');
+  const bridge = read('dist/content/content.js');
+
+  assert.match(runtime, /kind: "workerFallback"/, 'runtime 没有把回退上报出去');
+  assert.match(runtime, /csp-blocked/, 'runtime 没有区分 CSP 拒绝');
+  assert.match(bridge, /reportWorkerFallback/, '桥没有把回报转发给后台');
+
+  const router = read('src/background/message-router.ts');
+  assert.match(router, /case 'reportWorkerFallback'/);
+  const popup = read('src/popup/popup.html');
+  assert.match(popup, /id="workerFallback"/, '弹窗缺少可见提示位');
+
+  const leakPage = read('src/leak-test/leak-test.html');
+  const leakScript = read('dist/leak-test/leak-test.js');
+  assert.match(leakPage, /id="workerCoverage"/, '诊断页缺少 Worker 覆盖行');
+  assert.match(leakScript, /getWorkerFallbacks/, '诊断页没有读回退记录');
+  assert.match(leakScript, /degraded/, '诊断页没有区分「部分覆盖」');
+});
+
+test('SharedWorker 保持原生：声明与 runtime 行为必须一致', () => {
+  const runtime = read('dist/injected/runtime.js');
+
+  // 包装 SharedWorker 只能靠 blob 入口，会破坏 (URL, name) 身份；这里守住"没有包装"。
+  assert.doesNotMatch(runtime, /SharedWorker/);
+  // Worker 仍然被换成包装器 —— 否则这条测试会因为"什么都没做"而假通过
+  assert.match(runtime, /replaceGlobal\("Worker", wrapped\)/);
+
+  const coverage = read('src/shared/worker-coverage.ts');
+  assert.match(coverage, /sharedWorker:\s*\{[\s\S]{0,80}status: 'unsupported'/);
+
+  const workers = read('tools/smoke-workers.mjs');
+  // 回归脚本必须真的能区分"共享一个实例"与"各建一个"
+  assert.match(workers, /connections/);
+  assert.match(workers, /shared-counter\.js/);
+});

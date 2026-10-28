@@ -41,6 +41,19 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
         services.reportFontLayers(request.url || (sender as { url?: string }).url || '', request.layers);
         return { status: 'ok' };
       }
+      case 'reportWorkerFallback': {
+        // 来自内容脚本：Worker 入口被换掉后构造失败（最常见是 CSP 拒绝 blob），
+        // runtime 已回退原生；这里记一笔，让弹窗和诊断页能如实标"部分覆盖"。
+        services.reportWorkerFallback(request.url || (sender as { url?: string }).url || '', {
+          reason: request.reason,
+          script: request.script,
+          message: request.message
+        });
+        return { status: 'ok' };
+      }
+      case 'getWorkerFallbacks': {
+        return { status: 'ok', fallback: services.getWorkerFallbacks(request.url || '') };
+      }
       case 'getFontLayers': {
         return { status: 'ok', layers: services.getFontLayers(request.url || '') };
       }
