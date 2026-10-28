@@ -181,16 +181,52 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - **不造假信号**：不接管 `document.fonts.check`（原生对系统字体本来就返回 `true`）
 - **私有通道**：payload 经 `document_start` 握手换来的 `MessagePort` 下发，页面既看不到也伪造不了
 - **按 frame 投递**：payload 带解析时的精确 `hostname`；后台用 `webNavigation.getAllFrames` 为每个 frame 单独算规则并带 `frameId` 下发，父页不会覆盖独立子域 iframe，子框架规则删除后也会收到自己的 `clear`。同一 URL 的解析结果复用，投递最多 8 个并发，避免几十个 iframe 被串行 IPC 拖慢
+- **BFCache 恢复会重拉**：页面进 BFCache 后内容脚本不会重新注入，payload 也不会自己再来一遍。桥在 `pageshow` 且 `event.persisted === true` 时按本 frame 的规则重拉一次，所以"冻结期间改了配置/排除了站点，恢复后仍是旧值"这条路径不存在；普通加载的 `pageshow` 不重复拉取。已知代价：改语言要重写 DNR 请求头规则（Chromium 实测任何 DNR 写入都会驱逐 BFCache，同内容重写也算），而前台页面不会自己重载、文档仍是旧头 —— 所以检测到请求头值变化时**主动重载命中该域名的已打开页面**；只改时区不写 DNR、也不重载。细节见 [CONFIG_GUIDE](CONFIG_GUIDE.md)
 - **静态优先**：烘焙构建把 DNR 规则与内容脚本写进 manifest，首帧即生效
 - **值一致优先**：原生值已经正确时不打补丁
 
-**字体伪装的边界**（照实写，免得误判）：它只改 `measureText` 的**族名解析**，不动渲染。
-所以 (1) 用 CSS 量 `element.getBoundingClientRect()` 的写法测不到；(2) 系统 CJK 兜底字体
+**字体伪装的边界**（照实写，免得误判）：它改的是 canvas 里的**族名解析** —— `measureText`
+量出来的宽度，以及 `fillText` / `strokeText` 落下去的像素，两者走同一条回落路径（只改前者的话，
+"量出来缺失、画出来真实"本身就互相印证出矛盾）。所以 (1) DOM / CSS 那条路仍测不到：
+`element.getBoundingClientRect()`、SVG 文字尺寸不受影响；(2) 系统 CJK 兜底字体
 依然存在 —— `72px monospace` 量中文时仍会落到 PingFang，这是"这台机器有中文字体"的事实，
 靠 canvas 补丁消不掉；(3) `document.fonts.check()` 对没装的字体名也返回 `true`，是原生行为，
 两边一致，不构成差异信号；(4) 除 canvas 之外还有一条**直接枚举**的路 ——
 `window.queryLocalFonts()` 会返回本机全部字体，所以这一层也按同一把键过滤（实测 667 → 632 条），
 让两份视图说的是同一件事。
+
+**Worker 覆盖面**（同样是照实写，声明与 `src/shared/worker-coverage.ts` 同源）：
+
+| 上下文 | 覆盖 | 说明 |
+|---|---|---|
+| classic / module Worker | ✅ 或 ⚠️ | blob 前缀包装入口，Date / Intl / navigator / canvas 与主线程同源。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口，此时标 ⚠️ 并在弹窗里明说 |
+| SharedWorker | ❌ | **不包装**：身份是 `(resolved URL, name)`，换成 blob URL 会让每个文档各建一个实例，跨文档共享语义消失且无法修回去。它读到的是**原生值** |
+| nested worker | ❌ | 父 Worker 里的 `Worker` 构造器未打补丁，孙 Worker 读到原生值 |
+| service worker | ❌ | 没有 hook `navigator.serviceWorker.register` |
+
+诊断页（`fixtures/workers/top.html`）与 `buildWorkerDiagnosticsSnapshot` 都按这张表标注：
+UNSUPPORTED 的上下文即使探测"成功"也不显示成通过 —— 探测能返回值不代表被伪装。
+
+**包装失败是可见的，不是静默回退。** 页面 CSP 的 `worker-src` / `script-src` 有权拒绝
+blob 入口，而 Chrome 在这种拒绝下**不会让构造函数抛错**，只在稍后触发一次 error 事件
+（`message` 还是空的）。所以注入层在 `document_start` 先建一个一次性探测 Worker：
+
+- 探测通过 → 照常包装；
+- 探测被拒 → 该文档里所有 Worker 走原生入口（页面不会坏），并回报 `csp-blocked`；
+- 探测未完成（毫秒级窗口）→ 该次构造先走原生，宁可少伪装一次也不把页面弄坏。
+
+回报经私有端口 → ISOLATED 桥 → 后台，按 hostname 聚合。用户可见的出口有两处：
+弹窗会显示「本页 N 个 Worker 未能包装（页面 CSP 拒绝 blob 入口）」并说明这些 Worker 里是原生值；
+诊断快照把 classic / module 标成 `degraded`（`coverage` 仍是 `supported`，`fallback` 字段带计数与原因），
+不会混成 `ok`，也不会冒充 `unsupported`。
+
+探测本身的代价写在这里，不藏：在 CSP 拒绝 blob 的站点上，每次文档加载都会多出一次被拒的
+blob Worker 请求，页面的 `securitypolicyviolation` 监听或 CSP 上报端能看到它 —— 这类站点可以
+由此推断"有东西在试探 blob Worker"。不探测的替代方案是让页面自己的 Worker 直接坏掉（CSP 站点
+上必然发生），或者干脆不包装 Worker 却仍显示"已生效"，两者都更差，所以选探测 + 如实上报。
+
+回归脚本：`npm run smoke:workers`（两个标签页连同一个 `(URL, name)`，用 connections 计数
+区分"共享一个实例"与"各建一个"；另有一个 `?csp=1` 的页面专门验证 CSP 回退与上报）。
 
 ### 🛡️ 指纹检测站点
 
@@ -370,6 +406,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - **No invented signals**: `document.fonts.check` is left alone (the native one already returns `true` for system fonts)
 - **Private channel**: payloads arrive through a `MessagePort` obtained by a `document_start` handshake; the page can neither observe nor forge them
 - **Per-frame delivery**: payloads carry the exact `hostname` they were resolved for; the background uses `webNavigation.getAllFrames` to resolve and send each frame with its own `frameId`, so a parent payload cannot overwrite an independently-ruled child iframe, and a removed child rule still receives its own `clear`. Payload resolution is shared per URL and sends are capped at 8 concurrent IPC calls
+- **BFCache restore re-pulls**: a page in BFCache is not re-injected and receives no new payload on its own. When `pageshow` fires with `event.persisted === true`, the bridge re-pulls for its own frame, so "config changed while frozen, stale value after restore" does not happen; a normal-load `pageshow` does not trigger an extra pull
 - **Static first**: baked builds ship DNR rules and content scripts in the manifest, live on the first frame
 - **Value first**: no patching when the native value is already correct
 
