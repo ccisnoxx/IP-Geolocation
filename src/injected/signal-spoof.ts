@@ -108,8 +108,8 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
   // ---------- 时区计算 ----------
 
   let formatterCache: { zone: string; formatter: any } | null = null;
-  // 缓存的 key 只有"小时桶"，所以时区一变就必须整体作废 —— 否则换城市之后
-  // 前 512 个桶还会吐出旧时区的偏移量。
+  // 缓存的 key 是"分钟桶"，所以时区一变就必须整体作废 —— 否则换城市之后
+  // 前一分钟桶还会吐出旧时区的偏移量。
   let offsetCacheZone = '';
   let offsetCache = new Map<number, number>();
 
@@ -150,7 +150,15 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
       formatterCache = null;
     }
 
-    const bucket = Math.floor(time / 3600000);
+    // 缓存键必须是**分钟**，不能是小时。
+    //
+    // 夏令时切换点是按本地时刻定义的（各地普遍是本地 02:00），换算成 UTC 之后不一定
+    // 落在整点上：Australia/Lord_Howe 的 +10:30→+11:00 发生在 UTC 15:30，Pacific/
+    // Chatham 的 +12:45→+13:45 落在 :45。用小时桶时，桶被切换**前**的调用填过一次，
+    // 切换后那半小时内 getTimezoneOffset / getHours / toString 全部沿用旧偏移
+    // （实测 Lord Howe 2026-10-04 返回 -630 而真值是 -660）。
+    // 真实时区的切换点都落在整分，所以分钟桶既正确、也仍然只占一个 Map 条目。
+    const bucket = Math.floor(time / 60000);
     const cached = offsetCache.get(bucket);
     if (cached !== undefined) return cached;
 
@@ -169,7 +177,9 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     } catch {
       value = nativeGetTimezoneOffset.call(new NativeDate(time));
     }
-    if (offsetCache.size > 512) offsetCache.clear();
+    // 分钟桶比小时桶多一个量级：页面上按毫秒随机取时间的检测脚本会很快填满 512 条，
+    // 频繁 clear() 让它退化成每毫秒都重算一次 formatToParts。
+    if (offsetCache.size > 4096) offsetCache.clear();
     offsetCache.set(bucket, value);
     return value;
   }
