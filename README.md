@@ -54,7 +54,7 @@ npm run build        # 内含 typecheck；产物在 dist/
 - **启用本站 / 排除本站** - 直接给当前域名写一条规则，写完只重载这个域名的标签页
 - 📦 **一条命令出包** - `npm run release -- --all-presets` 烘焙 → 校验 → 打包 → 记账（sha256 / git sha / 坐标 / 域名），三道闸任一不过就不出包；`npm run verify:release` 真开浏览器量首屏，证明零窗口成立
 - 🩺 **配置体检** - 诊断页实时算出配置里的自相矛盾：请求头与 JS 语言不一致、时区填了却没开、坐标与声明时区差几千公里……能机械修的直接给按钮；「时区在美国而语言是中文」这类取舍只报告、不替你做决定
-- **快速配置** - 五个内置 persona 卡片（新加坡 / 日本 / 德国 / 美国 / 中国）、手动坐标与时区、语言与 `Accept-Language`、字体列表
+- **快速配置** - 六个内置 persona 卡片（新加坡 / 日本 / 德国 / 美国东岸 / 美西 / 中国）、手动坐标与时区、语言与 `Accept-Language`、字体列表
 - **从 IP 自动配置** - 按出口 IP 推一套自洽的地点和时区
 
 完整配置页（弹窗内「打开完整配置」）多出：站点规则的可视化启用/禁用/删除、
@@ -79,7 +79,7 @@ google.com          ← 启用：google.com 及其所有子域
 | --- | --- |
 | 时区 / 语言 / 定位 / canvas | 立即推给所有已开标签页，**不用刷新** |
 | 启用 / 排除 / 删除某域名 | 只重载**该域名**的标签页（其它标签页不动） |
-| 出口 IP 变化 | 每 5 分钟（`chrome.alarms`）自动跟随一次；想立刻生效点「重试定位」 |
+| 出口 IP 变化 | 每 5 分钟（`chrome.alarms`）刷新定位；配置页的「跟随出口 IP」打开后，IP 变了才会改写时区/坐标 |
 | 图标角标 | 随定位/配置刷新；fail-closed 时变红 `!` 并在弹窗给出原因 |
 
 ### 🧱 默认值
@@ -90,14 +90,22 @@ google.com          ← 启用：google.com 及其所有子域
 | 时区 | `auto` | 跟随出口 IP 推导；只有点了 persona 卡片才钉成固定值 |
 | 定位 | `auto` | 同上 |
 | 默认选中 persona | `united-states` | 只在配置页"当前配置"里预选，**不代表**时区已被钉住 |
+| 跟随出口 IP（`ipSync`） | 关，周期 5 分钟 | 打开后出口 IP 一变就改写时区/坐标并清掉钉住的 persona；语言默认不跟随 |
 | WebRTC | `strict` | `disable_non_proxied_udp` |
 | canvas 字体 | 关闭 | 打开后按 `targetFonts` 列表替换 |
-| 域名规则 | 13 个，全部启用 | 见 `src/shared/default-domains.json` |
+| 域名规则 | 20 个，全部启用 | 13 个常用站 + 7 个检测站，见 `src/shared/default-domains.json` |
 
-**首次安装**会把默认规则种进去（chatgpt.com、openai.com、claude.ai、anthropic.com、
-gemini.google.com、copilot.microsoft.com、google.com、bing.com、x.com、twitter.com、
-youtube.com、reddit.com、linkedin.com）；**从旧版升级**时，`VanishMe` 老配置会被
-`convertVanishMeConfig` 迁移，更早的扁平键（`bpg_config` 之前的形态）走默认规则。
+**首次安装**会把默认规则种进去。前 13 条是常用站（chatgpt.com、openai.com、claude.ai、
+anthropic.com、gemini.google.com、copilot.microsoft.com、google.com、bing.com、x.com、
+twitter.com、youtube.com、reddit.com、linkedin.com），后 7 条是**隐私检测站**
+（browserleaks.com、ipleak.net、browserscan.net、deviceinfo.me、whoer.net、ipinfo.io、
+iprisk.top）—— 装上就能直接打开自测，不用手动加域名。
+
+**从旧版升级**时，`VanishMe` 老配置会被 `convertVanishMeConfig` 迁移，更早的扁平键
+（`bpg_config` 之前的形态）走默认规则。**本仓库老版本存下来的配置**由
+`migrateStoredConfig` 按 `schemaVersion` 补一次新内置项（检测站与 `us-west` 预设）：
+存量用户不会因为"配置非空就原样保留"而错过新功能，而一旦存成当前版本，之后主动
+删掉的内置项也不会被下一次读取复活。
 
 ### 🧪 调试与自检
 
@@ -126,7 +134,7 @@ npm run audit         # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium
 npm run smoke:frames  # frame 隔离（父域 / 子域 / about:blank / srcdoc）
 npm run smoke:baked-failclosed  # 烘焙包定位 fail-closed + 可逆恢复 + 关总开关 clear
 npm run smoke:baked-clear  # 烘焙包排除站点 / 关总开关 / frozen 冻结验证
-npm run smoke:presets # 五个内置 preset 的浏览器 E2E（语言/时区/请求头）
+npm run smoke:presets # 六个内置 preset 的浏览器 E2E（语言/时区/请求头）
 npm run smoke:cold-start # 冷启动 + clear 浏览器 smoke
 npm run smoke:popup   # popup 真实点击 / storage / 后台消息 smoke
 node tools/native-parity.mjs  # Helium 原生形状对拍（83 项，control vs patched）
@@ -286,7 +294,7 @@ In the popup:
 
 - **Site rules** - one domain per line; `example.com` also covers its subdomains; **no wildcards**
 - **Enable / exclude this site** - writes a rule for the current hostname and reloads only that site's tabs
-- **Quick presets** - five built-in personas (Singapore / Japan / Germany / USA / China), manual coordinates and timezone, language and `Accept-Language`, font list
+- **Quick presets** - six built-in personas (Singapore / Japan / Germany / US East / US West / China), manual coordinates and timezone, language and `Accept-Language`, font list
 - **Configure from IP** - derives a self-consistent location and timezone from the exit IP
 
 The full options page adds enable/disable/delete for each site rule and import/export
@@ -325,11 +333,17 @@ google.com          ← enabled: google.com and all of its subdomains
 | Default selected persona | `united-states` | Only pre-selects the profile in the options page |
 | WebRTC | `strict` | `disable_non_proxied_udp` |
 | Canvas fonts | off | When on, replaces `targetFonts` |
-| Site rules | 13 domains, all enabled | See `src/shared/default-domains.json` |
+| Site rules | 20 domains, all enabled | 13 common sites + 7 privacy test sites, see `src/shared/default-domains.json` |
 
-First install seeds the 13 default rules. Upgrading from the old `VanishMe` build
-migrates its config through `convertVanishMeConfig`; older flat keys fall back to the
-default rules.
+First install seeds all 20 default rules — 13 common sites plus 7 privacy test sites
+(browserleaks.com, ipleak.net, browserscan.net, deviceinfo.me, whoer.net, ipinfo.io,
+iprisk.top), so a fresh install can be self-tested without adding any domain by hand.
+
+Upgrading from the old `VanishMe` build migrates its config through
+`convertVanishMeConfig`; older flat keys fall back to the default rules. Configs saved
+by an **older build of this repo** are backfilled once by `migrateStoredConfig` based on
+`schemaVersion`, so upgrading users get the new built-ins too. Once the config is stored
+at the current version, built-ins you delete stay deleted.
 
 ### 🧪 Diagnostics
 

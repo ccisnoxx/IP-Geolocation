@@ -140,6 +140,29 @@
     </section>
 
     <section class="section">
+      <div class="section-header">
+        <h2>跟随出口 IP</h2>
+        <button id="ipSyncNow" class="btn-secondary">立即同步一次</button>
+      </div>
+      <p class="section-description">开启后按周期检查出口 IP。IP 变化时，时区与坐标会切到「跟随出口 IP」的 auto 档，手选的预设会被清空。开关打开期间，上方「当前配置」里手填的时区与经纬度不参与提交，以出口 IP 的归属地为准。</p>
+      <div class="settings-grid">
+        <label class="checkbox-label">
+          <input type="checkbox" id="ipSyncEnabled">
+          <span>自动跟随出口 IP（时区 + 坐标）</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="ipSyncLanguage">
+          <span>语言也跟随（按出口国家改写 language / Accept-Language）</span>
+        </label>
+        <div class="input-group">
+          <label for="ipSyncInterval">检查周期（分钟，5–1440）</label>
+          <input type="number" id="ipSyncInterval" class="input" step="1" min="5" max="1440">
+        </div>
+      </div>
+      <div class="hint" id="ipSyncStatus"></div>
+    </section>
+
+    <section class="section">
       <h2>预设配置</h2>
       <p class="section-description">点击"应用"快速切换到预设配置</p>
       <div id="defaultProfiles" class="profiles-grid"></div>

@@ -29,6 +29,39 @@
 - 时区一改，`Date` 的 `get*`/`set*`/`toString`/`Intl` 会一起跟着走；`new Date('2026-01-01T00:00:00')`
   这类**没有时区后缀**的字符串会被当成目标时区的本地时间解释，这是原生语义。
 
+### 「跟随出口 IP」开关（配置页）
+
+默认的两条链路要分清：
+
+| 链路 | 触发 | 改的是什么 |
+| --- | --- | --- |
+| 定位刷新（一直存在） | `chrome.alarms` 每 5 分钟 | 只刷新 `lastLocation`，`auto` 档拿它推导 |
+| 跟随出口 IP（默认关闭） | 同周期，但**只在出口 IP 变了才动手** | 把时区/坐标**写进配置**，并清掉钉住的 persona |
+
+开关那一段对应配置里的 `ipSync`：
+
+| 项 | 默认 | 说明 |
+| --- | --- | --- |
+| 自动跟随出口 IP | 关 | 打开后每轮查出口 IP；IP 变了才改配置，同 IP 直接跳过 |
+| 检查周期 | 5 分钟 | 允许 5–1440；改周期会重建定时器，不用重启浏览器 |
+| 语言也跟随 | 关 | 打开后按出口国家改写 `language` / `languages` / `Accept-Language`，三处一起改 |
+| 立即同步一次 | — | 带 `force` 跳过「IP 没变」，用来现场验证改动是否真的落到 payload 上 |
+
+要点：
+
+- 跟随开着时，配置页保存会按 `auto` 档提交时区与坐标，而且**提交的是后台对齐后的那份值**：
+  开关打开期间表单里手填的时区、经纬度会被忽略（点保存不会把它们写回去，否则每保存一次
+  就把刚对齐的结果顶回旧值）。
+- 同步是**覆盖**语义：`timezone.timezone`、经纬度、`geolocation.country` 都会被出口那边的
+  值改写。关掉开关后看到的是被改写后的值，不是原来手填的那个 —— 想留着自己的值，先关开关
+  再填。
+- 会清掉 `profile.activeProfileId`。preset 是固定坐标，「跟随出口」是浮动坐标，
+  两种意图互斥，点过 persona 卡片之后再开跟随，等于回到不钉 persona 的状态。
+- 语言默认不跟随，这是故意的：`Accept-Language` 必须和页面语言同源，跟着出口国家改
+  语言会造出「浏览器说日语、时区在洛杉矶」这类自相矛盾（见第三节）。
+- 状态行显示上次同步的出口 IP、当前定位与周期；没同步过时会说明原因
+  （全局保护关了 / 开关没开 / IP 没变）。查不到出口时不推进记录，下一轮重试。
+
 ## 三、语言：三处必须同源
 
 一次配置会同时影响三处：
@@ -202,6 +235,17 @@ google.com          ← 启用：google.com 及其所有子域
 - **最长匹配优先**：`google.com` 启用 + `mail.google.com` 排除 = 邮件站不伪装
 - 排除规则会被保留，保存一次不会消失
 - 没有通配符（`*.example.com` / `*keyword*` 都不支持），也没有全局/白名单/黑名单三模式
+- 裸域条目就是"含全部子域"，**不要**写 `*.browserleaks.com`：`normalizeDomain` 会把星号
+  剥掉，写通配只是同一条规则写了两遍
+
+默认白名单 20 条：13 个常用站 + 7 个隐私检测站（browserleaks.com、ipleak.net、
+browserscan.net、deviceinfo.me、whoer.net、ipinfo.io、iprisk.top）。检测站的用处是
+**装上就能自测**：不用先手动加域名，打开这些站就能看伪装是否生效。
+
+新增内置项不回填是老问题：`normalizeConfig` 是"存量非空就整段以存量为准"，于是升级
+用户的白名单里永远没有检测站，等于只有新装用户才有的功能。现在由
+`migrateStoredConfig` 在读取存量配置时按 `schemaVersion` 补一次（`CONFIG_SCHEMA_VERSION`
+= 5），幂等靠版本号保证 —— 补完存成 v5，之后你删掉的规则不会被下一次读取复活。
 - 启用/排除/删除只重载**该域名**的标签页
 
 ## 八、常见误配清单
@@ -268,12 +312,12 @@ HTML 已经缓冲好时，首个内联脚本紧接着就执行。所以开发构
 
 ### 发布流水线：一条命令出包
 
-手上有两种输入：仓库内置的五个 preset，或者从出口 IP 推出来的 persona
+手上有两种输入：仓库内置的六个 preset，或者从出口 IP 推出来的 persona
 （`~/.vanishgeo/personas/*.json`）。两者都走同一条烘焙路径：
 
 ```bash
 npm run release -- --preset=singapore          # 单个
-npm run release -- --all-presets               # 五个全出
+npm run release -- --all-presets               # 六个全出
 npm run release -- --persona=us-la-1           # 用 IP 推出的 persona
 npm run release -- --all-personas --frozen     # 全部 persona，且彻底冻结
 npm run release -- --preset=singapore --domains=claude.ai,anthropic.com
@@ -282,7 +326,7 @@ npm run release -- --preset=singapore --domains=claude.ai,anthropic.com
 产物在 `release/`：
 
 ```
-vanishgeo-1.3.1-singapore.zip        93 KB   Asia/Singapore en-SG   13 条静态规则
+vanishgeo-1.4.0-singapore.zip        93 KB   Asia/Singapore en-SG   20 条静态规则
 vanishgeo-1.3.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 域名 / 构建时间
 ```
 
