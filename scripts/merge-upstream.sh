@@ -98,6 +98,11 @@ while IFS= read -r -d '' record; do
       git checkout HEAD -- "$path"
       git add -- "$path"
       ;;
+    DD)
+      # 两边都删：仍会留在 index 里当冲突，不收口的话后面 commit 会直接失败
+      echo "  两边都删 $path"
+      git rm -q --force -- "$path"
+      ;;
     AU)
       echo "  保留本地 $path"
       git add -- "$path"
@@ -108,7 +113,7 @@ while IFS= read -r -d '' record; do
 done < <(git -c core.quotePath=false status --porcelain -z || true)
 
 # 2) 上游新增、但直接挂在旧配置类型上的文件：暂不移植
-for f in src/background/ip-sync.ts tests/ip-sync.test.mjs; do
+for f in src/background/ip-sync.ts tests/ip-sync.test.ts; do
   if git cat-file -e "HEAD:$f" 2>/dev/null; then continue; fi
   if git ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
     echo "  暂不移植 ${f}（新模型上重写，见报告 §7.1）"

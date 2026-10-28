@@ -7,6 +7,8 @@
  * 没有任何办法知道它生成的配置长什么样。
  */
 
+import { DEFAULT_PRESET_ACCURACY } from './presets.mjs';
+
 /**
  * 默认启用域名，与扩展内置白名单同源。
  * @param {string[]} defaultDomains
@@ -37,7 +39,7 @@ function rulesFor(domains) {
  * 从内置 preset 生成烘焙配置。
  *
  * preset 与 persona 的差别只在"地理/语言/时区"的取值方式：preset 是仓库内置的
- * 五个城市，persona 来自 `~/.vanishgeo/personas/*.json`（由 IP 推导而来）。
+ * 几个城市，persona 来自 `~/.vanishgeo/personas/*.json`（由 IP 推导而来）。
  * 两者都收敛成同一份 SiteSpoofConfig 形状，走同一条烘焙路径。
  *
  * @param {{ id: string, geolocation: any, language: any, timezone: any }} preset
@@ -69,7 +71,7 @@ export function configFromPreset(preset, options) {
         mode: 'manual',
         latitude: Number(preset.geolocation?.latitude),
         longitude: Number(preset.geolocation?.longitude),
-        accuracy: Number(preset.geolocation?.accuracy ?? 30),
+        accuracy: Number(preset.geolocation?.accuracy ?? DEFAULT_PRESET_ACCURACY),
         country: String(preset.geolocation?.country || ''),
         randomize: false,
         randomRadiusMeters: 0,
@@ -115,7 +117,7 @@ export function configFromPersona(persona, options) {
         mode: 'manual',
         latitude: Number(persona.latitude),
         longitude: Number(persona.longitude),
-        accuracy: 30,
+        accuracy: DEFAULT_PRESET_ACCURACY,
         country: '',
         randomize: false,
         randomRadiusMeters: 0,

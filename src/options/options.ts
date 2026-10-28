@@ -107,6 +107,14 @@ function populateForm(config: SiteSpoofConfig): void {
   renderSiteRules();
 }
 
+/** 周期输入框：空或非数字时保持原值，交给 normalizeIpSync 只做范围夹取。 */
+function parseIntervalMinutes(raw: string, fallback: number): number {
+  const text = raw.trim();
+  if (!text) return fallback;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function readForm(): SiteSpoofConfig {
   // 跟随出口 IP 打开时，时区与坐标由后台按出口 IP 改写。这里必须存成 auto 档，
   // 否则在配置页点一次保存就把 auto 手滑改回 manual，开关看起来像没生效。
@@ -154,7 +162,9 @@ function readForm(): SiteSpoofConfig {
       // 关掉开关时一起落 false：勾选框是 disabled 的，用户没法自己取消勾选，
       // 留着 true 会让「以后重新打开总开关」无声地把语言也接管过去。
       syncLanguage: ipSyncOn && ipSyncLanguageEl.checked,
-      intervalMinutes: Number(ipSyncIntervalEl.value)
+      // 空串不能当 0 处理：`Number('')` 是 0，会被下限夹成 5，用户把"15"清空再保存
+      // 就悄悄变成了 5。空/非数字一律保持上次存的值，真要改就打一个新数字进去。
+      intervalMinutes: parseIntervalMinutes(ipSyncIntervalEl.value, currentConfig.ipSync.intervalMinutes)
     }
   });
 }

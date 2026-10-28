@@ -85,7 +85,7 @@ const CHECKS = [
   { id: 'frames', label: 'frame 隔离', script: 'tools/smoke-frames.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'bakedfailclosed', label: '烘焙 fail-closed', script: 'tools/smoke-baked-failclosed.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'bakedclear', label: '烘焙 clear / frozen', script: 'tools/smoke-baked-clear.mjs', args: [] },
-  { id: 'presets', label: '5 preset 浏览器 E2E', script: 'tools/smoke-presets.mjs', args: [] },
+  { id: 'presets', label: '内置 preset 浏览器 E2E', script: 'tools/smoke-presets.mjs', args: [] },
   { id: 'coldstart', label: '冷启动 / clear', script: 'tools/smoke-cold-start.mjs', args: [] },
   { id: 'popup', label: 'popup 交互', script: 'tools/smoke-popup.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'native', label: '原生模式自检', script: 'tools/native-audit.mjs', args: ['--profile=' + join(homedir(), '.vanishgeo', 'audit-profile')] },

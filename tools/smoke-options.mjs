@@ -205,12 +205,15 @@ try {
     syncedIp = await page(`chrome.storage.local.get('lastSyncedExitIp').then((value) => value.lastSyncedExitIp || '')`, { awaitPromise: true });
     if (!syncedIp) await sleep(300);
   }
-  const deadline = Date.now() + 10000;
+  // 重新打开配置页再读：这条断言要验的是「按存储渲染」，不能靠页面自己定时刷新 ——
+  // 那样刷新间隔一改，同一个脚本就会时红时绿，而且红绿反映的是节奏不是正确性。
+  await cdp.send('Page.navigate', { url: `chrome-extension://${extensionId}/options/options.html` }, pageSession);
+  const deadline = Date.now() + 8000;
   let status = '';
   while (Date.now() < deadline) {
-    status = await page(`document.getElementById('ipSyncStatus').textContent`);
+    status = (await page(`document.getElementById('ipSyncStatus') ? document.getElementById('ipSyncStatus').textContent : ''`)) || '';
     if (syncedIp ? status.includes(syncedIp) : status.includes('还没成功同步过')) break;
-    await sleep(300);
+    await sleep(200);
   }
   check(
     syncedIp ? '状态行显示上次出口 IP' : '没拿到出口 IP 时状态行如实说没同步过',

@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { parsePresets, readPresets } from '../scripts/lib/presets.mjs';
+import { DEFAULT_PRESET_ACCURACY, parsePresets, readPresets } from '../scripts/lib/presets.mjs';
 import { validateProfile, applyProfileToConfig } from '../src/shared/profile';
 import {
+  DEFAULT_GEOLOCATION,
   DEFAULT_PROFILES,
   getTimezoneOffsetMinutes,
   normalizeConfig,
@@ -279,4 +280,36 @@ test('popup 的 preset 卡片与 DEFAULT_PROFILES 一一对应', () => {
   const html = readFileSync(join(ROOT, 'src', 'popup', 'popup.html'), 'utf8');
   const ids = [...html.matchAll(/data-profile="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(ids, DEFAULT_PROFILES.map((profile) => profile.id));
+});
+
+test('字符串里的转义撇号不会把字段截断', () => {
+  const source = `export const DEFAULT_PROFILES: ProfilePreset[] = [
+  {
+    id: 'ci',
+    name: 'Cote d\\'Ivoire',
+    description: '',
+    geolocation: { latitude: 5.36, longitude: -4.0083, country: 'CI' },
+    language: { language: 'fr-FR', languages: ['fr-FR'], acceptLanguage: 'fr-FR' },
+    timezone: { timezone: 'Africa/Abidjan' }
+  }
+];`;
+  assert.ok(source.includes("\\'"), '这条用例必须真的把反斜杠写进源码文本');
+  const [preset] = parsePresets(source);
+  assert.equal(preset.name, "Cote d'Ivoire");
+});
+
+test('精度默认值与扩展内的 DEFAULT_GEOLOCATION.accuracy 同源', () => {
+  // 两处各写一个默认值，烘焙产物（走 presets.mjs）和扩展内预设页（走 config-model）
+  // 就会给出不同精度，而现象只是"数字不一样"，很难联想到是两个常量
+  assert.equal(DEFAULT_PRESET_ACCURACY, DEFAULT_GEOLOCATION.accuracy);
+  for (const preset of readPresets(ROOT)) {
+    assert.equal(preset.geolocation.accuracy, DEFAULT_PRESET_ACCURACY, `${preset.id} 的精度`);
+  }
+});
+
+test('DEFAULT_PROFILES 前缀相同的标识符不会把起点带偏', () => {
+  const source = `export const DEFAULT_PROFILES_OLD = [];\nexport const DEFAULT_PROFILES: ProfilePreset[] = [\n  {\n    id: 'x',\n    name: 'X',\n    description: '',\n    geolocation: { latitude: 1, longitude: 2, country: '' },\n    language: { language: 'en-US', languages: ['en-US'], acceptLanguage: 'en-US' },\n    timezone: { timezone: 'UTC' }\n  }\n];`;
+  const presets = parsePresets(source);
+  assert.equal(presets.length, 1);
+  assert.equal(presets[0].id, 'x');
 });
