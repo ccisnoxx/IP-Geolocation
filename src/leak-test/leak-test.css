@@ -1,3 +1,9 @@
+:root {
+  /* 这一页只有深色一套。写死 color-scheme，系统是浅色时才不会把 select 弹层、
+     滚动条、光标画成白色，跟 #1a1a1a 的底撞出毛刺。 */
+  color-scheme: dark;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,6 +15,24 @@ body {
   background: #1a1a1a;
   color: #e0e0e0;
   padding: 20px;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.16);
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }
+
+::selection {
+  background: rgba(76, 175, 80, 0.35);
+  color: #ffffff;
 }
 
 .container {
