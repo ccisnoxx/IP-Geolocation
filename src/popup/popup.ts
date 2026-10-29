@@ -346,6 +346,10 @@ async function loadConfig(): Promise<void> {
   renderSiteStatus(response.state);
   renderWorkerFallback(response.state);
   populateForm(currentConfig);
+  // 首屏渲染完成标记：冒烟脚本和截图工具靠它判断"面板已经画完"。
+  // 之前靠 sleep 或"storage 读到了"来判断，慢引擎（Helium）上会读到半成品 ——
+  // 复选框还是默认值、状态文案却已经写好了，看着像状态不同步。
+  document.documentElement.dataset.popupReady = '1';
 }
 
 /** 只刷新站点状态/Worker 提示，不碰表单（别把用户正在编辑的值冲掉） */
