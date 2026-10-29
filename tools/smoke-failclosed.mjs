@@ -178,16 +178,24 @@ const popupVisible = await evaluate(cdp, popupSession, `(() => {
   const retry = document.getElementById('retryLocation');
   if (!warning || !text || !hint || !retry) return { ok: false, detail: 'DOM 缺元素' };
   warning.hidden = false;
-  warning.querySelector('.site-warning-title').textContent = '未生效：时区无法解析（auto 模式的定位接口没有返回结果）';
+  text.textContent = '未生效：时区无法解析（auto 模式的定位接口没有返回结果）';
+  const style = getComputedStyle(warning);
   return {
     ok: true,
     visible: !warning.hidden,
     hasRetry: Boolean(retry) && retry.textContent.includes('重试定位'),
-    borderColor: getComputedStyle(warning).borderColor
+    danger: warning.classList.contains('alert-danger') && Boolean(warning.querySelector('.alert-icon')),
+    // 浅色玻璃面板里"醒目"= 玫瑰色系（#fecdd3 边框 + #9f1239 文字），不是老版那条正红
+    roseBorder: style.borderTopColor,
+    roseText: style.color
   };
 })()`);
 check('弹窗里有告警块和「重试定位」', Boolean(popupVisible && popupVisible.ok && popupVisible.visible && popupVisible.hasRetry), JSON.stringify(popupVisible));
-check('告警块用的是醒目红边', /217, 48, 37|rgb\(217, 48, 37\)/.test(String(popupVisible && popupVisible.borderColor)), String(popupVisible && popupVisible.borderColor));
+check('告警块用的是危险色（玫瑰边框 + 深玫瑰字，不是警告黄）',
+  Boolean(popupVisible && popupVisible.danger)
+    && /254, 205, 211/.test(String(popupVisible && popupVisible.roseBorder))
+    && /159, 18, 57/.test(String(popupVisible && popupVisible.roseText)),
+  JSON.stringify(popupVisible && { danger: popupVisible.danger, border: popupVisible.roseBorder, text: popupVisible.roseText }));
 
 // 恢复手动时区 → 角标应当自动清空
 await sw(`(async () => {

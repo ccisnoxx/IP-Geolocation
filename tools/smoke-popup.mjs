@@ -64,9 +64,11 @@ try {
   const extensionId = await loadExtension(cdp, extensionPath);
   if (!extensionId) throw new Error('扩展没有返回 extension id');
   const popup = await openPageStable(cdp, `chrome-extension://${extensionId}/popup/popup.html`);
-  await waitFor(async () => (await readPopup(popup.sessionId)).masterEnabled !== undefined, {
-    timeout: 10000,
-    label: 'popup config load'
+  // 等面板自己说"画完了"，而不是等 storage 读到了 —— 后者在慢引擎上会早于渲染完成
+  await waitFor(async () => await evaluate(cdp, popup.sessionId,
+    `document.documentElement.dataset.popupReady === '1'`), {
+    timeout: 15000,
+    label: 'popup 首屏渲染'
   });
   const initial = await readPopup(popup.sessionId);
   check('popup 初始状态与 storage 一致', initial.checked === initial.masterEnabled, JSON.stringify(initial));
@@ -83,7 +85,7 @@ try {
   const restored = await waitFor(async () => {
     const value = await readPopup(popup.sessionId);
     return value.masterEnabled === initial.masterEnabled ? value : null;
-  }, { timeout: 5000, label: 'popup restore' });
+  }, { timeout: 10000, label: 'popup restore' });
   check('再次切换恢复原值', restored.checked === initial.checked, JSON.stringify(restored));
 } catch (error) {
   check('popup 浏览器流程', false, error instanceof Error ? error.message : String(error));
