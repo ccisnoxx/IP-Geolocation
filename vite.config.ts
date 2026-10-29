@@ -8,6 +8,28 @@ import { BAKED_RULESET_ID, buildStaticAcceptLanguageRules } from './src/backgrou
 import { buildContentScriptMatchesForDomain, getEnabledRuleDomains } from './src/shared/config-resolver';
 
 /**
+ * 注入脚本（MAIN world）是包成 IIFE 的经典脚本，产物里任何顶层 `import`/`export`
+ * 都会让整段脚本语法错误 —— 而且是**静默**失败：页面只是"没有任何补丁"，控制台之外
+ * 看不出异常。2026-10-29 就因为 injected 层 import 了 shared/config-model 被 Rollup
+ * 拆出 `import '../assets/config-model-xxx.js'`，浏览器 smoke 直挂。
+ */
+function injectedClassicScriptPlugin() {
+  return {
+    name: 'vanishgeo-injected-classic-script',
+    closeBundle() {
+      const file = resolve(__dirname, 'dist/injected/runtime.js');
+      if (!existsSync(file)) return;
+      const source = readFileSync(file, 'utf8');
+      if (/^\s*(import|export)\s/m.test(source)) {
+        throw new Error(
+          'dist/injected/runtime.js 必须是零 import 的经典脚本：注入层不要 import shared/*，把需要的逻辑内联'
+        );
+      }
+    }
+  };
+}
+
+/**
  * persona.config.json 由 scripts/build-persona.mjs 在构建前写入，
  * 构建结束后删除。存在时：配置烘焙进注入层、运行时通道关闭。
  */
@@ -114,6 +136,7 @@ export default defineConfig({
     __VANISHGEO_STATIC_SCRIPT_DOMAINS__: JSON.stringify(bakedDomains)
   },
   plugins: [
+    injectedClassicScriptPlugin(),
     bakedRulesetPlugin(bakedRules, bakedDomains, persona ? persona.bridge !== false : false),
     viteStaticCopy({
       targets: [
