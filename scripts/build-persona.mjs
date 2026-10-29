@@ -39,8 +39,16 @@ function fail(message) {
 }
 
 function loadPersona(name) {
-  const file = join(homedir(), '.vanishgeo', 'personas', `${name}.json`);
-  if (!existsSync(file)) fail(`找不到 persona 配置：${file}\n先跑一次 node tools/chrome-env.mjs --persona=${name}`);
+  // 两处来源：先看用户自己的（chrome-env 写的那个），没有就退回仓库里随代码
+  // 一起走的预设。CI 的 runner 是全新的，~/.vanishgeo 必然不存在 —— 夜跑就是
+  // 卡在这里，"先跑一次 chrome-env" 对无人值守的环境不成立。
+  const candidates = [
+    join(homedir(), '.vanishgeo', 'personas', `${name}.json`),
+    join(ROOT, 'tools', 'personas', `${name}.json`)
+  ];
+  const file = candidates.find((item) => existsSync(item));
+  if (!file) fail(`找不到 persona 配置：${candidates.join(' 或 ')}\n先跑一次 node tools/chrome-env.mjs --persona=${name}，或往 tools/personas/ 放一份预设`);
+  if (file === candidates[1]) process.stdout.write(`（persona 取自仓库预设 ${file}）\n`);
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 
