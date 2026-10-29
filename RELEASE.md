@@ -108,6 +108,10 @@ git push origin v1.1.1
       真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过
 - [ ] `npm run smoke:presets` 三个预设逐个在真浏览器里跑一遍（语言头 / 时区 / 界面卡片）
 - [ ] `npm run smoke:options` 选项页写入路径（含「跟随出口 IP」开关落库）
+- [ ] `npm run audit` 三引擎（Chrome / Chrome 119 / Helium）41 组全绿 —— 夜跑只跑
+      Chrome + Chrome 119，Helium 只能在本地过一遍。2.4.0 发版前这一步逮到两条真红
+      （`定位失败可见性` 全引擎崩、`popup 交互` 在 Helium 上假红），都是面板重做后
+      测试没跟上，光跑单测和离线冒烟发现不了
 - [ ] 仓库里没有真实 IP、个人路径、浏览器 profile（`tools/out/profiles/` 已被 gitignore）
 - [ ] README / INSTALL / CONFIG_GUIDE 的描述与当前行为一致（匹配模型、默认值、生效方式）
 - [ ] 若 `CONFIG_SCHEMA_VERSION` 变过：确认升级用户读一次配置就补上新内置项
