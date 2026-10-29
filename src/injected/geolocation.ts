@@ -38,13 +38,44 @@ export interface GeolocationInstallerDeps {
   watchDelayMs?(): number;
 }
 
+/** 移动端 UA 的共同标志；桌面 UA 一个都不含（iPad 的桌面模式会被当成桌面，见下） */
+const MOBILE_UA = /android|iphone|ipad|ipod|iemobile|windows phone|mobile/;
+
 /**
- * 静止设备上报的速度。真机在静止时给的读数就是 0（"能提供速度且为 0"），
- * 而 null 的含义是"这个平台不提供速度" —— 桌面网络定位通常给 null。
- * 这里选 0：坐标会话内固定，整组读数讲的是同一件事（没在动）。
- * 想更贴桌面 UA 的话，把 speed 与平台绑定即可（见 README「还能做」）。
+ * 这台浏览器像不像移动端。`null` = 判不出来（Node、被裁掉 UA 的环境）。
+ *
+ * 读的是**当前** navigator：这个扩展不 patch `navigator.userAgent` /
+ * `userAgentData`，所以读到什么就是什么平台。判不出来时不要猜。
  */
-const STATIC_SPEED_METERS_PER_SECOND = 0;
+function detectMobilePlatform(nav: any = (globalThis as any).navigator): boolean | null {
+  if (!nav) return null;
+  const uaData = nav.userAgentData;
+  if (uaData && typeof uaData.mobile === 'boolean') return uaData.mobile;
+  const platform = String(uaData?.platform || nav.platform || '').toLowerCase();
+  const userAgent = String(nav.userAgent || '').toLowerCase();
+  if (MOBILE_UA.test(platform) || MOBILE_UA.test(userAgent)) return true;
+  if (!platform && !userAgent) return null;
+  return false;
+}
+
+/**
+ * 静止设备上报的速度：**跟平台走**，不再恒为 0。
+ *
+ * 两个值在规范里都合法，但含义不同：
+ *   · `null`  = 这个平台不提供速度 —— **桌面** Chrome 的网络定位就是这个
+ *   · `0`     = 能提供速度，且此刻为 0 —— 移动端（有传感器）是这个
+ *
+ * 所以一个自称 macOS 的会话上报 `speed: 0`，等于在说"这个平台在提供速度"，
+ * 而桌面定位拿不到速度 —— 这本身就是一条指纹，代价却只有"少写一个字段"。
+ * 判不出来的平台按桌面给 `null`：null 是"没信息"，不会替用户编出一个
+ * 平台做不到的读数。
+ *
+ * `heading` 不受影响，仍是 `null`：规范要求 speed 为 0 或未知时 heading 必须是
+ * null，而坐标在会话里不动，"有朝向"和"没在动"本来就不能同时成立。
+ */
+export function staticSpeedForPlatform(nav?: any): number | null {
+  return detectMobilePlatform(nav) === true ? 0 : null;
+}
 
 interface CoordinateSlots {
   latitude: number;
@@ -331,8 +362,10 @@ export function installGeolocation(deps: GeolocationInstallerDeps): boolean {
       accuracy: point.offsetMeters > 0
         ? Math.ceil(Math.hypot(geo.accuracy, point.offsetMeters))
         : geo.accuracy,
-      // 静止设备的读数：坐标在整个会话里固定，所以速度就是 0。
-      // 规范对这组字段有硬约束，编错一个就比 null 更容易被抓住：
+      // 静止设备的读数：坐标在整个会话里固定，剩下的字段按平台给出**该平台真会给出的**
+      // 值。规范对这组字段有硬约束，编错一个就比 null 更容易被抓住：
+      //   · `speed` 桌面是 null（"不提供速度"）、移动端是 0（"能提供且为 0"），
+      //     见 staticSpeedForPlatform；
       //   · `heading` 在 speed 为 0（或未知）时**必须**是 null —— 想给出非 null 的
       //     朝向就得承认"设备在动"，而坐标不动，两条信息当场打架；
       //   · `altitudeAccuracy` 只有 `altitude` 非 null 时才允许有值，而伪造高度
@@ -340,7 +373,7 @@ export function installGeolocation(deps: GeolocationInstallerDeps): boolean {
       altitude: null,
       altitudeAccuracy: null,
       heading: null,
-      speed: STATIC_SPEED_METERS_PER_SECOND
+      speed: staticSpeedForPlatform()
     });
     return coords;
   };
