@@ -179,31 +179,46 @@ console.log(`请求头  Accept-Language=${header ? header['accept-language'] : '
 
 check('站点文档已就位（不是错误页/空白）', Boolean(page.title) && !nav.errorText && page.htmlChildren > 0,
   nav.errorText ? String(nav.errorText) : `title="${String(page.title).slice(0, 40)}" readyState=${page.readyState} 文本=${page.bodyLength}字(可见=${page.bodyText})/children=${page.htmlChildren}`);
-// 「页面时区 == 出口 IP 时区」只在本机挂着同地区代理时成立：没有代理时，
-// 本机出口落在哪个城市完全随机（CI runner 实测 America/Chicago），而 persona
-// 是固定的，两者本来就该不同。所以无代理时把这两条降级为警告，改核对
-// persona 时区 —— 那才是扩展该做到的事；挂了代理的机器仍按严格判。
+// 时区该等谁，取决于这次跑的是哪种构建：
+//   --expect-tz=persona（默认，烘焙包）→ 页面时区应等于 persona 的时区
+//   --expect-tz=ip（auto / 裸 dist）  → 页面时区应等于出口 IP 的时区
+// 而「出口 IP 时区」这个基准只有在挂了同地区代理时才靠得住：没有代理时本机出口落
+// 在哪个城市是随机的（CI runner 实测 America/Chicago → America/New_York 都见过）。
+// 所以无代理 + 对不上时降级为 ⚠（说不清是环境回退还是没跟上，别给环境记账），
+// 两边一致时照旧严格判；本机挂代理时始终严格。
 const proxyInUse = Boolean(
   process.env.HTTPS_PROXY || process.env.https_proxy ||
   process.env.HTTP_PROXY || process.env.http_proxy ||
   process.env.ALL_PROXY || process.env.all_proxy ||
   argv.proxy
 );
-// 两者一致时当然要判（说明确实跟上了）；只有"不一致且没配代理"才降级 ——
-// 那种情况下本机出口落在哪儿是随机的，判错等于给环境记一笔账。
-if (ipTz && (proxyInUse || page.tz === ipTz)) {
-  check('页面时区 == 出口 IP 时区（跟随代理）', page.tz === ipTz, `页面 ${page.tz} vs IP ${ipTz}`);
-  check('UTC 偏移与出口 IP 一致', ipOffsetMinutes !== null && page.offset === ipOffsetMinutes, `页面 ${page.offset} vs IP ${ipOffsetMinutes}`);
-} else if (ipTz) {
-  warn('页面时区 == 出口 IP 时区（跟随代理）', `未配置代理，出口 ${exitInfo ? `${exitInfo.ip} · ${ipTz}` : ipTz}，页面 ${page.tz}；本机无代理时这条不成立`);
-  warn('UTC 偏移与出口 IP 一致', '同上，改为核对 persona 时区偏移');
+const expectTz = String(argv['expect-tz'] || 'persona') === 'ip' ? 'ip' : 'persona';
+
+function compareExitTimezone(label) {
+  if (!ipTz) {
+    skip(label, `出口时区未知（${exitInfo ? exitInfo.source : '全部接口失败'}），没有基准可比`);
+    return;
+  }
+  if (proxyInUse || page.tz === ipTz) {
+    check(label, page.tz === ipTz, `页面 ${page.tz} vs IP ${ipTz}`);
+    check('UTC 偏移与出口 IP 一致', ipOffsetMinutes !== null && page.offset === ipOffsetMinutes, `页面 ${page.offset} vs IP ${ipOffsetMinutes}`);
+    return;
+  }
+  warn(label, `未配置代理，出口 ${exitInfo ? `${exitInfo.ip} · ${ipTz}` : ipTz}，页面 ${page.tz}；无代理时无法判定是环境回退还是没跟上`);
+  warn('UTC 偏移与出口 IP 一致', `同上（页面 ${page.offset} vs IP ${ipOffsetMinutes}）`);
 }
-if (personaConfig.timezone) {
-  check(`页面时区 == persona 时区（${personaConfig.timezone}）`, page.tz === personaConfig.timezone, page.tz);
-  const personaOffset = offsetMinutesFor(personaConfig.timezone);
-  check('UTC 偏移与 persona 时区一致', personaOffset !== null && page.offset === personaOffset, `页面 ${page.offset} vs ${personaOffset}`);
-} else if (!ipTz) {
-  skip('页面时区（没有可比对的基准）', `persona 没写 timezone，出口时区也未知（${exitInfo ? exitInfo.source : '全部接口失败'}）`);
+
+if (expectTz === 'ip') {
+  compareExitTimezone('页面时区 == 出口 IP 时区（auto 构建）');
+} else {
+  compareExitTimezone('页面时区 == 出口 IP 时区（跟随代理）');
+  if (personaConfig.timezone) {
+    check(`页面时区 == persona 时区（${personaConfig.timezone}）`, page.tz === personaConfig.timezone, page.tz);
+    const personaOffset = offsetMinutesFor(personaConfig.timezone);
+    check('UTC 偏移与 persona 时区一致', personaOffset !== null && page.offset === personaOffset, `页面 ${page.offset} vs ${personaOffset}`);
+  } else {
+    skip('页面时区 == persona 时区', 'persona 没写 timezone，这条没有基准');
+  }
 }
 check('时区不是本机默认值（扩展确实改写了）', page.tz !== 'Asia/Shanghai', page.tz);
 check('navigator.language / Intl locale 一致', page.nav === page.intlLocale, `${page.nav} / ${page.intlLocale}`);

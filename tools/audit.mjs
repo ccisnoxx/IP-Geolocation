@@ -92,7 +92,8 @@ const CHECKS = [
   { id: 'realsite', label: '真实站点一致性', script: 'tools/smoke-real-site.mjs', args: [] },
   // auto 构建（时区按出口 IP 派生）单独跑一遍：首帧头与页面语言必须一致，
   // 这条就是 P0「请求头 zh-CN / 页面 en-US」的回归护栏
-  { id: 'autobuild', label: 'auto 构建跟随 IP', script: 'tools/smoke-real-site.mjs', args: ['--extension=' + join(ROOT, 'dist')] },
+  // auto 构建的时区该等出口 IP，不是 persona —— 显式告诉脚本按哪种基准判
+  { id: 'autobuild', label: 'auto 构建跟随 IP', script: 'tools/smoke-real-site.mjs', args: ['--extension=' + join(ROOT, 'dist'), '--expect-tz=ip'] },
   // 出口 IP 换时区后，环境要跟着变（含已打开页面无需重载）
   { id: 'ipchange', label: '出口变化跟随', script: 'tools/smoke-ip-change.mjs', args: ['--extension=' + join(ROOT, 'dist')] },
   // 跨上下文指纹一致性 + WebRTC 是否泄漏真实 IP（用烘焙 persona 构建）
