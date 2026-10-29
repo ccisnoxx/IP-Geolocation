@@ -148,7 +148,9 @@ jobs:
           # 留一堆 headless 实例会拖垮后面的 job，所以这里当成断言来跑。
           left=1
           for attempt in 1 2 3 4 5; do
-            left="$(pgrep -f 'user-data-dir=.*/vg-' | wc -l | tr -d ' ')"
+            # 三种前缀对应三种临时 profile：vg-*（多数冒烟）、vanishgeo-*（cold-start /
+            # ip-* 那几条）、audit-profile（audit.mjs）
+            left="$(pgrep -f 'user-data-dir=.*/(vg-|vanishgeo-|audit-profile)' | wc -l | tr -d ' ')"
             if [ "$left" = "0" ]; then break; fi
             echo "attempt $attempt: leftover=$left"
             sleep 2
