@@ -49,7 +49,7 @@ const chrome = await launchChrome({
 
 const cdp = await CDP.connect(chrome.websocketUrl);
 // Chrome 155 已忽略 --load-extension，Helium 还认；统一走 CDP 装一次，两边行为一致
-await loadExtension(cdp, extensionPath);
+const loadedId = await loadExtension(cdp, extensionPath);
 
 async function findServiceWorker(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -62,9 +62,44 @@ async function findServiceWorker(timeoutMs = 15000) {
   throw new Error('service worker 没起来（扩展没加载？）');
 }
 
-const swTarget = await findServiceWorker();
-const swSession = (await cdp.send('Target.attachToTarget', { targetId: swTarget.targetId, flatten: true })).sessionId;
-const extensionId = await evaluate(cdp, swSession, 'chrome.runtime.id');
+/**
+ * 拿到一个「chrome API 已经就绪」的 SW 会话。
+ *
+ * 只找到 target 不等于能 evaluate：CI 上第一次跑就撞到 `chrome is not defined`
+ * —— 目标列表里已经有 service_worker，attach 上去执行的第一句却还没有扩展 API
+ * （SW 正在启动，或者刚被回收重启、targetId 已经换了）。所以这里不光等 target，
+ * 还要等到 `chrome.runtime.id` 能读出值，中途换过 targetId 就重来一轮。
+ */
+async function waitServiceWorkerSession() {
+  const deadline = Date.now() + 20_000;
+  let lastError = '';
+  while (Date.now() < deadline) {
+    let swTarget;
+    try {
+      swTarget = await findServiceWorker(3000);
+    } catch (error) {
+      lastError = error.message;
+      continue;
+    }
+    const sessionId = (await cdp.send('Target.attachToTarget', { targetId: swTarget.targetId, flatten: true })).sessionId;
+    try {
+      await cdp.send('Runtime.enable', {}, sessionId);
+      for (let attempt = 0; attempt < 25; attempt += 1) {
+        const id = await evaluate(cdp, sessionId, 'typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id');
+        if (id) return { swSession: sessionId, extensionId: String(id) };
+        await sleep(120);
+      }
+    } catch (error) {
+      lastError = error.message;
+    }
+  }
+  throw new Error(`service worker 起来了但 chrome API 一直没就绪：${lastError}`);
+}
+
+const { swSession, extensionId } = await waitServiceWorkerSession();
+if (loadedId && loadedId !== extensionId) {
+  throw new Error(`装上的扩展 id 与 SW 里的不一致：${loadedId} vs ${extensionId}`);
+}
 
 // 后台视角的状态快照
 const state = () => evaluate(cdp, swSession, `Promise.all([

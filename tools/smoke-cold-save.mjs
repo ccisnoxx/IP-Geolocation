@@ -35,7 +35,7 @@ async function attempt(index) {
   // 故意不等待：在 bootstrap 还没跑完时保存
   const base = (await sendRuntimeMessage(cdp, options.sessionId, { action: 'getSiteConfig' })).config;
   const marker = `race-${index}.example`;
-  await sendRuntimeMessage(cdp, options.sessionId, {
+  const saved = await sendRuntimeMessage(cdp, options.sessionId, {
     action: 'setSiteConfig',
     config: {
       ...base,
@@ -47,9 +47,9 @@ async function attempt(index) {
       rules: [{ id: 'r1', domain: marker, enabled: true }]
     }
   });
-  await sleep(3000);
-
-  const state = JSON.parse(await evaluate(cdp, options.sessionId, `(async () => {
+  // 不再只睡 3 秒看一眼：CI 上这一关曾经 0/3，需要分清是"慢"还是"没生效"。
+  // 轮询到一致或超时，并把 setSiteConfig 的响应一起打出来。
+  const readState = async () => JSON.parse(await evaluate(cdp, options.sessionId, `(async () => {
     const stored = (await chrome.storage.local.get('siteSpoofConfig')).siteSpoofConfig;
     const rules = await chrome.declarativeNetRequest.getDynamicRules();
     return JSON.stringify({
@@ -61,11 +61,25 @@ async function attempt(index) {
     });
   })()`, { awaitPromise: true }));
 
-  const consistent = state.storedDomains.includes(marker)
+  const matches = (state) => state.storedDomains.includes(marker)
     && state.dnrDomains.includes(marker)
     && state.dnrValue.length === 1
     && state.dnrValue[0] === 'ja-JP,ja;q=0.9';
-  check(`第 ${index} 轮：storage 与 DNR 规则一致（${state.storedDomains.join(',')}）`, consistent, JSON.stringify(state));
+
+  const startedAt = Date.now();
+  let state = await readState();
+  while (!matches(state) && Date.now() - startedAt < 12_000) {
+    await sleep(250);
+    state = await readState();
+  }
+  const elapsed = Date.now() - startedAt;
+  const consistent = matches(state);
+  const savedNote = saved && saved.status ? `save=${saved.status}` : `save=${JSON.stringify(saved)}`;
+  check(
+    `第 ${index} 轮：storage 与 DNR 规则一致（${state.storedDomains.join(',')}）`,
+    consistent,
+    `${savedNote} 等了 ${elapsed}ms ${JSON.stringify(state)}`
+  );
   cdp.close(); killChrome(chrome.child);
   return consistent;
 }
