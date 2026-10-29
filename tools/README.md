@@ -392,12 +392,18 @@ RELEASE.md 那份清单有九件事，跑完十几分钟，而其中「三引擎
 （`定位失败可见性` 全引擎崩、`popup 交互` 在 Helium 上假红），单测和离线冒烟都发现不了。
 
 ```bash
-npm run preflight                     # 全跑，约 15 分钟
-npm run preflight -- --skip=audit     # 跳过三引擎审计（约 5 分钟，赶时间用）
-npm run preflight -- --only=smoke     # 只跑 12 条离线冒烟
+npm run preflight                     # 全跑，约 13–15 分钟
+npm run preflight -- --skip=audit     # 跳过三引擎审计（约 4 分钟，赶时间用）
+npm run preflight -- --only=smoke     # 只跑 12 条离线冒烟（persona 会自动补进去）
+npm run preflight -- --skip=theme,presets --only=smoke   # 列表和重复 flag 都行
 npm run preflight -- --keep-going     # 红了也继续，一次看完全部失败
 npm run preflight -- --verbose        # 子进程输出全部直出（默认只过滤关键行）
 ```
+
+两条容易踩的：**依赖会自己补**（`--only=smoke:options` 会连 `persona` 一起跑，因为那条冒烟
+用的是构建产物；反过来 `--skip=persona` 会直接报参数冲突，而不是让 options 报"找不到扩展"）；
+**重复的 `--skip`/`--only` 会累积**，`--skip=a --skip=b` 与 `--skip=a,b` 等价 —— 之前后一个
+会静静盖掉前一个，跑出来的东西和参数说的不一样。
 
 串行 21 个阶段，任一红就停（除非 `--keep-going`），退出码非 0：
 

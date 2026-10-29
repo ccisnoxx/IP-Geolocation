@@ -50,6 +50,15 @@ test('preflight 覆盖发布清单里的每一关', () => {
   }
 });
 
+test('需要构建产物的阶段自己声明依赖，不靠调用顺序', () => {
+  // options / popup 跑的是构建产物。之前 --only=smoke 会跳过 persona，
+  // 于是这两条报"找不到构建产物"——看着像扩展坏了，其实是 preflight 的排序问题。
+  assert.match(preflight, /deps: \/\^\(options\|popup\)\$\//, 'options / popup 没声明 persona 依赖');
+  assert.ok(preflight.includes('function buildPlan()'), '缺依赖闭包，被依赖的阶段不会被补进来');
+  // 重复 flag 要累积，否则 --skip=a --skip=b 里 b 会盖掉 a
+  assert.ok(preflight.includes('flags.set(name, [...(flags.get(name) || []),'), 'flag 解析会互相覆盖');
+});
+
 test('preflight 能用 npm run 起来，且不把审查逻辑再写一遍', () => {
   assert.equal(pkg.scripts.preflight, 'node tools/preflight.mjs');
   // 每关都该是一次真实子进程调用：出现自造的断言循环就是第二套真相
