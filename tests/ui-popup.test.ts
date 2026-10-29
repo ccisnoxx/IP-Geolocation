@@ -153,6 +153,25 @@ test('popup 快捷配置、重试定位、打开选项页都发对应 action', a
   await waitFor(() => calls.some((call) => call.action === 'openOptions'));
 });
 
+test('字体层默认关闭时弹窗明说「未启用」，勾上就消失', async () => {
+  // 默认 DEFAULT_CONFIG.canvas.enabled === false
+  assert.equal(el('canvasOffBadge').hidden, false);
+  assert.equal(el('canvasOffHint').hidden, false);
+  assert.match(el('canvasOffHint').textContent || '', /中文字体/);
+
+  el<HTMLInputElement>('canvasEnabled').checked = true;
+  el<HTMLInputElement>('canvasEnabled').dispatchEvent(new Event('change', { bubbles: true }));
+  await waitFor(() => el('canvasOffBadge').hidden === true);
+  assert.equal(el('canvasOffHint').hidden, true);
+  await waitFor(() => calls.some((call) => call.action === 'setSiteConfig' && call.config?.canvas?.enabled === true));
+
+  // 关回去也要恢复提示
+  el<HTMLInputElement>('canvasEnabled').checked = false;
+  el<HTMLInputElement>('canvasEnabled').dispatchEvent(new Event('change', { bubbles: true }));
+  await waitFor(() => el('canvasOffBadge').hidden === false);
+  assert.equal(el('canvasOffHint').hidden, false);
+});
+
 test('popup 重置字体和重置全部配置都会保存', async () => {
   const before = calls.filter((call) => call.action === 'setSiteConfig').length;
   el<HTMLButtonElement>('resetFonts').click();
