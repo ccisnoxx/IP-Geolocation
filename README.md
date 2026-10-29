@@ -25,7 +25,7 @@ persona 在进程环境、请求头、页面 JS 三层同时成立，改不到�
 
 - 🕐 **时区** - `getTimezoneOffset` / `get*` / `set*` / `toString` / `Intl` 全套跟着走，`new Date(str)` 的本地时间语义一并处理
 - 🌐 **语言** - `navigator.language` / `languages`（冻结数组）/ `Intl` 默认 locale，请求头 `Accept-Language` 由 DNR 在首个请求前改写
-- 🌍 **定位** - 坐标、精度、可选随机偏移（会话内固定，不会每 3 秒瞬移）；`Position` / `Coordinates` 按 WebIDL 形状重建
+- 🌍 **定位** - 坐标、精度、可选随机偏移（Rayleigh 分布、会话内固定，不会每 3 秒瞬移；上报精度覆盖实际偏移）；`watchPosition` 首帧即时、间隔 2.5–4.2s 逐帧重摇、坐标一变立刻推帧；`Position` / `Coordinates` 按 WebIDL 形状重建；静止读数自洽（`speed: 0`、`heading: null`、不编 `altitude`）
 - 🖋 **canvas 字体** - 三层结构：**平台层**（按本机真实平台判定，隐藏另外两个平台的字体）、**中文层**（中文与国产厂商字体）、**手动层**；覆盖 `<canvas>`、`OffscreenCanvas` 和 `window.queryLocalFonts()`（直接枚举本机字体那条路，实测 667 → 632 条），名字匹配含本地化别名（`苹方-简`、`微软雅黑`）
 - 🔒 **WebRTC** - `strict` / `compatible` / `default` 三档，对应不同的 `contentSettings` 策略
 - 🛡 **反检测** - 原生函数签名、原型 getter、零自有属性、零 `window` 全局；改不到的地方（原生值已经正确）一个对象都不动
@@ -54,8 +54,8 @@ npm run build        # 内含 typecheck；产物在 dist/
 - **启用本站 / 排除本站** - 直接给当前域名写一条规则，写完只重载这个域名的标签页
 - 📦 **一条命令出包** - `npm run release -- --all-presets` 烘焙 → 校验 → 打包 → 记账（sha256 / git sha / 坐标 / 域名），三道闸任一不过就不出包；`npm run verify:release` 真开浏览器量首屏，证明零窗口成立
 - 🩺 **配置体检** - 诊断页实时算出配置里的自相矛盾：请求头与 JS 语言不一致、时区填了却没开、坐标与声明时区差几千公里……能机械修的直接给按钮；「时区在美国而语言是中文」这类取舍只报告、不替你做决定
-- **快速配置** - 六个内置 persona 卡片（新加坡 / 日本 / 德国 / 美国东岸 / 美西 / 中国）、手动坐标与时区、语言与 `Accept-Language`、字体列表
-- **从 IP 自动配置** - 按出口 IP 推一套自洽的地点和时区
+- **快速配置** - 三个内置 persona 卡片（美西 (洛杉矶) / 新加坡 / 日本 —— 只留真的会买 VPS 的地区）、手动坐标与时区、语言与 `Accept-Language`、字体列表
+- **从 IP 自动配置** - 点一下就把出口 IP 的坐标、时区、语言**写进当前配置**并立刻应用；查不到出口时按钮下面直接显示失败原因
 
 完整配置页（弹窗内「打开完整配置」）多出：站点规则的可视化启用/禁用/删除、
 自定义 persona 的保存/导入/导出、全部数据重置。
@@ -89,7 +89,7 @@ google.com          ← 启用：google.com 及其所有子域
 | 语言 | `en-US` / `en-US,en;q=0.9` | 语言是 persona 属性，不跟随系统 |
 | 时区 | `auto` | 跟随出口 IP 推导；只有点了 persona 卡片才钉成固定值 |
 | 定位 | `auto` | 同上 |
-| 默认选中 persona | `united-states` | 只在配置页"当前配置"里预选，**不代表**时区已被钉住 |
+| 默认选中 persona | `us-west` | 只在配置页"当前配置"里预选，**不代表**时区已被钉住 |
 | 跟随出口 IP（`ipSync`） | 关，周期 5 分钟 | 打开后出口 IP 一变就改写时区/坐标并清掉钉住的 persona；语言默认不跟随 |
 | WebRTC | `strict` | `disable_non_proxied_udp` |
 | canvas 字体 | 关闭 | 打开后按 `targetFonts` 列表替换 |
@@ -134,15 +134,20 @@ npm run audit         # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium
 npm run smoke:frames  # frame 隔离（父域 / 子域 / about:blank / srcdoc）
 npm run smoke:baked-failclosed  # 烘焙包定位 fail-closed + 可逆恢复 + 关总开关 clear
 npm run smoke:baked-clear  # 烘焙包排除站点 / 关总开关 / frozen 冻结验证
-npm run smoke:presets # 六个内置 preset 的浏览器 E2E（语言/时区/请求头）
+npm run smoke:presets # 内置 preset 的浏览器 E2E：一张卡一个包，逐个验证语言/时区/请求头
 npm run smoke:cold-start # 冷启动 + clear 浏览器 smoke
 npm run smoke:popup   # popup 真实点击 / storage / 后台消息 smoke
+npm run smoke:ipapply  # 「从 IP 自动配置」E2E：点一下真改坐标/时区/语言，失败必有提示
 node tools/native-parity.mjs  # Helium 原生形状对拍（83 项，control vs patched）
 ```
 
 `npm run audit` 里另含 `smoke:options` / `smoke:failclosed` / `smoke:frames` /
 `smoke:baked-failclosed` / `smoke:baked-clear` / `smoke:fingerprint` / `smoke:ipchange` /
 `smoke:real-site` 八组探针，具体见 [tools/README.md](tools/README.md)。
+
+其中 `smoke:fingerprint` 除了三上下文（主线程 / iframe / Worker）的字体重度、canvas 像素、
+时区语言与 WebRTC 候选，还会在真实页面里核一遍地理定位：坐标必须落在配置的随机半径内、
+`accuracy` 必须覆盖实际位移、同一会话两次请求同一个点、返回对象不能多出自有属性。
 
 ### 🧱 烘焙构建（persona）
 
@@ -174,6 +179,9 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - DNR `modifyHeaders` 用 `regexFilter` 会把 `main_frame` 打成 `ERR_ABORTED`，已改用
   `requestDomains`；重写动态规则会打断进行中的请求，所以规则没变就不重写
 - 冷 profile 首次启动要等约 10s 注入才就绪（2/3.5/5/7/8s 都漏，12s 成功）；同一个 profile 第二次启动 2s 内就绪
+- 刚装好的扩展要 50–220ms 才把静态 ruleset 的匹配索引建好（机器忙时更久）。这段属于**安装那一瞬间**，
+  不属于页面首屏：多开几个 headless 并发跑时，装完立刻导航偶尔还会拿到原生 `Accept-Language`。
+  所以 `smoke:cold-start` 先等规则生效、把等待时长打出来，再断言首屏 —— 拿掉这个等待，这条断言在 CI 上会随机变红
 - 语言与时区**解耦**：`auto` 时区拿不到定位时，语言和 `Accept-Language` 照常生效，只有时区留在原生值
 - fail-closed 不是静默：角标变红 `!`、弹窗显示原因、`getCurrentTabState` 返回具体 `errors`
 - **定位 fail-closed**：命中规则且定位开启、但坐标解析不出来（auto 没拿到出口 IP / 手填值非法）时，
@@ -181,6 +189,9 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
   `block`；不会落回原生定位。坐标解析出来后同一文档内自动切回伪装坐标，无需刷新
 
 ### 🔧 实现要点
+
+- **watch 不像节拍器**：首帧不等心跳（真机第一次定位是几百毫秒内的事）；间隔逐帧在 2.5–4.2s 里重摇，量两帧间隔认不出固定节奏；坐标变了（保存配置、跟随出口 IP 落地）立刻推一帧，静止时不重复推；watch 期间配置变成"解析不出来"时报 code 2 并结束该路 watch，但 id 占位保留 —— 否则结束后 `clearWatch` 会转交给原生，而原生 id 是小的自增值，很容易误清站点自己的 watch
+- **注入包必须零 import**：`dist/injected/runtime.js` 是 MAIN world 的经典脚本，产物里任何顶层 `import`/`export` 都是语法错误，而且失败是静默的（页面只是"没有任何补丁"）。所以注入层不 import `shared/*`，需要的逻辑内联；`vite.config.ts` 的 `injectedClassicScriptPlugin` 在产物上直接拦这一条（2026-10-29 踩过：注入层 import 了 `shared/config-model`，Rollup 拆出 `import '../assets/config-model-xxx.js'`，浏览器 smoke 直挂）
 
 - **三层一致**：进程环境 / 请求头（DNR）/ 页面 JS（MAIN world 原型补丁）
 - **签名表，不是 Proxy**：`Function.prototype.toString` 输出
@@ -243,6 +254,12 @@ blob Worker 请求，页面的 `securitypolicyviolation` 监听或 CSP 上报端
 - [IPLeak](https://ipleak.net/)
 - [Device Info](https://www.deviceinfo.me/)
 
+### 🧭 还能做（按性价比排序）
+
+- **`speed` 与伪装平台绑定**：现在恒为 `0`（静止设备读数）。桌面 Chrome 的网络定位通常上报 `speed: null`（"平台不提供速度"），要让它与 `navigator.platform` / UA 完全对齐，就把 `speed` 跟 `canvasPlatform` 那套平台判断绑起来：移动档给 `0`，桌面档给 `null`
+- **`lastGeoError` 上前台**：现在只在角标与弹窗里露一小句，配置页看不到上一次失败的技术原因
+- **watch 的「移动」故事**：想给非 null 的 `heading` 就得让坐标帧间漂移几十米，那会破坏"会话内固定"这条更重要的防线，暂不做（`heading` 保持 `null` 是规范要求，不是省事）
+
 ### 📚 文档
 
 - [INSTALL.md](INSTALL.md) - 安装与排错
@@ -294,7 +311,7 @@ In the popup:
 
 - **Site rules** - one domain per line; `example.com` also covers its subdomains; **no wildcards**
 - **Enable / exclude this site** - writes a rule for the current hostname and reloads only that site's tabs
-- **Quick presets** - six built-in personas (Singapore / Japan / Germany / US East / US West / China), manual coordinates and timezone, language and `Accept-Language`, font list
+- **Quick presets** - three built-in personas (US West / Singapore / Japan — only the regions people actually rent VPS in), manual coordinates and timezone, language and `Accept-Language`, font list
 - **Configure from IP** - derives a self-consistent location and timezone from the exit IP
 
 The full options page adds enable/disable/delete for each site rule and import/export
@@ -330,7 +347,7 @@ google.com          ← enabled: google.com and all of its subdomains
 | Language | `en-US` / `en-US,en;q=0.9` | Persona property, never derived from the host OS |
 | Timezone | `auto` | Derived from the exit IP; only a persona card pins it |
 | Geolocation | `auto` | Same |
-| Default selected persona | `united-states` | Only pre-selects the profile in the options page |
+| Default selected persona | `us-west` | Only pre-selects the profile in the options page |
 | WebRTC | `strict` | `disable_non_proxied_udp` |
 | Canvas fonts | off | When on, replaces `targetFonts` |
 | Site rules | 20 domains, all enabled | 13 common sites + 7 privacy test sites, see `src/shared/default-domains.json` |
@@ -377,6 +394,7 @@ npm run smoke:baked-clear  # baked exclusion / master-off / frozen freeze behavi
 npm run smoke:presets # every built-in preset in a real browser (language/timezone/header)
 npm run smoke:cold-start # cold-start + clear browser smoke
 npm run smoke:popup   # popup real clicks / storage / background-message smoke
+npm run smoke:ipapply  # "configure from exit IP" E2E: one click really rewrites geo/timezone/language, failures always surface
 node tools/native-parity.mjs  # Helium native-shape parity (83 checks, control vs patched)
 ```
 
@@ -406,6 +424,10 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - A DNR `modifyHeaders` rule built with `regexFilter` aborts `main_frame` with `ERR_ABORTED`;
   the rules now use `requestDomains`, and unchanged rules are never rewritten
 - A cold profile needs ~10 s before content scripts inject; a warm one is ready within 2 s
+- A freshly installed extension needs 50–220 ms to finish building the static ruleset index (longer
+  on a loaded machine). That is the *install* instant, not the page's first paint — under parallel
+  headless runs the very first navigation can still carry the native `Accept-Language`. `smoke:cold-start`
+  therefore waits for the rules to go live (and prints how long it took) before asserting first paint
 - Language and timezone are decoupled: if the auto timezone cannot resolve, language and
   `Accept-Language` still apply and only the timezone stays native
 - Failing closed is never silent: red `!` badge, an explained popup and concrete `errors`

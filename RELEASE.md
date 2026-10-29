@@ -48,7 +48,7 @@ permissions:
 2. 从 tag 提取版本号，**校验与 `dist/manifest.json` 的 `version` 一致**（不一致直接失败）
 3. 打包成 `vanishgeo-v<version>.zip`（**开发构建**：配置经异步 IPC 进页面，
    页面的第一个内联脚本可能读到原生值 —— 也就是"首屏窗口"）
-4. 再跑一遍发布流水线 `npm run release -- --all-presets`，产出六个**烘焙**包
+4. 再跑一遍发布流水线 `npm run release -- --all-presets`，产出三个**烘焙**包
    `vanishgeo-<version>-<preset>.zip`（配置编译进 `runtime.js`，`document_start`
    同步生效，首屏零窗口），逐个用 `--check` 校验
 5. 生成 changelog（上一个 tag..HEAD 的提交标题）
@@ -72,7 +72,7 @@ npm run typecheck
 npm run lint
 npm run build          # 必须在 npm test 之前：有些接线用例要读 dist/
 node scripts/release.mjs --all-presets --out=release
-npm run smoke:release -- --dir=release --require=6   # 六个包各开一次真浏览器
+npm run smoke:release -- --dir=release --require=3   # 三个包各开一次真浏览器
 npm run smoke:ipfollow                               # 跟随出口 IP：不换网络，桩改一次算换一次出口
 npm test
 npm run test:coverage:core
@@ -104,9 +104,9 @@ git push origin v1.1.1
 - [ ] `npm run typecheck` / `npm run lint` / `npm test` / `npm run build` 全绿
 - [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag
 - [ ] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）
-- [ ] `npm run release -- --all-presets` 出得了包（六个），`npm run verify:release -- --zip=…`
+- [ ] `npm run release -- --all-presets` 出得了包（三个），`npm run verify:release -- --zip=…`
       真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过
-- [ ] `npm run smoke:presets` 六个预设逐个在真浏览器里跑一遍（语言头 / 时区 / 界面卡片）
+- [ ] `npm run smoke:presets` 三个预设逐个在真浏览器里跑一遍（语言头 / 时区 / 界面卡片）
 - [ ] `npm run smoke:options` 选项页写入路径（含「跟随出口 IP」开关落库）
 - [ ] 仓库里没有真实 IP、个人路径、浏览器 profile（`tools/out/profiles/` 已被 gitignore）
 - [ ] README / INSTALL / CONFIG_GUIDE 的描述与当前行为一致（匹配模型、默认值、生效方式）
@@ -129,7 +129,7 @@ git push origin :refs/tags/v1.1.1
 
 ```bash
 npm run release          # 烘焙 → 校验 → 打包 → 记账，见 CONFIG_GUIDE §十
-node scripts/release.mjs --all-presets  # 六个内置 preset 全量构建
+node scripts/release.mjs --all-presets  # 三个内置 preset 全量构建
 for z in release/*.zip; do node scripts/release.mjs --check="$z"; done  # 逐个校验
 npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
 npm run audit            # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium）
@@ -138,7 +138,7 @@ npm run smoke:options    # 选项页写入路径的端到端冒烟
 npm run smoke:failclosed # fail-closed 行为
 npm run smoke:fingerprint# 主线程 / iframe / Worker 跨上下文一致性
 npm run smoke:ipchange   # 出口变化后是否跟随
-npm run smoke:presets    # 六个 preset 的浏览器 E2E
+npm run smoke:presets    # 三个 preset 的浏览器 E2E
 npm run smoke:cold-start # 冷启动 + clear
 npm run smoke:popup      # popup 交互
 npm run smoke:real-site  # 真实站点核对

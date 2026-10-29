@@ -3,7 +3,7 @@
  * 发布流水线：烘焙 → 校验 → 打包 → 记账。
  *
  *   node scripts/release.mjs --preset=singapore
- *   node scripts/release.mjs --preset=singapore,united-states --frozen
+ *   node scripts/release.mjs --preset=us-west,singapore,japan --frozen
  *   node scripts/release.mjs --all-presets
  *   node scripts/release.mjs --persona=us-la-1
  *   node scripts/release.mjs --check=release/vanishgeo-1.2.1-singapore.zip
