@@ -6,7 +6,7 @@ npm run smoke:fingerprint -- --extension=<ext> --canvas-spoof   # 顺手打开�
 # 除指纹一致性外还在页面里验地理定位：偏移 ≤ 随机半径、accuracy ≥ 位移、
 # 会话内两次请求同一个点、Position/Coordinates 原型与自有属性干净；
 # watchPosition 首帧不等心跳、帧间隔 2.5–4.2s 且逐帧抖动、静止时每帧同一个点；
-# 静止读数自洽：speed=0、heading=null、altitude=null
+# 静止读数自洽：speed 跟平台（桌面 null / 移动端 0）、heading=null、altitude=null
 ```
 
 同一个页面里同时量主线程 / 同源 iframe / Worker，比对字体度量、`document.fonts.check`、
@@ -521,6 +521,8 @@ node tools/smoke-options.mjs --extension=dist-probe-geo --language=de-DE --domai
 | 烘焙构建起步 | `enabledRulesets=["baked-language"]`、动态 DNR 0、动态脚本 0 |
 | 改语言（`#language` + `#languages` + `#acceptLanguage` → 保存） | 静态 ruleset 被禁用（`[]`）、动态规则重写成新语言 |
 | 加域名（`#ruleList` 追加一行 → 保存） | 新域名出现在 `getRegisteredContentScripts()` 的 match 里、动态 DNR 多一条、继承当前语言 |
+| 打开「跟随出口 IP」 | 配置落库、`vanishgeo-exit-ip` 定时器周期跟表单一致、状态行如实说上次同步结果 |
+| 写入一次定位失败 | 配置页出现「上次自动定位没成功」卡片：人话解释里没有接口原文、原文折在「技术原因」里、带「多久之前」、点「清除提示」后 storage 两个 key 一起清空 |
 
 注意：保存成功会 `alert('设置已保存')`，原生弹窗会卡住 `Runtime.evaluate`，脚本里已经
 挂了 `Page.javascriptDialogOpening` 自动确认。

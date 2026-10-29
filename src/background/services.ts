@@ -815,6 +815,18 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
+  /**
+   * 记一次定位失败：原文进 `lastGeoError`，时间进 `lastGeoErrorAt`。
+   *
+   * 两个 key 必须**一起**写：配置页要显示"多久之前失败的"，只有原文的字符串
+   * 没法回答"这是刚才还是三天前"，用户看到一条陈年错误只会以为又坏了。
+   * 故意保持字符串形态（不改成对象）：`tests/injection-idempotency.test.ts` 与
+   * 弹窗角标都在读这个值，升级时不该让老配置读出 undefined。
+   */
+  async function recordGeoError(message: string): Promise<void> {
+    await chrome.storage.local.set({ lastGeoError: message, lastGeoErrorAt: new Date().toISOString() });
+  }
+
   async function updateGeolocation(forceUpdate = false): Promise<{ ok: boolean; location?: LastLocation; unchanged?: boolean; disabled?: boolean; error?: string }> {
     try {
       const config = await getSiteConfig();
@@ -844,7 +856,7 @@ export function createBackgroundServices(): BackgroundServices {
 
       if (!locationToSet) {
         const message = `IP geolocation APIs returned no valid coordinates: ${errors.join(' | ')}`;
-        await chrome.storage.local.set({ lastGeoError: message });
+        await recordGeoError(message);
         return { ok: false, error: message };
       }
 
@@ -853,7 +865,7 @@ export function createBackgroundServices(): BackgroundServices {
       }
 
       const nextLocation: LastLocation = { ...locationToSet, updateTime: new Date().toLocaleString() };
-      await chrome.storage.local.set({ [LAST_LOCATION_KEY]: nextLocation, lastGeoError: '' });
+      await chrome.storage.local.set({ [LAST_LOCATION_KEY]: nextLocation, lastGeoError: '', lastGeoErrorAt: '' });
       invalidateStorageCache();
       // 坐标从"未解析"变成"已解析"时，权限层要从 block 切回 allow；
       // auto 时区也可能跟着变，请求头一起重算。只调 updateAllTabs 会漏掉这两层。
@@ -863,7 +875,7 @@ export function createBackgroundServices(): BackgroundServices {
       return { ok: true, location: nextLocation };
     } catch (error) {
       const message = `background geolocation update failed: ${error instanceof Error ? error.message : String(error)}`;
-      await chrome.storage.local.set({ lastGeoError: message });
+      await recordGeoError(message);
       return { ok: false, error: message };
     } finally {
       // 定位成功或失败都要重算角标：否则「!」会一直挂到下一次标签事件
@@ -881,7 +893,7 @@ export function createBackgroundServices(): BackgroundServices {
    * 否则中间态（新坐标 + 旧时区）会被当成有效配置写进 DNR。
    */
   async function writeLastLocation(location: LastLocation): Promise<void> {
-    await chrome.storage.local.set({ [LAST_LOCATION_KEY]: location, lastGeoError: '' });
+    await chrome.storage.local.set({ [LAST_LOCATION_KEY]: location, lastGeoError: '', lastGeoErrorAt: '' });
     invalidateStorageCache();
   }
 
@@ -938,7 +950,7 @@ export function createBackgroundServices(): BackgroundServices {
       const config = await getSiteConfig();
       const looked = await lookupExitIp();
       if ('error' in looked) {
-        await chrome.storage.local.set({ lastGeoError: looked.error });
+        await recordGeoError(looked.error);
         return { ok: false, error: looked.error };
       }
       const plan = planExitIpApply(config, looked.info);
@@ -959,7 +971,7 @@ export function createBackgroundServices(): BackgroundServices {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await chrome.storage.local.set({ lastGeoError: message }).catch(() => undefined);
+      await recordGeoError(message).catch(() => undefined);
       return { ok: false, error: message };
     }
   }

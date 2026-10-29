@@ -25,7 +25,7 @@ persona 在进程环境、请求头、页面 JS 三层同时成立，改不到�
 
 - 🕐 **时区** - `getTimezoneOffset` / `get*` / `set*` / `toString` / `Intl` 全套跟着走，`new Date(str)` 的本地时间语义一并处理
 - 🌐 **语言** - `navigator.language` / `languages`（冻结数组）/ `Intl` 默认 locale，请求头 `Accept-Language` 由 DNR 在首个请求前改写
-- 🌍 **定位** - 坐标、精度、可选随机偏移（Rayleigh 分布、会话内固定，不会每 3 秒瞬移；上报精度覆盖实际偏移）；`watchPosition` 首帧即时、间隔 2.5–4.2s 逐帧重摇、坐标一变立刻推帧；`Position` / `Coordinates` 按 WebIDL 形状重建；静止读数自洽（`speed: 0`、`heading: null`、不编 `altitude`）
+- 🌍 **定位** - 坐标、精度、可选随机偏移（Rayleigh 分布、会话内固定，不会每 3 秒瞬移；上报精度覆盖实际偏移）；`watchPosition` 首帧即时、间隔 2.5–4.2s 逐帧重摇、坐标一变立刻推帧；`Position` / `Coordinates` 按 WebIDL 形状重建；静止读数自洽（`speed` 跟平台走：桌面 `null`、移动端 `0`；`heading: null`；不编 `altitude`）
 - 🖋 **canvas 字体** - 三层结构：**平台层**（按本机真实平台判定，隐藏另外两个平台的字体）、**中文层**（中文与国产厂商字体）、**手动层**；覆盖 `<canvas>`、`OffscreenCanvas` 和 `window.queryLocalFonts()`（直接枚举本机字体那条路，实测 667 → 632 条），名字匹配含本地化别名（`苹方-简`、`微软雅黑`）
 - 🔒 **WebRTC** - `strict` / `compatible` / `default` 三档，对应不同的 `contentSettings` 策略
 - 🛡 **反检测** - 原生函数签名、原型 getter、零自有属性、零 `window` 全局；改不到的地方（原生值已经正确）一个对象都不动
@@ -257,8 +257,8 @@ blob Worker 请求，页面的 `securitypolicyviolation` 监听或 CSP 上报端
 
 ### 🧭 还能做（按性价比排序）
 
-- **`speed` 与伪装平台绑定**：现在恒为 `0`（静止设备读数）。桌面 Chrome 的网络定位通常上报 `speed: null`（"平台不提供速度"），要让它与 `navigator.platform` / UA 完全对齐，就把 `speed` 跟 `canvasPlatform` 那套平台判断绑起来：移动档给 `0`，桌面档给 `null`
-- **`lastGeoError` 上前台**：现在只在角标与弹窗里露一小句，配置页看不到上一次失败的技术原因
+- **`speed` 与平台绑定**（2.4 已做）：桌面 `null`（平台不提供速度）、移动端 `0`（能提供且静止）；判不出来的平台按桌面给 `null`
+- **`lastGeoError` 上前台**（2.4 已做）：失败时配置页「全局设置」里多一张琥珀色卡片 —— 人话解释在外、接口原文折进「技术原因」、带「多久之前」，可一键清除；成功定位会自动清掉它
 - **watch 的「移动」故事**：想给非 null 的 `heading` 就得让坐标帧间漂移几十米，那会破坏"会话内固定"这条更重要的防线，暂不做（`heading` 保持 `null` 是规范要求，不是省事）
 
 ### 📚 文档
@@ -284,7 +284,7 @@ is patched.
 
 - 🕐 **Timezone** - `getTimezoneOffset`, `get*`, `set*`, `toString` and `Intl` move together, including the local-time semantics of `new Date(string)`
 - 🌐 **Language** - `navigator.language`, `languages` (a frozen array) and the default `Intl` locale; `Accept-Language` is rewritten by DNR before the first request
-- 🌍 **Geolocation** - coordinates, accuracy and an optional random offset (fixed for the session, no teleporting every 3 s); `Position` / `Coordinates` are rebuilt with WebIDL shape
+- 🌍 **Geolocation** - coordinates, accuracy and an optional random offset (fixed for the session, no teleporting every 3 s); `Position` / `Coordinates` are rebuilt with WebIDL shape; a still device reports what its platform really reports (`speed: null` on desktop, `0` on mobile)
 - 🖋 **Canvas fonts** - three layers: **claimed platform** (mac / windows / linux, hides the other platforms' fonts), **CJK layer** (Chinese + vendor fonts) and a **manual list**; patches both `<canvas>` and `OffscreenCanvas`, with alias-aware name matching (`苹方-简`, `微软雅黑`)
 - 🔒 **WebRTC** - `strict` / `compatible` / `default`, each mapping to a `contentSettings` policy
 - 🛡 **Anti-detection** - native function signatures, prototype getters, zero own properties, zero `window` globals; when the native value is already correct, nothing is patched at all

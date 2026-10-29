@@ -9,6 +9,27 @@ register(new URL('./helpers/css-loader.mjs', import.meta.url));
 interface RuntimeCall { action?: string; config?: any; domain?: string; profileId?: string; force?: boolean }
 
 function createChrome(calls: RuntimeCall[]) {
+  // chrome.storage.local 的最小实现：options.ts 用它读 lastGeoError（烘焙构建里
+  // 运行时通道是关的，这条信息只能从 storage 拿），并在写完之后触发 onChanged。
+  const storage: Record<string, any> = {};
+  const storageListeners: Array<(changes: Record<string, any>, area: string) => void> = [];
+  const storageArea = {
+    async get(defaults: Record<string, any>) {
+      const out: Record<string, any> = {};
+      for (const key of Object.keys(defaults ?? {})) {
+        out[key] = key in storage ? storage[key] : defaults[key];
+      }
+      return out;
+    },
+    async set(patch: Record<string, any>) {
+      const changes: Record<string, any> = {};
+      for (const [key, value] of Object.entries(patch)) {
+        changes[key] = { oldValue: storage[key], newValue: value };
+        storage[key] = value;
+      }
+      for (const listener of storageListeners) listener(changes, 'local');
+    }
+  };
   let bakeResponse: any = { status: 'ok', config: structuredClone(DEFAULT_CONFIG), lastLocation: null };
   let siteConfig = structuredClone(DEFAULT_CONFIG);
   // 「先发的读慢、后发的读快」这种顺序不排队就是造不出来的：默认每次读都立刻回，
@@ -116,6 +137,10 @@ function createChrome(calls: RuntimeCall[]) {
         }
         return Promise.resolve(response);
       }
+    },
+    storage: {
+      local: storageArea,
+      onChanged: { addListener: (fn: (changes: Record<string, any>, area: string) => void) => { storageListeners.push(fn); } }
     },
     setBakeResponse(value: any) { bakeResponse = value; },
     setIpSyncState(state: { enabled?: boolean; syncLanguage?: boolean; intervalMinutes?: number }) {
@@ -506,4 +531,34 @@ test('「完全不调用系统定位」联动「伪装位置权限」，保存�
   await waitFor(() => calls.some((call) => call.action === 'setSiteConfig'
     && call.config?.globalProfile?.geolocation?.noNativeCall === true
     && call.config?.globalProfile?.geolocation?.spoofPermission === true));
+});
+
+test('上次定位失败：storage 里有记录才出现，写进去立刻反映（不用刷新页面）', async () => {
+  const box = el<HTMLElement>('geoError');
+  // 起步时干净：卡片必须是 hidden，不能让正常用户看到一张空卡
+  assert.equal(box.hidden, true, '没有失败记录时卡片不出现');
+
+  await (globalThis as any).chrome.storage.local.set({
+    lastGeoError: 'IP geolocation APIs returned no valid coordinates: https://a no valid location | https://b no valid location',
+    lastGeoErrorAt: new Date().toISOString()
+  });
+  await waitFor(() => box.hidden === false);
+
+  const hint = el('geoErrorHint').textContent || '';
+  assert.match(hint, /可用坐标/, '人话解释在卡片外层');
+  assert.doesNotMatch(hint, /https:\/\//, '拼接的接口原文不该糊在人话里');
+  assert.match(el('geoErrorReason').textContent || '', /https:\/\/a/, '原文折在「技术原因」里，排障要看得到');
+  assert.equal(el('geoErrorAge').textContent, '刚刚');
+
+  // 老版本写过的记录没有 lastGeoErrorAt：卡片照样出现，只是不显示"多久之前"
+  await (globalThis as any).chrome.storage.local.set({ lastGeoErrorAt: '' });
+  await waitFor(() => (el('geoErrorAge').textContent || '') === '');
+  assert.equal(box.hidden, false, '缺时间戳不影响卡片本身');
+
+  // 「清除提示」只清提示，不动配置
+  el<HTMLButtonElement>('geoErrorDismiss').click();
+  await waitFor(() => box.hidden === true);
+  const stored = await (globalThis as any).chrome.storage.local.get({ lastGeoError: 'x', lastGeoErrorAt: 'x' });
+  assert.equal(stored.lastGeoError, '');
+  assert.equal(stored.lastGeoErrorAt, '');
 });
