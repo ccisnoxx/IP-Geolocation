@@ -115,7 +115,7 @@ export function parseExitIpResponse(raw: unknown): ExitIpInfo | null {
   // ipinfo 的 `country` 本身就是两字母国家码，别因为字段名叫 country 就当国名
   const countryCode = rawCode
     ? rawCode.trim().toUpperCase()
-    : (/^[A-Za-z]{2}$/.test(geo.country) ? geo.country.toUpperCase() : null);
+    : (/^[A-Za-z]{2}$/.test(geo.country) ? geo.country.toUpperCase() : codeFromCountryName(geo.country));
 
   return {
     ip,
@@ -127,6 +127,28 @@ export function parseExitIpResponse(raw: unknown): ExitIpInfo | null {
     timezone: geo.timezone,
     timezoneOffset: geo.timezoneOffset ?? null
   };
+}
+
+/**
+ * 国名 → 两字母代码。只覆盖 `COUNTRY_LANGUAGES` 里那十个国家。
+ *
+ * 为什么需要反查：`syncLanguage` 靠 `info.countryCode` 决定要不要改语言，
+ * 而有的归属地接口只回国名不回国码（真实接口都给，但请求可能落到裁剪过的
+ * 响应上）。缺代码时语言层会**静默不生效**——开关是打开的、界面没有任何提示，
+ * 这种"看起来没坏"的失效最难查。所以这里用 Intl 自己生成名称反查，不手写表。
+ */
+export function codeFromCountryName(country: string | null | undefined): string | null {
+  const name = typeof country === 'string' ? country.trim().toLowerCase() : '';
+  if (!name) return null;
+  for (const code of Object.keys(COUNTRY_LANGUAGES)) {
+    try {
+      const display = new Intl.DisplayNames(['en'], { type: 'region' }).of(code);
+      if (display && display.toLowerCase() === name) return code;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export type IpSyncLayer = 'timezone' | 'geolocation' | 'language' | 'profile';

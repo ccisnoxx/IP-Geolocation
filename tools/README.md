@@ -243,6 +243,23 @@ npm run smoke:ipchange                                   # 用 auto 构建 dist
 npm run smoke:ipchange -- --extension=/path/to/ext
 ```
 
+### 跟随出口 IP（`smoke:ipfollow`）
+
+```bash
+npm run build && npm run smoke:ipfollow                          # 出口先日本、再美国
+npm run smoke:ipfollow -- --site=https://example.com/            # 换一个检测站
+npm run smoke:ipfollow -- --offline                              # 只跑扩展侧
+```
+
+和 `smoke:ipchange` 的区别：那个走 `manualUpdate`、只断言页面里的值；这个走真正的
+`ipSync` 通道（`setSiteConfig` / `addDomainRule` / `checkExitIpSync`），并且在
+**第三方指纹检测站**上读它自己的判定 —— 扩展可以在 background 里把配置改得很漂亮
+而页面一个字节没变，只有让别人的页面自己算一遍才算数。
+
+桩返回的 `country_code` 一定要带上：真实接口都给，但缺了它 `syncLanguage` 会静默
+不生效（`src/background/ip-sync.ts` 里现在会从国名反推，见 `codeFromCountryName`）。
+截图落在 `tools/out/ip-follow-*.png`。
+
 把 `ipwho.is`（扩展的定位接口）映射到本地假服务，先返回洛杉矶，页面起来后把假出口
 切成伦敦、触发一次 `manualUpdate`，再核对环境：
 
