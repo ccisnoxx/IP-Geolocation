@@ -3,224 +3,520 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
   <title>VanishGeo 配置</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>VanishGeo 配置</h1>
+  <svg class="icon-sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.2 19 6v5.1c0 4.6-2.9 8.3-7 10.2-4.1-1.9-7-5.6-7-10.2V6l7-2.8Z"/>
+        <path d="M9.2 12.2l2 2 3.6-3.9"/>
+      </g>
+    </symbol>
+    <symbol id="i-list" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>
+      </g>
+    </symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6h8"/><path d="M16 6h4"/><circle cx="14" cy="6" r="2"/>
+        <path d="M4 12h3"/><path d="M11 12h9"/><circle cx="9" cy="12" r="2"/>
+        <path d="M4 18h8"/><path d="M16 18h4"/><circle cx="14" cy="18" r="2"/>
+      </g>
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><ellipse cx="12" cy="12" rx="4.2" ry="9"/>
+      </g>
+    </symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 3.5 7.5 12 12l8.5-4.5L12 3Z"/><path d="M3.5 12.5 12 17l8.5-4.5"/><path d="M3.5 17 12 21.5 20.5 17"/>
+      </g>
+    </symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5 4.5A1.5 1.5 0 0 1 8 3h8a1.5 1.5 0 0 1 1.5 1.5V21L12 17.5 6.5 21V4.5Z"/>
+      </g>
+    </symbol>
+    <symbol id="i-target" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>
+      </g>
+    </symbol>
+    <symbol id="i-database" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
+      </g>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v11"/><path d="m7.5 10 4.5 4.5 4.5-4.5"/><path d="M4.5 19.5h15"/>
+      </g>
+    </symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20V9"/><path d="m7.5 13 4.5-4.5 4.5 4.5"/><path d="M4.5 4.5h15"/>
+      </g>
+    </symbol>
+    <symbol id="i-package" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5"/><path d="M12 12v9"/>
+      </g>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6.5h16"/><path d="M9.2 6.5V4.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v2.3"/><path d="M6.2 6.5 7.2 20c.1 1 .8 1.5 1.8 1.5h6c1 0 1.7-.5 1.8-1.5l1-13.5"/><path d="M10.2 10.5v7M13.8 10.5v7"/>
+      </g>
+    </symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 3.5 12.9 8.1 17.5 10 12.9 11.9 11 16.5 9.1 11.9 4.5 10 9.1 8.1 11 3.5Z"/>
+        <path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1Z"/>
+      </g>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12.5l4.5 4.5L19 7"/>
+      </g>
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </g>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 10c0 5.8-8 12-8 12s-8-6.2-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6"/>
+      </g>
+    </symbol>
+  </svg>
+
+  <div class="ambient" aria-hidden="true">
+    <span class="ambient-glow"></span>
+    <span class="ambient-ring ambient-ring-1"></span>
+    <span class="ambient-ring ambient-ring-2"></span>
+    <span class="ambient-ring ambient-ring-3"></span>
+  </div>
+
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <rect width="32" height="32" rx="9.5" fill="#ffffff"/>
+            <path d="M16 6.2c-3.9 0-7.1 3.1-7.1 7 0 5 7.1 12.4 7.1 12.4s7.1-7.4 7.1-12.4c0-3.9-3.2-7-7.1-7Z" fill="none" stroke="#07110c" stroke-width="2.3" stroke-linejoin="round"/>
+            <circle cx="16" cy="13.1" r="2.6" fill="#07110c"/>
+            <path d="M9.4 26.4c1.9 1.6 4.2 2.4 6.6 2.4s4.7-.8 6.6-2.4" fill="none" stroke="#07110c" stroke-width="2.1" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="brand-copy">
+          <span class="brand-name">VanishGeo</span>
+          <span class="brand-sub">环境一致性工具</span>
+        </span>
+      </div>
+      <div class="topbar-meta">
+        <span class="meta-pill">CHROME MV3</span>
+        <span class="meta-note">配置仅存本机</span>
+      </div>
     </header>
 
-    <section class="section">
-      <h2>全局设置</h2>
-      <div class="settings-grid">
-        <label class="checkbox-label">
-          <input type="checkbox" id="globalEnabled">
-          <span>启用全局保护</span>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="debugMode">
-          <span>调试模式（控制台输出详细日志）</span>
-        </label>
-      </div>
-    </section>
+    <div class="page-head">
+      <p class="eyebrow">CONFIGURATION</p>
+      <h1>配置中心</h1>
+      <p class="lede">让页面、请求头与真实出口说的是同一件事。三层一致：进程环境 / 请求头（DNR）/ 页面 JS。</p>
+    </div>
 
-    <section class="section">
-      <h2>站点白名单</h2>
-      <div class="match-mode-container">
-        <div class="input-group">
-          <label>域名列表（每行一个，自动包含子域名）:</label>
-          <textarea id="ruleList" class="input domain-textarea" rows="15" placeholder="例如：&#10;google.com&#10;!mail.google.com&#10;chatgpt.com&#10;&#10;不要写通配符；example.com 会匹配 example.com 及其子域名。&#10;行首加 ! 表示显式排除：保留规则，但该域名及其子域不做任何改写（优先级高于父域白名单）。"></textarea>
-          <div class="hint">提示：最长匹配优先。写 <code>google.com</code> 再加一行 <code>!mail.google.com</code>，就能在整体白名单里单独把 Gmail 摘出去。</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <h2>当前配置</h2>
-        <button id="saveAsCustom" class="btn-secondary">另存为自定义配置</button>
-      </div>
-
-      <div class="action-buttons" style="margin-bottom: 16px;">
-        <button id="getFromIP" class="btn-primary" style="width: 100%;">🌐 从 IP 自动配置（地理位置 + 时区 + 语言）</button>
-      </div>
-
-      <div class="config-tabs">
-        <button class="tab-btn active" data-tab="geolocation">地理位置</button>
-        <button class="tab-btn" data-tab="timezone">时区</button>
-        <button class="tab-btn" data-tab="language">语言</button>
-        <button class="tab-btn" data-tab="webrtc">WebRTC</button>
-      </div>
-
-      <div class="tab-content active" data-tab="geolocation">
-        <label class="checkbox-label">
-          <input type="checkbox" id="geolocationEnabled">
-          <span>启用地理位置伪装</span>
-        </label>
-        <div class="input-row">
-          <div class="input-group">
-            <label>纬度:</label>
-            <input type="number" id="latitude" class="input" step="any" min="-90" max="90">
+    <div class="layout">
+      <main class="col-main">
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-shield"></use></svg></span>
+            <div class="section-heading">
+              <h2>全局设置</h2>
+              <p>总开关与诊断日志</p>
+            </div>
+            <span class="section-index">01</span>
           </div>
-          <div class="input-group">
-            <label>经度:</label>
-            <input type="number" id="longitude" class="input" step="any" min="-180" max="180">
+          <div class="section-body">
+            <div class="switch-list">
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">启用全局保护</span>
+                  <span class="switch-row-desc">关闭后所有站点立即回到本机真实环境</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="globalEnabled" aria-label="启用全局保护">
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">调试模式</span>
+                  <span class="switch-row-desc">在控制台输出详细日志，排查注入与命中问题</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="debugMode" aria-label="调试模式">
+                  <span class="slider"></span>
+                </span>
+              </label>
+            </div>
           </div>
-        </div>
-        <div class="input-group">
-          <label>精度 (米):</label>
-          <input type="number" id="accuracy" class="input" step="1" min="1">
-        </div>
-        <label class="checkbox-label">
-          <input type="checkbox" id="randomize">
-          <span>随机偏移</span>
-        </label>
-        <div class="input-group">
-          <label>随机半径 (米):</label>
-          <input type="number" id="randomRadiusMeters" class="input" step="1" min="0">
-        </div>
-        <label class="checkbox-label">
-          <input type="checkbox" id="spoofPermission">
-          <span>伪装地理位置权限</span>
-        </label>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-list"></use></svg></span>
+            <div class="section-heading">
+              <h2>站点白名单</h2>
+              <p>只有列出的域名会被改写，最长匹配优先</p>
+            </div>
+            <span class="section-index">02</span>
+          </div>
+          <div class="section-body">
+            <div class="field">
+              <label class="field-label" for="ruleList">域名列表（每行一个，自动包含子域名）</label>
+              <textarea id="ruleList" class="input domain-textarea" rows="10" spellcheck="false" placeholder="例如：&#10;google.com&#10;!mail.google.com&#10;chatgpt.com&#10;&#10;不要写通配符；example.com 会匹配 example.com 及其子域名。&#10;行首加 ! 表示显式排除：保留规则，但该域名及其子域不做任何改写（优先级高于父域白名单）。"></textarea>
+              <div class="hint">提示：最长匹配优先。写 <code>google.com</code> 再加一行 <code>!mail.google.com</code>，就能在整体白名单里单独把 Gmail 摘出去。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card card-primary">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-sliders"></use></svg></span>
+            <div class="section-heading">
+              <h2>当前配置</h2>
+              <p>生效中的环境画像，改完记得保存</p>
+            </div>
+            <span class="section-index">03</span>
+          </div>
+          <div class="section-body">
+            <button id="getFromIP" class="btn-primary btn-block" type="button">从 IP 自动配置（地理位置 + 时区 + 语言）</button>
+
+            <div class="config-tabs" role="group" aria-label="配置分组">
+              <button class="tab-btn active" data-tab="geolocation" type="button">地理位置</button>
+              <button class="tab-btn" data-tab="timezone" type="button">时区</button>
+              <button class="tab-btn" data-tab="language" type="button">语言</button>
+              <button class="tab-btn" data-tab="webrtc" type="button">WebRTC</button>
+            </div>
+
+            <div class="tab-content active" data-tab="geolocation">
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">启用地理位置伪装</span>
+                  <span class="switch-row-desc">按下面的坐标回答 Geolocation API</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="geolocationEnabled" aria-label="启用地理位置伪装">
+                  <span class="slider"></span>
+                </span>
+              </label>
+
+              <div class="input-row">
+                <div class="field">
+                  <label class="field-label" for="latitude">纬度</label>
+                  <input type="number" id="latitude" class="input input-mono" step="any" min="-90" max="90">
+                </div>
+                <div class="field">
+                  <label class="field-label" for="longitude">经度</label>
+                  <input type="number" id="longitude" class="input input-mono" step="any" min="-180" max="180">
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="accuracy">精度（米）</label>
+                <input type="number" id="accuracy" class="input input-mono" step="1" min="1">
+              </div>
+
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">随机偏移</span>
+                  <span class="switch-row-desc">在半径内抖动坐标，避免每次都是同一个点</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="randomize" aria-label="随机偏移">
+                  <span class="slider"></span>
+                </span>
+              </label>
+
+              <div class="field">
+                <label class="field-label" for="randomRadiusMeters">随机半径（米）</label>
+                <input type="number" id="randomRadiusMeters" class="input input-mono" step="1" min="0">
+              </div>
+
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">伪装地理位置权限</span>
+                  <span class="switch-row-desc">站点查询权限时直接返回已授权</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="spoofPermission" aria-label="伪装地理位置权限">
+                  <span class="slider"></span>
+                </span>
+              </label>
+
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">完全不调用系统定位</span>
+                  <span class="switch-row-desc">不在系统定位记录里留痕</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="noNativeCall" aria-label="完全不调用系统定位">
+                  <span class="slider"></span>
+                </span>
+              </label>
+
+              <div class="hint" id="noNativeCallHint">开启后站点永远不会弹授权框，也不在系统定位记录里留痕；会自动打开上面的「伪装地理位置权限」。</div>
+            </div>
+
+            <div class="tab-content" data-tab="timezone">
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">启用时区伪装</span>
+                  <span class="switch-row-desc">改写 Date / Intl 的时区与偏移</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="timezoneEnabled" aria-label="启用时区伪装">
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <div class="field">
+                <label class="field-label" for="timezone">时区</label>
+                <input type="text" id="timezone" class="input input-mono" placeholder="Asia/Singapore" spellcheck="false">
+              </div>
+              <div class="field">
+                <label class="field-label" for="utcOffset">UTC 偏移（小时）</label>
+                <input type="number" id="utcOffset" class="input input-mono" step="0.5" placeholder="-7">
+                <small class="field-hint">例如：−7 表示 UTC−7（洛杉矶），+8 表示 UTC+8（新加坡）</small>
+              </div>
+            </div>
+
+            <div class="tab-content" data-tab="language">
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">启用语言伪装</span>
+                  <span class="switch-row-desc">页面 JS 与请求头说同一种语言</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="languageEnabled" aria-label="启用语言伪装">
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <div class="field">
+                <label class="field-label" for="language">主语言</label>
+                <input type="text" id="language" class="input input-mono" placeholder="en-US" spellcheck="false">
+              </div>
+              <div class="field">
+                <label class="field-label" for="languages">语言列表</label>
+                <input type="text" id="languages" class="input input-mono" placeholder="en-US, en" spellcheck="false">
+              </div>
+              <div class="field">
+                <label class="field-label" for="acceptLanguage">Accept-Language</label>
+                <input type="text" id="acceptLanguage" class="input input-mono" placeholder="en-US,en;q=0.9" spellcheck="false">
+              </div>
+            </div>
+
+            <div class="tab-content" data-tab="webrtc">
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">启用 WebRTC 防泄漏</span>
+                  <span class="switch-row-desc">按策略收紧 WebRTC 暴露的本地地址</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="webrtcEnabled" aria-label="启用 WebRTC 防泄漏">
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <div class="field">
+                <label class="field-label" for="webrtcPolicy">策略</label>
+                <select id="webrtcPolicy" class="input">
+                  <option value="default">默认</option>
+                  <option value="default_public_interface_only">仅公网接口</option>
+                  <option value="default_public_and_private_interfaces">公网和私网</option>
+                  <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
+                </select>
+              </div>
+            </div>
+
+            <button id="saveAsCustom" class="btn-secondary btn-block" type="button">
+              <svg class="icon icon-sm"><use href="#i-bookmark"></use></svg>
+              另存为自定义配置
+            </button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-globe"></use></svg></span>
+            <div class="section-heading">
+              <h2>跟随出口 IP</h2>
+              <p>按周期检查出口，变化时自动对齐时区与坐标</p>
+            </div>
+            <span class="section-index">04</span>
+          </div>
+          <div class="section-body">
+            <p class="section-description">开启后按周期检查出口 IP。IP 变化时，时区与坐标会切到「跟随出口 IP」的 auto 档，手选的预设会被清空。开关打开期间，上方「当前配置」里手填的时区与经纬度不参与提交，以出口 IP 的归属地为准。</p>
+            <div class="switch-list">
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">自动跟随出口 IP（时区 + 坐标）</span>
+                  <span class="switch-row-desc">出口变化时自动切到新的归属地</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="ipSyncEnabled" aria-label="自动跟随出口 IP">
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <label class="switch-row">
+                <span class="switch-row-text">
+                  <span class="switch-row-title">语言也跟随</span>
+                  <span class="switch-row-desc">按出口国家改写 language / Accept-Language</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="ipSyncLanguage" aria-label="语言也跟随出口 IP">
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <div class="field field-inline">
+                <label class="field-label" for="ipSyncInterval">检查周期（分钟，5–1440）</label>
+                <input type="number" id="ipSyncInterval" class="input input-mono input-short" step="1" min="5" max="1440">
+              </div>
+            </div>
+            <div class="hint" id="ipSyncStatus"></div>
+            <button id="ipSyncNow" class="btn-secondary btn-block" type="button">立即同步一次</button>
+          </div>
+        </section>
+      </main>
+
+      <aside class="col-side">
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-layers"></use></svg></span>
+            <div class="section-heading">
+              <h2>预设配置</h2>
+              <p>点击「应用」快速切换</p>
+            </div>
+            <span class="section-index">05</span>
+          </div>
+          <div class="section-body">
+            <div id="defaultProfiles" class="profiles-grid"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-bookmark"></use></svg></span>
+            <div class="section-heading">
+              <h2>自定义配置文件</h2>
+              <p>保存你自己的配置方案</p>
+            </div>
+            <span class="section-index">06</span>
+          </div>
+          <div class="section-body">
+            <div id="customProfiles" class="profiles-grid"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-target"></use></svg></span>
+            <div class="section-heading">
+              <h2>站点特定规则</h2>
+              <p>优先级高于白名单，可单独开或关</p>
+            </div>
+            <span class="section-index">07</span>
+          </div>
+          <div class="section-body">
+            <div id="siteRules"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <span class="section-icon"><svg class="icon"><use href="#i-database"></use></svg></span>
+            <div class="section-heading">
+              <h2>数据管理</h2>
+              <p>导出、导入或重置全部数据</p>
+            </div>
+            <span class="section-index">08</span>
+          </div>
+          <div class="section-body">
+            <div class="data-actions">
+              <button id="exportConfig" class="btn-secondary" type="button">
+                <svg class="icon icon-sm"><use href="#i-download"></use></svg>
+                导出完整配置
+              </button>
+              <button id="importConfig" class="btn-secondary" type="button">
+                <svg class="icon icon-sm"><use href="#i-upload"></use></svg>
+                导入配置
+              </button>
+              <button id="exportBake" class="btn-secondary" type="button">
+                <svg class="icon icon-sm"><use href="#i-package"></use></svg>
+                导出烘焙配置（首屏零窗口）
+              </button>
+              <button id="resetAll" class="btn-danger" type="button">
+                <svg class="icon icon-sm"><use href="#i-trash"></use></svg>
+                重置所有数据
+              </button>
+              <input type="file" id="importFile" accept=".json" style="display: none;">
+            </div>
+            <p class="hint">
+              非烘焙构建的配置要经一次异步 IPC 才进到页面，页面的第一个内联脚本可能在它之前执行。
+              把这份快照交给 <code>npm run build:persona -- --config=&lt;文件&gt;</code> 构建，
+              配置会变成 <code>document_start</code> 的同步常量，这个窗口就不存在了。
+            </p>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="save-bar">
+      <div class="save-copy">
+        <span class="save-title">保存后应用到所有匹配站点</span>
+        <span class="save-hint">已打开的页面会自动重载以套用新配置</span>
       </div>
-
-      <div class="tab-content" data-tab="timezone">
-        <label class="checkbox-label">
-          <input type="checkbox" id="timezoneEnabled">
-          <span>启用时区伪装</span>
-        </label>
-        <div class="input-group">
-          <label>时区:</label>
-          <input type="text" id="timezone" class="input" placeholder="Asia/Singapore">
-        </div>
-        <div class="input-group">
-          <label>UTC 偏移 (小时):</label>
-          <input type="number" id="utcOffset" class="input" step="0.5" placeholder="-7">
-          <small style="color: #888; display: block; margin-top: 4px;">例如：-7 表示 UTC-7 (洛杉矶)，+8 表示 UTC+8 (新加坡)</small>
-        </div>
-      </div>
-
-      <div class="tab-content" data-tab="language">
-        <label class="checkbox-label">
-          <input type="checkbox" id="languageEnabled">
-          <span>启用语言伪装</span>
-        </label>
-        <div class="input-group">
-          <label>主语言:</label>
-          <input type="text" id="language" class="input" placeholder="en-US">
-        </div>
-        <div class="input-group">
-          <label>语言列表:</label>
-          <input type="text" id="languages" class="input" placeholder="en-US, en">
-        </div>
-        <div class="input-group">
-          <label>Accept-Language:</label>
-          <input type="text" id="acceptLanguage" class="input" placeholder="en-US,en;q=0.9">
-        </div>
-      </div>
-
-      <div class="tab-content" data-tab="webrtc">
-        <label class="checkbox-label">
-          <input type="checkbox" id="webrtcEnabled">
-          <span>启用 WebRTC 防泄漏</span>
-        </label>
-        <div class="input-group">
-          <label>策略:</label>
-          <select id="webrtcPolicy" class="input">
-            <option value="default">默认</option>
-            <option value="default_public_interface_only">仅公网接口</option>
-            <option value="default_public_and_private_interfaces">公网和私网</option>
-            <option value="disable_non_proxied_udp">禁用非代理 UDP（推荐）</option>
-          </select>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <h2>跟随出口 IP</h2>
-        <button id="ipSyncNow" class="btn-secondary">立即同步一次</button>
-      </div>
-      <p class="section-description">开启后按周期检查出口 IP。IP 变化时，时区与坐标会切到「跟随出口 IP」的 auto 档，手选的预设会被清空。开关打开期间，上方「当前配置」里手填的时区与经纬度不参与提交，以出口 IP 的归属地为准。</p>
-      <div class="settings-grid">
-        <label class="checkbox-label">
-          <input type="checkbox" id="ipSyncEnabled">
-          <span>自动跟随出口 IP（时区 + 坐标）</span>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="ipSyncLanguage">
-          <span>语言也跟随（按出口国家改写 language / Accept-Language）</span>
-        </label>
-        <div class="input-group">
-          <label for="ipSyncInterval">检查周期（分钟，5–1440）</label>
-          <input type="number" id="ipSyncInterval" class="input" step="1" min="5" max="1440">
-        </div>
-      </div>
-      <div class="hint" id="ipSyncStatus"></div>
-    </section>
-
-    <section class="section">
-      <h2>预设配置</h2>
-      <p class="section-description">点击"应用"快速切换到预设配置</p>
-      <div id="defaultProfiles" class="profiles-grid"></div>
-    </section>
-
-    <section class="section">
-      <h2>自定义配置文件</h2>
-      <p class="section-description">保存你自己的配置方案，方便快速切换</p>
-      <div id="customProfiles" class="profiles-grid"></div>
-    </section>
-
-    <section class="section">
-      <h2>站点特定规则</h2>
-      <p class="section-description">站点特定规则优先级高于匹配模式，可以为特定网站设置例外</p>
-      <div id="siteRules"></div>
-    </section>
-
-    <section class="section">
-      <h2>数据管理</h2>
-      <div class="data-actions">
-        <button id="exportConfig" class="btn-secondary">导出完整配置</button>
-        <button id="importConfig" class="btn-secondary">导入配置</button>
-        <button id="exportBake" class="btn-secondary">导出烘焙配置（首屏零窗口）</button>
-        <button id="resetAll" class="btn-danger">重置所有数据</button>
-        <input type="file" id="importFile" accept=".json" style="display: none;">
-      </div>
-      <p class="hint">
-        非烘焙构建的配置要经一次异步 IPC 才进到页面，页面的第一个内联脚本可能在它之前执行。
-        把这份快照交给 <code>npm run build:persona -- --config=&lt;文件&gt;</code> 构建，
-        配置会变成 <code>document_start</code> 的同步常量，这个窗口就不存在了。
-      </p>
-    </section>
-
-    <footer>
-      <button id="save" class="btn-primary">保存当前配置</button>
+      <button id="save" class="btn-primary btn-lg" type="button">
+        <svg class="icon icon-sm"><use href="#i-check"></use></svg>
+        保存当前配置
+      </button>
     </footer>
   </div>
 
   <!-- Save Profile Modal -->
   <div id="saveProfileModal" class="modal">
-    <div class="modal-content">
-      <h2>另存为自定义配置</h2>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="saveProfileTitle">
+      <div class="modal-head">
+        <span class="section-icon"><svg class="icon"><use href="#i-bookmark"></use></svg></span>
+        <div class="section-heading">
+          <h2 id="saveProfileTitle">另存为自定义配置</h2>
+          <p>把当前表单里的坐标、时区与语言存成可复用方案</p>
+        </div>
+        <button id="cancelSaveProfileIcon" class="icon-btn" type="button" aria-label="关闭" title="关闭">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </div>
       <div class="modal-body">
-        <div class="input-group">
-          <label>配置名称:</label>
+        <div class="field">
+          <label class="field-label" for="newProfileName">配置名称</label>
           <input type="text" id="newProfileName" class="input" placeholder="我的配置">
         </div>
-        <div class="input-group">
-          <label>描述（可选）:</label>
+        <div class="field">
+          <label class="field-label" for="newProfileDescription">描述（可选）</label>
           <input type="text" id="newProfileDescription" class="input" placeholder="配置说明">
         </div>
       </div>
       <div class="modal-footer">
-        <button id="confirmSaveProfile" class="btn-primary">保存</button>
-        <button id="cancelSaveProfile" class="btn-secondary">取消</button>
+        <button id="cancelSaveProfile" class="btn-secondary" type="button">取消</button>
+        <button id="confirmSaveProfile" class="btn-primary" type="button">保存</button>
       </div>
     </div>
   </div>
+
+  <div id="settingsToast" class="settings-toast" role="status" aria-live="polite"></div>
 
   <script type="module" src="options.js"></script>
 </body>

@@ -10,12 +10,16 @@ import {
 } from '../shared/config-model';
 import { ruleLines, rulesFromText } from '../shared/rule-text';
 import { sendRuntimeMessage } from '../shared/runtime-message';
-import { coordinateInputValue, geolocationModeFromInput, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
+import { describeIpApplyError, geolocationModeFromInput, locationDisplay, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
 import { validateProfile } from '../shared/profile';
-import type { ExitIpSyncOutcome } from '../background/ip-sync';
+import type { ExitIpApplyOutcome, ExitIpSyncOutcome } from '../background/ip-sync';
 import type { IpSyncConfig, LastLocation, Profile, SiteSpoofConfig } from '../shared/types';
 
 let currentConfig: SiteSpoofConfig = normalizeConfig(DEFAULT_CONFIG);
+/** 后台最近一次定位：auto 档要在表单里显示它，否则坐标/时区永远是两个空框 */
+let currentLastLocation: LastLocation | null = null;
+/** 上一轮 populateForm 里由 auto 档算出的显示值，readForm 用来判断"用户有没有动过" */
+let autoDisplay: { latitude: string; longitude: string; timezone: string; autoGeo: boolean; autoTimezone: boolean } | null = null;
 
 /** `getExitIpSyncState` / `checkExitIpSync` 的返回形状（后台 message-router 给） */
 interface IpSyncStateResponse {
@@ -37,6 +41,7 @@ const accuracyEl = document.getElementById('accuracy') as HTMLInputElement;
 const randomizeEl = document.getElementById('randomize') as HTMLInputElement;
 const randomRadiusMetersEl = document.getElementById('randomRadiusMeters') as HTMLInputElement;
 const spoofPermissionEl = document.getElementById('spoofPermission') as HTMLInputElement;
+const noNativeCallEl = document.getElementById('noNativeCall') as HTMLInputElement;
 const getFromIPBtn = document.getElementById('getFromIP') as HTMLButtonElement;
 const timezoneEnabledEl = document.getElementById('timezoneEnabled') as HTMLInputElement;
 const timezoneEl = document.getElementById('timezone') as HTMLInputElement;
@@ -58,6 +63,8 @@ const resetAllBtn = document.getElementById('resetAll') as HTMLButtonElement;
 const saveBtn = document.getElementById('save') as HTMLButtonElement;
 const saveAsCustomBtn = document.getElementById('saveAsCustom') as HTMLButtonElement;
 const saveProfileModal = document.getElementById('saveProfileModal') as HTMLElement;
+const settingsToastEl = document.getElementById('settingsToast') as HTMLElement;
+let settingsToastTimer: number | undefined;
 const newProfileNameEl = document.getElementById('newProfileName') as HTMLInputElement;
 const newProfileDescriptionEl = document.getElementById('newProfileDescription') as HTMLInputElement;
 const confirmSaveProfileBtn = document.getElementById('confirmSaveProfile') as HTMLButtonElement;
@@ -69,24 +76,34 @@ const ipSyncNowBtn = document.getElementById('ipSyncNow') as HTMLButtonElement;
 const ipSyncStatusEl = document.getElementById('ipSyncStatus') as HTMLElement;
 
 
+/** 「完全不调用系统定位」必须与「伪装位置权限」同开：权限回答与坐标不能各说各的 */
+function syncNoNativeCallControls(): void {
+  noNativeCallEl.disabled = !spoofPermissionEl.checked && !noNativeCallEl.checked;
+}
+
 function populateForm(config: SiteSpoofConfig): void {
   globalEnabledEl.checked = config.masterEnabled;
   debugModeEl.checked = config.debugMode;
   ruleListEl.value = ruleLines(config.rules);
 
   const geo = config.globalProfile.geolocation;
+  const timezone = config.globalProfile.timezone;
+  // auto 档显示实际生效的定位（lastLocation），manual 档显示配置里写死的值
+  const display = locationDisplay(geo, timezone, currentLastLocation);
+  autoDisplay = { ...display };
   geolocationEnabledEl.checked = geo.enabled;
-  latitudeEl.value = coordinateInputValue(geo.latitude);
-  longitudeEl.value = coordinateInputValue(geo.longitude);
+  latitudeEl.value = display.latitude;
+  longitudeEl.value = display.longitude;
   accuracyEl.value = String(geo.accuracy);
   randomizeEl.checked = geo.randomize;
   randomRadiusMetersEl.value = String(geo.randomRadiusMeters);
   spoofPermissionEl.checked = geo.spoofPermission;
+  noNativeCallEl.checked = geo.noNativeCall !== false;
+  syncNoNativeCallControls();
 
-  const timezone = config.globalProfile.timezone;
   timezoneEnabledEl.checked = timezone.enabled;
-  timezoneEl.value = timezone.timezone;
-  utcOffsetEl.value = utcOffsetInputValue(timezone.timezone);
+  timezoneEl.value = display.timezone;
+  utcOffsetEl.value = utcOffsetInputValue(display.timezone);
 
   const language = config.globalProfile.language;
   languageEnabledEl.checked = language.enabled;
@@ -123,6 +140,11 @@ function readForm(): SiteSpoofConfig {
   // 把它们原样提交回去，等于用旧值覆盖后台刚写好的值：auto 档虽然不看字段值，但下一轮
   // `planExitIpSync` 会因此多报一层「变了」，还把配置写成自相矛盾的样子。
   const staticProfile = currentConfig.globalProfile;
+  // 显示的是 lastLocation 且用户没改 → 仍然是 auto（否则一次保存就把跟随钉成手填）
+  const geoTouched = !(autoDisplay?.autoGeo
+    && autoDisplay.latitude === latitudeEl.value
+    && autoDisplay.longitude === longitudeEl.value);
+  const timezoneUntouched = Boolean(autoDisplay?.autoTimezone && autoDisplay.timezone === timezoneEl.value);
   return normalizeConfig({
     ...currentConfig,
     masterEnabled: globalEnabledEl.checked,
@@ -138,12 +160,12 @@ function readForm(): SiteSpoofConfig {
       }),
       timezone: normalizeTimezone({
         enabled: timezoneEnabledEl.checked,
-        mode: ipSyncOn || !timezoneEl.value ? 'auto' : 'manual',
+        mode: ipSyncOn || timezoneUntouched || !timezoneEl.value ? 'auto' : 'manual',
         timezone: ipSyncOn ? staticProfile.timezone.timezone : timezoneEl.value
       }),
       geolocation: normalizeGeolocation({
         enabled: geolocationEnabledEl.checked,
-        mode: ipSyncOn ? 'auto' : geolocationModeFromInput(latitudeEl.value, longitudeEl.value),
+        mode: ipSyncOn || !geoTouched ? 'auto' : geolocationModeFromInput(latitudeEl.value, longitudeEl.value),
         latitude: ipSyncOn ? staticProfile.geolocation.latitude : parseCoordinateInput(latitudeEl.value),
         longitude: ipSyncOn ? staticProfile.geolocation.longitude : parseCoordinateInput(longitudeEl.value),
         // 国家只在跟随过程中写入，配置页以前根本没提交它 —— 每点一次保存就丢一次，
@@ -152,7 +174,8 @@ function readForm(): SiteSpoofConfig {
         accuracy: Number(accuracyEl.value),
         randomize: randomizeEl.checked,
         randomRadiusMeters: Number(randomRadiusMetersEl.value),
-        spoofPermission: spoofPermissionEl.checked,
+        spoofPermission: noNativeCallEl.checked ? true : spoofPermissionEl.checked,
+        noNativeCall: noNativeCallEl.checked,
         history: currentConfig.globalProfile.geolocation.history
       })
     },
@@ -172,7 +195,20 @@ function readForm(): SiteSpoofConfig {
 async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
   currentConfig = normalizeConfig(response.config);
+  // auto 档的坐标/时区来自 lastLocation，不一起读就会显示成空框
+  const state = await sendRuntimeMessage<IpSyncStateResponse>({ action: 'getExitIpSyncState' })
+    .catch(() => null);
+  if (state) currentLastLocation = state.lastLocation ?? null;
   populateForm(currentConfig);
+}
+
+function showSettingsToast(message: string): void {
+  settingsToastEl.textContent = message;
+  settingsToastEl.classList.add('show');
+  window.clearTimeout(settingsToastTimer);
+  settingsToastTimer = window.setTimeout(() => {
+    settingsToastEl.classList.remove('show');
+  }, 2400);
 }
 
 async function saveSettings(options: { announce?: boolean } = {}): Promise<void> {
@@ -180,7 +216,7 @@ async function saveSettings(options: { announce?: boolean } = {}): Promise<void>
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'setSiteConfig', config: currentConfig });
   currentConfig = normalizeConfig(response.config);
   populateForm(currentConfig);
-  if (options.announce) alert('设置已保存');
+  if (options.announce) showSettingsToast('设置已保存');
 }
 
 async function applyProfile(profileId: string): Promise<void> {
@@ -235,7 +271,7 @@ function renderProfiles(): void {
   const defaultIds = new Set(DEFAULT_PROFILES.map((profile) => profile.id));
   const customProfiles = currentConfig.profile.profiles.filter((profile) => !defaultIds.has(profile.id));
   if (!customProfiles.length) {
-    customProfilesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无自定义配置文件</p>';
+    customProfilesEl.innerHTML = '<p class="empty-state">暂无自定义配置文件</p>';
     return;
   }
   customProfiles.forEach((profile) => customProfilesEl.appendChild(createCustomProfileCard(profile)));
@@ -282,7 +318,7 @@ async function handleDeleteRule(domain: string): Promise<void> {
 function renderSiteRules(): void {
   siteRulesEl.innerHTML = '';
   if (!currentConfig.rules.length) {
-    siteRulesEl.innerHTML = '<p style="color: #888; font-size: 14px;">暂无站点规则</p>';
+    siteRulesEl.innerHTML = '<p class="empty-state">暂无站点规则</p>';
     return;
   }
 
@@ -449,16 +485,39 @@ async function resetAllData(): Promise<void> {
   await saveSettings();
 }
 
+/**
+ * 从 IP 自动配置：查出口，把坐标/时区/语言**写进当前配置**并应用。
+ *
+ * 以前这里发 `manualUpdate`（只刷新 lastLocation）。配置是 manual 档时解析层
+ * 不看 lastLocation，点完表单一个数字都不动 —— 就是"点了没反应"。
+ */
 async function handleGetFromIP(): Promise<void> {
+  const label = getFromIPBtn.textContent;
   getFromIPBtn.disabled = true;
   getFromIPBtn.textContent = '获取中...';
   try {
-    await sendRuntimeMessage({ action: 'manualUpdate' });
-    await loadConfig();
-    alert('出口 IP 定位已刷新，auto 模式会使用最新定位。');
+    const response = await sendRuntimeMessage<{
+      outcome?: ExitIpApplyOutcome;
+      config?: SiteSpoofConfig;
+      lastLocation?: LastLocation | null;
+    }>({ action: 'applyFromExitIp' });
+    const outcome = response?.outcome;
+    if (!outcome || outcome.ok !== true) {
+      alert(`从 IP 自动配置失败：${outcome?.error ? describeIpApplyError(outcome.error) : '后台没有返回结果'}`);
+      return;
+    }
+    if (response.config) {
+      currentConfig = normalizeConfig(response.config);
+    }
+    currentLastLocation = response.lastLocation ?? null;
+    populateForm(currentConfig);
+    const summary = [outcome.country, outcome.timezone, outcome.language].filter(Boolean).join(' · ');
+    alert(`已按出口 IP ${outcome.ip} 配置：${summary}\n记得点「保存设置」把它存下来。`);
+  } catch (error) {
+    alert(`从 IP 自动配置失败：${error instanceof Error ? error.message : String(error)}`);
   } finally {
     getFromIPBtn.disabled = false;
-    getFromIPBtn.textContent = '🌐 从 IP 自动配置（地理位置 + 时区 + 语言）';
+    getFromIPBtn.textContent = label;
   }
 }
 
@@ -556,6 +615,7 @@ async function handleIpSyncNow(): Promise<void> {
   try {
     const response = await sendRuntimeMessage<IpSyncStateResponse>({ action: 'checkExitIpSync', force: true });
     alert(describeIpSyncOutcome(response?.outcome));
+    if (response?.lastLocation) currentLastLocation = response.lastLocation;
     if (response?.config) {
       currentConfig = normalizeConfig(response.config);
       populateForm(currentConfig);
@@ -584,10 +644,21 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
   });
 });
 
-saveBtn.addEventListener('click', () => { void saveSettings(); });
+spoofPermissionEl.addEventListener('change', () => {
+  if (!spoofPermissionEl.checked) noNativeCallEl.checked = false;
+  syncNoNativeCallControls();
+});
+noNativeCallEl.addEventListener('change', () => {
+  if (noNativeCallEl.checked) spoofPermissionEl.checked = true;
+  syncNoNativeCallControls();
+});
+saveBtn.addEventListener('click', () => { void saveSettings({ announce: true }); });
 saveAsCustomBtn.addEventListener('click', openSaveAsCustomModal);
 confirmSaveProfileBtn.addEventListener('click', () => { void handleSaveAsCustom(); });
 cancelSaveProfileBtn.addEventListener('click', closeSaveAsCustomModal);
+document
+  .getElementById('cancelSaveProfileIcon')
+  ?.addEventListener('click', closeSaveAsCustomModal);
 getFromIPBtn.addEventListener('click', () => { void handleGetFromIP(); });
 ipSyncEnabledEl.addEventListener('change', syncIpSyncControls);
 ipSyncNowBtn.addEventListener('click', () => { void handleIpSyncNow(); });
