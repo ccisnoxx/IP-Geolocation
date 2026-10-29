@@ -95,12 +95,14 @@
 | 坐标 + 精度 | 页面拿到 `Position`，形状与原生一致（属性在原型上、实例无自有属性） |
 | 随机偏移 | 以给定半径随机取点，**同一会话内固定**，不会每次调用都瞬移；换坐标才重摇 |
 | 伪装权限（`spoofPermission`） | 开启：把定位权限伪装成已授权，直接给坐标；关闭：**只换坐标，不碰权限** —— 授权提示、错误码、超时全部交给浏览器，只在成功回调里替换坐标 |
+| 完全不调用系统定位（`noNativeCall`） | 保证一个字节都不问系统：系统授权框不弹、系统定位记录里不留痕（macOS 菜单栏的定位箭头都不会亮）。缺省跟随伪装权限；打开它会强制同时打开伪装权限 —— 否则 `permissions.query` 回 `prompt` 而 `getCurrentPosition` 却给坐标，两句话当场打架 |
 
 配置建议：
 
 - 坐标与出口 IP 所在城市一致；精度别填太小（1 米反而像模拟器），50–200 米比较常见
 - 需要"移动感"就开随机偏移，半径 100–1000 米；半径 0 表示固定点
 - 不想接管权限就关掉伪装权限 —— 这样"页面被拒绝定位"也是真实行为，不会与 `permissions.query` 打架
+- 关掉伪装权限后又不想让系统知道"有站点在问定位"，把"完全不调用系统定位"打开（会连带打开伪装权限）：代价是页面拿到的权限回答必须是 `granted`
 
 ## 五、canvas 字体：三层结构
 
@@ -312,12 +314,12 @@ HTML 已经缓冲好时，首个内联脚本紧接着就执行。所以开发构
 
 ### 发布流水线：一条命令出包
 
-手上有两种输入：仓库内置的六个 preset，或者从出口 IP 推出来的 persona
+手上有两种输入：仓库内置的三个 preset，或者从出口 IP 推出来的 persona
 （`~/.vanishgeo/personas/*.json`）。两者都走同一条烘焙路径：
 
 ```bash
 npm run release -- --preset=singapore          # 单个
-npm run release -- --all-presets               # 六个全出
+npm run release -- --all-presets               # 三个全出
 npm run release -- --persona=us-la-1           # 用 IP 推出的 persona
 npm run release -- --all-personas --frozen     # 全部 persona，且彻底冻结
 npm run release -- --preset=singapore --domains=claude.ai,anthropic.com
