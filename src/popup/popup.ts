@@ -52,6 +52,8 @@ const webrtcPolicyEl = document.getElementById('webrtcPolicy') as HTMLSelectElem
 const canvasEnabledEl = document.getElementById('canvasEnabled') as HTMLInputElement;
 const canvasPlatformEl = document.getElementById('canvasPlatform') as HTMLSelectElement;
 const canvasHideCjkEl = document.getElementById('canvasHideCjk') as HTMLInputElement;
+const canvasOffBadgeEl = document.getElementById('canvasOffBadge') as HTMLElement;
+const canvasOffHintEl = document.getElementById('canvasOffHint') as HTMLElement;
 const resetFontsBtn = document.getElementById('resetFonts') as HTMLButtonElement;
 const openOptionsBtn = document.getElementById('openOptions') as HTMLButtonElement;
 const openLeakTestBtn = document.getElementById('openLeakTest') as HTMLButtonElement;
@@ -110,6 +112,17 @@ function populateForm(config: SiteSpoofConfig): void {
   canvasEnabledEl.checked = config.canvas.enabled;
   canvasPlatformEl.value = config.canvas.platform;
   canvasHideCjkEl.checked = config.canvas.hideCjkFonts;
+  syncCanvasHints(config.canvas.enabled);
+}
+
+/**
+ * 字体层默认关着（见 `DEFAULT_CANVAS` 的注释：它会改写 canvas 度量）。
+ * 但"关着"这件事必须在弹窗上看得见 —— 否则用户以为默认已经藏好，
+ * 而检测站那边「已安装中文字体」照样给他加分。
+ */
+function syncCanvasHints(enabled: boolean): void {
+  canvasOffBadgeEl.hidden = enabled;
+  canvasOffHintEl.hidden = enabled;
 }
 
 function readForm(): SiteSpoofConfig {
@@ -307,7 +320,10 @@ languagesEl.addEventListener('blur', () => { void saveChanges(); });
 acceptLanguageEl.addEventListener('blur', () => { void saveChanges(); });
 webrtcEnabledEl.addEventListener('change', () => { void saveChanges(); });
 webrtcPolicyEl.addEventListener('change', () => { void saveChanges(); });
-canvasEnabledEl.addEventListener('change', () => { void saveChanges(); });
+canvasEnabledEl.addEventListener('change', () => {
+  syncCanvasHints(canvasEnabledEl.checked);
+  void saveChanges();
+});
 canvasPlatformEl.addEventListener('change', () => { void saveChanges(); });
 canvasHideCjkEl.addEventListener('change', () => { void saveChanges(); });
 saveCoordinateBtn.addEventListener('click', () => { void handleSaveCoordinate(); });
