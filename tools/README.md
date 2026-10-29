@@ -339,6 +339,11 @@ Chrome 119 用 `npm run setup:chrome119` 安装到 `~/.vanishgeo/browsers/chrome
   的定义就是不开调试端口 → 装不上扩展，测不了。Chrome 119 和 Helium 仍支持 `--load-extension`，所以能测。
 - **每项检查前清理残留浏览器**（`reapStrayBrowsers`，只匹配本工具的临时 profile 目录，
   绝不碰用户自己开着的窗口）。残留实例会抢 CPU，让后面的检查`Page.navigate`超时。
+- **两条检查的判定基准要看环境**（2026-10-29 起）：`真实站点一致性` 里「页面时区 == 出口 IP 时区」
+  只在挂了同地区代理的机器上成立 —— 没有代理时本机出口落在哪个城市是随机的（CI runner 在
+  `America/Chicago`），这条降级成 ⚠ 警告，改核对 persona 时区；`原生模式自检` 的 geolocation
+  权限、`烘焙 fail-closed` 的「恢复坐标」在无人值守环境会被浏览器直接 deny，同样记 ⚠ 跳过
+  而不是判错。两者都只在真缺能力时降级，本机能授权、能挂代理时仍按严格判。
 - **本地 HTTPS 证书必须带 SAN**：Chromium 只看 `subjectAltName`，缺 SAN 的证书会让主文档
   导航偶发卡在 handshake（`net_error -100`），表现为"页面永远加载不出来"。
   `tools/lib/certs.mjs` 会按 `--domain` 现生成并在缺失时自动补；SAN 覆盖 `claude.ai`

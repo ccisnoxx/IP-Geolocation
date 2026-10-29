@@ -57,7 +57,7 @@ const pageHtml = (config) => `<!doctype html>
 <script>
 const EXPECTED = ${JSON.stringify(config)};
 const results = [];
-const record = (name, value, ok, detail) => results.push({ name, value, ok, detail: detail || '' });
+const record = (name, value, ok, detail, skip) => results.push({ name, value, ok, detail: detail || '', skip: Boolean(skip) });
 
 async function workerProbe() {
   return new Promise((res) => {
@@ -135,7 +135,10 @@ function fontWidthPresent(family) {
   record('PingFang SC(系统自带)', fontWidthPresent('PingFang SC'), fontWidthPresent('PingFang SC'));
   record('MS Gothic(应为假)', fontWidthPresent('MS Gothic'), fontWidthPresent('MS Gothic') === false);
   const geoState = await navigator.permissions.query({ name: 'geolocation' }).then((p) => p.state).catch((error) => 'ERR:' + error.message);
-  record('geolocation 权限', geoState, geoState === 'prompt' || geoState === 'granted');
+  // denied 只说明这台机器/这个 profile 不允许定位（无人值守环境没人点授权），
+  // 原生模式的其余项目已经证明扩展没在场 —— 这一条跳过，不算回归。
+  record('geolocation 权限', geoState, geoState === 'prompt' || geoState === 'granted',
+    geoState === 'denied' ? '本环境直接拒绝定位权限' : '', geoState === 'denied');
 
   const payload = { results, nav, tz, offset, ua: navigator.userAgent, webdriver: navigator.webdriver, worker };
   document.getElementById('out').textContent = JSON.stringify(payload, null, 1);
@@ -232,13 +235,19 @@ if (!report) {
     { name: 'Accept-Language 头', value: header.acceptLanguage, ok: headerOk, detail: `期望 ${expected.acceptLanguage}` },
     { name: '头与 navigator.language 一致', value: String(headerMatchesJs), ok: headerMatchesJs, detail: `nav=${report.nav}` }
   ];
+  let skipped = 0;
   for (const row of rows) {
+    if (row.skip) {
+      skipped += 1;
+      console.log(`⚠ ${row.name}  ${row.value}${row.detail ? `  (${row.detail})` : ''}`);
+      continue;
+    }
     total += 1;
     if (!row.ok) failed += 1;
     console.log(`${row.ok ? '✓' : '✗'} ${row.name}  ${row.value}${row.detail ? `  (${row.detail})` : ''}`);
   }
   console.log(`\nUA: ${report.ua}`);
-  console.log(`${total - failed}/${total} 通过`);
+  console.log(`${total - failed}/${total} 通过${skipped ? `（${skipped} 项跳过）` : ''}`);
 }
 
 killChrome(chrome.child);
