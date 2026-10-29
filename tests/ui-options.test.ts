@@ -21,6 +21,7 @@ function createChrome(calls: RuntimeCall[]) {
   let exitIpSyncOutcome: any = null;
   let storedIpOverride: string | null = null;
   let checkIpSyncError: string | null = null;
+  let applyOutcome: any = null;
   return {
     runtime: {
       lastError: undefined,
@@ -51,6 +52,45 @@ function createChrome(calls: RuntimeCall[]) {
                 lastLocation: ipSyncEnabled
                   ? { latitude: 34.0522, longitude: -118.2437, accuracy: 50, timezone: 'America/Los_Angeles', country: 'United States', updateTime: 1 }
                   : null
+              };
+            }
+            case 'applyFromExitIp': {
+              const outcome = applyOutcome || {
+                ok: true,
+                changed: true,
+                layers: ['timezone', 'geolocation', 'language', 'profile'],
+                ip: '203.0.113.9',
+                country: 'United States',
+                timezone: 'America/Los_Angeles',
+                latitude: 34.0522,
+                longitude: -118.2437,
+                language: 'en-US'
+              };
+              if (!outcome.ok) return { status: 'ok', outcome };
+              siteConfig = {
+                ...structuredClone(siteConfig),
+                globalProfile: {
+                  ...siteConfig.globalProfile,
+                  timezone: { ...siteConfig.globalProfile.timezone, mode: 'manual', timezone: outcome.timezone },
+                  geolocation: {
+                    ...siteConfig.globalProfile.geolocation,
+                    mode: 'manual',
+                    latitude: outcome.latitude,
+                    longitude: outcome.longitude,
+                    country: outcome.country
+                  }
+                }
+              };
+              return {
+                status: 'ok',
+                outcome,
+                config: structuredClone(siteConfig),
+                lastLocation: {
+                  latitude: outcome.latitude,
+                  longitude: outcome.longitude,
+                  country: outcome.country,
+                  timezone: outcome.timezone
+                }
               };
             }
             case 'checkExitIpSync': {
@@ -87,7 +127,8 @@ function createChrome(calls: RuntimeCall[]) {
     setExitIpSyncOutcome(value: any) { exitIpSyncOutcome = value; },
     setStoredExitIp(value: string | null) { storedIpOverride = value; },
     setIpSyncReadQueue(queue: Array<{ delay: number; storedIp: string }>) { ipSyncReadQueue = [...queue]; },
-    setCheckIpSyncError(value: string | null) { checkIpSyncError = value; }
+    setCheckIpSyncError(value: string | null) { checkIpSyncError = value; },
+    setApplyOutcome(value: any) { applyOutcome = value; }
   };
 }
 
@@ -413,4 +454,56 @@ test('周期输入框被清空时保持原值，不被悄悄夹成 5', async () 
 
   const payload = calls.filter((call) => call.action === 'setSiteConfig').at(-1)!.config;
   assert.equal(payload.ipSync.intervalMinutes, 17, '清空保持原值，不是改成 5');
+});
+
+test('「从 IP 自动配置」走 applyFromExitIp：新坐标/时区写进表单，失败必须弹出来', async () => {
+  chromeStub.setIpSyncState({ enabled: false });
+  chromeStub.setApplyOutcome({
+    ok: true,
+    changed: true,
+    layers: ['timezone', 'geolocation', 'language', 'profile'],
+    ip: '203.0.113.9',
+    country: 'United States',
+    timezone: 'America/Los_Angeles',
+    latitude: 34.0522,
+    longitude: -118.2437,
+    language: 'en-US'
+  });
+  ui.alerts.length = 0;
+
+  el<HTMLButtonElement>('getFromIP').click();
+  await waitFor(() => ui.alerts.some((message) => /已按出口 IP 203\.0\.113\.9/.test(message)));
+
+  assert.equal(el<HTMLInputElement>('latitude').value, '34.0522');
+  assert.equal(el<HTMLInputElement>('longitude').value, '-118.2437');
+  assert.equal(el<HTMLInputElement>('timezone').value, 'America/Los_Angeles');
+  assert.match(ui.alerts.at(-1)!, /America\/Los_Angeles/);
+  assert.equal(calls.some((call) => call.action === 'applyFromExitIp'), true);
+
+  // 失败不是"按钮转一圈就恢复"：错误必须说出来
+  chromeStub.setApplyOutcome({ ok: false, error: 'network down' });
+  ui.alerts.length = 0;
+  await waitFor(() => el<HTMLButtonElement>('getFromIP').disabled === false);
+  el<HTMLButtonElement>('getFromIP').click();
+  await waitFor(() => ui.alerts.some((message) => /自动配置失败/.test(message)));
+  assert.match(ui.alerts.at(-1)!, /network down/);
+});
+
+test('「完全不调用系统定位」联动「伪装位置权限」，保存后写进配置', async () => {
+  const noNative = el<HTMLInputElement>('noNativeCall');
+  assert.match(el('noNativeCallHint').textContent || '', /站点永远不会弹授权框/);
+  const spoof = el<HTMLInputElement>('spoofPermission');
+
+  spoof.checked = false;
+  spoof.dispatchEvent(new Event('change', { bubbles: true }));
+  assert.equal(noNative.checked, false, '关掉伪装权限要顺手放开这道刹车');
+
+  noNative.checked = true;
+  noNative.dispatchEvent(new Event('change', { bubbles: true }));
+  assert.equal(spoof.checked, true, '不碰原生必须同时伪装权限');
+
+  el<HTMLButtonElement>('save').click();
+  await waitFor(() => calls.some((call) => call.action === 'setSiteConfig'
+    && call.config?.globalProfile?.geolocation?.noNativeCall === true
+    && call.config?.globalProfile?.geolocation?.spoofPermission === true));
 });

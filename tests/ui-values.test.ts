@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   coordinateInputValue,
+  describeIpApplyError,
   geolocationModeFromInput,
   parseCoordinateInput,
   utcOffsetInputValue,
@@ -49,6 +50,20 @@ function fakeChrome(response: any, lastError?: { message: string }) {
     }
   } as any;
 }
+
+test('自动配置失败给用户一句话，不把三条接口报错糊到脸上', () => {
+  assert.equal(
+    describeIpApplyError('exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip'),
+    '查不到出口 IP（归属地接口都没返回可用坐标），稍后再试'
+  );
+  assert.equal(
+    describeIpApplyError('Failed to fetch'),
+    '连不上归属地接口（网络或代理问题），稍后再试'
+  );
+  assert.equal(describeIpApplyError('The operation was aborted'), '连不上归属地接口（网络或代理问题），稍后再试');
+  // 认不出来的错误照原样露出，别自己编一个更含糊的说法
+  assert.equal(describeIpApplyError('当前是烘焙（只读）构建：配置烘焙在构建产物里，改不了'), '当前是烘焙（只读）构建：配置烘焙在构建产物里，改不了');
+});
 
 test('sendRuntimeMessage 解包响应，lastError / status:error 走 reject', async () => {
   await assert.doesNotReject(() => sendRuntimeMessage({ action: 'x' }, fakeChrome({ status: 'ok', value: 1 })));
