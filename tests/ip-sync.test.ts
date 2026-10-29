@@ -13,6 +13,8 @@ import {
   canonicalCountry,
   parseExitIpResponse,
   codeFromCountryName,
+  lookupExitIp,
+  planExitIpApply,
   planExitIpSync,
   resetExitIpSyncState,
   runExitIpSync
@@ -546,4 +548,94 @@ test('换接口时国家形状不同不会让 geolocation 每轮都被判"变了
   });
   const plan = planExitIpSync(config, asCode, '203.0.113.3', { force: true });
   assert.deepEqual(plan.layers, ['profile']);
+});
+
+// ---------- 手动「从 IP 自动配置」 ----------
+
+const APPLY_TOKYO: ExitIpInfo = {
+  ip: '203.0.113.7',
+  latitude: 35.6895,
+  longitude: 139.6917,
+  country: 'Japan',
+  countryCode: 'JP',
+  timezone: 'Asia/Tokyo',
+  timezoneOffset: 540
+};
+
+test('planExitIpApply 把坐标/时区钉成 manual —— 点完按钮表单必须看得见新值', () => {
+  const plan = planExitIpApply(DEFAULT_CONFIG, APPLY_TOKYO, { now: 1_730_000_000_000 });
+
+  // 关键差异：自动同步写 auto，界面永远显示空框；手动路径必须落 manual
+  assert.equal(plan.config.globalProfile.timezone.mode, 'manual');
+  assert.equal(plan.config.globalProfile.timezone.timezone, 'Asia/Tokyo');
+  assert.equal(plan.config.globalProfile.geolocation.mode, 'manual');
+  assert.equal(plan.config.globalProfile.geolocation.latitude, 35.6895);
+  assert.equal(plan.config.globalProfile.geolocation.longitude, 139.6917);
+  assert.equal(plan.config.globalProfile.geolocation.country, 'Japan');
+
+  // 按钮文案承诺了「+ 语言」：手动路径默认连语言一起改
+  assert.equal(plan.config.globalProfile.language.language, 'ja-JP');
+  assert.match(plan.config.globalProfile.language.acceptLanguage, /^ja-JP/);
+
+  // 手选预设与真实坐标对不上，清成 null
+  assert.equal(plan.config.profile.activeProfileId, null);
+  assert.deepEqual([...plan.layers].sort(), ['geolocation', 'language', 'profile', 'timezone']);
+
+  // lastLocation 同步写：auto 档的显示与状态行都读它
+  assert.equal(plan.location.latitude, 35.6895);
+  assert.equal(plan.location.timezone, 'Asia/Tokyo');
+});
+
+test('planExitIpApply 不看「跟随出口 IP」开关（用户是手点的）', () => {
+  const off = normalizeConfig({ ...DEFAULT_CONFIG, ipSync: { ...DEFAULT_IP_SYNC, enabled: false } });
+  const plan = planExitIpApply(off, APPLY_TOKYO);
+
+  assert.equal(plan.config.globalProfile.timezone.timezone, 'Asia/Tokyo');
+  assert.equal(plan.config.globalProfile.geolocation.mode, 'manual');
+  // 开关本来就是关的，别被手动配置顺手打开
+  assert.equal(plan.config.ipSync.enabled, false);
+});
+
+test('planExitIpApply 是幂等的：同一份出口再点一次没有层要改', () => {
+  const once = planExitIpApply(DEFAULT_CONFIG, APPLY_TOKYO);
+  const twice = planExitIpApply(once.config, APPLY_TOKYO);
+
+  assert.deepEqual(twice.layers, []);
+  assert.deepEqual(twice.config.globalProfile, once.config.globalProfile);
+});
+
+test('planExitIpApply 可以只改坐标时区、保留用户的语言', () => {
+  const plan = planExitIpApply(DEFAULT_CONFIG, APPLY_TOKYO, { syncLanguage: false });
+
+  assert.equal(plan.layers.includes('language'), false);
+  assert.equal(plan.config.globalProfile.language.language, DEFAULT_CONFIG.globalProfile.language.language);
+  assert.equal(plan.config.globalProfile.timezone.timezone, 'Asia/Tokyo');
+});
+
+test('planExitIpApply 对没有语言对照表的国家保持原语言', () => {
+  const info: ExitIpInfo = { ...APPLY_TOKYO, country: 'Brazil', countryCode: 'BR', timezone: 'America/Sao_Paulo' };
+  const plan = planExitIpApply(DEFAULT_CONFIG, info);
+
+  assert.equal(plan.layers.includes('language'), false);
+  assert.equal(plan.config.globalProfile.timezone.timezone, 'America/Sao_Paulo');
+});
+
+test('lookupExitIp 用第一个能解析的接口，失败时把原因拼起来', async () => {
+  const urls: string[] = [];
+  const ok = await lookupExitIp(async (url: string) => {
+    urls.push(url);
+    if (url.includes('ipwho.is')) throw new Error('timeout');
+    if (url.includes('ipapi.co')) return { nope: true };
+    return IPWHO_TOKYO;
+  });
+
+  assert.ok('info' in ok, '第三个接口可用时不该带着错误返回');
+  if (!('info' in ok)) throw new Error('unreachable');
+  assert.equal(ok.info.ip, APPLY_TOKYO.ip);
+  assert.equal(urls.length, 3, '前两个接口失败/无用时要继续兜底');
+
+  const failed = await lookupExitIp(async () => ({ nope: true }));
+  assert.ok('error' in failed);
+  assert.match(failed.error, /exit IP lookup failed/);
+  assert.match(failed.error, /no usable exit ip/);
 });

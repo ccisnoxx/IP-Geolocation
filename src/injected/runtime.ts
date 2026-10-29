@@ -5,7 +5,7 @@ import { createCanvasFontState } from './canvas-state';
 import { createDisguise } from './disguise';
 import { defineNativeLike } from './define';
 import { buildTargetFontKeys, resolveCanvasTargetFonts } from '../shared/font-aliases';
-import { installGeolocation, uninstallGeolocation } from './geolocation';
+import { installGeolocation, refreshGeolocationWatchPositions, uninstallGeolocation } from './geolocation';
 import { createSignalSpoof } from './signal-spoof';
 import { workerPatch } from './worker-patch';
 import type { WorkerFallbackReason } from '../shared/worker-coverage';
@@ -458,6 +458,9 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       uninstallGeolocation();
       state.installedGeo = false;
     }
+    // 补丁只装一次（见上面的 installedGeo），所以坐标变化要主动叫醒正在跑的 watch：
+    // 否则页面得等到下一个心跳才知道位置换了。
+    if (geolocationActive) refreshGeolocationWatchPositions();
     const canvasConfig = payload.canvasConfig && payload.canvasConfig.enabled ? payload.canvasConfig : null;
     // 三层在这里合并成最终列表：平台层（platform，auto 用本机真实平台）+ 中文层
     // （hideCjkFonts）+ 手动层（targetFonts）。放在注入层做，是为了让 background

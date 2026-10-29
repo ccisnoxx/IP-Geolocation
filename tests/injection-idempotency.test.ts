@@ -1113,3 +1113,59 @@ test('关掉跟随开关时把定时器清掉（宿主有 chrome.alarms 的路�
     delete (globalThis as any).chrome.alarms;
   }
 });
+
+test('applyExitIpNow 真的改写配置（不是只刷 lastLocation）', async () => {
+  const harness = createHarness({
+    geoPayload: {
+      ip: '203.0.113.9',
+      success: true,
+      country: 'United States',
+      country_code: 'US',
+      latitude: 34.0522,
+      longitude: -118.2437,
+      timezone: { id: 'America/Los_Angeles', offset: -25200 }
+    }
+  });
+
+  const outcome = await harness.services.applyExitIpNow();
+
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.ip, '203.0.113.9');
+  assert.equal(outcome.timezone, 'America/Los_Angeles');
+
+  // 手动路径必须落 manual：auto 档不显示配置里的坐标，点完按钮界面"什么都不变"
+  const config = await harness.services.getSiteConfig();
+  assert.equal(config.globalProfile.geolocation.mode, 'manual');
+  assert.equal(config.globalProfile.geolocation.latitude, 34.0522);
+  assert.equal(config.globalProfile.timezone.mode, 'manual');
+  assert.equal(config.globalProfile.timezone.timezone, 'America/Los_Angeles');
+  assert.equal(config.profile.activeProfileId, null);
+
+  // lastLocation 也写了：auto 档与状态行都读它
+  const state = await harness.services.getExitIpSyncState();
+  assert.equal(state.lastLocation?.timezone, 'America/Los_Angeles');
+
+  // 手动配置不许改写自动同步的账本，否则下一轮会被判成"出口没变"
+  assert.equal(harness.storage[LAST_SYNCED_IP_KEY], undefined);
+});
+
+test('applyExitIpNow 查不到出口时返回错误，配置原样不动', async () => {
+  const harness = createHarness({ geoPayload: { success: false, country: { code: 'CN' } } });
+  const before = await harness.services.getSiteConfig();
+  const snapshot = JSON.stringify({
+    globalProfile: before.globalProfile,
+    activeProfileId: before.profile.activeProfileId
+  });
+
+  const outcome = await harness.services.applyExitIpNow();
+
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) return;
+  assert.match(outcome.error, /exit IP lookup failed/);
+  const after = await harness.services.getSiteConfig();
+  assert.equal(JSON.stringify({
+    globalProfile: after.globalProfile,
+    activeProfileId: after.profile.activeProfileId
+  }), snapshot, '查不到出口时必须保持原配置');
+});
