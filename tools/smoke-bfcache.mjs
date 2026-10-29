@@ -152,6 +152,12 @@ const B_URL = `http://localhost:${port}/fixtures/bfcache/other.html`;
 const RULE_ON = [{ domain: 'localhost', enabled: true }];
 const RULE_OFF = [{ domain: 'localhost', enabled: false }];
 
+// 原生基线现场取：本机是 zh-CN / Asia/Shanghai，CI runner 上是 en-US / UTC。
+// 把其中一个钉死，换台机器就变成假红。规则只覆盖 localhost，所以 127.0.0.1
+// 同一个 fixture 读到的是原生值（Chrome 匹配模式里裸域名不生成 `*.` 通配）。
+const nativeTab = await openPageStable(cdp, `http://127.0.0.1:${port}/fixtures/bfcache/page.html`);
+const NATIVE = await waitProbe(nativeTab.sessionId, (value) => Boolean(value && value.timezone));
+
 /** 走一遍 A → B → back，返回恢复时的探针值 */
 async function cycle(label, mutate) {
   await applyConfig({ profile: TOKYO_PROFILE, rules: RULE_ON });
@@ -222,10 +228,10 @@ await applyConfig({ profile: TOKYO_PROFILE, rules: RULE_OFF });
 await sleep(400);
 await evaluate(cdp, tab3.sessionId, 'history.back()', {});
 const s3 = await waitProbe(tab3.sessionId,
-  (value) => value.page === 'A' && value.timezone === 'Asia/Shanghai' && value.language === 'zh-CN');
+  (value) => value.page === 'A' && value.timezone === NATIVE.timezone && value.language === NATIVE.language);
 check(
   '场景3 冻结期间排除站点：回到 A 是原生值（clear 不被旧 payload 挡住）',
-  Boolean(s3) && s3.timezone === 'Asia/Shanghai',
+  Boolean(s3) && s3.timezone === NATIVE.timezone,
   `${s3 && s3.language}/${s3 && s3.timezone} persisted=${s3 && s3.persisted}`
 );
 

@@ -180,6 +180,18 @@ check(
   JSON.stringify(topA)
 );
 
+// 原生基线必须现场取。这台机器原生是 zh-CN / Asia/Shanghai，CI runner 上是
+// en-US / UTC —— 钉死任何一个值，另一台机器上就会变成假红（这条 CI 第一次
+// 跑就撞上了）。127.0.0.1 不在规则里（规则只有 localhost / csp.localhost），
+// Chrome 的匹配模式里裸域名不生成 `*.` 通配，所以它读到的是原生值。
+const nativePage = await openPageStable(cdp, `http://127.0.0.1:${port}/fixtures/workers/top.html`);
+const nativeTop = await pageValues(nativePage);
+check(
+  '原生基线取自未命中规则的地址（127.0.0.1 不在白名单里）',
+  nativeTop.language !== 'ja-JP' && nativeTop.timezone !== 'Asia/Tokyo',
+  JSON.stringify(nativeTop)
+);
+
 const classic = await evaluate(cdp, pageA.sessionId, CLASSIC_PROBE, { awaitPromise: true });
 check(
   'classic Worker 仍被包装：时区/语言跟着规则走',
@@ -200,7 +212,9 @@ await sleep(300);
 const sharedA2 = await evaluate(cdp, pageA.sessionId, SHARED_PROBE('vg-share'), { awaitPromise: true });
 
 const sharedUrl = String((sharedA && sharedA.workerUrl) || '');
-const sharedNative = sharedA && sharedA.timezone === 'Asia/Shanghai' && sharedA.language === 'zh-CN';
+const sharedNative = sharedA
+  && sharedA.timezone === nativeTop.timezone
+  && sharedA.language === nativeTop.language;
 const sharedBare = sharedUrl.startsWith(`http://localhost:${port}/fixtures/workers/shared-counter.js`);
 
 check(
@@ -242,7 +256,9 @@ check(
 );
 check(
   '回退后的 Worker 读到原生值（明确知道它没被接管）',
-  Boolean(cspWorker) && cspWorker.timezone === 'Asia/Shanghai' && cspWorker.language === 'zh-CN',
+  Boolean(cspWorker)
+    && cspWorker.timezone === nativeTop.timezone
+    && cspWorker.language === nativeTop.language,
   `${cspWorker && cspWorker.language}/${cspWorker && cspWorker.timezone}`
 );
 
