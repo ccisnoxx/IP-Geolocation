@@ -38,6 +38,9 @@ const freshProfile = !existsSync(join(profileDir, 'Default', 'Preferences'));
 mkdirSync(dirname(personaFile), { recursive: true });
 mkdirSync(profileDir, { recursive: true });
 
+// 预设的权威副本在仓库里（tools/personas/），CI 与本地因此吃同一份；
+// 这里的兜底只在预设文件被删掉时才生效，防止忘记同步两份数字。
+const PRESET_FILE = join(HERE, 'personas', `${persona}.json`);
 const DEFAULTS = {
   timezone: 'America/Los_Angeles',
   locale: 'en-US',
@@ -45,10 +48,11 @@ const DEFAULTS = {
   latitude: 37.7749,
   longitude: -122.4194
 };
+const preset = existsSync(PRESET_FILE) ? JSON.parse(readFileSync(PRESET_FILE, 'utf8')) : DEFAULTS;
 
 const config = existsSync(personaFile)
-  ? { ...DEFAULTS, ...JSON.parse(readFileSync(personaFile, 'utf8')) }
-  : { ...DEFAULTS };
+  ? { ...preset, ...JSON.parse(readFileSync(personaFile, 'utf8')) }
+  : { ...preset };
 for (const key of ['timezone', 'locale', 'acceptLanguage', 'latitude', 'longitude']) {
   if (argv[key] !== undefined) config[key] = key === 'latitude' || key === 'longitude' ? Number(argv[key]) : String(argv[key]);
 }
