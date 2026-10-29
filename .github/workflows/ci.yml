@@ -132,13 +132,27 @@ jobs:
           test -x "$CHROME" || { echo "找不到可执行的 Chrome：$CHROME"; exit 1; }
           "$CHROME" --version
 
+      - name: Build a persona for the UI smokes
+        run: |
+          # options / popup 验的是「烘焙构建里的静态 ruleset + 面板接线」，默认去
+          # ~/.vanishgeo/profiles/<persona>/ext 找。runner 上没这个目录，所以先用
+          # 仓库自带预设（tools/personas/）烘一份，再用 --extension 指过去。
+          node scripts/build-persona.mjs --persona=us-la-1 --out="$RUNNER_TEMP/vg-persona"
+
       - name: Offline browser smokes
         run: |
           set -euo pipefail
+          # theme 用 dist（验的是面板本身），其余各用各的构建：
+          #   - presets / baked-* / cold-* 脚本内部自己烘 fixture
+          #   - options / popup 用上面那份 persona
           for script in presets frames workers bfcache cold-start cold-save \
-                        baked-clear baked-failclosed ip-apply options popup; do
+                        baked-clear baked-failclosed ip-apply theme options popup; do
+            extra=""
+            case "$script" in
+              options|popup) extra="--extension=$RUNNER_TEMP/vg-persona" ;;
+            esac
             echo "=== smoke:$script ==="
-            timeout 300 node "tools/smoke-$script.mjs"
+            timeout 300 node "tools/smoke-$script.mjs" $extra
           done
 
       - name: No stray browsers left behind
