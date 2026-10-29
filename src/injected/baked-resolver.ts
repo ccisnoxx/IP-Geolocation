@@ -27,6 +27,7 @@ export interface BakedRuntimePayload {
     randomize: boolean;
     randomRadiusMeters: number;
     spoofPermission: boolean;
+    noNativeCall?: boolean;
   } | null;
   /** 定位开启但坐标解析不出来：注入层返回 POSITION_UNAVAILABLE，不落回原生 */
   geolocationDenied?: boolean;
@@ -129,6 +130,13 @@ function resolveGeolocation(globalProfile: any, override: Override, lastLocation
     randomize: Boolean(source.randomize),
     randomRadiusMeters: Number.isFinite(Number(source.randomRadiusMeters)) ? Number(source.randomRadiusMeters) : 1000,
     spoofPermission: source.spoofPermission !== false,
+    // 烘焙包里同样带着这道刹车：规范化已经把 noNativeCall 与 spoofPermission 绑好，
+    // 这里只负责把它原样搬进 payload
+    // 与 config-model 的 resolveNoNativeCall 等价，但这里必须内联：注入脚本被打成
+    // classic script（banner/footer 包成 IIFE），一旦 import 共享模块，Rollup 会把
+    // 它拆成单独的 chunk 并在产物顶部留下 `import '...'` —— MAIN world 直接语法错误，
+    // 整个补丁加载失败（2026-10-29 就这么挂过一次）。
+    noNativeCall: typeof source.noNativeCall === 'boolean' ? source.noNativeCall : source.spoofPermission !== false,
     timezone: manual ? null : (lastLocation?.timezone || null)
   };
 }
@@ -195,7 +203,8 @@ export function resolveBakedPayload(
         country: geolocation.country,
         randomize: geolocation.randomize,
         randomRadiusMeters: geolocation.randomRadiusMeters,
-        spoofPermission: geolocation.spoofPermission
+        spoofPermission: geolocation.spoofPermission,
+        noNativeCall: geolocation.noNativeCall
       }
       : null,
     canvasConfig: {

@@ -49,6 +49,7 @@ export const DEFAULT_GEOLOCATION: GeolocationConfig = {
   randomize: false,
   randomRadiusMeters: 1000,
   spoofPermission: true,
+  noNativeCall: true,
   history: []
 };
 
@@ -117,7 +118,22 @@ export const TIMEZONE_PRESETS = [
   'Australia/Sydney'
 ];
 
+/**
+ * 内置预设：只留三个常用出口。
+ *
+ * 选这三个是因为它们对应"真的会去买 VPS 的地区"——美西、新加坡、日本。
+ * 德国/东海岸/中国这类预设留在列表里只会让快速配置区变成一排用不上的按钮，
+ * 真要用别的地区，手填坐标或存自定义 profile 都行。
+ */
 export const DEFAULT_PROFILES: Profile[] = [
+  {
+    id: 'us-west',
+    name: 'United States (West)',
+    description: 'US West coast environment',
+    geolocation: { latitude: 34.0522, longitude: -118.2437, accuracy: 50, country: 'United States' },
+    language: { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
+    timezone: { timezone: 'America/Los_Angeles' }
+  },
   {
     id: 'singapore',
     name: 'Singapore',
@@ -133,38 +149,6 @@ export const DEFAULT_PROFILES: Profile[] = [
     geolocation: { latitude: 35.6895, longitude: 139.6917, accuracy: 50, country: 'Japan' },
     language: { language: 'ja-JP', languages: ['ja-JP', 'ja', 'en-US', 'en'], acceptLanguage: 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7' },
     timezone: { timezone: 'Asia/Tokyo' }
-  },
-  {
-    id: 'germany',
-    name: 'Germany',
-    description: 'Germany environment',
-    geolocation: { latitude: 52.52, longitude: 13.405, accuracy: 50, country: 'Germany' },
-    language: { language: 'de-DE', languages: ['de-DE', 'de', 'en-US', 'en'], acceptLanguage: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7' },
-    timezone: { timezone: 'Europe/Berlin' }
-  },
-  {
-    id: 'united-states',
-    name: 'United States',
-    description: 'United States environment',
-    geolocation: { latitude: 40.7128, longitude: -74.006, accuracy: 50, country: 'United States' },
-    language: { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-    timezone: { timezone: 'America/New_York' }
-  },
-  {
-    id: 'us-west',
-    name: 'United States (West)',
-    description: 'US West coast environment',
-    geolocation: { latitude: 34.0522, longitude: -118.2437, accuracy: 50, country: 'United States' },
-    language: { language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-    timezone: { timezone: 'America/Los_Angeles' }
-  },
-  {
-    id: 'china',
-    name: 'China',
-    description: 'China environment',
-    geolocation: { latitude: 31.2304, longitude: 121.4737, accuracy: 50, country: 'China' },
-    language: { language: 'zh-CN', languages: ['zh-CN', 'zh', 'en-US', 'en'], acceptLanguage: 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7' },
-    timezone: { timezone: 'Asia/Shanghai' }
   }
 ];
 
@@ -222,6 +206,19 @@ export function normalizeNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * `noNativeCall` 的归一：显式给了就照办（并由此把权限伪装一并打开），
+ * 没给就跟随 `spoofPermission` —— 伪装授权等价于"已经不问原生了"，
+ * 而"只改坐标、真权限走原生"的人默认需要委派。
+ */
+export function resolveNoNativeCall(input: {
+  noNativeCall?: boolean;
+  spoofPermission?: boolean;
+}): boolean {
+  if (typeof input.noNativeCall === 'boolean') return input.noNativeCall;
+  return input.spoofPermission !== false;
+}
+
 export function normalizeGeolocation(config: Partial<GeolocationConfig> | null | undefined): GeolocationConfig {
   const input = config || {};
   return {
@@ -237,7 +234,13 @@ export function normalizeGeolocation(config: Partial<GeolocationConfig> | null |
     randomRadiusMeters: Number.isFinite(Number(input.randomRadiusMeters)) && Number(input.randomRadiusMeters) >= 0
       ? Number(input.randomRadiusMeters)
       : DEFAULT_GEOLOCATION.randomRadiusMeters,
-    spoofPermission: input.spoofPermission !== false,
+    // noNativeCall 与 spoofPermission 是绑定的：
+    //  · 缺省跟随 spoofPermission —— 伪装授权时本来就不问原生，关掉伪装授权的人
+    //    要的是真实权限流程，所以缺省允许委派（老配置的语义不会变）；
+    //  · 显式打开 noNativeCall 时把它拉回 true —— 否则 permissions.query 会说
+    //    prompt、getCurrentPosition 却给坐标，两句话当场打架。
+    spoofPermission: resolveNoNativeCall(input) ? true : input.spoofPermission !== false,
+    noNativeCall: resolveNoNativeCall(input),
     history: Array.isArray(input.history)
       ? input.history
           .filter((item) => item != null)
@@ -432,7 +435,7 @@ export const DEFAULT_CONFIG: SiteSpoofConfig = {
   canvas: DEFAULT_CANVAS,
   ipSync: DEFAULT_IP_SYNC,
   profile: {
-    activeProfileId: 'united-states',
+    activeProfileId: 'us-west',
     profiles: clone(DEFAULT_PROFILES)
   },
   rules: defaultRules()
