@@ -29,6 +29,7 @@ persona 在进程环境、请求头、页面 JS 三层同时成立，改不到�
 - 🖋 **canvas 字体** - 三层结构：**平台层**（按本机真实平台判定，隐藏另外两个平台的字体）、**中文层**（中文与国产厂商字体）、**手动层**；覆盖 `<canvas>`、`OffscreenCanvas` 和 `window.queryLocalFonts()`（直接枚举本机字体那条路，实测 667 → 632 条），名字匹配含本地化别名（`苹方-简`、`微软雅黑`）
 - 🔒 **WebRTC** - `strict` / `compatible` / `default` 三档，对应不同的 `contentSettings` 策略
 - 🛡 **反检测** - 原生函数签名、原型 getter、零自有属性、零 `window` 全局；改不到的地方（原生值已经正确）一个对象都不动
+- 🎨 **界面** - 两套固定面板：弹窗浅色玻璃、配置页深绿（诊断页深灰）。`color-scheme` 钉死，系统切成深色也照旧；没有双主题模式（`npm run smoke:theme` 在 light/dark 两档实测底色不变）
 
 ### 🚀 安装
 
@@ -287,6 +288,7 @@ is patched.
 - 🖋 **Canvas fonts** - three layers: **claimed platform** (mac / windows / linux, hides the other platforms' fonts), **CJK layer** (Chinese + vendor fonts) and a **manual list**; patches both `<canvas>` and `OffscreenCanvas`, with alias-aware name matching (`苹方-简`, `微软雅黑`)
 - 🔒 **WebRTC** - `strict` / `compatible` / `default`, each mapping to a `contentSettings` policy
 - 🛡 **Anti-detection** - native function signatures, prototype getters, zero own properties, zero `window` globals; when the native value is already correct, nothing is patched at all
+- 🎨 **Interface** - two fixed panels: a light glass popup and a dark green settings page (the diagnostic page is dark grey). `color-scheme` is pinned, so a dark OS does not repaint them; there is no dual-theme mode
 
 ### 🚀 Installation
 

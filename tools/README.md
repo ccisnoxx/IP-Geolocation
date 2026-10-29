@@ -240,6 +240,23 @@ npm run smoke:baked-clear
 目的就是防止"改一处悄悄破坏契约"——类型、单测、构建任何一项红，整体退出码就是 1。
 版本号同步也进了单测：`manifest.json` 的 version 必须等于 `package.json`，且不再是 `1.0.0`。
 
+## 主题免疫（`smoke:theme`）
+
+```bash
+npm run build && npm run smoke:theme
+npm run smoke:theme -- --extension=/path/to/ext
+```
+
+主题是**两套固定面板**，不是待统一的双主题：popup 浅色玻璃、options 深绿配置中心、
+leak-test 深灰诊断页。这条脚本用 CDP 把 `prefers-color-scheme` 分别模拟成 light / dark，
+断言三页的计算 `color-scheme` 与真实画出来的背景两档一致（系统外观带不跑它们），
+再用 `matchMedia` 断言模拟确实生效（否则前两条是空转）。
+
+实测一个反直觉的点：Chrome 的 `prefers-color-scheme` **不**受页面 `color-scheme`
+影响——系统深色时，声明了 `color-scheme: light` 的弹窗里那条媒体查询照样报 dark。
+所以 `color-scheme` 只管 UA 默认配色（控件、弹层、滚动条、光标），挡不住别人用
+媒体查询写两套样式。这也是 `tests/theme.test.ts` 里禁掉 `prefers-color-scheme` 的原因。
+
 ## 一键从出口 IP 配置（手动档）
 
 ```bash

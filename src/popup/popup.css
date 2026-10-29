@@ -71,6 +71,11 @@ a { color: var(--blue); }
   outline-offset: 2px;
 }
 
+::selection {
+  background: rgba(10, 124, 255, 0.2);
+  color: var(--text-1);
+}
+
 .icon-sprite {
   position: absolute;
   width: 0;
