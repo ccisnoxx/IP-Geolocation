@@ -19,6 +19,39 @@ export const CHROME_PATH = process.env.CHROME_PATH
   || CHROME_CANDIDATES.find((candidate) => existsSync(candidate))
   || CHROME_CANDIDATES[1];
 
+// 本进程开出去的浏览器。冒烟脚本最常见的失败形态就是抛异常，
+// 抛出去以后脚本自己的 killChrome 根本走不到 —— 于是 mac 上会攒下几十个
+// headless 实例抢 CPU，把后面每一项检查都拖成超时。所以在这里兜底：
+// 进程怎么退都要把它们收干净。
+const liveChildren = new Set();
+
+function trackChild(child) {
+  liveChildren.add(child);
+  child.once('exit', () => liveChildren.delete(child));
+  return child;
+}
+
+export function reapOwnBrowsers() {
+  const killed = [];
+  for (const child of liveChildren) {
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+      killed.push(child.pid);
+    } catch {
+      try {
+        child.kill('SIGKILL');
+        killed.push(child.pid);
+      } catch {
+        /* 已经退出了 */
+      }
+    }
+  }
+  liveChildren.clear();
+  return killed;
+}
+
+process.once('exit', () => { reapOwnBrowsers(); });
+
 export class CDP {
   constructor(ws) {
     this.ws = ws;
@@ -121,12 +154,12 @@ export async function launchChrome({ userDataDir, headless = true, args = [], en
     ...(args.some((item) => /^(https?:|file:|about:|data:|chrome:)/i.test(item)) ? [] : ['about:blank'])
   ];
 
-  const child = spawn(CHROME_PATH, argv, {
+  const child = trackChild(spawn(CHROME_PATH, argv, {
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     // 独立进程组：收尾时可以整组杀掉，避免残留浏览器把后续检查拖慢
     detached: true
-  });
+  }));
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
 
@@ -235,13 +268,22 @@ export function killChrome(child, { graceMs = 1200 } = {}) {
   child.once('exit', () => clearTimeout(timer));
 }
 
-/** 杀掉本工具集留下的所有浏览器实例（只匹配临时 profile 目录，绝不碰用户自己开着的窗口） */
+/**
+ * 杀掉本工具集留下的所有浏览器实例。
+ * 只认 `--user-data-dir=` 的目录名（vg- / vanishgeo- / audit-profile 开头），
+ * 绝不碰用户自己开着的窗口 —— 早先按整行匹配 `vanishgeo-` 时，`vg-*` 那些
+ * 冒烟 profile 全部漏网，一次全量冒烟就能攒下三十多个 headless 实例。
+ */
+const STRAY_PROFILE_PREFIXES = ['vg-', 'vanishgeo-', 'audit-profile'];
+
 export function reapStrayBrowsers() {
-  const patterns = ['vanishgeo-', 'audit-profile'];
   const listed = spawnSync('pgrep', ['-fl', 'Chromium|Helium|Google Chrome'], { encoding: 'utf8' });
   const killed = [];
   for (const line of String(listed.stdout || '').split('\n')) {
-    if (!patterns.some((pattern) => line.includes(pattern))) continue;
+    const dir = line.match(/--user-data-dir=(\S+)/)?.[1];
+    if (!dir) continue; // 没有这个参数的就不是本工具起的一次性实例
+    const base = dir.split('/').pop() || '';
+    if (!STRAY_PROFILE_PREFIXES.some((prefix) => base.startsWith(prefix))) continue;
     const pid = Number(line.trim().split(/\s+/)[0]);
     if (!Number.isFinite(pid) || pid === process.pid) continue;
     try { process.kill(pid, 'SIGKILL'); killed.push(pid); } catch { /* 已退出 */ }

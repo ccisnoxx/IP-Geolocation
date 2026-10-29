@@ -166,10 +166,49 @@ if (argv['canvas-spoof']) {
   await sleep(600);
   const payloadInfo = await evaluate(cdp, probeSession, `chrome.runtime.sendMessage({ action: 'getPayloadForUrl', url: 'https://${domain}/' }).then((r) => JSON.stringify({
     matched: r && r.matched,
+    geoConfig: r && r.payload && r.payload.geolocationConfig ? { mode: r.payload.geolocationConfig.mode, lat: r.payload.geolocationConfig.latitude, lon: r.payload.geolocationConfig.longitude, acc: r.payload.geolocationConfig.accuracy, rand: r.payload.geolocationConfig.randomize, r: r.payload.geolocationConfig.randomRadiusMeters } : null,
+    geoResolved: r && r.payload ? r.payload.geolocation : null,
     canvas: r && r.payload && r.payload.canvasConfig ? { enabled: r.payload.canvasConfig.enabled, targets: (r.payload.canvasConfig.targetFonts || []).length, spoofFonts: r.payload.canvasConfig.spoofFonts } : null
   }))`, { awaitPromise: true }).catch((error) => String(error && error.message));
   console.log(`注入 payload: ${payloadInfo}`);
   await sleep(800);
+}
+
+// 地理定位：开随机 + 固定手动坐标，页面侧验证「噪声在半径内、accuracy 覆盖位移」
+{
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const swTarget = targetInfos.find((item) => item.url.includes('/background/service-worker.js'));
+  const swSession = (await cdp.send('Target.attachToTarget', { targetId: swTarget.targetId, flatten: true })).sessionId;
+  const applied = await evaluate(cdp, swSession, `(async () => {
+    const data = await chrome.storage.local.get('siteSpoofConfig');
+    const config = data.siteSpoofConfig;
+    if (!config) return 'no-config';
+    const geo = {
+      enabled: true, mode: 'manual',
+      latitude: 35.6762, longitude: 139.6503, accuracy: 30,
+      randomize: true, randomRadiusMeters: 1500, spoofPermission: true
+    };
+    // 全局层和规则覆写层都要写：命中规则时 rule.overrides 覆盖全局，只改 globalProfile
+    // 会让页面拿到的是另一份坐标（第一次跑就是这么被绕过去的）
+    config.globalProfile = { ...(config.globalProfile || {}), geolocation: { ...geo } };
+    for (const rule of config.rules || []) {
+      rule.overrides = { ...(rule.overrides || {}), geolocation: { ...geo } };
+    }
+    await chrome.storage.local.set({ siteSpoofConfig: config });
+    const match = (config.rules || []).find((rule) => String(rule.domain || '').includes('claude'));
+    return 'ok rules=' + ((config.rules || []).length)
+      + ' master=' + config.masterEnabled
+      + ' globalGeo=' + JSON.stringify(config.globalProfile.geolocation)
+      + ' matchDomain=' + (match ? match.domain : 'none')
+      + ' overrideGeo=' + (match ? JSON.stringify(match.overrides && match.overrides.geolocation) : '-')
+      + ' otherOverrides=' + (match ? JSON.stringify(Object.keys(match.overrides || {})) : '-');
+  })()`, { awaitPromise: true }).catch((error) => String(error && error.message));
+  console.log(`地理定位配置: ${applied}`);
+
+  // 存的是存储，SW 读的是内存快照 —— 它靠 storage.onChanged 失效，落盘与失效之间有窗口。
+  // 抢在这之前打开页面，payload 里的 geolocation 还是旧值，页面一路原生（表现为"扩展在跑、
+  // 定位没伪装"，但只有坐标对不上）。所以留一段时间让失效落地；页面侧还有一层轮询兜底。
+  await sleep(1500);
 }
 
 // 只导航一次，失败就重开一个 target —— 反复 navigate 会让 pending 的 evaluate
@@ -307,6 +346,112 @@ const realIp = candidates.filter((candidate) => {
 });
 check('WebRTC 没有暴露真实 IP', realIp.length === 0, realIp.length ? realIp.join(', ') : `${candidates.length} 个候选，均为 mDNS/空`);
 
+
+// ---------- 地理定位：噪声形状与 accuracy 一致性 ----------
+const metersBetween = (aLat, aLon, bLat, bLon) => {
+  const rad = (value) => (Number(value) * Math.PI) / 180;
+  const dLat = rad(bLat - aLat);
+  const dLon = rad(bLon - aLon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+
+const geo = await safe(evaluate(cdp, session, `(async () => {
+  const CONFIG = { latitude: 35.6762, longitude: 139.6503 };
+  const away = (latitude, longitude) => {
+    const dLat = Number(latitude) - CONFIG.latitude;
+    const dLon = (Number(longitude) - CONFIG.longitude) * Math.cos((CONFIG.latitude * Math.PI) / 180);
+    return Math.hypot(dLat, dLon) * 111320;
+  };
+  const read = () => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('geolocation 超时')), 5000);
+    navigator.geolocation.getCurrentPosition((position) => {
+      clearTimeout(timer);
+      resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        speed: position.coords.speed,
+        heading: position.coords.heading,
+        altitude: position.coords.altitude,
+        positionKeys: Object.keys(position).length,
+        coordKeys: Object.keys(position.coords).length,
+        isPosition: position instanceof GeolocationPosition,
+        isCoords: position.coords instanceof GeolocationCoordinates,
+        secure: self.isSecureContext,
+        protocol: location.protocol
+      });
+    }, (error) => { clearTimeout(timer); reject(new Error('geolocation ' + error.code + ' ' + error.message)); });
+  });
+  // 注入是异步的：payload 晚到时这一页还是原生定位。轮询到"落在配置点附近"为止，
+  // 拿不到就如实报告采样序列，别用一次采样去判死。
+  const samples = [];
+  let first = null;
+  for (let tick = 0; tick < 10; tick += 1) {
+    const sample = await read();
+    samples.push([Number(sample.latitude.toFixed(6)), Number(sample.longitude.toFixed(6)), sample.accuracy]);
+    if (away(sample.latitude, sample.longitude) < 50000) { first = sample; break; }
+    await new Promise((done) => setTimeout(done, 800));
+  }
+  if (!first) return {
+    failed: true, samples, secure: self.isSecureContext, protocol: location.protocol,
+    patched: !/native code/.test(String(navigator.geolocation.getCurrentPosition)),
+    fnLen: navigator.geolocation.getCurrentPosition.length,
+    perm: await navigator.permissions.query({ name: 'geolocation' }).then((status) => status.state).catch(() => 'err')
+  };
+  const second = await read();
+  return { first, second };
+})()`, { awaitPromise: true }));
+
+if (geo && geo.error) {
+  check('地理定位：拿得到伪装坐标', false, geo.error);
+} else if (geo && geo.failed) {
+  check('地理定位：页面上生效的是伪装坐标', false,
+    `${Math.min(10, geo.samples.length) * 0.8}s 内一直是原生定位：${JSON.stringify(geo.samples)} secure=${geo.secure} patched=${geo.patched} len=${geo.fnLen} perm=${geo.perm}`);
+} else {
+  const { first, second } = geo;
+  const offset = metersBetween(35.6762, 139.6503, first.latitude, first.longitude);
+  console.log(`地理定位  环境 secure=${first.secure} protocol=${first.protocol}`);
+  console.log(`地理定位  配置 35.6762/139.6503 accuracy=30 R=1500m → 实际 ${first.latitude.toFixed(6)}/${first.longitude.toFixed(6)} accuracy=${first.accuracy} 偏移=${offset.toFixed(1)}m`);
+  check('地理定位：偏移落在设定的半径内', offset <= 1501, `${offset.toFixed(1)}m ≤ 1500m`);
+  check('地理定位：accuracy 覆盖实际偏移（不是配置里那个 30）', first.accuracy >= offset, `accuracy=${first.accuracy} ≥ ${offset.toFixed(1)}m`);
+  check('地理定位：同一会话两次请求同一个点', first.latitude === second.latitude && first.longitude === second.longitude, `${first.latitude} vs ${second.latitude}`);
+  check('地理定位：Position/Coordinates 的原型没被换掉', first.isPosition && first.isCoords, `position=${first.isPosition} coords=${first.isCoords}`);
+  check('地理定位：返回对象没有多余的自有属性', first.positionKeys === 0 && first.coordKeys === 0, `keys=${first.positionKeys}/${first.coordKeys}`);
+  check('地理定位：静止读数自洽（speed=0、heading=null、不编高度）',
+    first.speed === 0 && first.heading === null && first.altitude === null,
+    `speed=${first.speed} heading=${first.heading} altitude=${first.altitude}`);
+}
+
+// watchPosition 的节奏：固定 3000ms 心跳等于给页面一个节拍器，量两帧间隔就能认出来
+if (geo && !geo.error && !geo.failed) {
+  const watch = await safe(evaluate(cdp, session, `(async () => {
+    const started = Date.now();
+    const stamps = [];
+    const points = [];
+    const id = navigator.geolocation.watchPosition((position) => {
+      stamps.push(Date.now() - started);
+      points.push([Number(position.coords.latitude.toFixed(8)), Number(position.coords.longitude.toFixed(8))]);
+    }, () => {});
+    await new Promise((done) => setTimeout(done, 9500));
+    navigator.geolocation.clearWatch(id);
+    return { stamps, points };
+  })()`, { awaitPromise: true }));
+
+  if (watch && watch.error) {
+    check('watch 节奏：拿得到帧', false, watch.error);
+  } else {
+    const stamps = watch.stamps || [];
+    const gaps = stamps.slice(1).map((stamp, index) => stamp - stamps[index]);
+    check('watch 节奏：首帧不等心跳', stamps.length >= 1 && stamps[0] < 1500, `首帧=${stamps[0]}ms`);
+    check('watch 节奏：间隔在 2.5–4.2s 且逐帧抖动',
+      gaps.length >= 2 && gaps.every((gap) => gap >= 2400 && gap <= 4400) && new Set(gaps).size > 1,
+      `间隔=${gaps.join(',')}ms（共 ${stamps.length} 帧）`);
+    const allSame = (watch.points || []).every((point) => point[0] === watch.points[0][0] && point[1] === watch.points[0][1]);
+    check('watch 节奏：静止时每帧同一个点', (watch.points || []).length >= 2 && allSame,
+      `${(watch.points || []).length} 帧`);
+  }
+}
 
 // 打开伪装时：字体三处都要跟着变，否则页面只要在 Worker 里量一下就能看穿补丁
 if (argv['canvas-spoof']) {

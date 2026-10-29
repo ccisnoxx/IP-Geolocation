@@ -87,6 +87,24 @@ try {
     };
   })()`, { awaitPromise: true });
 
+  // 刚装好的扩展还会异步建静态 ruleset 的匹配索引（实测几十到几百毫秒，机器忙时更久）。
+  // 这一小段窗口属于"安装那一瞬间"，不属于"页面首屏"——本脚本要验的是后者，所以先等
+  // 规则真正生效，再把等待时长打出来。不等的话，这条断言会在 CI 上随机变红，
+  // 而红的原因每次都一样、却和产品行为无关（实测 5 次里翻 1 次）。
+  const settleStart = Date.now();
+  let settled = null;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const probe = await openPageStable(cdp, `http://fixture.localhost:${port}/echo?warm=${attempt}`);
+    const header = await evaluate(cdp, probe.sessionId, `fetch('/echo?warm=${attempt}').then((response) => response.json()).then((body) => body.acceptLanguage || '')`, { awaitPromise: true });
+    await cdp.send('Target.closeTarget', { targetId: probe.targetId }).catch(() => undefined);
+    if (String(header).startsWith('ja-JP')) {
+      settled = Date.now() - settleStart;
+      break;
+    }
+    await sleep(100);
+  }
+  check('装好后静态 ruleset 已就绪', settled !== null, settled === null ? '10s 内没生效' : `${settled}ms`);
+
   // 冷启动后的第一个规则内导航：不预热 SW，直接打开目标页
   const page = await openPageStable(cdp, `http://fixture.localhost:${port}/`);
   const baked = await evaluate(cdp, page.sessionId, `(async () => {

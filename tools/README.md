@@ -3,6 +3,10 @@
 ```bash
 npm run smoke:fingerprint                                     # 烘焙 persona 构建
 npm run smoke:fingerprint -- --extension=<ext> --canvas-spoof   # 顺手打开字体伪装再测
+# 除指纹一致性外还在页面里验地理定位：偏移 ≤ 随机半径、accuracy ≥ 位移、
+# 会话内两次请求同一个点、Position/Coordinates 原型与自有属性干净；
+# watchPosition 首帧不等心跳、帧间隔 2.5–4.2s 且逐帧抖动、静止时每帧同一个点；
+# 静止读数自洽：speed=0、heading=null、altitude=null
 ```
 
 同一个页面里同时量主线程 / 同源 iframe / Worker，比对字体度量、`document.fonts.check`、
@@ -235,6 +239,19 @@ npm run smoke:baked-clear
 单独跑：`npm run audit -- --only=typecheck,unittest,build`（不要求浏览器在场）。
 目的就是防止"改一处悄悄破坏契约"——类型、单测、构建任何一项红，整体退出码就是 1。
 版本号同步也进了单测：`manifest.json` 的 version 必须等于 `package.json`，且不再是 `1.0.0`。
+
+## 一键从出口 IP 配置（手动档）
+
+```bash
+npm run build && npm run smoke:ipapply
+```
+
+同一套本地桩，但验的是按钮本身：在**真实弹窗页面**里点 `#getFromIP`，断言坐标/时区/
+语言真的写进配置（`mode:'manual'`）、输入框立刻显示新值、按钮下面出现
+`已按出口 IP … 配置：…`；桩切成查不到坐标时，状态行必须变成 error 并给出原因，
+按钮要恢复可点。它同时守住两条回归线：`applyFromExitIp` 不许占用
+`lastSyncedExitIp` 账本（那是自动跟随的），auto 档的输入框不许是空框
+（空框正是当初"点了没反应"的观感来源）。
 
 ## 出口 IP 变化跟随（auto 模式）
 

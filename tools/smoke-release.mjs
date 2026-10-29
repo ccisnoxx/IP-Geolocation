@@ -3,11 +3,11 @@
  * 把一批已发布的 zip 全部真开浏览器验一遍。
  *
  *   node tools/smoke-release.mjs                       # 默认 release/ 下所有包
- *   node tools/smoke-release.mjs --dir=release --require=6
+ *   node tools/smoke-release.mjs --dir=release --require=3
  *   node tools/smoke-release.mjs --only=us-west        # 只验名字含 us-west 的
  *
  * 为什么单独做一个批量壳：`verify-release.mjs` 一次只验一个包（换来的是每个包
- * 都从干净 Chrome 起、互不污染）。六个 preset 的烘焙值各自独立，手动一个个跑
+ * 都从干净 Chrome 起、互不污染）。每个 preset 的烘焙值各自独立，手动一个个跑
  * 很容易漏——少验一个包和一个包出错在 CI 里长得一样。这里要求"验过的包数 ==
  * 目录里的包数"，漏跑会红。
  *
