@@ -24,8 +24,13 @@ const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
 }));
 
 const persona = String(argv.persona || 'us-la-1');
-const personaFile = join(homedir(), '.vanishgeo', 'personas', `${persona}.json`);
-const personaConfig = existsSync(personaFile) ? JSON.parse(readFileSync(personaFile, 'utf8')) : {};
+// 家目录那份是 chrome-env 生成的；CI 的 runner 全新，退回仓库预设（同 build-persona）
+const personaCandidates = [
+  join(homedir(), '.vanishgeo', 'personas', `${persona}.json`),
+  join(import.meta.dirname, 'personas', `${persona}.json`)
+];
+const personaFile = personaCandidates.find((file) => existsSync(file));
+const personaConfig = personaFile ? JSON.parse(readFileSync(personaFile, 'utf8')) : {};
 const extensionPath = argv.extension
   ? String(argv.extension)
   : join(homedir(), '.vanishgeo', 'profiles', persona, 'ext');
@@ -36,6 +41,11 @@ const results = [];
 function check(name, ok, detail) {
   results.push({ name, ok });
   console.log(`${ok ? '✓' : '✗'} ${name}${detail ? `  ${detail}` : ''}`);
+}
+
+function warn(name, detail) {
+  results.push({ name, ok: true, skipped: true, warned: true });
+  console.log(`⚠ ${name}  ${detail || ''}`);
 }
 
 function skip(name, detail) {
@@ -169,11 +179,31 @@ console.log(`请求头  Accept-Language=${header ? header['accept-language'] : '
 
 check('站点文档已就位（不是错误页/空白）', Boolean(page.title) && !nav.errorText && page.htmlChildren > 0,
   nav.errorText ? String(nav.errorText) : `title="${String(page.title).slice(0, 40)}" readyState=${page.readyState} 文本=${page.bodyLength}字(可见=${page.bodyText})/children=${page.htmlChildren}`);
-if (ipTz) {
+// 「页面时区 == 出口 IP 时区」只在本机挂着同地区代理时成立：没有代理时，
+// 本机出口落在哪个城市完全随机（CI runner 实测 America/Chicago），而 persona
+// 是固定的，两者本来就该不同。所以无代理时把这两条降级为警告，改核对
+// persona 时区 —— 那才是扩展该做到的事；挂了代理的机器仍按严格判。
+const proxyInUse = Boolean(
+  process.env.HTTPS_PROXY || process.env.https_proxy ||
+  process.env.HTTP_PROXY || process.env.http_proxy ||
+  process.env.ALL_PROXY || process.env.all_proxy ||
+  argv.proxy
+);
+// 两者一致时当然要判（说明确实跟上了）；只有"不一致且没配代理"才降级 ——
+// 那种情况下本机出口落在哪儿是随机的，判错等于给环境记一笔账。
+if (ipTz && (proxyInUse || page.tz === ipTz)) {
   check('页面时区 == 出口 IP 时区（跟随代理）', page.tz === ipTz, `页面 ${page.tz} vs IP ${ipTz}`);
   check('UTC 偏移与出口 IP 一致', ipOffsetMinutes !== null && page.offset === ipOffsetMinutes, `页面 ${page.offset} vs IP ${ipOffsetMinutes}`);
-} else {
-  skip('页面时区 == 出口 IP 时区', `出口时区未知（${exitInfo ? exitInfo.source : '全部接口失败'}），仅核对国家`);
+} else if (ipTz) {
+  warn('页面时区 == 出口 IP 时区（跟随代理）', `未配置代理，出口 ${exitInfo ? `${exitInfo.ip} · ${ipTz}` : ipTz}，页面 ${page.tz}；本机无代理时这条不成立`);
+  warn('UTC 偏移与出口 IP 一致', '同上，改为核对 persona 时区偏移');
+}
+if (personaConfig.timezone) {
+  check(`页面时区 == persona 时区（${personaConfig.timezone}）`, page.tz === personaConfig.timezone, page.tz);
+  const personaOffset = offsetMinutesFor(personaConfig.timezone);
+  check('UTC 偏移与 persona 时区一致', personaOffset !== null && page.offset === personaOffset, `页面 ${page.offset} vs ${personaOffset}`);
+} else if (!ipTz) {
+  skip('页面时区（没有可比对的基准）', `persona 没写 timezone，出口时区也未知（${exitInfo ? exitInfo.source : '全部接口失败'}）`);
 }
 check('时区不是本机默认值（扩展确实改写了）', page.tz !== 'Asia/Shanghai', page.tz);
 check('navigator.language / Intl locale 一致', page.nav === page.intlLocale, `${page.nav} / ${page.intlLocale}`);
