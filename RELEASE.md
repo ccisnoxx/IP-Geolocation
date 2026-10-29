@@ -71,6 +71,8 @@ permissions:
 npm run typecheck
 npm run lint
 npm run build          # 必须在 npm test 之前：有些接线用例要读 dist/
+node scripts/release.mjs --all-presets --out=release
+npm run smoke:release -- --dir=release --require=6   # 六个包各开一次真浏览器
 npm test
 npm run test:coverage:core
 
@@ -170,6 +172,22 @@ npm run smoke:real-site  # 真实站点核对
   `timezone.timezone`、经纬度、`geolocation.country` 会被出口那边的值改写，关掉开关
   也不恢复原值（想留自己的值就先关再填）。
 - 不会把用户的时区/坐标从 `manual` 改成 `auto`，除非用户自己打开跟随开关。
+
+**从 2.1.x 升级（旧 2.x 线 → 本线）**
+
+2.1.x 与本线是**两套并行实现**，但两边都用 `schemaVersion: 5`，所以升级时不会触发任何迁移，
+设置原样读进来（`globalProfile` 的语言/时区/坐标、`webRtc`、`profile`、`rules` 全部保留），
+`canvas` / `ipSync` 补默认值。实测过一份 2.1.1 形状的配置。
+
+**会静默消失的字段**（本线的模型里没有对应的位置，`normalizeConfig` 只保留自己认识的键）：
+
+| 旧字段 | 内容 | 影响 |
+| --- | --- | --- |
+| `exitLocationProfiles` | 用户自己存的出口位置档案（含已验证的 `publicIp` 与坐标） | 档案没了，但当前生效的时区/坐标在 `globalProfile` 里，所以**行为不变** |
+| `intlMode` | 语言加载时机的模式开关 | 本线用规则里的 `overrides` 表达，语义上被取代 |
+
+升级前想留住档案里的坐标，先在旧版里抄下来，升级后在配置页手填。
+旧版本仍可回退：`legacy/2.1.1` 分支与 v2.1.0 tag 都还在。
 
 **回滚注意**
 

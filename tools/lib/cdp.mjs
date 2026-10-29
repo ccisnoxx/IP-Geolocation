@@ -3,8 +3,21 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+const CHROME_CANDIDATES = [
+  process.env.CHROME_PATH,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+].filter(Boolean);
+
+// 显式给了 CHROME_PATH 就用它（哪怕不存在，让报错落到真正的位置）；
+// 否则挑第一个真实存在的，都找不到时退回 macOS 默认路径好让报错有上下文。
 export const CHROME_PATH = process.env.CHROME_PATH
-  || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  || CHROME_CANDIDATES.find((candidate) => existsSync(candidate))
+  || CHROME_CANDIDATES[1];
 
 export class CDP {
   constructor(ws) {

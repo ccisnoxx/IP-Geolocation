@@ -25,6 +25,7 @@
     "smoke:baked-failclosed": "node tools/smoke-baked-failclosed.mjs",
     "smoke:baked-clear": "node tools/smoke-baked-clear.mjs",
     "smoke:presets": "node tools/smoke-presets.mjs",
+    "smoke:release": "node tools/smoke-release.mjs",
     "smoke:cold-start": "node tools/smoke-cold-start.mjs",
     "smoke:cold-save": "node tools/smoke-cold-save.mjs",
     "smoke:popup": "node tools/smoke-popup.mjs",

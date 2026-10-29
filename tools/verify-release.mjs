@@ -95,6 +95,14 @@ const chrome = await launchChrome({
   headless: true,
   args: ['--ignore-certificate-errors', `--host-resolver-rules=MAP ${firstDomain} 127.0.0.1:${port}`]
 });
+// 失败路径（fail → process.exit）也要收尾：批量跑六个包时，漏一个 Chrome
+// 就会把后面的包拖到超时。
+process.on('exit', () => {
+  try { killChrome(chrome); } catch { /* 已经退了 */ }
+  try { server.close(); } catch { /* 已经关了 */ }
+  if (workDir) { try { rmSync(workDir, { recursive: true, force: true }); } catch { /* 先留着 */ } }
+});
+
 const cdp = await CDP.connect(chrome.websocketUrl);
 await cdp.send('Extensions.loadUnpacked', { path: bundleDir });
 await sleep(2600);
