@@ -34,6 +34,8 @@ interface Harness {
     unregistered: number;
     tabCreates: number;
     badgeTexts: Array<{ text: string; tabId?: number }>;
+    /** 每次 updateDynamicRules 写进去的 addRules，用来断言"最后一次写的是什么" */
+    dnrWrites: Array<any[]>;
   };
   setDocumentId(id: string): void;
   storage: Record<string, any>;
@@ -50,6 +52,8 @@ function createHarness(options: {
   mainInjectError?: boolean;
   reloadError?: boolean;
   geoPayload?: any;
+  /** 卡住 IP 接口：用来把"接口还没回来"这段时间腾出来做别的事 */
+  fetchGate?: Promise<void>;
 } = {}): Harness {
   const stats = {
     fileInjections: 0,
@@ -66,7 +70,8 @@ function createHarness(options: {
     updated: 0,
     unregistered: 0,
     tabCreates: 0,
-    badgeTexts: [] as Array<{ text: string; tabId?: number }>
+    badgeTexts: [] as Array<{ text: string; tabId?: number }>,
+    dnrWrites: [] as Array<any[]>
   };
   let activeSends = 0;
   const local: Record<string, any> = {};
@@ -193,7 +198,7 @@ function createHarness(options: {
     declarativeNetRequest: {
       getEnabledRulesets: async () => [],
       getDynamicRules: async () => [],
-      updateDynamicRules: async () => undefined,
+      updateDynamicRules: async (arg: any) => { stats.dnrWrites.push(arg?.addRules || []); },
       updateEnabledRulesets: async () => undefined
     },
     privacy: {
@@ -206,6 +211,8 @@ function createHarness(options: {
   (globalThis as any).__VANISHGEO_NONCE__ = 'test-nonce';
   (globalThis as any).fetch = async () => {
     stats.fetches += 1;
+    // 闸门在计数之后等：调用方可以"看到了 fetches 增加"再决定放不放行
+    if (options.fetchGate) await options.fetchGate;
     return { ok: true, json: async () => geoPayload } as any;
   };
 
@@ -903,6 +910,50 @@ test('updateGeolocation 覆盖 disabled / 非强制不需要 / API 全失败', a
   const result = await failed.services.updateGeolocation(true);
   assert.equal(result.ok, false);
   assert.match(result.error || '', /no valid coordinates/);
+});
+
+test('定位回来得晚时用此刻的配置重算，不把用户这几秒里的保存盖回去', async () => {
+  // 真实事故形状：updateGeolocation 先读配置、再打 IP 接口（几秒），回来之后
+  // 用进函数时抓到的旧配置重算请求头 —— 期间保存的新语言被 DNR 写回旧值。
+  // 存储里是新配置、界面显示已保存，浏览器发出去的还是旧 Accept-Language。
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const harness = createHarness({ fetchGate: gate });
+
+  const before = await harness.services.getSiteConfig();
+  const pending = harness.services.updateGeolocation(true);
+  for (let spin = 0; spin < 200 && harness.stats.fetches === 0; spin += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  assert.ok(harness.stats.fetches > 0, 'updateGeolocation 应该已经进到 IP 接口这一步');
+
+  // 用户在"接口还没回来"这段时间里保存
+  const saved = await harness.services.saveSiteConfig({
+    ...before,
+    rules: [{ id: 'r', domain: 'claude.ai', enabled: true }] as any,
+    globalProfile: {
+      ...before.globalProfile,
+      language: {
+        enabled: true,
+        mode: 'preset',
+        language: 'ja-JP',
+        languages: ['ja-JP', 'ja'],
+        acceptLanguage: 'ja-JP,ja;q=0.9'
+      }
+    } as any
+  });
+  assert.equal(saved.globalProfile.language.language, 'ja-JP');
+
+  release();
+  await pending;
+
+  const last = harness.stats.dnrWrites.at(-1) || [];
+  const values = [...new Set(last.flatMap((rule: any) => (rule.action?.requestHeaders || []).map((h: any) => h.value)))];
+  assert.deepEqual(
+    values,
+    ['ja-JP,ja;q=0.9'],
+    '定位回来后的重算用了旧配置：请求头会被写回默认值，而 storage 里是新配置'
+  );
 });
 
 test('frozen 烘焙配置让保存完全无效', async () => {

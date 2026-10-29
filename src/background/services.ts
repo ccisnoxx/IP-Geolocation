@@ -869,9 +869,9 @@ export function createBackgroundServices(): BackgroundServices {
       invalidateStorageCache();
       // 坐标从"未解析"变成"已解析"时，权限层要从 block 切回 allow；
       // auto 时区也可能跟着变，请求头一起重算。只调 updateAllTabs 会漏掉这两层。
-      await applyGeolocationPermissions(config);
-      await updateAcceptLanguageRules(config, nextLocation);
-      await updateAllTabs(config, nextLocation);
+      // 用 applyLocationEffects 而不是就地重算：它现读配置且排进 applyChain，
+      // 不会用进函数时抓到的旧配置盖掉用户在这几秒里的保存。
+      await applyLocationEffects();
       return { ok: true, location: nextLocation };
     } catch (error) {
       const message = `background geolocation update failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -947,12 +947,14 @@ export function createBackgroundServices(): BackgroundServices {
       return { ok: false, frozen: true, error: '当前是烘焙（只读）构建：配置烘焙在构建产物里，改不了' };
     }
     try {
-      const config = await getSiteConfig();
+      // 先查出口再读配置：查 IP 要几秒，期间用户可能刚保存过，用查之前的快照
+      // 去 plan 会把那次保存直接覆盖掉（写回旧的语言/时区/白名单）
       const looked = await lookupExitIp();
       if ('error' in looked) {
         await recordGeoError(looked.error);
         return { ok: false, error: looked.error };
       }
+      const config = await getSiteConfig();
       const plan = planExitIpApply(config, looked.info);
       await writeLastLocation(plan.location);
       await writeSiteConfigOnly(plan.config);
@@ -1180,6 +1182,33 @@ export function createBackgroundServices(): BackgroundServices {
     const run = () => applyConfigNow(configOverride);
     const next = applyChain.then(run, run);
     // 链本身不携带失败：一次应用失败不能把后面的应用永久挡住
+    applyChain = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  /**
+   * 定位写完之后的重算：权限层 / 请求头 / 已开标签页。
+   *
+   * 必须用**此刻**的配置，而且排进 applyChain。`updateGeolocation` 读配置是在打
+   * IP 接口**之前**，那一步可能花掉几秒，用户完全可能在这段时间里保存 —— 拿进函数
+   * 时抓到的旧配置重算，等于把 DNR 规则和页内 payload 一起写回旧值：存储里是新配置、
+   * 界面显示"已保存"，而浏览器实际发出的请求头还是旧的。
+   *
+   * 这条竞态是 CI 上的 cold-save 冒烟逮到的（3 轮里 2 轮 DNR 停在默认值），本机
+   * 一次都不复现 —— 本机 IP 接口回得快，重算总是发生在保存之前。
+   */
+  function applyLocationEffects(): Promise<void> {
+    const run = async () => {
+      const config = frozenBakedConfig() || normalizeConfig(await getSiteConfig());
+      const location = await getLastLocation();
+      await applyGeolocationPermissions(config);
+      await updateAcceptLanguageRules(config, location);
+      await updateAllTabs(config, location);
+      // 这一次也算"应用过完整状态"：不同步去重基准，下一次同配置的 applyConfig
+      // 会以为还没应用过，白白再写一遍 DNR（写一次就驱逐一次 BFCache）
+      lastAppliedSignature = JSON.stringify(config);
+    };
+    const next = applyChain.then(run, run);
     applyChain = next.then(() => undefined, () => undefined);
     return next;
   }
