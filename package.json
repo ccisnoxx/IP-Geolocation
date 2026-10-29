@@ -33,6 +33,7 @@
     "audit": "node tools/audit.mjs",
     "smoke:ipchange": "node tools/smoke-ip-change.mjs",
     "smoke:ipfollow": "node tools/smoke-ip-follow.mjs",
+    "smoke:ipapply": "node tools/smoke-ip-apply.mjs",
     "probe:cost": "node tools/probe-cost.mjs",
     "smoke:fingerprint": "node tools/smoke-fingerprint.mjs",
     "audit:parity": "node tools/native-parity.mjs",

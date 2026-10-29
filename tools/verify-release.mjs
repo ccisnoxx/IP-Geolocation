@@ -2,7 +2,7 @@
 /*
  * 验证一个已发布的 zip 真的没有首屏窗口。
  *
- *   node tools/verify-release.mjs --zip=release/vanishgeo-1.2.1-united-states.zip
+ *   node tools/verify-release.mjs --zip=release/vanishgeo-1.2.1-us-west.zip
  *   node tools/verify-release.mjs --dir=release/.build/uscheck
  *
  * 为什么必须真开浏览器：release.mjs 只能证明"产物里写着目标时区"，证明不了
