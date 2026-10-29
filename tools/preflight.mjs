@@ -24,14 +24,22 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
+const flags = new Map();
+for (const arg of process.argv.slice(2)) {
   const [key, value] = arg.split('=');
-  return [key.replace(/^--/, ''), value === undefined ? true : value];
-}));
-const VERBOSE = argv.verbose === true;
-const KEEP_GOING = argv['keep-going'] === true;
-const SKIP = new Set(String(argv.skip || '').split(',').map((s) => s.trim()).filter(Boolean));
-const ONLY = String(argv.only || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const name = key.replace(/^--/, '');
+  // 重复给同一个 flag 要累积（--skip=a --skip=b 与 --skip=a,b 等价），
+  // 否则后一个会静静盖掉前一个，跑出来的东西跟参数说的不一样
+  flags.set(name, [...(flags.get(name) || []), value === undefined ? true : value]);
+}
+const list = (name) => (flags.get(name) || [])
+  .flatMap((value) => String(value).split(','))
+  .map((item) => item.trim())
+  .filter(Boolean);
+const VERBOSE = flags.has('verbose');
+const KEEP_GOING = flags.has('keep-going');
+const SKIP = new Set(list('skip'));
+const ONLY = list('only');
 
 const PERSONA = join(mkdtempSync(join(tmpdir(), 'vg-preflight-')), 'persona');
 
@@ -39,8 +47,8 @@ const PERSONA = join(mkdtempSync(join(tmpdir(), 'vg-preflight-')), 'persona');
 // 审计一次要跑九分钟，全量直出会把人淹没；全量不直出又会让人以为卡死了。
 const KEY_LINE = /^(✓|✗|▶|ℹ|total|合计|通过|[0-9]+\/[0-9]+)|失败|error:|Error:|时间：/;
 
-function stage(id, label, cmd, args, { summary, timeoutMs = 600_000 } = {}) {
-  return { id, label, cmd, args, summary, timeoutMs };
+function stage(id, label, cmd, args, { summary, timeoutMs = 600_000, deps = [] } = {}) {
+  return { id, label, cmd, args, summary, timeoutMs, deps };
 }
 
 const SMOKES = [
@@ -63,7 +71,12 @@ const STAGES = [
     ['scripts/build-persona.mjs', '--persona=us-la-1', `--out=${PERSONA}`], { timeoutMs: 300_000 }),
   ...SMOKES.map((name) => stage(`smoke:${name}`, `离线冒烟 · ${name}`, 'node',
     [`tools/smoke-${name}.mjs`, ...(/^(options|popup)$/.test(name) ? [`--extension=${PERSONA}`] : [])],
-    { summary: (out) => match(out, /(\d+)\/(\d+) 通过/, (m) => `${m[1]}/${m[2]}`), timeoutMs: 300_000 })),
+    {
+      summary: (out) => match(out, /(\d+)\/(\d+) 通过/, (m) => `${m[1]}/${m[2]}`),
+      timeoutMs: 300_000,
+      // 这两条要构建产物，persona 没跑过就是"找不到扩展"而不是"扩展坏了"
+      deps: /^(options|popup)$/.test(name) ? ['persona'] : []
+    })),
   // 三引擎审计是唯一能覆盖 Helium 的一关，也是唯一会真开浏览器跑真实站点的一关
   stage('audit', '三引擎审计', 'npm', ['run', 'audit'], {
     summary: (out) => match(out, /合计 (\d+\/\d+) 项通过 · (\d+\/\d+) 组全绿/, (m) => `${m[1]} 项 · ${m[2]} 组`),
@@ -165,11 +178,44 @@ function runStage(item) {
 }
 
 function selected(item) {
-  if (SKIP.has(item.id)) return false;
+  if (SKIP.has(item.id) || SKIP.has(item.id.replace(/^smoke:/, ''))) return false;
   if (!ONLY.length) return true;
-  if (SKIP.has(item.id.replace(/^smoke:/, ''))) return false;
   return ONLY.some((prefix) => item.id === prefix || item.id.startsWith(`${prefix}:`) || item.id.startsWith(prefix));
 }
+
+/** 选中的阶段连同它依赖的阶段一起排进来：`--only=smoke` 不该因为少跑 persona 而假红 */
+function buildPlan() {
+  const plan = STAGES.filter(selected);
+  const ids = new Set(plan.map((item) => item.id));
+  for (const item of [...plan]) {
+    for (const dep of item.deps || []) {
+      if (ids.has(dep)) continue;
+      const dependency = STAGES.find((candidate) => candidate.id === dep);
+      if (!dependency) throw new Error(`${item.id} 依赖不存在的阶段 ${dep}`);
+      if (SKIP.has(dep)) {
+        throw new Error(`${item.id} 需要 ${dep}，但 --skip 把它排除了（要么别跳，要么一起跳掉 ${item.id}）`);
+      }
+      plan.splice(STAGES.indexOf(dependency), 0, dependency);
+      ids.add(dep);
+    }
+  }
+  return plan.sort((a, b) => STAGES.indexOf(a) - STAGES.indexOf(b));
+}
+
+let plan;
+try {
+  plan = buildPlan();
+} catch (error) {
+  console.error(`preflight 参数有冲突：${error instanceof Error ? error.message : String(error)}`);
+  process.exit(2);
+}
+
+if (!plan.length) {
+  console.error(`没有可跑的阶段（--skip=${[...SKIP].join(',')} --only=${ONLY.join(',')}）`);
+  process.exit(2);
+}
+
+console.log(`preflight：${plan.length} 个阶段${SKIP.size ? `（跳过 ${[...SKIP].join(',')}）` : ''}\n`);
 
 // 中文是双宽字符：padEnd 按码点数补空格，含中文的行会比别的行宽出一截，整张表推歪
 const WIDE = /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/;
@@ -187,14 +233,6 @@ function human(ms) {
 
 const results = [];
 const startedAll = Date.now();
-const plan = STAGES.filter(selected);
-
-if (!plan.length) {
-  console.error(`没有可跑的阶段（--skip=${[...SKIP].join(',')} --only=${ONLY.join(',')}）`);
-  process.exit(2);
-}
-
-console.log(`preflight：${plan.length} 个阶段${SKIP.size ? `（跳过 ${[...SKIP].join(',')}）` : ''}\n`);
 
 for (const item of plan) {
   process.stdout.write(`▶ ${item.label} … `);
@@ -223,7 +261,8 @@ for (const item of plan) {
 try { rmSync(join(PERSONA, '..'), { recursive: true, force: true }); } catch { /* noop */ }
 
 const failed = results.filter((r) => !r.ok);
-const skipped = STAGES.filter((item) => !selected(item)).map((item) => item.id);
+const ranIds = new Set(plan.map((item) => item.id));
+const skipped = STAGES.filter((item) => !ranIds.has(item.id)).map((item) => item.id);
 const total = human(Date.now() - startedAll);
 
 console.log(`\n${'─'.repeat(72)}`);
