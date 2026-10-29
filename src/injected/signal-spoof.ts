@@ -257,12 +257,45 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     return language;
   }
 
+  /**
+   * 复制一份 options 并把 timeZone 补上，同时**不丢原型上的属性**。
+   *
+   * `{ ...options, timeZone }` 只搬自有可枚举属性。原生 Intl 读 options 用的是
+   * `Get()`，会沿原型链查 —— 所以 `Intl.DateTimeFormat('en', Object.create({ year: 'numeric' }))`
+   * 在原生里能正常格式化（继承的 year 生效），被我们展开一次之后继承属性全没了，
+   * 输出从 "2026" 变成 "1/1/2026" 这种默认格式。
+   *
+   * 做法：新建对象时保留原型，再按描述符逐个复制自有属性（getter 也原样保留），
+   * 最后写入自己的 timeZone。
+   */
+  function cloneWithTimeZone(options: any, zone: string): any {
+    if (typeof options !== 'object' || options === null) return { timeZone: zone };
+    let next: any;
+    try {
+      next = Object.create(Object.getPrototypeOf(options));
+    } catch {
+      next = {};
+    }
+    try {
+      for (const key of Reflect.ownKeys(options)) {
+        if (key === 'timeZone') continue;
+        const descriptor = Object.getOwnPropertyDescriptor(options, key);
+        if (descriptor) Object.defineProperty(next, key, descriptor);
+      }
+      Object.defineProperty(next, 'timeZone', { value: zone, writable: true, enumerable: true, configurable: true });
+      return next;
+    } catch {
+      // 极端情况（不可复制的宿主对象）退回原来的展开语义，至少不比之前更差
+      return { ...options, timeZone: zone };
+    }
+  }
+
   function withZone(options: any): any {
     const zone = deps.timezone();
     if (!zone) return options;
     if (options === undefined || options === null) return { timeZone: zone };
     if (typeof options === 'object' && options.timeZone === undefined) {
-      return { ...options, timeZone: zone };
+      return cloneWithTimeZone(options, zone);
     }
     return options;
   }
@@ -313,10 +346,15 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     for (const [key, utcKey, arity] of setters) {
       define(key, disguise(function (this: any, ...args: any[]) {
         const time = this.getTime();
-        if (!Number.isFinite(time)) return NaN;
-        const wall = wallDate(time);
+        // setFullYear 是**唯一**在 Invalid Date 上仍然成功的 setter：规范先把 t 归成
+        // +0 再落点；setMonth / setDate / setHours 这一族必须返回 NaN。
+        // 早先所有 setter 共用一句 `return NaN`，于是
+        // `new Date(NaN).setFullYear(2026)` 得到 NaN（原生是一个有效时间戳）。
+        const base = Number.isFinite(time) ? time : (utcKey === 'setUTCFullYear' ? 0 : NaN);
+        if (!Number.isFinite(base)) return NaN;
+        const wall = wallDate(base);
         wall[utcKey](...args);
-        const next = resolveWallTime(wall.getTime(), time);
+        const next = resolveWallTime(wall.getTime(), base);
         this.setTime(next);
         return next;
       }, key, arity));
@@ -397,17 +435,22 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
 
     function SpoofedDate(this: any, ...args: any[]) {
       if (!new.target) return new NativeDate().toString();
-      if (args.length === 0) return new NativeDate();
+      // 用 Reflect.construct 而不是 `new NativeDate(...)`：后者会把 new.target 丢掉，
+      // `class D extends Date {}; new D() instanceof D` 会变成 false（而且 D 的
+      // 原型上的方法全部不可见）。new.target === SpoofedDate 时落到 NativeDate，
+      // 拿到的是同一条路径、同一个 [[DateValue]] 内部槽。
+      const target: any = new.target;
+      if (args.length === 0) return Reflect.construct(NativeDate, [], target);
       if (args.length === 1) {
         const value = args[0];
-        if (typeof value === 'string') return new NativeDate(parseDateString(value));
-        return new NativeDate(value);
+        if (typeof value === 'string') return Reflect.construct(NativeDate, [parseDateString(value)], target);
+        return Reflect.construct(NativeDate, [value], target);
       }
       const base = NativeDate.UTC(...args.map(Number));
-      return new NativeDate(resolveWallTime(base, base));
+      return Reflect.construct(NativeDate, [resolveWallTime(base, base)], target);
     }
 
-    const Spoofed: any = disguise(SpoofedDate, 'Date', 7);
+    const Spoofed: any = disguise(SpoofedDate, 'Date', 7, { construct: true });
     try {
       // 原生 Date.prototype 是 non-writable / non-configurable，这里保持一致
       Object.defineProperty(Spoofed, 'prototype', { value: dateProto, writable: false });
@@ -464,13 +507,15 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
           if (nextOptions === undefined || nextOptions === null) {
             nextOptions = { timeZone: zone };
           } else if (typeof nextOptions === 'object' && nextOptions.timeZone === undefined) {
-            nextOptions = { ...nextOptions, timeZone: zone };
+            // 不能用 `{ ...nextOptions, timeZone }`：展开只搬自有可枚举属性，
+            // 原生 Intl 是沿原型链读的（见 cloneWithTimeZone 注释）
+            nextOptions = cloneWithTimeZone(nextOptions, zone);
           }
         }
         return new Native(nextLocales, nextOptions);
       };
 
-      const spoofed = disguise(impl, name, Native.length);
+      const spoofed = disguise(impl, name, Native.length, { construct: true });
       try {
         Object.defineProperty(spoofed, 'prototype', { value: Native.prototype, writable: false });
       } catch { /* ignore */ }

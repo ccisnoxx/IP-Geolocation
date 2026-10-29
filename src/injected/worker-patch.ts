@@ -3,6 +3,15 @@ export interface WorkerPatchConfig {
   language?: string | null;
   languages?: string[] | null;
   fontTargets?: string[] | null;
+  /**
+   * 配置热更新的握手口令（每个文档随机生成，由 runtime 通过 postMessage 下发）。
+   *
+   * 补丁入口是创建时序列化进 blob 的，Worker 跑起来之后唯一的同步通道就是消息。
+   * 带口令是为了让页面无法伪造一条"把时区改回去"的配置消息 —— 页面压根不知道口令。
+   */
+  token?: string | null;
+  /** true = 这次下发的是关配置，所有补丁入口退回原生语义 */
+  disabled?: boolean | null;
 }
 
 /**
@@ -17,7 +26,9 @@ export interface WorkerPatchConfig {
  *   navigator   language / languages
  *   Date        构造器（多参数按目标时区解释）、getTimezoneOffset、get* 全家、
  *               **set* 全家**、toLocale* 全家、toString/toDateString/toTimeString
- *   Intl        DateTimeFormat / NumberFormat 的默认 locale 与默认 timeZone
+ *   Intl        DateTimeFormat / NumberFormat / Collator / RelativeTimeFormat /
+ *               PluralRules / ListFormat / DisplayNames / Segmenter 的默认 locale
+ *               （DateTimeFormat 还带默认 timeZone）—— 与主线程的 8 类覆盖一致
  *   Canvas      OffscreenCanvasRenderingContext2D.measureText / fillText / strokeText
  *
  * set* 家族是最容易被漏掉的一环：只改 getter 的话，`d.setHours(0,0,0,0)` 仍然按
@@ -26,11 +37,26 @@ export interface WorkerPatchConfig {
 export function workerPatch(config: WorkerPatchConfig): void {
   const scope: any = typeof self !== 'undefined' ? self : (globalThis as any);
 
-  const zone = (config && config.timezone) || '';
-  const language = (config && config.language) || '';
-  const languageList = config && Array.isArray(config.languages) && config.languages.length
-    ? config.languages.slice()
-    : (language ? [language] : []);
+  const initial: WorkerPatchConfig = config || {};
+
+  /**
+   * 可行变配置：**所有补丁入口都从这里读**，不读创建时闭包里的常量。
+   *
+   * 为什么必须可变：Worker 的入口是创建时烘焙进 blob 的，配置一旦变化，已跑的
+   * Worker 拿不到新值 —— 页面只要在 Worker 里问一次 `new Date().getTimezoneOffset()`
+   * 就能发现它和主线程说的不是一回事。主线程会在创建后以及每次配置变化时
+   * postMessage 一条带口令的配置（见 applyLiveConfig），这里收到后原地更新。
+   *
+   * 配置变成空时所有入口退回原生语义（不再伪装），这也是"关闭补丁"能生效的原因。
+   */
+  const live = {
+    zone: initial.timezone || '',
+    language: initial.language || '',
+    languages: Array.isArray(initial.languages) && initial.languages.length
+      ? initial.languages.slice()
+      : (initial.language ? [initial.language] : []),
+    fontTargets: Array.isArray(initial.fontTargets) ? initial.fontTargets.slice() : []
+  };
 
   /**
    * 伪装成原生函数。
@@ -59,13 +85,32 @@ export function workerPatch(config: WorkerPatchConfig): void {
     });
   } catch { /* ignore */ }
 
-  const wrap = (impl: any, name: string, arity?: number) => {
-    try { Object.defineProperty(impl, 'name', { value: name, configurable: true }); } catch { /* ignore */ }
-    if (typeof arity === 'number') {
-      try { Object.defineProperty(impl, 'length', { value: arity, configurable: true }); } catch { /* ignore */ }
+  /**
+   * 方法形状的等价实现：原生原型方法没有自有 `prototype`，也不能被 `new`。
+   *
+   * `function foo() {}` 声明两样都相反，`Object.getOwnPropertyNames(Date.prototype.getHours)`
+   * 在原生上返回 `[]`、在补丁上返回 `['prototype']` —— 一行就能分辨。方法简写
+   * `{ [name]() {} }[name]` 恰好两样都对。构造器走 `{ construct: true }` 保留可构造性。
+   */
+  const methodShaped = (impl: any, name: string): any => {
+    const holder: any = {
+      [name](this: any, ...args: any[]) {
+        return Reflect.apply(impl, this, args);
+      }
+    };
+    return holder[name];
+  };
+  const wrap = (impl: any, name: string, arity?: number, options?: { construct?: boolean }) => {
+    const shaped = options && options.construct === true ? impl : methodShaped(impl, name);
+    try { Object.defineProperty(shaped, 'name', { value: name, configurable: true }); } catch { /* ignore */ }
+    // 没显式给 arity 时沿用 impl 自己的 length：方法简写的 length 恒为 0，
+    // 直接留着会让 `Date.prototype.setHours.length` 从 4 变成 0 —— 一行就能测出来。
+    const length = typeof arity === 'number' ? arity : (typeof impl.length === 'number' ? impl.length : undefined);
+    if (typeof length === 'number') {
+      try { Object.defineProperty(shaped, 'length', { value: length, configurable: true }); } catch { /* ignore */ }
     }
-    try { signatures.set(impl, `function ${name}() { [native code] }`); } catch { /* ignore */ }
-    return impl;
+    try { signatures.set(shaped, `function ${name}() { [native code] }`); } catch { /* ignore */ }
+    return shaped;
   };
   /**
    * 替换成员时保留原描述符的 enumerable。
@@ -121,30 +166,86 @@ export function workerPatch(config: WorkerPatchConfig): void {
   const nativeGetMinutes = dateProto.getMinutes;
   const nativeGetSeconds = dateProto.getSeconds;
   const nativeGetMilliseconds = dateProto.getMilliseconds;
+  const nativeToDateString = dateProto.toDateString;
+  const nativeToTimeString = dateProto.toTimeString;
+  const nativeToString = dateProto.toString;
+  const nativeGetYear = dateProto.getYear;
+  const nativeGetDay = dateProto.getDay;
+  /** 配置被清空时要把调用原样交还给原生实现（这就是"关补丁"）。 */
+  const nativeGetters: Record<string, any> = {
+    getFullYear: nativeGetFullYear,
+    getYear: nativeGetYear,
+    getMonth: nativeGetMonth,
+    getDate: nativeGetDate,
+    getDay: nativeGetDay,
+    getHours: nativeGetHours,
+    getMinutes: nativeGetMinutes,
+    getSeconds: nativeGetSeconds,
+    getMilliseconds: nativeGetMilliseconds
+  };
+  const nativeSetters: Record<string, any> = {
+    setFullYear: dateProto.setFullYear,
+    setMonth: dateProto.setMonth,
+    setDate: dateProto.setDate,
+    setHours: dateProto.setHours,
+    setMinutes: dateProto.setMinutes,
+    setSeconds: dateProto.setSeconds,
+    setMilliseconds: dateProto.setMilliseconds
+  };
 
   // ---------- navigator ----------
 
-  if (language) {
-    const nav = scope.navigator;
-    // 补在**原型**上，不是 navigator 实例上：原生 WorkerNavigator 的实例零自有属性，
-    // `Object.getOwnPropertyNames(navigator)` 里出现 language / languages 就是一行检测。
-    const navProto = nav ? Object.getPrototypeOf(nav) : null;
-    if (navProto) {
-      // WebIDL: readonly attribute FrozenArray<DOMString> —— 冻结之外还必须是稳定引用，
-      // 否则 `navigator.languages === navigator.languages` 直接是 false。
-      const frozenLanguages = Object.freeze(languageList.slice());
-      putGetter(navProto, 'language', function () { return language; });
-      putGetter(navProto, 'languages', function () { return frozenLanguages; });
-    }
+  // 无论创建时有没有语言配置都装上 getter：值从 live 里读，配置关掉就退回原生值。
+  // 这样"关补丁"和"创建后才配语言"都不需要重新造一个 Worker。
+  const nav = scope.navigator;
+  // 补在**原型**上，不是 navigator 实例上：原生 WorkerNavigator 的实例零自有属性，
+  // `Object.getOwnPropertyNames(navigator)` 里出现 language / languages 就是一行检测。
+  const navProto = nav ? Object.getPrototypeOf(nav) : null;
+  if (navProto) {
+    // 原生 language / languages 的取值（配置清空时原样返回）
+    const nativeLanguageDescriptor = Object.getOwnPropertyDescriptor(navProto, 'language');
+    const nativeLanguagesDescriptor = Object.getOwnPropertyDescriptor(navProto, 'languages');
+    const nativeLanguageValue = (): any => {
+      if (nativeLanguageDescriptor && typeof nativeLanguageDescriptor.get === 'function') {
+        return nativeLanguageDescriptor.get.call(nav);
+      }
+      return nav.language;
+    };
+    const nativeLanguagesValue = (): any => {
+      if (nativeLanguagesDescriptor && typeof nativeLanguagesDescriptor.get === 'function') {
+        return nativeLanguagesDescriptor.get.call(nav);
+      }
+      return nav.languages;
+    };
+
+    // WebIDL: readonly attribute FrozenArray<DOMString> —— 冻结之外还必须是稳定引用，
+    // 否则 `navigator.languages === navigator.languages` 直接是 false。
+    let frozenLanguages: any = null;
+    let frozenFrom: string[] = [];
+    const currentLanguages = (): any => {
+      if (!live.language || !live.languages.length) return nativeLanguagesValue();
+      if (frozenFrom.length !== live.languages.length || frozenFrom.some((item, index) => item !== live.languages[index])) {
+        frozenLanguages = Object.freeze(live.languages.slice());
+        frozenFrom = live.languages.slice();
+      }
+      return frozenLanguages;
+    };
+
+    putGetter(navProto, 'language', function () {
+      return live.language || nativeLanguageValue();
+    });
+    putGetter(navProto, 'languages', currentLanguages);
   }
 
   // ---------- Date ----------
 
   let formatter: any = null;
+  let formatterZone = '\u0000';
   const partsAt = (time: number) => {
-    if (!formatter) {
+    // formatter 绑定了 zone，配置热更新后必须重建 —— 用 formatterZone 记住当前绑的是谁
+    if (!formatter || formatterZone !== live.zone) {
       formatter = new NativeDTF('en-US', {
-        timeZone: zone,
+        timeZone: live.zone,
         hourCycle: 'h23',
         year: 'numeric',
         month: '2-digit',
@@ -155,6 +256,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
         weekday: 'short',
         timeZoneName: 'long'
       });
+      formatterZone = live.zone;
     }
     const out: any = {};
     const parts = formatter.formatToParts(new NativeDate(time));
@@ -167,6 +269,8 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
   /** getTimezoneOffset 语义的分钟数（UTC - 本地） */
   const offsetAt = (time: number): number => {
+    // 没有目标时区时直接用宿主偏移：省掉一次 formatToParts，语义完全相同
+    if (!live.zone) return nativeGetTimezoneOffset.call(new NativeDate(time));
     try {
       const parts = partsAt(time);
       const asUTC = NativeDate.UTC(
@@ -202,22 +306,52 @@ export function workerPatch(config: WorkerPatchConfig): void {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  const spoofLocale = (locales: any): any => (locales === undefined || locales === null ? (language || undefined) : locales);
+  const spoofLocale = (locales: any): any => (
+    locales === undefined || locales === null ? (live.language || undefined) : locales
+  );
+  /**
+   * 复制 options 并补 timeZone，**保留原型链**。
+   *
+   * 原生 Intl 读 options 用 Get()，会沿原型链查；只复制自有可枚举属性会让
+   * `Object.create({ year: 'numeric' })` 这种写法丢掉继承项（主线程那份已改，
+   * 这里必须同步，否则 Worker 与主线程的输出直接对不上）。
+   */
   const withZone = (options: any): any => {
-    if (!zone) return options;
-    if (options === undefined || options === null) return { timeZone: zone };
+    if (!live.zone) return options;
+    if (options === undefined || options === null) return { timeZone: live.zone };
     if (typeof options === 'object' && options.timeZone === undefined) {
-      const next: any = {};
-      for (const key in options) {
-        if (Object.prototype.hasOwnProperty.call(options, key)) next[key] = options[key];
+      let next: any;
+      try {
+        next = Object.create(Object.getPrototypeOf(options));
+      } catch {
+        next = {};
       }
-      next.timeZone = zone;
-      return next;
+      try {
+        const keys = Reflect.ownKeys(options);
+        for (let index = 0; index < keys.length; index += 1) {
+          const key: any = keys[index];
+          if (key === 'timeZone') continue;
+          const descriptor = Object.getOwnPropertyDescriptor(options, key);
+          if (descriptor) Object.defineProperty(next, key, descriptor);
+        }
+        Object.defineProperty(next, 'timeZone', { value: live.zone, writable: true, enumerable: true, configurable: true });
+        return next;
+      } catch {
+        next = {};
+        for (const key in options) {
+          if (Object.prototype.hasOwnProperty.call(options, key)) next[key] = options[key];
+        }
+        next.timeZone = live.zone;
+        return next;
+      }
     }
     return options;
   };
 
-  if (zone) {
+  // 注意这里**不再**写 `if (zone) { ... }`：创建时没有时区配置、之后才配上的 Worker
+  // 也必须能生效。每个入口自己判断 live.zone —— 为空就把调用原样交还原生实现，
+  // 语义与"从没打过补丁"完全一致（这也是关闭补丁后能真正还原的原因）。
+  {
     const getters: Array<[string, (wall: any) => number]> = [
       ['getFullYear', (selfWall) => selfWall.getUTCFullYear()],
       ['getYear', (selfWall) => selfWall.getUTCFullYear() - 1900],
@@ -233,6 +367,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
       const name = getters[index][0];
       const pick = getters[index][1];
       const impl = function (this: any) {
+        if (!live.zone) return nativeGetters[name].call(this);
         const time = this.getTime();
         if (time !== time) return NaN;
         return pick(wall(time));
@@ -241,6 +376,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
     }
 
     putValue(dateProto, 'getTimezoneOffset', wrap(function (this: any) {
+      if (!live.zone) return nativeGetTimezoneOffset.call(this);
       const time = this.getTime();
       if (time !== time) return NaN;
       return offsetAt(time);
@@ -263,9 +399,12 @@ export function workerPatch(config: WorkerPatchConfig): void {
       const utcName = setters[index][1];
       const arity = setters[index][2];
       const impl = function (this: any, ...args: any[]) {
+        if (!live.zone) return nativeSetters[name].apply(this, args);
         const time = this.getTime();
-        if (time !== time) return NaN;
-        const shifted = wall(time);
+        // setFullYear 在 Invalid Date 上仍然成功（规范把 t 归成 +0），其余 setter 必须 NaN
+        const base = time === time ? time : (utcName === 'setUTCFullYear' ? 0 : NaN);
+        if (base !== base) return NaN;
+        const shifted = wall(base);
         (shifted as any)[utcName].apply(shifted, args);
         const next = resolveWall(shifted.getTime());
         this.setTime(next);
@@ -275,39 +414,44 @@ export function workerPatch(config: WorkerPatchConfig): void {
     }
 
     putValue(dateProto, 'toDateString', wrap(function (this: any) {
+      if (!live.zone) return nativeToDateString.call(this);
       if (this.getTime() !== this.getTime()) return 'Invalid Date';
       const shifted = wall(this.getTime());
       return `${weekdays[shifted.getUTCDay()]} ${months[shifted.getUTCMonth()]} ${pad(shifted.getUTCDate())} ${shifted.getUTCFullYear()}`;
     }, 'toDateString'), true);
 
     putValue(dateProto, 'toTimeString', wrap(function (this: any) {
+      if (!live.zone) return nativeToTimeString.call(this);
       if (this.getTime() !== this.getTime()) return 'Invalid Date';
       const time = this.getTime();
       const shifted = wall(time);
       const offset = offsetAt(time);
       const sign = offset <= 0 ? '+' : '-';
       const abs = Math.abs(offset);
-      let label = zone;
-      try { label = partsAt(time).timeZoneName || zone; } catch { /* ignore */ }
+      let label = live.zone;
+      try { label = partsAt(time).timeZoneName || live.zone; } catch { /* ignore */ }
       return `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())} GMT${sign}${pad(Math.floor(abs / 60))}${pad(abs % 60)} (${label})`;
     }, 'toTimeString'), true);
 
     putValue(dateProto, 'toString', wrap(function (this: any) {
+      if (!live.zone) return nativeToString.call(this);
       // 非法日期必须整体返回 'Invalid Date'；拼两个子串会得到
       // "Invalid Date Invalid Date"，真机不会这么输出。
       if (this.getTime() !== this.getTime()) return 'Invalid Date';
       return `${(dateProto as any).toDateString.call(this)} ${(dateProto as any).toTimeString.call(this)}`;
     }, 'toString'), true);
-  }
 
-  if (zone || language) {
+    // toLocale* 一族同时受语言与时区影响，两样都空时原样透传
     putValue(dateProto, 'toLocaleString', wrap(function (this: any, locales?: any, options?: any) {
+      if (!live.zone && !live.language) return nativeToLocaleString.call(this);
       return nativeToLocaleString.call(this, spoofLocale(locales), withZone(options));
     }, 'toLocaleString', 0), true);
     putValue(dateProto, 'toLocaleDateString', wrap(function (this: any, locales?: any, options?: any) {
+      if (!live.zone && !live.language) return nativeToLocaleDateString.call(this);
       return nativeToLocaleDateString.call(this, spoofLocale(locales), withZone(options));
     }, 'toLocaleDateString', 0), true);
     putValue(dateProto, 'toLocaleTimeString', wrap(function (this: any, locales?: any, options?: any) {
+      if (!live.zone && !live.language) return nativeToLocaleTimeString.call(this);
       return nativeToLocaleTimeString.call(this, spoofLocale(locales), withZone(options));
     }, 'toLocaleTimeString', 0), true);
   }
@@ -329,7 +473,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
     const text = String(value).trim();
     const parsed = nativeParse(text);
     if (parsed !== parsed) return NaN;
-    if (!zone || ISO_DATE_ONLY.test(text) || HAS_ZONE.test(text)) return parsed;
+    if (!live.zone || ISO_DATE_ONLY.test(text) || HAS_ZONE.test(text)) return parsed;
 
     const host = new NativeDate(parsed);
     const shifted = NativeDate.UTC(
@@ -344,19 +488,25 @@ export function workerPatch(config: WorkerPatchConfig): void {
     return resolveWall(shifted);
   };
 
-  if (zone) {
+  // 构造器同样无条件安装：没有时区配置时它整段透传给原生（含 new.target 语义），
+  // 有配置时按目标时区解释多参数 / 无时区标记的字符串。
+  {
     const SpoofedDate = function (this: any, ...args: any[]) {
-      if (!new.target) return new NativeDate().toString();
-      if (args.length === 0) return new NativeDate();
+      if (!live.zone) return Reflect.construct(NativeDate, args, new.target || NativeDate);
+      if (!new.target) return nativeToString.call(new NativeDate());
+      // Reflect.construct 保留 new.target：`class D extends Date {}; new D() instanceof D`
+      // 才能是 true（早先直接 `new NativeDate()` 会把子类的原型丢掉）
+      const target: any = new.target;
+      if (args.length === 0) return Reflect.construct(NativeDate, [], target);
       if (args.length === 1) {
         return typeof args[0] === 'string'
-          ? new NativeDate(parseDateString(args[0]))
-          : new NativeDate(args[0]);
+          ? Reflect.construct(NativeDate, [parseDateString(args[0])], target)
+          : Reflect.construct(NativeDate, [args[0]], target);
       }
       const base = NativeDate.UTC(...args.map(Number));
-      return new NativeDate(resolveWall(base));
+      return Reflect.construct(NativeDate, [resolveWall(base)], target);
     };
-    const Spoofed: any = wrap(SpoofedDate, 'Date', 7);
+    const Spoofed: any = wrap(SpoofedDate, 'Date', 7, { construct: true });
     try { Object.defineProperty(Spoofed, 'prototype', { value: dateProto, writable: false }); } catch { /* ignore */ }
     putValue(Spoofed, 'now', wrap(NativeDate.now, 'now'), true);
     putValue(Spoofed, 'parse', wrap(function parse(value: any) { return parseDateString(value); }, 'parse', 1), true);
@@ -367,10 +517,19 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
   // ---------- Intl ----------
 
-  if (zone || language) {
+  // 覆盖必须和主线程的 8 类完全一致。早先这里只有 DateTimeFormat / NumberFormat，
+  // 页面在 Worker 里问一句 `new Intl.Collator().resolvedOptions().locale` 就能看出
+  // 主线程被改过、Worker 没改 —— 而 Worker 恰恰是最容易被忽略的执行上下文。
+  {
     const specs: Array<[string, any, boolean]> = [
       ['DateTimeFormat', NativeDTF, true],
-      ['NumberFormat', NativeNF, false]
+      ['NumberFormat', NativeNF, false],
+      ['Collator', IntlRef.Collator, false],
+      ['RelativeTimeFormat', IntlRef.RelativeTimeFormat, false],
+      ['PluralRules', IntlRef.PluralRules, false],
+      ['ListFormat', IntlRef.ListFormat, false],
+      ['DisplayNames', IntlRef.DisplayNames, false],
+      ['Segmenter', IntlRef.Segmenter, false]
     ];
     for (let index = 0; index < specs.length; index += 1) {
       const name = specs[index][0];
@@ -379,21 +538,12 @@ export function workerPatch(config: WorkerPatchConfig): void {
       if (typeof Native !== 'function') continue;
 
       const spoofed: any = wrap(function (locales?: any, options?: any) {
-        const nextLocales = locales === undefined ? (language || undefined) : locales;
-        let nextOptions = options;
-        if (needsZone && zone) {
-          if (nextOptions === undefined || nextOptions === null) nextOptions = { timeZone: zone };
-          else if (typeof nextOptions === 'object' && nextOptions.timeZone === undefined) {
-            const merged: any = {};
-            for (const key in nextOptions) {
-              if (Object.prototype.hasOwnProperty.call(nextOptions, key)) merged[key] = nextOptions[key];
-            }
-            merged.timeZone = zone;
-            nextOptions = merged;
-          }
-        }
+        // 配置为空：原样交还原生，连参数都不碰
+        if (!live.zone && !live.language) return new (Native as any)(locales, options);
+        const nextLocales = spoofLocale(locales);
+        const nextOptions = needsZone ? withZone(options) : options;
         return new (Native as any)(nextLocales, nextOptions);
-      }, name, 0);
+      }, name, 0, { construct: true });
 
       try { Object.defineProperty(spoofed, 'prototype', { value: Native.prototype, writable: false }); } catch { /* ignore */ }
       // supportedLocalesOf 这类静态方法要跟着走，否则 Worker 里少一个属性
@@ -415,12 +565,18 @@ export function workerPatch(config: WorkerPatchConfig): void {
     }
   }
 
+  // 字体目标集合的重建钩子：canvas 段在下面用闭包持有 Set，配置热更新时
+  // 需要以新集合替换旧集合，这里先占个位（默认空操作，canvas 段会覆盖它）。
+  let rebuildFontTargets: () => void = () => {};
+
   // ---------- Canvas（字体） ----------
   //
   // 字体伪装在 Worker 里走 OffscreenCanvas：主线程那套补丁够不到这里，
   // 页面只要开个 Worker 量一下宽度就能看出主线程被动过。
-  const fontTargets = (config && config.fontTargets) || [];
-  if (fontTargets.length) {
+  //
+  // 同样无条件安装：目标集合由 live 派生，为空时 replacement() 恒返回 null
+  // （所有方法原样透传），所以"创建时没有字体配置、之后打开"也能生效。
+  {
     const FONT_SIZE = /(?:^|\s)(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|larger|smaller|(?:\d*\.)?\d+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%))(?:\/(?:normal|[\d.]+(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|%)?))?(?=\s|$)/i;
     // 归一化规则必须与 shared/font-aliases 的 normalizeFontFamily 完全一致：
     // 去引号/空白/小写，并去掉尾随字重（Chromium 把 "PingFang SC Light" 当成独立族名）。
@@ -432,7 +588,9 @@ export function workerPatch(config: WorkerPatchConfig): void {
       .toLowerCase()
       .replace(/\s*(?:w[1-9]|ultra\s*light|extra\s*light|demilight|demi\s*light|light|thin|hairline|book|regular|normal|roman|medium|semibold|semi\s*bold|demibold|demi\s*bold|bold|extrabold|extra\s*bold|heavy|black|ultra)$/, '')
       .replace(/\s+/g, '');
-    const targets = new Set(fontTargets.map(key));
+    const buildTargets = () => new Set(live.fontTargets.map(key));
+    let targets = buildTargets();
+    rebuildFontTargets = () => { targets = buildTargets(); };
     const splitFamilies = (list: string) => {
       const out: string[] = [];
       let current = '';
@@ -518,5 +676,44 @@ export function workerPatch(config: WorkerPatchConfig): void {
     // fonts.check 不接管：原生对"字体集里没有的家族"本来就返回 true（它测的是
     // FontFaceSet，不是系统字体的安装情况）。我们一改成 false，反而制造出一个
     // 真机永远不会出现的信号 —— 检测方只需要问一句 check('12px Helvetica')。
+  }
+
+  // ---------- 配置热更新 ----------
+
+  /**
+   * 原地更新 live 配置。`disabled` 或空配置 = 全部退回原生语义。
+   *
+   * 注意这里**不重建任何补丁**：所有入口都是"读 live → 决定伪装或透传"的形状，
+   * 所以一次赋值就让整个 Worker 换到新配置；这也是关闭补丁后存量 Worker 能真正
+   * 还原的原因（不需要 reload，也没有残留的旧闭包值）。
+   */
+  const applyLiveConfig = (next: WorkerPatchConfig | null | undefined) => {
+    const source = next || {};
+    const off = source.disabled === true;
+    live.zone = off ? '' : (source.timezone || '');
+    live.language = off ? '' : (source.language || '');
+    const fromConfig = !off && Array.isArray(source.languages)
+      ? source.languages.filter((item) => typeof item === 'string' && item)
+      : [];
+    live.languages = fromConfig.length
+      ? fromConfig.slice()
+      : (live.language ? [live.language] : []);
+    live.fontTargets = !off && Array.isArray(source.fontTargets) ? source.fontTargets.slice() : [];
+    rebuildFontTargets();
+  };
+
+  const token = typeof initial.token === 'string' && initial.token ? initial.token : '';
+  // 没有口令就不开通道：口令是唯一的可信边界，无口令的通道等于把配置写权限交给页面。
+  // `addEventListener` 守卫是给测试/非 Worker 上下文用的（那里压根没有事件循环）。
+  if (token && typeof scope.addEventListener === 'function') {
+    scope.addEventListener('message', (event: any) => {
+      const data = event && event.data;
+      // 页面同样能往这个 Worker postMessage（主线程没独占消息通道），但它不知道口令，
+      // 伪造的"把时区改回宿主"消息在这一行被丢掉。
+      if (!data || typeof data !== 'object' || data.__vanishGeoWorkerConfig !== token) return;
+      // 命中即认领：别让页面挂的监听器顺带看到配置内容
+      if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+      applyLiveConfig(data.config || null);
+    });
   }
 }

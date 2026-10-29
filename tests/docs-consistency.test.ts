@@ -71,9 +71,10 @@ test('文档里引用的本地文件都存在', () => {
   }
 });
 
-test('品牌统一：除迁移说明外不出现旧名', () => {
-  // 旧名只允许出现在"从旧版迁移"和"旧字标待重出"这两种语境里
-  const ALLOWED = /convertVanishMeConfig|旧字标|旧版|old `VanishMe`|migrate/i;
+test('品牌统一：除迁移说明与上游署名外不出现旧名', () => {
+  // 旧名只允许出现在三种语境里：从旧版迁移、旧字标待重出、以及 MIT 要求的上游署名。
+  // 第三种不能省 —— 署名被删掉就不是"改名干净"，而是许可问题。
+  const ALLOWED = /convertVanishMeConfig|旧字标|旧版|old `VanishMe`|migrate|NOTICE|署名|attribution|许可/i;
   for (const file of DOC_FILES) {
     for (const [index, line] of read(file).split('\n').entries()) {
       if (!line.includes('VanishMe')) continue;

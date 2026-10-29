@@ -7,6 +7,7 @@ import { defineNativeLike } from './define';
 import { buildTargetFontKeys, resolveCanvasTargetFonts } from '../shared/font-aliases';
 import { installGeolocation, refreshGeolocationWatchPositions, uninstallGeolocation } from './geolocation';
 import { createSignalSpoof } from './signal-spoof';
+import { needsLanguagePatch, needsLocalePatch } from './patch-needs';
 import { workerPatch } from './worker-patch';
 import type { WorkerFallbackReason } from '../shared/worker-coverage';
 
@@ -129,6 +130,36 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
   /** 同一次文档里同一个 (原因, 脚本) 只报一次，避免循环建 Worker 的页面刷屏 */
   const reportedFallbacks = new Set<string>();
 
+  /**
+   * 配置热更新的口令，每个文档随机一份。
+   *
+   * Worker 的补丁入口是创建时烘焙进 blob 的，跑起来之后唯一的同步手段是 postMessage。
+   * 消息通道不是独占的 —— 页面同样能往这个 Worker 发消息 —— 所以靠一份页面猜不到的
+   * 口令区分"扩展下发的配置"和"页面伪造的配置"。口令只活在这份闭包和 Worker 入口里，
+   * 不进 DOM、不进 storage。
+   */
+  const workerConfigToken = (() => {
+    const bytes = new Uint8Array(16);
+    try {
+      crypto.getRandomValues(bytes);
+    } catch {
+      for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+    }
+    let out = '';
+    for (let index = 0; index < bytes.length; index += 1) out += bytes[index].toString(16).padStart(2, '0');
+    return out;
+  })();
+
+  /**
+   * 已创建 Worker 的登记表（配置变化时按它广播）。
+   *
+   * 优先 WeakRef：Worker 是页面持有的对象，扩展不该因为它曾经存在就把实例钉住。
+   * 老宿主没有 WeakRef 时退回强引用，并用条数上限防止无限增长。
+   */
+  const workerRegistry: Array<{ deref: () => any }> = [];
+  const WeakRefCtor: any = (globalThis as any).WeakRef;
+  const WORKER_REGISTRY_LIMIT = 256;
+
   /** 入口地址里的 query / hash 可能带业务参数，回报时只留 origin + path */
   function workerScriptLabel(scriptURL: any): string {
     try {
@@ -200,18 +231,78 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
    * 的空配置。更糟的是它在没有可补丁目标时先把 installedWorker 置了 true，
    * 之后真有配置了也不会再装。
    */
-  function currentWorkerPatchSource(): string {
+  function currentWorkerConfig(): {
+    timezone: string | null;
+    language: string | null;
+    languages: string[] | null;
+    fontTargets: string[];
+    token: string;
+  } {
     // 传**展开后**的键集合，而不是原始名字：别名表只在主线程维护一份，
     // Worker 里只需按同一套归一化规则比较，不用再背一份别名数据。
     const fontFamilies = state.canvasTargetFonts || [];
     const fontTargets = fontFamilies.length ? Array.from(buildTargetFontKeys(fontFamilies)) : [];
-    if (!state.timezone && !state.language && !fontTargets.length) return '';
-    return buildWorkerPatch({
+    return {
       timezone: state.timezone,
       language: state.language,
       languages: state.languages,
-      fontTargets
-    });
+      fontTargets,
+      token: workerConfigToken
+    };
+  }
+
+  function currentWorkerPatchSource(): string {
+    const config = currentWorkerConfig();
+    if (!config.timezone && !config.language && !config.fontTargets.length) return '';
+    return buildWorkerPatch(config);
+  }
+
+  /**
+   * 新 Worker 建好之后：登记 + 立刻同步一次当前配置。
+   *
+   * 入口里已经烘焙了创建瞬间的同一份配置，但广播一次仍有意义 —— 它能覆盖"入口补丁
+   * 已装、配置随后被改/被清空"的时序，并让 live 值与入口快照对齐。
+   */
+  function trackWorker(worker: any): any {
+    try {
+      workerRegistry.push(WeakRefCtor ? new WeakRefCtor(worker) : { deref: () => worker });
+      if (workerRegistry.length > WORKER_REGISTRY_LIMIT) workerRegistry.shift();
+    } catch { /* ignore */ }
+    try {
+      worker.postMessage({ __vanishGeoWorkerConfig: workerConfigToken, config: currentWorkerConfig() });
+    } catch { /* ignore */ }
+    return worker;
+  }
+
+  /**
+   * 把当前配置广播给已创建的 Worker。
+   *
+   * `disabled` 发的是"关配置"：Worker 内所有补丁入口立即退回原生语义。这是关闭补丁
+   * （站点被排除 / 总开关关闭）时存量 Worker 也能真正还原的唯一路径 —— 否则它们会
+   * 一直拿着创建时的旧配置继续伪装，页面在主线程和 Worker 里各问一次就能对出来。
+   */
+  function broadcastWorkerConfig(disabled = false): void {
+    if (!workerRegistry.length) return;
+    const message = {
+      __vanishGeoWorkerConfig: workerConfigToken,
+      config: disabled
+        ? { disabled: true, timezone: null, language: null, languages: null, fontTargets: [] as string[] }
+        : currentWorkerConfig()
+    };
+    for (let index = workerRegistry.length - 1; index >= 0; index -= 1) {
+      let worker: any = null;
+      try { worker = workerRegistry[index].deref(); } catch { worker = null; }
+      if (!worker) {
+        workerRegistry.splice(index, 1);
+        continue;
+      }
+      try {
+        worker.postMessage(message);
+      } catch {
+        // 已终止 / 通道已关：从表里摘掉
+        workerRegistry.splice(index, 1);
+      }
+    }
   }
 
   function installWorker(): (() => void) | null {
@@ -277,6 +368,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
         blobWorkerBlocked = true;
       }
 
+      // construct: true —— 页面会 `new Worker(...)`，必须保持可构造 + 自有 prototype
       const wrapped = disguise(function (this: any, scriptURL: any, options?: any) {
         // 两段分开 catch：
         //  - 生成 blob 失败 → 根本没换入口，回退原生即可（blob-failed）
@@ -298,12 +390,13 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
         }
         if (!patchedUrl) return new NativeWorker(scriptURL, options);
         try {
-          return new NativeWorker(patchedUrl, options);
+          // 登记 + 立刻同步配置：入口里烘焙的是创建瞬间的快照，之后只能靠消息更新
+          return trackWorker(new NativeWorker(patchedUrl, options));
         } catch (error) {
           reportWorkerFallback(scriptURL, classifyWorkerFailure(error), error);
           return new NativeWorker(scriptURL, options);
         }
-      }, 'Worker', 1);
+      }, 'Worker', 1, { construct: true });
       const restorePrototype = adoptPrototype(wrapped, NativeWorker);
       if (restorePrototype) undo.push(restorePrototype);
       replaceGlobal('Worker', wrapped);
@@ -339,6 +432,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     language: string | null;
     languages: string[] | null;
     fontTargets: string[];
+    token: string;
   }): string {
     return `;(${workerPatch.toString()})(${JSON.stringify(config)});`;
   }
@@ -372,6 +466,9 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
    * 但之后所有新读取都是原生值。
    */
   function uninstallAll(): void {
+    // 先通知存量 Worker 退回原生：它们是独立执行上下文，主线程这边还原了原型，
+    // 但 Worker 里的补丁入口仍在跑，不广播就会出现"主线程已关、Worker 还在装"。
+    broadcastWorkerConfig(true);
     while (restores.length) {
       const restore = restores.pop();
       try { restore?.(); } catch { /* ignore */ }
@@ -434,8 +531,13 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
 
     // 只有原生值与目标值不一致时才打补丁
     const needTimezone = Boolean(state.timezone) && state.timezone !== signals.native.timeZone;
-    const needLanguage = Boolean(state.language) && state.language !== signals.native.language;
-    const needLocale = Boolean(state.language) && state.language !== signals.native.locale;
+    // 判定逻辑在 patch-needs.ts：navigator.language 相同不代表整层语言相同
+    // （`en-US` 配 `["en-US","en"]` 首选语言一样、列表不同），所以两条都要比。
+    const needLanguage = needsLanguagePatch(
+      { language: state.language, languages: nextLanguages },
+      { language: signals.native.language, languages: signals.native.languages }
+    );
+    const needLocale = needsLocalePatch({ language: state.language }, signals.native);
 
     if (needLanguage) signals.installLanguage();
     // toLocaleString 一族必须和 Intl 一起处理：只改语言、不改时区时（TZ 已经对了）
@@ -482,6 +584,9 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       const restoreWorker = installWorker();
       if (restoreWorker) restores.push(restoreWorker);
     }
+    // 配置正在变化：已创建的 Worker 里那份 live 配置必须跟着换，否则页面对比主线程
+    // 与本 Worker 的时区/语言就能发现两处不一致。这一步对新建 Worker 是幂等的。
+    broadcastWorkerConfig();
 
     if (state.debug) {
       console.log('[VanishGeo] applied', {

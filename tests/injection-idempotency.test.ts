@@ -28,6 +28,12 @@ interface Harness {
     messages: Array<{ tabId: number; frameId?: number; clear: boolean; hostname?: string; language?: string | null }>;
     permissions: Array<{ setting: string; pattern: string }>;
     permissionClears: string[];
+    /** 假 Chrome 里 contentSettings 的**真实**状态：pattern → setting */
+    permissionState: Map<string, string>;
+    /** clear() 因参数不合契约而被拒的次数（真 Chrome 会抛 TypeError） */
+    permissionClearErrors: number;
+    /** clear() 被调用的次数（不管成功还是抛错） */
+    permissionClearAttempts: number;
     maxConcurrentSends: number;
     registered: number;
     updated: number;
@@ -54,6 +60,8 @@ function createHarness(options: {
   geoPayload?: any;
   /** 卡住 IP 接口：用来把"接口还没回来"这段时间腾出来做别的事 */
   fetchGate?: Promise<void>;
+  /** 让 contentSettings.clear 抛错：验证"清不掉就不许改账本" */
+  permissionClearError?: string;
 } = {}): Harness {
   const stats = {
     fileInjections: 0,
@@ -65,6 +73,9 @@ function createHarness(options: {
     messages: [] as Array<{ tabId: number; frameId?: number; clear: boolean; hostname?: string; language?: string | null }>,
     permissions: [] as Array<{ setting: string; pattern: string }>,
     permissionClears: [] as string[],
+    permissionState: new Map<string, string>(),
+    permissionClearErrors: 0,
+    permissionClearAttempts: 0,
     maxConcurrentSends: 0,
     registered: 0,
     updated: 0,
@@ -189,10 +200,31 @@ function createHarness(options: {
         }));
       }
     },
+    // 与 Chrome 契约**一致**的 contentSettings 替身。
+    //
+    // ContentSetting.clear() 的签名是 clear({ scope? })：它清掉本扩展该类型的
+    // 全部规则，**没有** primaryPattern，也不提供"按域名删一条"。旧 mock 把
+    // primaryPattern 收下并记录，等于替真实 API 实现了一个它没有的能力 ——
+    // services.ts 里那个 `clear({ scope, primaryPattern })` 因此在测试里永远是绿的。
+    // 现在多传一个键就按真机行为抛 TypeError。
     contentSettings: {
       location: {
-        set: async (details: any) => { stats.permissions.push({ setting: details.setting, pattern: details.primaryPattern }); },
-        clear: async (details: any) => { stats.permissionClears.push(details.primaryPattern); }
+        set: async (details: any) => {
+          stats.permissions.push({ setting: details.setting, pattern: details.primaryPattern });
+          stats.permissionState.set(String(details.primaryPattern), String(details.setting));
+        },
+        clear: async (details?: any) => {
+          stats.permissionClearAttempts += 1;
+          const keys = details && typeof details === 'object' ? Object.keys(details) : [];
+          const unexpected = keys.filter((key) => key !== 'scope');
+          if (unexpected.length) {
+            stats.permissionClearErrors += 1;
+            throw new TypeError(`contentSettings.clear: unexpected argument ${unexpected.join(',')}`);
+          }
+          if (options.permissionClearError) throw new Error(options.permissionClearError);
+          stats.permissionClears.push(details && details.scope ? String(details.scope) : 'all');
+          stats.permissionState.clear();
+        }
       }
     },
     declarativeNetRequest: {
@@ -1219,4 +1251,134 @@ test('applyExitIpNow 查不到出口时返回错误，配置原样不动', async
     globalProfile: after.globalProfile,
     activeProfileId: after.profile.activeProfileId
   }), snapshot, '查不到出口时必须保持原配置');
+});
+
+// ---------- 定位权限：API 契约与账本一致性 ----------
+//
+// 报告里最优先的一条：旧代码 `settings.clear({ scope, primaryPattern })` 把
+// primaryPattern 传给只接受 scope 的 Chrome API，异常被吞掉、账本却照样更新，
+// 于是可能出现「补丁清了、授权还在、账本说已经删了」。下面的用例把两条都钉住：
+// 调用形状必须符合契约，账本必须等于浏览器里真实存在的规则。
+
+const inheritOverrides = () => ({
+  language: { mode: 'inherit' as const, value: null },
+  timezone: { mode: 'inherit' as const, value: null },
+  geolocation: { mode: 'inherit' as const, value: null }
+});
+
+/** 账本快照：Map 直接 JSON.stringify 会变成 `{}`，必须显式转成 entries 数组 */
+function ledgerSnapshot(storage: Record<string, any>): string {
+  return JSON.stringify([...ledgerEntries(storage).entries()]);
+}
+
+/** 账本里三个 key 展开成 "pattern 域名 → setting"，便于和假 Chrome 的真实状态比 */
+function ledgerEntries(storage: Record<string, any>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [key, setting] of [
+    ['geoPermissionDomains', 'allow'],
+    ['geoDeniedDomains', 'block'],
+    ['geoAskDomains', 'ask']
+  ] as const) {
+    for (const domain of storage[key] || []) out.set(domain, setting);
+  }
+  return out;
+}
+
+test('定位权限的 clear 只传 scope：不再把 primaryPattern 塞给 Chrome API', async () => {
+  const harness = createHarness();
+  const base = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({
+    ...base,
+    masterEnabled: true,
+    rules: [
+      { id: 'keep', domain: 'keep.clear-scope.example', enabled: true, overrides: inheritOverrides() } as any,
+      { id: 'drop', domain: 'drop.clear-scope.example', enabled: true, overrides: inheritOverrides() } as any
+    ]
+  });
+  assert.ok(ledgerEntries(harness.storage).has('drop.clear-scope.example'), '两个域名都该进账本');
+
+  // 去掉一个域名 → 必须有"撤销"，于是走 clear + 整组重建这条路径
+  await harness.services.saveSiteConfig({
+    ...base,
+    masterEnabled: true,
+    rules: [{ id: 'keep', domain: 'keep.clear-scope.example', enabled: true, overrides: inheritOverrides() } as any]
+  });
+
+  assert.equal(harness.stats.permissionClearErrors, 0, 'clear 不允许带 primaryPattern（真 Chrome 会拒绝）');
+  assert.ok(harness.stats.permissionClears.length >= 1, '撤销域名必须真的调 clear');
+  assert.ok(harness.stats.permissionClears.every((scope) => scope === 'regular'), 'scope 只能是 regular');
+
+  // 账本 == 浏览器里的真实规则（域名层面），不多也不少
+  const ledger = ledgerEntries(harness.storage);
+  assert.deepEqual([...ledger.keys()], ['keep.clear-scope.example']);
+  const patterns = [...harness.stats.permissionState.keys()].sort();
+  assert.deepEqual(patterns, ['*://*.keep.clear-scope.example/*', '*://keep.clear-scope.example/*']);
+  assert.equal(
+    harness.stats.permissionState.get('*://keep.clear-scope.example/*'),
+    ledger.get('keep.clear-scope.example')
+  );
+});
+
+test('clear 被拒时账本一个字节都不动（不许谎称已撤销）', async () => {
+  const harness = createHarness();
+  const base = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({
+    ...base,
+    masterEnabled: true,
+    rules: [
+      { id: 'keep', domain: 'claude.ai', enabled: true, overrides: inheritOverrides() } as any,
+      { id: 'drop', domain: 'example.com', enabled: true, overrides: inheritOverrides() } as any
+    ]
+  });
+  const before = ledgerSnapshot(harness.storage);
+  assert.ok(before.includes('example.com'), before);
+
+  // 换一个会拒绝 clear 的 harness：浏览器状态与账本必须先保持原样
+  const failing = createHarness({ permissionClearError: 'clear denied' });
+  await failing.services.saveSiteConfig({
+    ...base,
+    masterEnabled: true,
+    rules: [
+      { id: 'keep', domain: 'keep.clear-denied.example', enabled: true, overrides: inheritOverrides() } as any,
+      { id: 'drop', domain: 'drop.clear-denied.example', enabled: true, overrides: inheritOverrides() } as any
+    ]
+  });
+  const failingBefore = ledgerSnapshot(failing.storage);
+  assert.ok(failingBefore.includes('drop.clear-denied.example'), failingBefore);
+  await failing.services.saveSiteConfig({
+    ...base,
+    masterEnabled: true,
+    rules: [{ id: 'keep', domain: 'keep.clear-denied.example', enabled: true, overrides: inheritOverrides() } as any]
+  });
+  assert.ok(failing.stats.permissionClearAttempts >= 1, '这一次必须真的尝试过 clear');
+
+  assert.equal(
+    ledgerSnapshot(failing.storage),
+    failingBefore,
+    'clear 失败后账本必须保持原样，等下次配置变化重试'
+  );
+});
+
+test('被排除的中间子域在权限层退回 ask，不被父域的 allow 盖住', async () => {
+  const harness = createHarness();
+  const base = await harness.services.getSiteConfig();
+  await harness.services.saveSiteConfig({
+    ...base,
+    masterEnabled: true,
+    rules: [
+      { id: 'parent', domain: 'carveout.example', enabled: true, overrides: inheritOverrides() } as any,
+      { id: 'child', domain: 'child.carveout.example', enabled: false, overrides: inheritOverrides() } as any,
+      { id: 'grand', domain: 'active.child.carveout.example', enabled: true, overrides: inheritOverrides() } as any
+    ]
+  });
+
+  const ledger = ledgerEntries(harness.storage);
+  // contentSettings 里"最具体 pattern 优先"：中间子域自己的 ask 规则会盖住父域通配
+  assert.ok(ledger.has('child.carveout.example'), '被排除的子域必须有显式规则');
+  assert.notEqual(
+    ledger.get('child.carveout.example'),
+    ledger.get('carveout.example'),
+    '不能和父域同一个 setting'
+  );
+  assert.ok(ledger.has('active.child.carveout.example'), '深层重新启用的域名仍要生效');
 });

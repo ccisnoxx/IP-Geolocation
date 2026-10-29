@@ -35,6 +35,27 @@ function createWorkerContext(config: WorkerPatchConfig, beforePatch = ''): vm.Co
     context
   );
   if (beforePatch) vm.runInContext(beforePatch, context);
+  // 最小的 message 通道替身：补丁只在"有 addEventListener 且有口令"时才挂监听，
+  // 所以这里有没有它不影响旧用例；热更新用例靠 __dispatch 手动投递一条消息。
+  vm.runInContext(`
+    globalThis.__listeners = [];
+    globalThis.addEventListener = function (type, listener) {
+      if (type === 'message' && typeof listener === 'function') __listeners.push(listener);
+    };
+    globalThis.removeEventListener = function (type, listener) {
+      if (type !== 'message') return;
+      __listeners = __listeners.filter((item) => item !== listener);
+    };
+    globalThis.__dispatch = function (data) {
+      const event = {
+        data,
+        stopped: false,
+        stopImmediatePropagation() { this.stopped = true; }
+      };
+      for (const listener of __listeners.slice()) listener(event);
+      return event;
+    };
+  `, context);
   vm.runInContext(`;(${workerPatch.toString()})(${JSON.stringify(config)});`, context);
   return context;
 }
@@ -454,4 +475,140 @@ test('没有目标字体时 Worker 的绘制原样透传', () => {
   );
   assert.equal(result.draws[0].font, result.declared);
   assert.equal(result.draws[0].argc, 3);
+});
+
+// ---------- 8 类 Intl 覆盖 ----------
+
+/**
+ * 主线程包了 8 类 Intl 构造器，Worker 只包 2 类的话，页面只要在 Worker 里问一句
+ * `new Intl.Collator().resolvedOptions().locale` 就能看出"主线程被动过、Worker 没动"。
+ * 这里逐类钉住默认 locale —— 少一类就红。
+ */
+test('Worker 的 8 类 Intl 构造器都跟着 payload 走', () => {
+  const context = createWorkerContext(TOKYO);
+  const expressions: Array<[string, string]> = [
+    ['DateTimeFormat', 'new Intl.DateTimeFormat().resolvedOptions().locale'],
+    ['NumberFormat', 'new Intl.NumberFormat().resolvedOptions().locale'],
+    ['Collator', 'new Intl.Collator().resolvedOptions().locale'],
+    ['RelativeTimeFormat', 'new Intl.RelativeTimeFormat().resolvedOptions().locale'],
+    ['PluralRules', 'new Intl.PluralRules().resolvedOptions().locale'],
+    ['ListFormat', 'new Intl.ListFormat().resolvedOptions().locale'],
+    ['DisplayNames', 'new Intl.DisplayNames(undefined, { type: "language" }).resolvedOptions().locale'],
+    ['Segmenter', 'new Intl.Segmenter().resolvedOptions().locale']
+  ];
+  for (const [name, expression] of expressions) {
+    assert.equal(evaluate(context, `typeof Intl.${name}`), 'function', `${name} 不存在`);
+    assert.match(evaluate(context, expression), /^ja/, `${name} 的默认 locale 没跟着 payload`);
+  }
+});
+
+test('Worker 的 Intl 构造器保留原型与静态方法（换壳不能换身份）', () => {
+  const context = createWorkerContext(TOKYO);
+  for (const name of ['Collator', 'PluralRules', 'Segmenter', 'ListFormat']) {
+    assert.equal(evaluate(context, `Intl.${name}.prototype === Object.getPrototypeOf(new Intl.${name}())`), true, `${name}.prototype`);
+    assert.equal(evaluate(context, `typeof Intl.${name}.supportedLocalesOf`), 'function', `${name}.supportedLocalesOf`);
+  }
+  // resolvedOptions 仍然来自真正的原生原型，不是自己重写的
+  assert.match(evaluate(context, 'String(Intl.Collator.prototype.resolvedOptions)'), /native code/);
+});
+
+// ---------- 配置热更新 ----------
+
+const HOT_ZONE = 'America/New_York';
+
+test('Worker 热更新：带口令的关配置让所有入口退回原生', () => {
+  const token = 'live-token-1';
+  const context = createWorkerContext({ ...TOKYO, token });
+  // 先确认补丁真的在
+  assert.equal(evaluate(context, 'navigator.language'), 'ja-JP');
+  assert.equal(evaluate(context, 'new Date(0).getTimezoneOffset()'), -540);
+
+  const event = evaluate<any>(
+    context,
+    `__dispatch({ __vanishGeoWorkerConfig: ${JSON.stringify(token)}, config: { disabled: true, timezone: null, language: null, languages: null, fontTargets: [] } })`
+  );
+  assert.equal(event.stopped, true, '命中口令后要 stopImmediatePropagation，别让页面自己的监听器看到配置');
+
+  // 全部回到原生值：navigator、Date、Intl 三处一起
+  assert.equal(evaluate(context, 'navigator.language'), 'zh-CN');
+  assert.deepEqual([...evaluate<string[]>(context, 'navigator.languages')], ['zh-CN', 'zh']);
+  assert.equal(evaluate(context, 'new Date(0).getTimezoneOffset()'), new Date(0).getTimezoneOffset());
+  assert.equal(
+    evaluate(context, 'new Intl.DateTimeFormat().resolvedOptions().timeZone'),
+    new Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
+  assert.equal(evaluate(context, 'new Intl.Collator().resolvedOptions().locale'), new Intl.Collator().resolvedOptions().locale);
+});
+
+test('Worker 热更新：口令不对的消息被丢弃（页面伪造不了配置）', () => {
+  const token = 'live-token-2';
+  const context = createWorkerContext({ ...TOKYO, token });
+  evaluate(context, `__dispatch({ __vanishGeoWorkerConfig: "guess", config: { disabled: true } })`);
+  evaluate(context, `__dispatch({ config: { disabled: true } })`);
+  evaluate(context, `__dispatch(null)`);
+  assert.equal(evaluate(context, 'navigator.language'), 'ja-JP');
+  assert.equal(evaluate(context, 'new Date(0).getTimezoneOffset()'), -540);
+});
+
+test('Worker 热更新：换时区与语言后新值立即生效', () => {
+  const token = 'live-token-3';
+  const context = createWorkerContext({ ...TOKYO, token });
+  evaluate(
+    context,
+    `__dispatch({ __vanishGeoWorkerConfig: ${JSON.stringify(token)}, config: ${JSON.stringify({
+      timezone: HOT_ZONE, language: 'en-US', languages: ['en-US', 'en'], fontTargets: []
+    })} })`
+  );
+  assert.equal(evaluate(context, 'new Date(0).getTimezoneOffset()'), 300);
+  assert.match(evaluate(context, 'new Date(0).toString()'), /GMT-0500/);
+  assert.equal(evaluate(context, 'navigator.language'), 'en-US');
+  assert.deepEqual([...evaluate<string[]>(context, 'navigator.languages')], ['en-US', 'en']);
+  assert.equal(evaluate(context, 'new Intl.Collator().resolvedOptions().locale'), 'en-US');
+});
+
+test('Worker 创建时没有配置，之后仍能被接管（晚注入的兜底）', () => {
+  const token = 'live-token-4';
+  const context = createWorkerContext({ token });
+  assert.equal(evaluate(context, 'navigator.language'), 'zh-CN');
+
+  evaluate(
+    context,
+    `__dispatch({ __vanishGeoWorkerConfig: ${JSON.stringify(token)}, config: ${JSON.stringify({
+      timezone: 'Asia/Tokyo', language: 'ja-JP', languages: ['ja-JP', 'ja'], fontTargets: []
+    })} })`
+  );
+  assert.equal(evaluate(context, 'navigator.language'), 'ja-JP');
+  assert.equal(evaluate(context, 'new Date(0).getTimezoneOffset()'), -540);
+  assert.equal(evaluate(context, 'new Intl.DateTimeFormat().resolvedOptions().timeZone'), 'Asia/Tokyo');
+});
+
+test('Worker 热更新不改变 navigator.languages 的稳定引用语义', () => {
+  const token = 'live-token-5';
+  const context = createWorkerContext({ ...TOKYO, token });
+  evaluate(
+    context,
+    `__dispatch({ __vanishGeoWorkerConfig: ${JSON.stringify(token)}, config: ${JSON.stringify({
+      timezone: 'Asia/Tokyo', language: 'ja-JP', languages: ['ja-JP', 'ja'], fontTargets: []
+    })} })`
+  );
+  // 值没变 → 引用不能变（页面会缓存 navigator.languages 再比 ===）
+  assert.equal(evaluate(context, 'navigator.languages === navigator.languages'), true);
+  assert.equal(evaluate(context, 'Object.isFrozen(navigator.languages)'), true);
+});
+
+// ---------- 原生语义 ----------
+
+test('Worker 的 Date 构造器保留子类语义（new.target 不能被吞掉）', () => {
+  const context = createWorkerContext(TOKYO);
+  assert.equal(evaluate(context, '(() => { class D extends Date {}; return new D() instanceof D; })()'), true);
+  assert.equal(evaluate(context, '(() => { class D extends Date {}; return new D(0) instanceof Date; })()'), true);
+  // 无参构造、字符串构造也要走同一条 new.target 路径
+  assert.equal(evaluate(context, '(() => { class D extends Date {}; return new D("2026-01-01T00:00:00Z") instanceof D; })()'), true);
+});
+
+test('Worker 的 setFullYear 在 Invalid Date 上仍能成功（规范特例）', () => {
+  const context = createWorkerContext(TOKYO);
+  assert.equal(evaluate(context, 'Number.isFinite(new Date(NaN).setFullYear(2026))'), true);
+  // 其余 setter 在 Invalid Date 上必须保持 NaN
+  assert.equal(evaluate(context, 'Number.isNaN(new Date(NaN).setMonth(0))'), true);
 });

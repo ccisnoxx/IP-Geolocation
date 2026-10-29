@@ -39,7 +39,7 @@ persona 在进程环境、请求头、页面 JS 三层同时成立，改不到�
 **从源码**：
 
 ```bash
-git clone https://github.com/XiNian-dada/VanishGeo.git
+git clone https://github.com/ccisnoxx/VanishGeo.git
 cd VanishGeo
 npm install
 npm run build        # 内含 typecheck；产物在 dist/
@@ -125,7 +125,7 @@ iprisk.top）—— 装上就能直接打开自测，不用手动加域名。
 npm run typecheck     # 类型（含 tests/）
 npm run lint          # ESLint
 npm run verify        # lint + typecheck + test
-npm test              # 单测（312 条）
+npm test              # 单测（523 条）
 npm run test:coverage # 单测 + Node 覆盖率报告
 npm run test:coverage:core # 核心文件分支覆盖率门禁（每文件 ≥ 85%）
 # options / popup 的 DOM 测试用 jsdom 驱动真实点击与表单事件
@@ -199,7 +199,11 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
   `function setHours() { [native code] }` 且 `name`/`length` 与原生 arity 表一致
 - **WebIDL 形状**：`GeolocationCoordinates` 的属性是原型上的只读 getter，实例零自有属性
 - **不造假信号**：不接管 `document.fonts.check`（原生对系统字体本来就返回 `true`）
-- **私有通道**：payload 经 `document_start` 握手换来的 `MessagePort` 下发，页面既看不到也伪造不了
+- **私有通道**：payload 经 `document_start` 握手换来的 `MessagePort` 下发，页面既看不到也伪造不了。
+  已知边界：握手本身没有"证明对方是扩展"的能力 —— 注入层接受第一个形状正确的端口再回 nonce，
+  所以真正的保证来自时序（`document_start` 在页面脚本之前跑）而不是密码学。晚注入、
+  或页面在注入前就抓到过握手消息的场景下，页面理论上能先占到这个端口；能拿到的是
+  payload 通道，不是扩展的特权 API（那需要 `chrome.*`，页面没有）
 - **按 frame 投递**：payload 带解析时的精确 `hostname`；后台用 `webNavigation.getAllFrames` 为每个 frame 单独算规则并带 `frameId` 下发，父页不会覆盖独立子域 iframe，子框架规则删除后也会收到自己的 `clear`。同一 URL 的解析结果复用，投递最多 8 个并发，避免几十个 iframe 被串行 IPC 拖慢
 - **BFCache 恢复会重拉**：页面进 BFCache 后内容脚本不会重新注入，payload 也不会自己再来一遍。桥在 `pageshow` 且 `event.persisted === true` 时按本 frame 的规则重拉一次，所以"冻结期间改了配置/排除了站点，恢复后仍是旧值"这条路径不存在；普通加载的 `pageshow` 不重复拉取。已知代价：改语言要重写 DNR 请求头规则（Chromium 实测任何 DNR 写入都会驱逐 BFCache，同内容重写也算），而前台页面不会自己重载、文档仍是旧头 —— 所以检测到请求头值变化时**主动重载命中该域名的已打开页面**；只改时区不写 DNR、也不重载。细节见 [CONFIG_GUIDE](CONFIG_GUIDE.md)
 - **静态优先**：烘焙构建把 DNR 规则与内容脚本写进 manifest，首帧即生效
@@ -219,7 +223,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 
 | 上下文 | 覆盖 | 说明 |
 |---|---|---|
-| classic / module Worker | ✅ 或 ⚠️ | blob 前缀包装入口，Date / Intl / navigator / canvas 与主线程同源。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口，此时标 ⚠️ 并在弹窗里明说 |
+| classic / module Worker | ✅ 或 ⚠️ | blob 前缀包装入口，Date / navigator / canvas 与主线程同源，Intl 覆盖同一组八类构造器（DateTimeFormat / NumberFormat / Collator / RelativeTimeFormat / PluralRules / ListFormat / DisplayNames / Segmenter）。配置**活更新**：入口里保留的是一份 `live` 快照，配置变化时主线程向已创建的 Worker 广播一次，关闭补丁会广播空配置让 Worker 回到原生值（只影响经由包装构造器创建、且被登记的 Worker）。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口，此时标 ⚠️ 并在弹窗里明说 |
 | SharedWorker | ❌ | **不包装**：身份是 `(resolved URL, name)`，换成 blob URL 会让每个文档各建一个实例，跨文档共享语义消失且无法修回去。它读到的是**原生值** |
 | nested worker | ❌ | 父 Worker 里的 `Worker` 构造器未打补丁，孙 Worker 读到原生值 |
 | service worker | ❌ | 没有 hook `navigator.serviceWorker.register` |
@@ -267,6 +271,16 @@ blob Worker 请求，页面的 `securitypolicyviolation` 监听或 CSP 上报端
 - [CONFIG_GUIDE.md](CONFIG_GUIDE.md) - 配置怎么做才自洽
 - [RELEASE.md](RELEASE.md) - 发布流程与 CI
 
+### 👥 贡献者
+
+本项目由 [@ccisnoxx](https://github.com/ccisnoxx) 独立开发与维护。
+
+历史里的旧提交保留了原作者署名（`XiNian-dada`）：那是 MIT 许可要求的事实，
+不是漏改。上游 VanishMe 的完整署名与许可原文在 [NOTICE](NOTICE) / [LICENSE](LICENSE)，
+这两份文件不能动。GitHub 侧栏的 Contributors 是按提交作者自动生成的，所以它
+会同时列出这两个名字 —— 想让它只显示一个人，只能改写历史（见
+[RELEASE.md](RELEASE.md) 的「作者信息」一节）。
+
 ---
 
 ## English
@@ -299,7 +313,7 @@ extracted folder.
 **From source**:
 
 ```bash
-git clone https://github.com/XiNian-dada/VanishGeo.git
+git clone https://github.com/ccisnoxx/VanishGeo.git
 cd VanishGeo
 npm install
 npm run build        # runs typecheck too; output lands in dist/
@@ -383,7 +397,7 @@ Command line:
 npm run typecheck     # types (tests included)
 npm run lint          # ESLint
 npm run verify        # lint + typecheck + test
-npm test              # unit tests (312)
+npm test              # unit tests (523)
 npm run test:coverage # unit tests + Node coverage report
 npm run test:coverage:core # core-file branch gate (per file >= 85%)
 # options / popup DOM tests drive real clicks and form events through jsdom
@@ -442,7 +456,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
   `function setHours() { [native code] }`, with `name`/`length` matching the native arity table
 - **WebIDL shape**: `GeolocationCoordinates` attributes are read-only prototype getters, instances carry no own properties
 - **No invented signals**: `document.fonts.check` is left alone (the native one already returns `true` for system fonts)
-- **Private channel**: payloads arrive through a `MessagePort` obtained by a `document_start` handshake; the page can neither observe nor forge them
+- **Private channel**: payloads arrive through a `MessagePort` obtained by a `document_start` handshake; the page cannot observe the port's contents. Known limit: the handshake cannot *prove* the peer is the extension — the injection layer accepts the first well-formed port and answers with a nonce, so the guarantee comes from timing (`document_start` runs before page scripts), not from cryptography. With a late injection, or if the page wins that slot, it can hold the payload channel; what it still cannot reach is `chrome.*` — a page has no privileged API there
 - **Per-frame delivery**: payloads carry the exact `hostname` they were resolved for; the background uses `webNavigation.getAllFrames` to resolve and send each frame with its own `frameId`, so a parent payload cannot overwrite an independently-ruled child iframe, and a removed child rule still receives its own `clear`. Payload resolution is shared per URL and sends are capped at 8 concurrent IPC calls
 - **BFCache restore re-pulls**: a page in BFCache is not re-injected and receives no new payload on its own. When `pageshow` fires with `event.persisted === true`, the bridge re-pulls for its own frame, so "config changed while frozen, stale value after restore" does not happen; a normal-load `pageshow` does not trigger an extra pull
 - **Static first**: baked builds ship DNR rules and content scripts in the manifest, live on the first frame
@@ -460,3 +474,14 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - [INSTALL.md](INSTALL.md) - installation and troubleshooting
 - [CONFIG_GUIDE.md](CONFIG_GUIDE.md) - how to build a self-consistent config
 - [RELEASE.md](RELEASE.md) - release process and CI
+
+### 👥 Contributors
+
+Built and maintained by [@ccisnoxx](https://github.com/ccisnoxx).
+
+Older commits keep their original author (`XiNian-dada`) — that is what the MIT
+licence requires us to preserve, not an oversight. Full upstream attribution for
+VanishMe lives in [NOTICE](NOTICE) / [LICENSE](LICENSE), and those two files must
+stay as they are. GitHub's sidebar "Contributors" list is generated from commit
+authors, so it shows both names; making it show one requires rewriting history
+(see the "作者信息" section in [RELEASE.md](RELEASE.md)).

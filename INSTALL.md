@@ -13,7 +13,7 @@
 
 ### 方式 A：从 Release 安装
 
-1. 在 [Releases](https://github.com/XiNian-dada/VanishGeo/releases) 下载最新的
+1. 在 [Releases](https://github.com/ccisnoxx/VanishGeo/releases) 下载最新的
    `vanishgeo-v*.*.*.zip`
 2. 解压到任意目录（解压后应能看到 `manifest.json`）
 3. 打开 `chrome://extensions/`（Edge 是 `edge://extensions/`）
@@ -25,7 +25,7 @@
 ### 方式 B：从源码构建
 
 ```bash
-git clone https://github.com/XiNian-dada/VanishGeo.git
+git clone https://github.com/ccisnoxx/VanishGeo.git
 cd VanishGeo
 npm install
 npm run build

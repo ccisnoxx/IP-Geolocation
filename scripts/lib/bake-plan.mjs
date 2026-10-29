@@ -180,8 +180,14 @@ export function verifyBakedRuntime(source, expect) {
   if (expect.version && expect.manifestVersion && expect.version !== expect.manifestVersion) {
     problems.push(`manifest.json 版本 ${expect.manifestVersion} 与 package.json ${expect.version} 不一致`);
   }
-  if (Array.isArray(expect.rules) && expect.rules.length === 0) {
+  if (expect.rules === null || expect.rules === undefined) {
+    // 规则文件缺失时调用方传进来的是 null：这不是"没有静态规则"的合法状态，
+    // 而是"这份包没有按计划构建"。早先只判了空数组，null 从这里漏了过去。
+    problems.push('没有拿到 rules/baked-language.json 的内容：规则文件缺失或没被读入');
+  } else if (Array.isArray(expect.rules) && expect.rules.length === 0) {
     problems.push('rules/baked-language.json 是空的：首帧请求拿不到静态头，只能等 Service Worker 起来');
+  } else if (!Array.isArray(expect.rules)) {
+    problems.push('rules/baked-language.json 不是数组：静态规则结构不对');
   }
 
   return { ok: problems.length === 0, problems };

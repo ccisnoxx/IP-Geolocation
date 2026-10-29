@@ -21,6 +21,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CDP, evaluate, killChrome, launchChrome, sleep } from './lib/cdp.mjs';
 import { ensureCerts } from './lib/certs.mjs';
+import { resolveExpectations } from './lib/release-expectations.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = Object.fromEntries(process.argv.slice(2).map((arg) => {
@@ -78,9 +79,30 @@ const rules = existsSync(rulesPath) ? JSON.parse(readFileSync(rulesPath, 'utf8')
 const firstDomain = summary?.domains?.[0] || rules[0]?.condition?.requestDomains?.[0];
 if (!firstDomain) fail('包里没有启用域名，无法验证');
 
-// 期望值：优先用发布时记下的清单，其次从包里的静态规则里找 Accept-Language
-const expectTz = summary?.timezone || null;
-const expectLocale = summary?.locale || null;
+// ---------- 期望值 ----------
+//
+// 期望值有两个来源：发布时记下的清单（--zip 旁边的同名 JSON），和**包本身**。
+// 后者是必须支持的 —— 发布附件里往往只有 zip，用户拿到的就是 zip。旧版本在这里
+// 写 `first.tz !== 本机时区 || true`：拿不到清单时断言恒真，于是"通过"不代表
+// 任何事。现在改成"从包里推断，推不出来就判失败"（fail-closed）。
+
+/** 注入层的烘焙配置就在 content_scripts 的 js 里：`{ config: { ... } }` 字面量 */
+const injectedSource = (() => {
+  let source = '';
+  for (const entry of manifest.content_scripts || []) {
+    for (const file of entry.js || []) {
+      const path = join(bundleDir, file);
+      if (existsSync(path)) source += readFileSync(path, 'utf8');
+    }
+  }
+  return source;
+})();
+
+const { expectTz, expectLocale, bakedLocale, headerLocale } = resolveExpectations({
+  summary,
+  source: injectedSource,
+  rules
+});
 
 const certs = ensureCerts([firstDomain]);
 const server = createServer({ key: readFileSync(certs.key), cert: readFileSync(certs.cert) }, (req, res) => {
@@ -135,6 +157,7 @@ const record = (name, ok, detail) => {
 
 console.log(`\n包：${argv.zip || bundleDir}`);
 console.log(`版本：${manifest.version} · 验的域名：${firstDomain}`);
+console.log(`期望：tz=${expectTz ?? '(推断不出)'} locale=${expectLocale ?? '(推断不出)'}`);
 console.log(`首屏读到：tz=${first.tz} locale=${first.locale} lang=${first.lang} offset=${first.offset} jan=${first.janOffset} ${first.dateStr}`);
 console.log('');
 
@@ -159,11 +182,20 @@ if (expectTz) {
   }
   record('Date.toString 带目标时区', /GMT[+-]/.test(first.dateStr), first.dateStr.slice(-12));
 } else {
-  record('首屏时区不是本机时区', first.tz !== Intl.DateTimeFormat().resolvedOptions().timeZone || true, first.tz);
+  // 推断不出去就判失败：这条路径以前是 `|| true`，等于把"验证通过"变成一句话而已。
+  record('首屏时区就是烘焙值', false, '清单和包内烘焙字面量里都取不到目标时区');
 }
 
 if (expectLocale) {
   record('首屏语言就是烘焙值', first.lang === expectLocale, `${first.lang} vs ${expectLocale}`);
+} else {
+  record('首屏语言就是烘焙值', false, '清单、烘焙字面量、Accept-Language 里都取不到目标 locale');
+}
+
+// 跨层一致性：请求头改的语言和注入层烘焙的 locale 必须是同一个值，
+// 否则「站内 JS 说 ja-JP、请求头说别的」本身就是一处可被比对的破绽。
+if (bakedLocale && headerLocale) {
+  record('Accept-Language 与注入层 locale 一致', bakedLocale === headerLocale, `${headerLocale} vs ${bakedLocale}`);
 }
 
 const failed = checks.filter((item) => !item.ok);

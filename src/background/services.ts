@@ -7,9 +7,9 @@ import {
   LAST_LOCATION_KEY,
   domainMatches,
   getEffectiveProfile,
+  getCarveOutDomains,
   getEnabledRuleDomains,
   getContentScriptRegistration,
-  getExcludedRuleDomains,
   migrateLegacyConfig,
   validateConfig
 } from '../shared/config-resolver';
@@ -25,6 +25,9 @@ const BRIDGE_SCRIPT_ID = 'vanishgeo-bridge';
 const CONTENT_SCRIPT_IDS = [MAIN_RUNTIME_SCRIPT_ID, BRIDGE_SCRIPT_ID];
 const GEO_PERMISSION_KEY = 'geoPermissionDomains';
 const GEO_DENIED_KEY = 'geoDeniedDomains';
+const GEO_ASK_KEY = 'geoAskDomains';
+/** contentSettings 里 location 允许的三种取值，账本按这个维度记录 */
+type GeoPermissionSetting = 'allow' | 'block' | 'ask';
 /** 构建期烘焙进 manifest 的域名（普通构建为空数组） */
 function bakedScriptDomains(): string[] {
   if (typeof __VANISHGEO_STATIC_SCRIPT_DOMAINS__ === 'undefined') return [];
@@ -383,73 +386,107 @@ export function createBackgroundServices(): BackgroundServices {
    *
    * 这样页面里 navigator.permissions.query({name:'geolocation'}) 拿到的是真实 PermissionStatus，
    * 不需要在 JS 层伪造一个 `[object Object]` —— 伪造对象本身就是最容易被识别的痕迹之一。
+   *
+   * 写法受限于 Chrome 的 API 契约：`ContentSetting.clear()` 只接受 `{ scope }`，
+   * **没有**"按 pattern 删一条"的能力
+   * （https://developer.chrome.com/docs/extensions/reference/api/contentSettings）。
+   * 所以这里分两条路径：
+   *   - 只新增/改值：逐 pattern `set()`，不碰其它条目；
+   *   - 有域名必须撤销：`clear({ scope: 'regular' })` 整组清空后按期望状态重建。
+   * 早先代码把 `primaryPattern` 传给 `clear()`，Chrome 会拒绝这个参数，而异常被吞掉、
+   * 账本却照样更新 —— 结果是"补丁清了、授权还在、账本说已经删了"。
    */
   async function applyGeolocationPermissions(config: SiteSpoofConfig): Promise<void> {
     // 注意是 location 而不是 geolocation（chrome.contentSettings 的类型名）
     const settings = chrome.contentSettings && (chrome.contentSettings as any).location;
     if (!settings) return;
 
-    const lastLocation = await getLastLocation();
-    const wanted: string[] = [];
-    const denied: string[] = [];
-    for (const domain of getEnabledRuleDomains(config)) {
-      const resolved = getEffectiveProfile(config, domain, lastLocation);
-      if (resolved.payload && resolved.payload.geolocationDenied) {
-        // 坐标解析不出来：权限层也置为 block，getCurrentPosition 返回
-        // POSITION_UNAVAILABLE，permissions.query 说 denied，三层说的是同一件事。
-        denied.push(domain);
-        continue;
+    // 期望状态：域名 → setting。三层各自生成，靠 contentSettings 的
+    // "最具体 pattern 优先" 合起来：被挖掉的中间子域是 ask，深层重新启用的域名
+    // 有自己的 allow/block，父域的通配规则不会把它盖掉。
+    const desired = new Map<string, GeoPermissionSetting>();
+    if (config.masterEnabled) {
+      const lastLocation = await getLastLocation();
+      for (const domain of getEnabledRuleDomains(config)) {
+        const resolved = getEffectiveProfile(config, domain, lastLocation);
+        if (resolved.payload && resolved.payload.geolocationDenied) {
+          // 坐标解析不出来：权限层也置为 block，getCurrentPosition 返回
+          // POSITION_UNAVAILABLE，permissions.query 说 denied，三层说的是同一件事。
+          desired.set(domain, 'block');
+          continue;
+        }
+        const geolocation = resolved.payload ? resolved.payload.geolocation : null;
+        if (!geolocation || geolocation.spoofPermission === false) continue;
+        desired.set(domain, 'allow');
       }
-      const geolocation = resolved.payload ? resolved.payload.geolocation : null;
-      if (!geolocation || geolocation.spoofPermission === false) continue;
-      wanted.push(domain);
+      // 被排除的域名退回 ask，让"排除"在权限层也成立 —— 否则页面拿到的是
+      // 真实定位（父域授权还在），而不是"没有定位"。
+      for (const domain of getCarveOutDomains(config)) {
+        if (!desired.has(domain)) desired.set(domain, 'ask');
+      }
     }
 
-    const stored = await chrome.storage.local.get([GEO_PERMISSION_KEY, GEO_DENIED_KEY]);
-    const previous: string[] = Array.isArray(stored[GEO_PERMISSION_KEY]) ? stored[GEO_PERMISSION_KEY] : [];
-    const previousDenied: string[] = Array.isArray(stored[GEO_DENIED_KEY]) ? stored[GEO_DENIED_KEY] : [];
+    const stored = await chrome.storage.local.get([GEO_PERMISSION_KEY, GEO_DENIED_KEY, GEO_ASK_KEY]);
+    // 账本快照：上一次**确实写成功**的状态。三个旧 key 都是数组，读的时候合并成一张表。
+    const previous = new Map<string, GeoPermissionSetting>();
+    const ledgerSources: Array<[string, GeoPermissionSetting]> = [
+      [GEO_PERMISSION_KEY, 'allow'],
+      [GEO_DENIED_KEY, 'block'],
+      [GEO_ASK_KEY, 'ask']
+    ];
+    for (const [key, setting] of ledgerSources) {
+      const list = stored[key];
+      if (!Array.isArray(list)) continue;
+      for (const domain of list) if (typeof domain === 'string' && domain) previous.set(domain, setting);
+    }
 
-    // 从 allow / block 两个集合里退出、且不再属于任何一侧的域名：清掉设置
-    const stale = [...new Set([...previous, ...previousDenied])]
-      .filter((domain) => wanted.indexOf(domain) === -1 && denied.indexOf(domain) === -1);
-    for (const domain of stale) {
-      for (const pattern of [`*://${domain}/*`, `*://*.${domain}/*`]) {
+    const changed = [...desired.entries()].filter(([domain, setting]) => previous.get(domain) !== setting);
+    const removed = [...previous.keys()].filter((domain) => !desired.has(domain));
+    if (!changed.length && !removed.length) return;
+
+    const patternsFor = (domain: string): string[] => [`*://${domain}/*`, `*://*.${domain}/*`];
+
+    // 只要有一条要撤销，就只能整组清空重建：API 没有"删一条"的能力。
+    // 代价是一次短暂的默认值窗口（页面此刻问权限会拿到默认值），换来的是
+    // 绝不会留下"删不掉的旧授权 + 账本说已经删了"这种自欺状态。
+    const rebuild = removed.length > 0;
+    if (rebuild) {
+      try {
+        await settings.clear({ scope: 'regular' });
+      } catch {
+        // 连清空都失败：账本一字节都不动，下次配置变化时重试
+        return;
+      }
+    }
+
+    const written = new Map<string, GeoPermissionSetting>();
+    const targets = rebuild ? [...desired.entries()] : changed;
+    for (const [domain, setting] of targets) {
+      let ok = true;
+      for (const pattern of patternsFor(domain)) {
         try {
-          await settings.clear({ scope: 'regular', primaryPattern: pattern });
-        } catch { /* ignore */ }
+          await settings.set({ primaryPattern: pattern, setting, scope: 'regular' });
+        } catch {
+          ok = false;
+        }
       }
+      // 只把真的写成功的域名记进账本：失败的下次还会被 changed 认出来重试
+      if (ok) written.set(domain, setting);
     }
 
-    for (const domain of wanted) {
-      for (const pattern of [`*://${domain}/*`, `*://*.${domain}/*`]) {
-        try {
-          await settings.set({ primaryPattern: pattern, setting: 'allow', scope: 'regular' });
-        } catch { /* ignore */ }
-      }
-    }
+    // rebuild 之后浏览器里只剩 written；增量路径下 previous 里其它条目仍然成立
+    const ledger = rebuild ? written : new Map([...previous, ...written]);
+    const collect = (setting: GeoPermissionSetting): string[] => [...ledger.entries()]
+      .filter(([, value]) => value === setting)
+      .map(([domain]) => domain)
+      .sort();
 
-    for (const domain of denied) {
-      for (const pattern of [`*://${domain}/*`, `*://*.${domain}/*`]) {
-        try {
-          await settings.set({ primaryPattern: pattern, setting: 'block', scope: 'regular' });
-        } catch { /* ignore */ }
-      }
-    }
-
-    // 被显式排除的子域会被父域的 `*://*.parent/*` 通配授权覆盖到。退回 ask，
-    // 让"排除"在权限层面也成立 —— 否则站点拿到的是真实定位而不是没有定位。
-    for (const domain of getExcludedRuleDomains(config)) {
-      for (const pattern of [`*://${domain}/*`, `*://*.${domain}/*`]) {
-        try {
-          await settings.set({ primaryPattern: pattern, setting: 'ask', scope: 'regular' });
-        } catch { /* ignore */ }
-      }
-    }
-
-    if (previous.join(',') !== wanted.join(',') || previousDenied.join(',') !== denied.join(',')) {
-      await chrome.storage.local.set({ [GEO_PERMISSION_KEY]: wanted, [GEO_DENIED_KEY]: denied });
-      invalidateStorageCache();
-    }
+    await chrome.storage.local.set({
+      [GEO_PERMISSION_KEY]: collect('allow'),
+      [GEO_DENIED_KEY]: collect('block'),
+      [GEO_ASK_KEY]: collect('ask')
+    });
+    invalidateStorageCache();
   }
 
   async function applyRuntimeSideEffects(config: SiteSpoofConfig): Promise<void> {
