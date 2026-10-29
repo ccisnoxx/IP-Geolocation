@@ -200,11 +200,14 @@ test('us-west 预设：洛杉矶坐标 + 太平洋时区 + en-US', () => {
   assert.equal(preset.geolocation.country, 'United States');
   assert.equal(preset.language.language, 'en-US');
   assert.equal(preset.timezone.timezone, 'America/Los_Angeles');
-  // 与东海岸预设必须是两个不同的地理位置，否则"美西"卡片没有意义
-  const east = DEFAULT_PROFILES.find((profile) => profile.id === 'united-states');
-  assert.ok(east);
-  assert.notEqual(preset.geolocation.latitude, east.geolocation.latitude);
-  assert.notEqual(preset.timezone.timezone, east.timezone.timezone);
+});
+
+test('内置预设只留美西 / 新加坡 / 日本', () => {
+  // 只保留真的会买 VPS 的三个地区：其余地区放进快速配置区只会变成一排用不上的按钮
+  assert.deepEqual(DEFAULT_PROFILES.map((profile) => profile.id), ['us-west', 'singapore', 'japan']);
+  assert.equal(DEFAULT_PROFILES[0].timezone.timezone, 'America/Los_Angeles');
+  assert.equal(DEFAULT_PROFILES[1].timezone.timezone, 'Asia/Singapore');
+  assert.equal(DEFAULT_PROFILES[2].timezone.timezone, 'Asia/Tokyo');
 });
 
 test('每个 preset 都能通过 validateProfile 与时区校验', () => {

@@ -234,7 +234,8 @@ export function auditConfig(config: SiteSpoofConfig): AuditFinding[] {
           ...current,
           globalProfile: {
             ...current.globalProfile,
-            geolocation: { ...current.globalProfile.geolocation, spoofPermission: true }
+            // 接管权限就有资格承诺"不碰原生"：两者一起打开，归一化里也是这个绑定
+            geolocation: { ...current.globalProfile.geolocation, spoofPermission: true, noNativeCall: true }
           }
         })
       }

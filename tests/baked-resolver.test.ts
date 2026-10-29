@@ -215,6 +215,7 @@ test('baked resolver 分支：定位 disable / enabled=false / 坐标缺失 / �
   assert.equal(fallback?.geolocation?.accuracy, 50);
   assert.equal(fallback?.geolocation?.randomRadiusMeters, 1000);
   assert.equal(fallback?.geolocation?.spoofPermission, false);
+  assert.equal(fallback?.geolocation?.noNativeCall, false, '烘焙包里也要带这道刹车（跟随 spoofPermission）');
   assert.equal(fallback?.geolocation?.country, 'Test');
 });
 

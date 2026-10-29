@@ -36,6 +36,15 @@ export interface GeolocationConfig {
   randomize: boolean;
   randomRadiusMeters: number;
   spoofPermission: boolean;
+  /**
+   * 完全不调用系统定位：不触发系统授权框、不在系统的定位记录里留痕。
+   *
+   * 打开它时必须同时伪装权限 —— 背景侧把 contentSettings 置为 allow，页面问
+   * `permissions.query` 得到的回答与拿到的坐标才是同一件事。归一化里做了这个绑定
+   * （见 normalizeGeolocation），所以"不碰原生 + 权限仍按 prompt 走"这种自相矛盾的
+   * 组合存不进去。缺省值跟随 spoofPermission。
+   */
+  noNativeCall: boolean;
   history: GeolocationHistory[];
 }
 

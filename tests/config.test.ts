@@ -22,6 +22,7 @@ import {
   getTimezoneOffsetMinutes,
   normalizeConfig,
   normalizeGeolocation,
+  resolveNoNativeCall,
   normalizeWebRtc,
   parseHostname,
   validateTimezone
@@ -156,7 +157,7 @@ test('getContentScriptMatches 跳过已烘焙进 manifest 的域名', () => {
   assert.deepEqual(getContentScriptMatches(config, ['claude.ai', 'example.com']), []);
 });
 
-test('默认就是英文 en-US，时区跟着出口 IP（auto），默认 persona 是美国', () => {
+test('默认就是英文 en-US，时区跟着出口 IP（auto），默认 persona 是美西', () => {
   assert.equal(DEFAULT_LANGUAGE.language, 'en-US');
   assert.deepEqual(DEFAULT_LANGUAGE.languages, ['en-US', 'en']);
   assert.equal(DEFAULT_LANGUAGE.acceptLanguage, 'en-US,en;q=0.9');
@@ -164,12 +165,12 @@ test('默认就是英文 en-US，时区跟着出口 IP（auto），默认 person
   // 时区不在默认值里写死：auto + 空字符串 = 由后台按出口 IP 推导
   assert.equal(DEFAULT_CONFIG.globalProfile.timezone.mode, 'auto');
   assert.equal(DEFAULT_CONFIG.globalProfile.timezone.timezone, '');
-  assert.equal(DEFAULT_CONFIG.profile.activeProfileId, 'united-states');
+  assert.equal(DEFAULT_CONFIG.profile.activeProfileId, 'us-west');
 
-  // 手动点了美国 persona，才把时区钉成纽约（语言仍是 en-US）
-  const applied = applyProfileToConfig(DEFAULT_CONFIG, 'united-states');
+  // 手动点了美国 persona，才把时区钉成太平洋时间（语言仍是 en-US）
+  const applied = applyProfileToConfig(DEFAULT_CONFIG, 'us-west');
   assert.equal(applied.globalProfile.language.language, 'en-US');
-  assert.equal(applied.globalProfile.timezone.timezone, 'America/New_York');
+  assert.equal(applied.globalProfile.timezone.timezone, 'America/Los_Angeles');
 });
 
 test('首次安装就带默认白名单（装上即生效）', () => {
@@ -322,10 +323,30 @@ test('旧的 VanishMe domainList / matchMode / siteRules 都能迁移', () => {
 
 test('activeProfileId 的 null 是合法状态，不会被归一化复活成默认预设', () => {
   // options 删除当前预设时写的就是 null（见 deleteProfile）；
-  // 曾经的 `|| DEFAULTS` 兜底会把它悄悄变回 'united-states'，
+  // 曾经的 `|| DEFAULTS` 兜底会把它悄悄变回 'us-west'，
   // 于是"取消选择"刷新一下就失效了。
   assert.equal(normalizeConfig({ profile: { activeProfileId: null } as any }).profile.activeProfileId, null);
   // 字段整个缺失（老配置 / 首次运行）仍然要给出默认预设，界面才有选中项
-  assert.equal(normalizeConfig({}).profile.activeProfileId, 'united-states');
+  assert.equal(normalizeConfig({}).profile.activeProfileId, 'us-west');
   assert.equal(normalizeConfig({ profile: { activeProfileId: 'japan' } as any }).profile.activeProfileId, 'japan');
+});
+
+test('noNativeCall 与 spoofPermission 是一对绑定：打开不碰原生就必须伪装权限', () => {
+  assert.equal(DEFAULT_GEOLOCATION.noNativeCall, true, '默认就是不碰原生');
+  assert.equal(resolveNoNativeCall({}), true, '没给字段时跟随缺省的 spoofPermission=true');
+
+  // 老配置（store 里没有这个字段、且关掉了伪装权限）：语义一律不能变，仍然委派原生
+  const legacy = normalizeGeolocation({ spoofPermission: false });
+  assert.equal(legacy.noNativeCall, false);
+  assert.equal(legacy.spoofPermission, false, '不能悄悄把老用户的真实权限流程改掉');
+
+  // 矛盾组合存不进去：打开"完全不碰原生"会把伪装权限一起拉回来
+  const both = normalizeGeolocation({ spoofPermission: false, noNativeCall: true });
+  assert.equal(both.noNativeCall, true);
+  assert.equal(both.spoofPermission, true);
+
+  const off = normalizeGeolocation({ noNativeCall: false });
+  assert.equal(off.noNativeCall, false);
+  assert.equal(off.spoofPermission, true);
+  assert.equal(resolveNoNativeCall({ noNativeCall: false, spoofPermission: false }), false, '显式关闭时就听它的');
 });
