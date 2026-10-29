@@ -150,12 +150,16 @@ export function getEnabledRuleDomains(config: Partial<SiteSpoofConfig>): string[
 }
 
 /**
- * 真正生效的排除域名：被禁用，且**没有更深的启用规则把它救回来**。
+ * 内容脚本层用的排除域名：被禁用，且**没有更深的启用规则把它救回来**。
  *
  * `enabled: false` 的 a.com 配上一个启用的 b.a.com 时，不能把整个 a.com 从
- * 内容脚本里排除掉 —— 那会连带挡掉 b.a.com。浏览器级的 `excludeMatches` /
- * `excludedRequestDomains` 表达不了"排除里再放行"，所以这里直接把这类域名
- * 移出排除表，让它们继续被父规则覆盖。
+ * 内容脚本里排除掉 —— 那会连带挡掉 b.a.com。内容脚本的 `excludeMatches` 只能
+ * 表达"整棵子树都不注入"，表达不了"排除里再放行"，所以这里只能把这类域名移出
+ * 排除表，让孙域仍然被注入，再由 payload 层（`resolveRuleMatch`）在运行时判定
+ * 中间那层其实是排除的。
+ *
+ * 也就是说：**这张表只对内容脚本合法**。DNR 和 contentSettings 有自己的表达方式
+ * （父规则挖掉子树 + 子域自带规则），必须用 `getCarveOutDomains()`。
  */
 export function getExcludedRuleDomains(config: Partial<SiteSpoofConfig>): string[] {
   const normalized = normalizeConfig(config);
@@ -166,6 +170,39 @@ export function getExcludedRuleDomains(config: Partial<SiteSpoofConfig>): string
     if (rule.enabled || !rule.domain || seen.has(rule.domain)) return domains;
     const rescued = enabledDomains.some((domain) => domain !== rule.domain && domain.endsWith(`.${rule.domain}`));
     if (rescued) return domains;
+    seen.add(rule.domain);
+    domains.push(rule.domain);
+    return domains;
+  }, []);
+}
+
+/**
+ * 父规则必须挖掉的域名：被禁用，且确实落在某条启用规则的子树里。
+ *
+ * 与 `getExcludedRuleDomains` 的唯一区别是**不做 rescue**：
+ *
+ *   example.com            启用
+ *   !child.example.com     禁用
+ *   active.child.example.com 启用
+ *
+ * 对 DNR 和 contentSettings 来说，正确做法是把 `child.example.com` 整棵子树从父
+ * 规则里挖掉，再让 `active.child.example.com` 用自己的规则/自己的 contentSettings
+ * 覆盖回来 —— 两边都支持"更具体的规则优先"，所以三层语义可以一致，不需要牺牲中间层。
+ *
+ * 早先 DNR 直接复用内容脚本那张（带 rescue 的）表，结果父规则的 requestDomains
+ * 重新覆盖了被禁用的中间子域：页面是原生的，请求头却被改写。
+ */
+export function getCarveOutDomains(config: Partial<SiteSpoofConfig>): string[] {
+  const normalized = normalizeConfig(config);
+  if (!normalized.masterEnabled) return [];
+  const enabledDomains = normalized.rules.filter((rule) => rule.enabled && rule.domain).map((rule) => rule.domain);
+
+  const seen = new Set<string>();
+  return normalized.rules.reduce<string[]>((domains, rule) => {
+    if (rule.enabled || !rule.domain || seen.has(rule.domain)) return domains;
+    // 没有启用祖先时，本来也没有哪条父规则会覆盖到它，挖掉毫无意义
+    const covered = enabledDomains.some((domain) => domain !== rule.domain && rule.domain.endsWith(`.${domain}`));
+    if (!covered) return domains;
     seen.add(rule.domain);
     domains.push(rule.domain);
     return domains;

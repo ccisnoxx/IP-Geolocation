@@ -1,8 +1,8 @@
 import { normalizeLanguage } from '../shared/config-model';
 import {
+  getCarveOutDomains,
   getEffectiveLanguage,
-  getExcludedDomainsFor,
-  getExcludedRuleDomains
+  getExcludedDomainsFor
 } from '../shared/config-resolver';
 import type { LanguageConfig, LastLocation, SiteRule, SiteSpoofConfig } from '../shared/types';
 
@@ -53,9 +53,24 @@ export function buildAcceptLanguageRules(
   void lastLocation;
   if (!config.masterEnabled) return [];
   const rules: chrome.declarativeNetRequest.Rule[] = [];
-  // 被显式禁用的域名要在父域规则里挖掉，否则「google.com 启用 + mail.google.com 排除」
-  // 的头仍然会被父规则改写 —— 页面是原生的、请求头却是伪装的，两边自相矛盾。
-  const excludedDomains = getExcludedRuleDomains(config);
+  // 父规则要挖掉的东西有两类，缺一类都会出现"页面原生、请求头伪装"的撕裂：
+  //
+  //  1. 被显式禁用的域名（`google.com` 启用 + `!mail.google.com`）：整棵子树挖掉；
+  //  2. **启用但语言不生效**的域名（`overrides.language.mode = 'disable'`，或者全局
+  //     语言关掉后子孙仍启用）：它自己不会生成头规则，于是父规则会照着父域语言改写
+  //     它的请求 —— 而页面 JS 那边 navigator.language 是原生的。
+  //
+  // 注意这里用的是 carve-out（不做 rescue）：`a.com` / `!b.a.com` / `c.b.a.com`
+  // 三者都成立时，父规则挖掉整个 `b.a.com`，`c.b.a.com` 靠自己的规则重新生效。
+  // 内容脚本那张带 rescue 的表在这里是错的，它会让父规则重新覆盖中间层。
+  const excludedDomains = [
+    ...new Set([
+      ...getCarveOutDomains(config),
+      ...config.rules
+        .filter((rule) => rule.enabled && rule.domain && !getEffectiveLanguage(config, rule.domain))
+        .map((rule) => rule.domain)
+    ])
+  ];
 
   config.rules.filter((rule) => rule.enabled).forEach((rule) => {
     const language = languageForRule(config, rule);

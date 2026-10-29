@@ -148,9 +148,28 @@ test('disguise：还原 Function.prototype.toString，再次 disguise 会重新�
   assert.equal(Function.prototype.toString, nativeToString);
 
   const impl = function fakeSetHours() { /* fake */ };
-  disguise(impl, 'setHours', 0);
-  assert.equal(impl.toString(), 'function setHours() { [native code] }');
+  // disguise 现在返回**重建后**的函数：方法形状（见下一条测试），所以断言看返回值
+  const shaped = disguise(impl, 'setHours', 0);
+  assert.equal(shaped.toString(), 'function setHours() { [native code] }');
   assert.notEqual(Function.prototype.toString, nativeToString);
   disguise.uninstall();
   assert.equal(Function.prototype.toString, nativeToString);
+});
+
+test('disguise：默认给方法形状 —— 没有自有 prototype，也不能被 new', () => {
+  const disguise = createDisguise();
+  const shaped = disguise(function fakeGetHours(this: any) { return 42; }, 'getHours', 0);
+
+  // 原生原型方法两样都成立：没有自有 prototype，`new` 抛 TypeError
+  assert.deepEqual(Object.getOwnPropertyNames(shaped), ['length', 'name']);
+  assert.equal(Object.prototype.hasOwnProperty.call(shaped, 'prototype'), false);
+  assert.throws(() => new (shaped as any)(), TypeError);
+  assert.equal(shaped.call({}), 42);
+
+  // 构造器要显式声明：保留自有 prototype，`new` 可用
+  const ctor = disguise(function Fake(this: any, value: any) { this.value = value; }, 'Fake', 1, { construct: true });
+  assert.equal(Object.prototype.hasOwnProperty.call(ctor, 'prototype'), true);
+  const instance = new (ctor as any)('x');
+  assert.equal(instance.value, 'x');
+  disguise.uninstall();
 });

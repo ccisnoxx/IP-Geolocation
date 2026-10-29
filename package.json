@@ -51,7 +51,15 @@
     "timezone",
     "language"
   ],
-  "author": "",
+  "author": "ccisnoxx",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ccisnoxx/VanishGeo.git"
+  },
+  "homepage": "https://github.com/ccisnoxx/VanishGeo#readme",
+  "bugs": {
+    "url": "https://github.com/ccisnoxx/VanishGeo/issues"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=22"

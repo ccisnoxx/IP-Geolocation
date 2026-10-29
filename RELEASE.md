@@ -5,15 +5,40 @@
 ## 0. 前置：仓库名与品牌
 
 产品名统一为 **VanishGeo**（`manifest.json`、`package.json`、界面、文档都是这个名字）。
-本文档里的 GitHub 链接按 `XiNian-dada/VanishGeo` 写。
-
-如果仓库还没改名，先把 GitHub 仓库改成 `VanishGeo` 并同步 local remote：
+本文档里的 GitHub 链接按 `ccisnoxx/VanishGeo` 写。remote 与文档不一致时先对齐：
 
 ```bash
-git remote set-url origin https://github.com/XiNian-dada/VanishGeo.git
+git remote set-url origin https://github.com/ccisnoxx/VanishGeo.git
 ```
 
 否则文档里的 Releases / Actions 链接会 404。
+
+### 作者信息
+
+`package.json` 的 `author` / `repository` / `homepage` / `bugs` 都指向个人仓
+`ccisnoxx/VanishGeo`，README 的安装命令也按这个地址写。
+
+GitHub 侧栏的 **Contributors** 从提交作者生成，所以它会同时列出 `ccisnoxx` 与
+上游原作者 `XiNian-dada`（历史里有 49 个提交属于后者）。要让它只显示一个人，
+就得改写全部历史 —— 这会让所有 commit SHA 变化，已发布的 tag 与 Release 指向的
+提交将不再存在于新历史里，因此**这是一次不可逆的操作**：
+
+```bash
+# 先备份（整仓 + 所有 ref），再在副本上操作
+git clone --mirror https://github.com/ccisnoxx/VanishGeo.git vanishgeo.git
+pip install git-filter-repo
+cd vanishgeo.git
+git filter-repo \
+  --mailmap <(printf 'ccisnoxx <50921099+ccisnoxx@users.noreply.github.com> XiNian-dada <yszan968@gmail.com>\n') \
+  --force
+git push --force --all && git push --force --tags
+```
+
+改写后要顺手核对三件事：tag 是否重新打好（`git tag -l`）、GitHub Releases 是否
+还挂着（必要时按第 5 节重发）、CI 徽章里的提交链接是否仍然可达。
+
+**不要动** [NOTICE](NOTICE) 与 [LICENSE](LICENSE)：MIT 要求保留上游署名，
+"作者列表里只有一个名字"和"保留许可署名"是两件事，前者可改、后者不能。
 
 ## 1. CI：每个提交都跑
 

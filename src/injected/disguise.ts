@@ -1,7 +1,32 @@
 export interface Disguise {
-  (impl: any, name: string, length: number): any;
+  /**
+   * @param options.construct `true` = 保留可构造性（`Date`、`Intl.*`、`Worker` 这类构造器）；
+   *   默认为方法形状：没有自有 `prototype`、`new` 会抛 TypeError，和 `Date.prototype.getHours`
+   *   这类原生原型方法一致。
+   */
+  (impl: any, name: string, length: number, options?: { construct?: boolean }): any;
   /** 还原 Function.prototype.toString；clear 时调用，之后可以再次 disguise 重新安装 */
   uninstall(): void;
+}
+
+/**
+ * 方法形状的等价实现。
+ *
+ * `function foo() {}` 声明自带一个自有 `prototype` 对象，而且能被 `new` 调用；原生原型
+ * 方法两样都没有。于是这段代码一行就能分辨出补丁：
+ *
+ *     Object.getOwnPropertyNames(Date.prototype.getHours)  // 原生 [] / 补丁 ['prototype']
+ *
+ * 方法简写 `{ [name]() {} }[name]` 恰好两边都不成立：没有自有 prototype，`new` 抛
+ * TypeError —— 和 WebIDL operation / ES 方法一致。
+ */
+function methodShaped(impl: any, name: string): any {
+  const holder: any = {
+    [name](this: any, ...args: any[]): any {
+      return Reflect.apply(impl, this, args);
+    }
+  };
+  return holder[name];
 }
 
 /**
@@ -51,19 +76,22 @@ export function createDisguise(): Disguise {
 
   install();
 
-  const disguise = ((impl: any, name: string, length: number) => {
+  const disguise = ((impl: any, name: string, length: number, options?: { construct?: boolean }) => {
     // clear 之后可能已经还原过；再次伪装时把 toString 补回来
     install();
+    // 默认按"方法"重建：绝大多数被替换的是原型方法 / getter，原生那两样都不是构造器。
+    // 构造器调用点显式传 { construct: true }，保持可 new、保持自有 prototype。
+    const shaped = options && options.construct === true ? impl : methodShaped(impl, name);
     try {
-      Object.defineProperty(impl, 'name', { value: name, configurable: true });
+      Object.defineProperty(shaped, 'name', { value: name, configurable: true });
     } catch { /* ignore */ }
     try {
-      Object.defineProperty(impl, 'length', { value: length, configurable: true });
+      Object.defineProperty(shaped, 'length', { value: length, configurable: true });
     } catch { /* ignore */ }
     try {
-      signatures.set(impl, signatureOf(name));
+      signatures.set(shaped, signatureOf(name));
     } catch { /* ignore */ }
-    return impl;
+    return shaped;
   }) as Disguise;
 
   disguise.uninstall = () => {
