@@ -101,14 +101,23 @@ git push origin v1.1.1
 
 ## 4. 发布前检查清单
 
-- [ ] `npm run typecheck` / `npm run lint` / `npm test` / `npm run build` 全绿
-- [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag
-- [ ] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）
-- [ ] `npm run release -- --all-presets` 出得了包（三个），`npm run verify:release -- --zip=…`
-      真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过
-- [ ] `npm run smoke:presets` 三个预设逐个在真浏览器里跑一遍（语言头 / 时区 / 界面卡片）
-- [ ] `npm run smoke:options` 选项页写入路径（含「跟随出口 IP」开关落库）
-- [ ] `npm run audit` 三引擎（Chrome / Chrome 119 / Helium）41 组全绿 —— 夜跑只跑
+**先跑一条命令**，它把下面打 ✅ 的项按顺序串起来，任一红就停、退出码非 0：
+
+```bash
+npm run preflight                    # 21 个阶段，约 15 分钟（含三引擎审计）
+npm run preflight -- --skip=audit    # 赶时间跳审计（约 5 分钟），但别在正式发版时跳
+```
+
+剩下的 ✅ 之外的项仍然要人做 —— 它们是"看一眼对不对"，不是"跑一遍过不过"。
+
+- [x] `npm run typecheck` / `npm run lint` / `npm test` / `npm run build` 全绿（`preflight: verify`）
+- [ ] `manifest.json` 与 `package.json` 版本号一致，且等于要打的 tag（`preflight: version` 查前一半，tag 自己打）
+- [x] `dist/` 里没有残留的开发产物（`persona.config.json`、`*.map`）（`preflight: version`）
+- [x] `npm run release -- --all-presets` 出得了包（三个），`npm run verify:release -- --zip=…`
+      真开浏览器量首屏（时区 / 语言 / `Date` 偏移四项）全过（`preflight: package` + `release-smoke`）
+- [x] `npm run smoke:presets` 三个预设逐个在真浏览器里跑一遍（语言头 / 时区 / 界面卡片）
+- [x] `npm run smoke:options` 选项页写入路径（含「跟随出口 IP」开关落库）
+- [x] `npm run audit` 三引擎（Chrome / Chrome 119 / Helium）41 组全绿（`preflight: audit`） —— 夜跑只跑
       Chrome + Chrome 119，Helium 只能在本地过一遍。2.4.0 发版前这一步逮到两条真红
       （`定位失败可见性` 全引擎崩、`popup 交互` 在 Helium 上假红），都是面板重做后
       测试没跟上，光跑单测和离线冒烟发现不了
