@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installGeolocation, refreshGeolocationWatchPositions, uninstallGeolocation } from '../src/injected/geolocation';
+import { installGeolocation, refreshGeolocationWatchPositions, staticSpeedForPlatform, uninstallGeolocation } from '../src/injected/geolocation';
 import type { GeolocationConfigPayload, GeolocationPayload } from '../src/injected/geolocation';
 
 /**
@@ -212,9 +212,9 @@ test('Position / Coordinates 是 WebIDL 形状：属性在原型上、实例零�
   assert.equal(coords.latitude, 35.6762);
   assert.equal(coords.longitude, 139.6503);
   assert.equal(coords.altitude, null);
-  // 静止设备：speed 是"能提供且为 0"，heading 按规范必须是 null
+  // 静止设备：speed 跟平台走（Node 是桌面 → null），heading 按规范必须是 null
   assert.equal(coords.heading, null);
-  assert.equal(coords.speed, 0);
+  assert.equal(coords.speed, null, '桌面上不该出现"能提供速度"的 0');
   assert.equal(Object.prototype.toString.call(coords), '[object GeolocationCoordinates]');
   assert.equal(coords instanceof GeolocationCoordinates, true);
 
@@ -649,20 +649,42 @@ test('watch 期间配置变成 deny：报 POSITION_UNAVAILABLE 并结束这一�
   payload = null;
 });
 
-test('静止设备的读数自洽：speed=0、heading=null、不编高度', async () => {
+test('静止设备的读数自洽：speed 跟平台走、heading=null、不编高度', async () => {
   setPayload({ randomize: true, randomRadiusMeters: 800 });
   const { position } = await request();
   const coords = position.coords;
 
-  assert.equal(coords.speed, 0, 'speed 是"能提供速度且为 0"，不是 null（那是"平台不提供"）');
-  assert.equal(coords.heading, null, 'speed 为 0 时 heading 必须是 null');
+  // Node 的 navigator 是桌面（platform=darwin/linux/win32，UA 不含移动标志）：
+  // 桌面 Chrome 的网络定位不提供速度，所以这里是 null 而不是 0。
+  assert.equal(coords.speed, null, '桌面平台是"不提供速度"的 null，不是"能提供且为 0"');
+  assert.equal(coords.heading, null, 'speed 未知时 heading 必须是 null');
   assert.equal(coords.altitude, null);
   assert.equal(coords.altitudeAccuracy, null, 'altitude 为 null 时 altitudeAccuracy 不能有值');
 
   // toJSON 走的是同一份槽位，口径必须一致
   const json = coords.toJSON();
-  assert.equal(json.speed, 0);
+  assert.equal(json.speed, null);
   assert.equal(json.heading, null);
+});
+
+test('speed 与平台绑定：移动端 0，桌面端 null，判不出来时按桌面给 null', () => {
+  const desktop = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', platform: 'MacIntel' };
+  const windows = { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', platform: 'Win32' };
+  const android = { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Mobile Safari/537.36', platform: 'Linux armv8l' };
+  const iphone = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)', platform: 'iPhone' };
+  // UA-CH 优先：platform 说是 Android，UA 里没有 mobile 标志也算移动端
+  const viaUaCh = { userAgent: 'Mozilla/5.0 (Linux; Android 14)', platform: 'Linux', userAgentData: { platform: 'Android', mobile: true } };
+  // UA-CH 明确说"不是移动端"时，UA 字符串不再参与判断
+  const uaChDesktop = { userAgent: 'Mozilla/5.0 (Linux; Android 14) Mobile', platform: 'Linux', userAgentData: { platform: 'macOS', mobile: false } };
+
+  assert.equal(staticSpeedForPlatform(desktop), null, '桌面 → null（平台不提供速度）');
+  assert.equal(staticSpeedForPlatform(windows), null);
+  assert.equal(staticSpeedForPlatform(android), 0, 'Android → 0（能提供，且静止）');
+  assert.equal(staticSpeedForPlatform(iphone), 0);
+  assert.equal(staticSpeedForPlatform(viaUaCh), 0, 'UA-CH 的 mobile 是权威信号');
+  assert.equal(staticSpeedForPlatform(uaChDesktop), null, 'UA-CH 说不是移动端就当桌面');
+  assert.equal(staticSpeedForPlatform({}), null, '判不出来按桌面；null 是"没信息"，不编读数');
+  assert.equal(staticSpeedForPlatform(null), null);
 });
 
 test('所有坐标读数都满足规范的字段约束（不是只对默认配置成立）', async () => {
@@ -679,13 +701,14 @@ test('所有坐标读数都满足规范的字段约束（不是只对默认配�
       const coords = position.coords;
       const label = JSON.stringify(config);
       // 规范约束 1：heading 只在 speed > 0 时才有值
-      assert.ok(coords.heading === null || coords.speed > 0, `heading/speed 不自洽：${label}`);
+      assert.ok(coords.heading === null || Number(coords.speed) > 0, `heading/speed 不自洽：${label}`);
       // 规范约束 2：altitudeAccuracy 只在 altitude 非 null 时才允许有值
       assert.ok(coords.altitudeAccuracy === null || coords.altitude !== null, `altitudeAccuracy/altitude 不自洽：${label}`);
       // 规范约束 3：accuracy 是"位置有多准"，不能比实际偏移小
       assert.ok(coords.accuracy >= 0 && Number.isFinite(coords.accuracy), `accuracy 非法：${label}`);
-      // 规范约束 4：speed 是米/秒，静止时恰好 0
-      assert.equal(coords.speed, 0, `speed 必须静态可信：${label}`);
+      // 规范约束 4：speed 必须是当前平台真会给出的值（桌面 null / 移动端 0），
+      // 且会话内恒定 —— 这里跑在桌面上，所以必须一直是 null
+      assert.equal(coords.speed, null, `桌面平台的 speed 必须是 null：${label}`);
     }
   }
   payload = null;

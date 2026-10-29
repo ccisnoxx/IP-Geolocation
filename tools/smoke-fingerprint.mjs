@@ -418,8 +418,10 @@ if (geo && geo.error) {
   check('地理定位：同一会话两次请求同一个点', first.latitude === second.latitude && first.longitude === second.longitude, `${first.latitude} vs ${second.latitude}`);
   check('地理定位：Position/Coordinates 的原型没被换掉', first.isPosition && first.isCoords, `position=${first.isPosition} coords=${first.isCoords}`);
   check('地理定位：返回对象没有多余的自有属性', first.positionKeys === 0 && first.coordKeys === 0, `keys=${first.positionKeys}/${first.coordKeys}`);
-  check('地理定位：静止读数自洽（speed=0、heading=null、不编高度）',
-    first.speed === 0 && first.heading === null && first.altitude === null,
+  // 桌面平台 Chrome 的网络定位不提供速度 → speed 必须是 null；移动端才是 0。
+  // 这条断言原来写的是 speed === 0，等于替桌面编了一个“能提供速度”的读数。
+  check('地理定位：静止读数自洽（桌面 speed=null、heading=null、不编高度）',
+    first.speed === null && first.heading === null && first.altitude === null,
     `speed=${first.speed} heading=${first.heading} altitude=${first.altitude}`);
 }
 
