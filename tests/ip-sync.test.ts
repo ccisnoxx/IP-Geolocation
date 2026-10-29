@@ -12,6 +12,7 @@ import {
   isValidTimeZone,
   canonicalCountry,
   parseExitIpResponse,
+  codeFromCountryName,
   planExitIpSync,
   resetExitIpSyncState,
   runExitIpSync
@@ -72,6 +73,24 @@ test('parseExitIpResponse 接受 ipinfo 的 loc 形状（country 本身就是国
   assert.equal(parsed?.countryCode, 'SG');
   assert.equal(parsed?.latitude, 1.2897);
   assert.equal(parsed?.longitude, 103.8501);
+});
+
+test('归属地接口只回国名不回国码时，照样能推出两字母码', () => {
+  // 真实接口都会带 country_code，但响应可能被裁剪；缺了代码 syncLanguage 会静默不生效
+  const parsed = parseExitIpResponse({ ip: '198.51.100.42', country: 'United States', timezone: 'America/Chicago', latitude: 41.85, longitude: -87.65 });
+  assert.equal(parsed?.countryCode, 'US');
+  assert.equal(parsed?.country, 'United States');
+
+  // 只认识 COUNTRY_LANGUAGES 里那十个国家，其余宁可留空也不猜
+  const unknown = parseExitIpResponse({ ip: '198.51.100.43', country: 'Brazil', timezone: 'America/Sao_Paulo', latitude: -23.5, longitude: -46.6 });
+  assert.equal(unknown?.countryCode, null);
+});
+
+test('codeFromCountryName 大小写与空格不敏感', () => {
+  assert.equal(codeFromCountryName('  united states '), 'US');
+  assert.equal(codeFromCountryName('JAPAN'), 'JP');
+  assert.equal(codeFromCountryName(''), null);
+  assert.equal(codeFromCountryName(null), null);
 });
 
 test('parseExitIpResponse 拒绝没有 ip 的响应', () => {

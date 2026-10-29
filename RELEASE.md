@@ -73,6 +73,7 @@ npm run lint
 npm run build          # 必须在 npm test 之前：有些接线用例要读 dist/
 node scripts/release.mjs --all-presets --out=release
 npm run smoke:release -- --dir=release --require=6   # 六个包各开一次真浏览器
+npm run smoke:ipfollow                               # 跟随出口 IP：不换网络，桩改一次算换一次出口
 npm test
 npm run test:coverage:core
 
