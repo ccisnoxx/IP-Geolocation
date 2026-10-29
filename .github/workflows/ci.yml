@@ -63,8 +63,8 @@ jobs:
           test -f dist/background/service-worker.js
           node -e "const m=require('./dist/manifest.json'); if(m.manifest_version!==3) process.exit(1);"
 
-  # 六个 preset 的烘焙值是各算各的：单测只能证明"参数被算出来了"，证明不了
-  # "页面的第一个内联脚本读到的是它"。这个 job 把六个包都真开一次浏览器。
+  # 三个 preset 的烘焙值是各算各的：单测只能证明"参数被算出来了"，证明不了
+  # "页面的第一个内联脚本读到的是它"。这个 job 把三个包都真开一次浏览器。
   smoke-release:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -83,11 +83,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Package six presets
+      - name: Package built-in presets
         run: node scripts/release.mjs --all-presets --out=release
 
       - name: Smoke every package in a real browser
-        run: npm run smoke:release -- --dir=release --require=6
+        run: npm run smoke:release -- --dir=release --require=3
 
       - name: Upload packages on failure
         if: failure()
@@ -96,3 +96,62 @@ jobs:
           name: release-zips
           path: release/*.zip
           retention-days: 3
+
+  # 面板 / 注入层的回归只在真浏览器里看得见：jsdom 单测证明不了"选择器还在"、
+  # 证明不了"补丁真的挂上了 worker"。2026-10-29 面板改版把 smoke-ip-apply 的
+  # 选择器改没了，单测全绿、CI 也绿，只有手动跑冒烟才发现 —— 所以这一批进 CI。
+  #
+  # 只收"不依赖外网"的：归属地 / 语言请求全部走本地 HTTPS 桩
+  # （host-resolver-rules 把域名指到 127.0.0.1），自签证书由 tools/lib/certs.mjs
+  # 现生成（runner 自带 openssl）。real-site / ip-change / ip-follow / failclosed /
+  # fingerprint 要真出口，留在本地与夜跑。
+  smoke-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 冒烟脚本读 dist/（有的还要 baked 产物），所以先构建
+      - name: Build
+        run: npm run build
+
+      - name: Preflight Chrome
+        run: |
+          set -euo pipefail
+          node -e "import('./tools/lib/cdp.mjs').then(m => console.log('chrome:', m.CHROME_PATH))"
+          CHROME="$(node -e "import('./tools/lib/cdp.mjs').then(m => console.log(m.CHROME_PATH))")"
+          test -x "$CHROME" || { echo "找不到可执行的 Chrome：$CHROME"; exit 1; }
+          "$CHROME" --version
+
+      - name: Offline browser smokes
+        run: |
+          set -euo pipefail
+          for script in presets frames workers bfcache cold-start cold-save \
+                        baked-clear baked-failclosed ip-apply options popup; do
+            echo "=== smoke:$script ==="
+            timeout 300 node "tools/smoke-$script.mjs"
+          done
+
+      - name: No stray browsers left behind
+        if: always()
+        run: |
+          # 每个脚本都该把自己起的浏览器收干净（tools/lib/cdp.mjs 里有 exit 兜底）。
+          # 留一堆 headless 实例会拖垮后面的 job，所以这里当成断言来跑。
+          left=1
+          for attempt in 1 2 3 4 5; do
+            left="$(pgrep -f 'user-data-dir=.*/vg-' | wc -l | tr -d ' ')"
+            if [ "$left" = "0" ]; then break; fi
+            echo "attempt $attempt: leftover=$left"
+            sleep 2
+          done
+          echo "leftover: $left"
+          test "$left" = "0"
