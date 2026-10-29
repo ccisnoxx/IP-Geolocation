@@ -82,3 +82,47 @@ export function describeIpApplyError(error: string): string {
   }
   return error;
 }
+
+/**
+ * 「上次定位失败」卡片上的人话解释。
+ *
+ * `lastGeoError` 原文是 `/geolocation` 接口的拼接字符串（三条 API 各报一句，
+ * 用 ` | ` 连起来），直接铺在配置页会变成一坨。原文仍然留在 `<details>` 里给排障用，
+ * 这里只回答"为什么没定位成功、我现在能做什么"。
+ */
+export function describeGeoError(message: string): string {
+  const text = String(message || '');
+  if (!text) return '';
+  if (/no valid coordinates/i.test(text)) {
+    return '定位接口都返回了，但没有一个给出可用坐标：多半是代理把请求拦成了 HTML，或接口在限流。换网络后再点一次「从 IP 自动配置」。';
+  }
+  if (/exit IP lookup failed|no usable exit ip/i.test(text)) {
+    return '查不到出口 IP：归属地接口没返回可用结果。检查代理是否正常，或换一个出口再试。';
+  }
+  if (/storage blocked/i.test(text)) {
+    return '扩展存储不可用（写入被拒）：配置改动没落库，改完刷新配置页确认还在。';
+  }
+  if (/failed to fetch|networkerror|timed out|timeout|aborted|econnrefused/i.test(text)) {
+    return '连不上定位接口：网络或代理把请求挡掉了。恢复网络后点一次「从 IP 自动配置」重试。';
+  }
+  return '后台更新定位时出错了，原文见下方技术原因。';
+}
+
+/**
+ * 「多久之前」的粗粒度说法。只做量级判断 —— 用户要的是"刚才还是很久以前"，
+ * 精确到秒既没用又需要每秒重绘一次。
+ *
+ * `at` 不合法（老版本没写这个字段）时返回空串，调用方据此不显示时间。
+ */
+export function formatErrorAge(at: string, now: number = Date.now()): string {
+  const timestamp = Date.parse(String(at || ''));
+  if (!Number.isFinite(timestamp)) return '';
+  const seconds = Math.max(0, Math.round((now - timestamp) / 1000));
+  if (seconds < 60) return '刚刚';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.round(hours / 24);
+  return `${days} 天前`;
+}

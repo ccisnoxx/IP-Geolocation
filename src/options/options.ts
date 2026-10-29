@@ -10,7 +10,7 @@ import {
 } from '../shared/config-model';
 import { ruleLines, rulesFromText } from '../shared/rule-text';
 import { sendRuntimeMessage } from '../shared/runtime-message';
-import { describeIpApplyError, geolocationModeFromInput, locationDisplay, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
+import { describeGeoError, describeIpApplyError, formatErrorAge, geolocationModeFromInput, locationDisplay, parseCoordinateInput, utcOffsetInputValue, webRtcSelectValue } from '../shared/ui-values';
 import { validateProfile } from '../shared/profile';
 import type { ExitIpApplyOutcome, ExitIpSyncOutcome } from '../background/ip-sync';
 import type { IpSyncConfig, LastLocation, Profile, SiteSpoofConfig } from '../shared/types';
@@ -74,6 +74,11 @@ const ipSyncLanguageEl = document.getElementById('ipSyncLanguage') as HTMLInputE
 const ipSyncIntervalEl = document.getElementById('ipSyncInterval') as HTMLInputElement;
 const ipSyncNowBtn = document.getElementById('ipSyncNow') as HTMLButtonElement;
 const ipSyncStatusEl = document.getElementById('ipSyncStatus') as HTMLElement;
+const geoErrorEl = document.getElementById('geoError') as HTMLElement;
+const geoErrorHintEl = document.getElementById('geoErrorHint') as HTMLElement;
+const geoErrorReasonEl = document.getElementById('geoErrorReason') as HTMLElement;
+const geoErrorAgeEl = document.getElementById('geoErrorAge') as HTMLElement;
+const geoErrorDismissEl = document.getElementById('geoErrorDismiss') as HTMLButtonElement;
 
 
 /** 「完全不调用系统定位」必须与「伪装位置权限」同开：权限回答与坐标不能各说各的 */
@@ -192,6 +197,36 @@ function readForm(): SiteSpoofConfig {
   });
 }
 
+/**
+ * 「上次自动定位没成功」卡片。
+ *
+ * 读的是 `chrome.storage.local` 而不是走消息通道：烘焙（只读）构建里运行时通道是
+ * 关掉的，而这条信息在烘焙构建里一样有用（release 包里的 auto 时区同样会失败）。
+ * storage 在任何扩展页都读得到，所以直接用。
+ *
+ * 后台在 `recordGeoError` 里成对写 `lastGeoError` / `lastGeoErrorAt`；这里成对读，
+ * 缺时间就不显示"多久之前"（老版本写过的记录没有时间戳）。
+ */
+function renderGeoError(message: string, at: string): void {
+  const text = String(message || '').trim();
+  if (!text) {
+    geoErrorEl.hidden = true;
+    geoErrorHintEl.textContent = '';
+    geoErrorReasonEl.textContent = '';
+    geoErrorAgeEl.textContent = '';
+    return;
+  }
+  geoErrorEl.hidden = false;
+  geoErrorHintEl.textContent = describeGeoError(text);
+  geoErrorReasonEl.textContent = text;
+  geoErrorAgeEl.textContent = formatErrorAge(at);
+}
+
+async function loadGeoError(): Promise<void> {
+  const stored = await chrome.storage.local.get({ lastGeoError: '', lastGeoErrorAt: '' });
+  renderGeoError(String(stored.lastGeoError ?? ''), String(stored.lastGeoErrorAt ?? ''));
+}
+
 async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ config: SiteSpoofConfig }>({ action: 'getSiteConfig' });
   currentConfig = normalizeConfig(response.config);
@@ -200,6 +235,8 @@ async function loadConfig(): Promise<void> {
     .catch(() => null);
   if (state) currentLastLocation = state.lastLocation ?? null;
   populateForm(currentConfig);
+  // 定位失败与配置无关，别让 getSiteConfig 失败把这张卡也带走
+  await loadGeoError().catch(() => undefined);
 }
 
 function showSettingsToast(message: string): void {
@@ -669,6 +706,20 @@ importFileEl.addEventListener('change', (event) => { void handleImportFile(event
 resetAllBtn.addEventListener('click', () => { void resetAllData(); });
 saveProfileModal.addEventListener('click', (event) => {
   if (event.target === saveProfileModal) closeSaveAsCustomModal();
+});
+
+// 后台写完 lastGeoError 立刻反映到这张卡上：用户点「从 IP 自动配置」失败时
+// 不用手动刷新配置页就能看到原因。storage.onChanged 在扩展页里是实时事件。
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  // 两个 key 是成对写的，任一变就整对重读：只拼一半会出现"有了时间没有原文"
+  if (!('lastGeoError' in changes) && !('lastGeoErrorAt' in changes)) return;
+  void loadGeoError().catch(() => undefined);
+});
+
+geoErrorDismissEl.addEventListener('click', () => {
+  // 只清提示，不动配置：这条错误是"最后一次失败"的快照，不是需要修的状态
+  void chrome.storage.local.set({ lastGeoError: '', lastGeoErrorAt: '' });
 });
 
 void loadConfig();

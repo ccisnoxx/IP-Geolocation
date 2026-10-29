@@ -164,6 +164,25 @@
                 </span>
               </label>
             </div>
+
+            <!--
+              「上次定位失败」只在该失败的时候出现（后台写 lastGeoError 才渲染）。
+              平时这里什么都不占：常驻一张空卡片会让正常用户以为配置有问题。
+              人话解释放外层，接口原文折在 details 里 —— 排障要看，日常不该看见。
+            -->
+            <div class="geo-error" id="geoError" hidden>
+              <div class="geo-error-head">
+                <span class="geo-error-dot" aria-hidden="true"></span>
+                <span class="geo-error-title">上次自动定位没成功</span>
+                <span class="geo-error-age" id="geoErrorAge"></span>
+                <button type="button" class="geo-error-dismiss" id="geoErrorDismiss">清除提示</button>
+              </div>
+              <p class="geo-error-hint" id="geoErrorHint"></p>
+              <details class="geo-error-details">
+                <summary>技术原因</summary>
+                <p class="geo-error-reason" id="geoErrorReason"></p>
+              </details>
+            </div>
           </div>
         </section>
 

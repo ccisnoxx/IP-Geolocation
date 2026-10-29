@@ -6,10 +6,11 @@
  *   node tools/smoke-options.mjs --extension=dist-probe-geo
  *   CHROME_PATH="/Applications/Helium.app/Contents/MacOS/Helium" node tools/smoke-options.mjs
  *
- * 覆盖三条写入路径：
+ * 覆盖四条路径：
  *   1. 改语言 → 静态 ruleset 让位（enabledRulesets 不再包含 baked-language）+ 动态规则换语言
  *   2. 加域名 → 动态注册内容脚本 + 动态 DNR 规则补上这一条
  *   3. 打开「跟随出口 IP」→ 配置落库 + 后台真的建出定时器（周期跟表单一致）
+ *   4. 写入一次定位失败 → 配置页把它渲染成人话、原文折在技术原因里、清除后存储被清空
  */
 import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -222,6 +223,53 @@ try {
   );
 } catch (error) {
   check('状态行显示同步结果', false, error.message);
+}
+
+// —— 路径 4：「上次定位失败」上到前台 ——
+// 后台那四处失败写入都发生在真跑定位/查 IP 的时候，离线跑不出来，所以这里直接把
+// storage 写成失败后的样子，验的是**配置页这条显示链路**：读得到、渲染成人话、
+// 清除按钮真的清、进程重启后不再出现。
+try {
+  await page(`chrome.storage.local.set({
+    lastGeoError: 'IP geolocation APIs returned no valid coordinates: https://ipapi.co/json/ no valid location | https://ipwho.is/ no valid location',
+    lastGeoErrorAt: new Date().toISOString()
+  })`, { awaitPromise: true });
+
+  let shown = false;
+  const showDeadline = Date.now() + 5000;
+  while (Date.now() < showDeadline && !shown) {
+    shown = await page(`(() => {
+      const box = document.getElementById('geoError');
+      return Boolean(box && !box.hidden && document.getElementById('geoErrorHint').textContent.includes('可用坐标'));
+    })()`);
+    if (!shown) await sleep(200);
+  }
+  check('定位失败记录会出现在配置页', shown, shown ? '' : '卡片没显示');
+
+  const detail = await page(`(() => ({
+    hint: document.getElementById('geoErrorHint').textContent,
+    reason: document.getElementById('geoErrorReason').textContent,
+    age: document.getElementById('geoErrorAge').textContent
+  }))()`);
+  check('人话解释里没有接口原文', !detail.hint.includes('https://'), detail.hint);
+  check('接口原文折在技术原因里', detail.reason.includes('https://ipapi.co'), detail.reason.slice(0, 60));
+  check('带上「多久之前」', detail.age === '刚刚', detail.age);
+
+  await page(`document.getElementById('geoErrorDismiss').click()`);
+  let cleared = false;
+  const clearDeadline = Date.now() + 5000;
+  while (Date.now() < clearDeadline && !cleared) {
+    cleared = await page(`(async () => {
+      const box = document.getElementById('geoError');
+      if (!box || !box.hidden) return false;
+      const stored = await chrome.storage.local.get(['lastGeoError', 'lastGeoErrorAt']);
+      return !stored.lastGeoError && !stored.lastGeoErrorAt;
+    })()`, { awaitPromise: true });
+    if (!cleared) await sleep(200);
+  }
+  check('清除提示后卡片消失且存储被清空', cleared, cleared ? '' : '还在');
+} catch (error) {
+  check('定位失败记录会出现在配置页', false, error.message);
 }
 
 cdp.close();

@@ -538,6 +538,110 @@ textarea {
   cursor: not-allowed;
 }
 
+/* ---------- 上次定位失败 ---------- */
+
+/*
+ * 只在真的失败过之后出现（后台写了 lastGeoError 才渲染），用 --warn 的琥珀色而不是
+ * --danger 的红：定位失败通常是"接口没给坐标"，不是扩展坏了，红色会让人以为配置被毁。
+ */
+.geo-error {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--warn-dim);
+  border: 1px solid rgba(240, 199, 106, 0.28);
+  border-radius: 10px;
+}
+
+.geo-error[hidden] {
+  display: none;
+}
+
+.geo-error-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.geo-error-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 3px rgba(240, 199, 106, 0.16);
+}
+
+.geo-error-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--warn);
+}
+
+.geo-error-age {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+/* 时间与「清除」都靠右：标题占左边，视线从"出了什么事"扫到"多久之前" */
+.geo-error-age {
+  margin-left: auto;
+}
+
+.geo-error-dismiss {
+  flex: none;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    color 0.16s var(--ease),
+    border-color 0.16s var(--ease);
+}
+
+.geo-error-dismiss:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.geo-error-hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+
+.geo-error-details {
+  margin-top: 6px;
+}
+
+.geo-error-details > summary {
+  font-size: 10.5px;
+  color: var(--text-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.geo-error-details > summary:hover {
+  color: var(--text-2);
+}
+
+.geo-error-reason {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+  /* 原文是三条 API 用 ' | ' 连起来的，长行必须能断，否则整张卡被撑宽 */
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 按钮 ---------- */
 
 .btn-primary,
