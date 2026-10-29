@@ -7,6 +7,17 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
     switch (request?.action) {
       case 'manualUpdate':
         return { status: 'ok', geo: await services.updateGeolocation(true) };
+      case 'applyFromExitIp': {
+        // 手动「从 IP 自动配置」：查出口并把坐标/时区/语言写进配置（manual），
+        // 顺带把新配置与定位回给界面，省掉再多发一轮 getCurrentTabState。
+        const outcome = await services.applyExitIpNow();
+        return {
+          status: 'ok',
+          outcome,
+          config: await services.getSiteConfig(),
+          ...(await services.getExitIpSyncState())
+        };
+      }
       case 'getExtensionState':
         return { status: 'ok', state: await services.getExtensionState() };
       case 'setExtensionEnabled':

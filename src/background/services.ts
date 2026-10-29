@@ -1,7 +1,7 @@
 import { buildAcceptLanguageRules, updateAcceptLanguageRules } from './dnr';
 import { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
-import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, runExitIpSync } from './ip-sync';
-import type { ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
+import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, lookupExitIp, planExitIpApply, runExitIpSync } from './ip-sync';
+import type { ExitIpApplyOutcome, ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy } from './webrtc';
 import {
   LAST_LOCATION_KEY,
@@ -123,6 +123,8 @@ export interface BackgroundServices {
   updateGeolocation(forceUpdate?: boolean): Promise<{ ok: boolean; location?: LastLocation; unchanged?: boolean; disabled?: boolean; error?: string }>;
   /** 走一遍"跟随出口 IP"：查出口 → 改时区/坐标 → 应用。单飞，重复调用复用同一趟 */
   checkExitIp(options?: { force?: boolean }): Promise<ExitIpSyncOutcome>;
+  /** 手动「从 IP 自动配置」：查一次出口，把坐标/时区/语言写进当前配置并应用 */
+  applyExitIpNow(): Promise<ExitIpApplyOutcome>;
   /** 配置页只读：上次同步记下的出口 IP 与当前生效定位 */
   getExitIpSyncState(): Promise<{ storedIp: string; lastLocation: LastLocation | null }>;
   /** 让「跟随出口 IP」的 alarm 与当前配置对齐；返回对齐后是否应在运行 */
@@ -918,6 +920,50 @@ export function createBackgroundServices(): BackgroundServices {
     return outcome;
   }
 
+  /**
+   * 手动「从 IP 自动配置」：查出口 → 把坐标/时区/语言**写进当前配置** → 应用。
+   *
+   * 为什么不再复用 `updateGeolocation`：那个只写 `lastLocation`，配置是 manual
+   * 时解析层根本不看它，点完按钮界面上一个数字都不会变（这就是"按钮没反应"）。
+   * 这里直接落配置，点完表单立刻是新值，无需理解 auto/manual 的区别。
+   *
+   * 与 `checkExitIp` 的边界：不清 `lastSyncedExitIp` —— 那是自动同步的账本，
+   * 手点一次不该让自动同步误判成"出口没变"。
+   */
+  async function applyExitIpNow(): Promise<ExitIpApplyOutcome> {
+    if (frozenBakedConfig()) {
+      return { ok: false, frozen: true, error: '当前是烘焙（只读）构建：配置烘焙在构建产物里，改不了' };
+    }
+    try {
+      const config = await getSiteConfig();
+      const looked = await lookupExitIp();
+      if ('error' in looked) {
+        await chrome.storage.local.set({ lastGeoError: looked.error });
+        return { ok: false, error: looked.error };
+      }
+      const plan = planExitIpApply(config, looked.info);
+      await writeLastLocation(plan.location);
+      await writeSiteConfigOnly(plan.config);
+      await applyConfig(plan.config);
+      await refreshActionBadge();
+      return {
+        ok: true,
+        changed: plan.layers.length > 0,
+        layers: plan.layers,
+        ip: looked.info.ip,
+        country: plan.config.globalProfile.geolocation.country,
+        timezone: plan.config.globalProfile.timezone.timezone,
+        latitude: plan.config.globalProfile.geolocation.latitude as number,
+        longitude: plan.config.globalProfile.geolocation.longitude as number,
+        language: plan.config.globalProfile.language.language
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await chrome.storage.local.set({ lastGeoError: message }).catch(() => undefined);
+      return { ok: false, error: message };
+    }
+  }
+
   // 测试与部分受限构建里可能没有 `chrome.alarms`：这种情况下把「对齐 alarm」
   // 退化成空操作，而不是让整条 applyConfig 链在副作用阶段炸掉。
   const alarmsApi = () => (typeof chrome !== 'undefined' ? chrome.alarms : undefined);
@@ -1175,6 +1221,7 @@ export function createBackgroundServices(): BackgroundServices {
     setExtensionEnabled,
     updateGeolocation,
     checkExitIp,
+    applyExitIpNow,
     getExitIpSyncState,
     ensureIpSyncAlarm,
     syncTab,

@@ -18,6 +18,17 @@ function createServices(overrides: Record<string, any> = {}) {
     setWebRtcGlobalMode: record('setWebRtcGlobalMode', { masterEnabled: true }),
     getBakeSnapshot: record('getBakeSnapshot', { config: {} }),
     checkExitIp: record('checkExitIp', { ok: true, changed: false, layers: [], ip: '' }),
+    applyExitIpNow: record('applyExitIpNow', {
+      ok: true,
+      changed: true,
+      layers: ['timezone', 'geolocation'],
+      ip: '203.0.113.9',
+      country: 'United States',
+      timezone: 'America/Los_Angeles',
+      latitude: 34.0522,
+      longitude: -118.2437,
+      language: 'en-US'
+    }),
     getExitIpSyncState: record('getExitIpSyncState', { storedIp: '', lastLocation: null }),
     getPayloadForUrl: record('getPayloadForUrl', { matched: true, payload: { hostname: 'example.com' }, errors: [] }),
     noteDocumentInjected: record('noteDocumentInjected'),
@@ -119,6 +130,26 @@ test('checkExitIpSync 透传 force，并把新配置与状态一起回给配置�
   assert.deepEqual(calls.filter((call) => call.name === 'checkExitIp').at(-1)!.args[0], { force: false });
 });
 
+test('applyFromExitIp 把结果、配置与定位一起回给界面', async () => {
+  installChrome();
+  const { services, calls } = createServices({
+    getSiteConfig: async () => ({ masterEnabled: true, ipSync: { enabled: false, intervalMinutes: 5, syncLanguage: false } }),
+    getExitIpSyncState: async () => ({ storedIp: '', lastLocation: { latitude: 34.0522, longitude: -118.2437, country: 'United States', timezone: 'America/Los_Angeles' } })
+  });
+  const router = createBackgroundMessageRouter(services);
+
+  const response = await router.respond({ action: 'applyFromExitIp' }, {} as any);
+
+  assert.equal(response.status, 'ok');
+  assert.equal(response.outcome.ok, true);
+  assert.equal(response.outcome.ip, '203.0.113.9');
+  assert.equal(response.outcome.timezone, 'America/Los_Angeles');
+  // 界面要靠这几样直接重画表单，省掉再多发一轮 getCurrentTabState
+  assert.ok(response.config, '要把新配置带回去');
+  assert.equal(response.lastLocation.timezone, 'America/Los_Angeles');
+  assert.ok(calls.some((call) => call.name === 'applyExitIpNow'));
+});
+
 test('getExitIpSyncState 只读：返回 ipSync 配置与上次同步状态', async () => {
   installChrome();
   const { services } = createServices({
@@ -189,6 +220,7 @@ test('已知 action 都能路由到对应 service（表驱动，防止新增 act
   const router = createBackgroundMessageRouter(services);
   const requests: Array<Record<string, unknown>> = [
     { action: 'manualUpdate' },
+    { action: 'applyFromExitIp' },
     { action: 'getExtensionState' },
     { action: 'setExtensionEnabled', enabled: true },
     { action: 'getSiteConfig' },

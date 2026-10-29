@@ -210,7 +210,7 @@ test('「跟随出口 IP」开关从头到尾接得上：配置页控件 → 消
   assert.match(services, /async function getExitIpSyncState/, 'services 没有实现 getExitIpSyncState');
   assert.match(services, /async function checkExitIp/, 'services 没有实现 checkExitIp');
   // 开关打开时必须按 auto 提交时区/坐标，否则点一次保存就把 auto 改回手动
-  assert.match(optionsTs, /mode: ipSyncOn \? 'auto'/, 'geolocation 模式没有跟随开关');
+  assert.match(optionsTs, /mode: ipSyncOn \|\| !geoTouched \? 'auto'/, 'geolocation 模式没有跟随开关');
 });
 
 test('配置体检必须真的接到诊断页上，且修法能被点', () => {
@@ -302,4 +302,16 @@ test('SharedWorker 保持原生：声明与 runtime 行为必须一致', () => {
   // 回归脚本必须真的能区分"共享一个实例"与"各建一个"
   assert.match(workers, /connections/);
   assert.match(workers, /shared-counter\.js/);
+});
+
+test('坐标变化时注入层主动叫醒 watchPosition，节奏不是固定心跳', () => {
+  const runtime = read('src/injected/runtime.ts');
+  const geolocation = read('src/injected/geolocation.ts');
+
+  assert.match(runtime, /if \(geolocationActive\) refreshGeolocationWatchPositions\(\)/,
+    'payload 变了以后没人叫醒 watch：页面要等到下一个心跳才知道位置换了');
+  assert.match(geolocation, /export function refreshGeolocationWatchPositions\(\)/);
+  // 固定 setInterval 心跳量两帧就能认出来，改成逐帧重摇的 setTimeout 链
+  assert.doesNotMatch(geolocation, /setInterval\(/, 'watch 不能再用固定间隔的 setInterval');
+  assert.match(geolocation, /2500 \+ Math\.floor\(Math\.random\(\) \* 1700\)/, '默认间隔要落在 2.5–4.2s');
 });

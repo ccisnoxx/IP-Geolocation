@@ -287,6 +287,117 @@ export function planExitIpSync(
   return { ...base, changed: layers.length > 0, config: next, layers };
 }
 
+export interface ExitIpApplyPlan {
+  /** 规划后的完整配置（已归一化） */
+  config: SiteSpoofConfig;
+  /** 这次查到的定位，同样写进 `lastLocation` 供 auto 模式与状态行消费 */
+  location: LastLocation;
+  /** 相对当前配置真正改掉的层 */
+  layers: IpSyncLayer[];
+}
+
+/**
+ * 手动「从 IP 自动配置」的规划：把出口坐标/时区**写死进当前配置**（manual）。
+ *
+ * 和 `planExitIpSync` 的唯一区别是 mode，但这一点决定了按钮看起来是死是活：
+ * 自动同步写的是 `auto`，界面上坐标框永远是空的（auto 档不显示配置里的值），
+ * 于是"点一下没反应"。手动按钮要的是"就按现在这个出口配一次"，点完表单里
+ * 必须立刻出现新的经纬度/时区，所以这里落 `manual`。
+ *
+ * 与自动同步同样的三条底线：不看 `ipSync.enabled`（用户是手点的）、
+ * 不清 `lastSyncedExitIp`（那是自动同步的账本，不许手动改写）、preference
+ * 清了 `activeProfileId`（预设名和实际坐标对不上比空着更容易误导）。
+ */
+export function planExitIpApply(
+  config: Partial<SiteSpoofConfig> | null | undefined,
+  info: ExitIpInfo,
+  options: { now?: number; syncLanguage?: boolean } = {}
+): ExitIpApplyPlan {
+  const normalized = normalizeConfig(config);
+  const location: LastLocation = {
+    latitude: info.latitude,
+    longitude: info.longitude,
+    country: info.country,
+    timezone: info.timezone,
+    timezoneOffset: info.timezoneOffset,
+    updateTime: new Date(options.now === undefined ? Date.now() : options.now).toLocaleString()
+  };
+
+  const layers: IpSyncLayer[] = [];
+
+  const timezone = normalized.globalProfile.timezone;
+  if (timezone.mode !== 'manual' || timezone.timezone !== info.timezone) layers.push('timezone');
+
+  const geolocation = normalized.globalProfile.geolocation;
+  if (geolocation.mode !== 'manual'
+    || geolocation.latitude !== info.latitude
+    || geolocation.longitude !== info.longitude
+    || canonicalCountry(geolocation.country) !== info.country) {
+    layers.push('geolocation');
+  }
+
+  // 按钮文案承诺了「+ 语言」，所以手动路径默认连语言一起改（自动同步才需要
+  // `syncLanguage` 开关兜着，因为它每 N 分钟就可能动一次）。
+  let language = normalized.globalProfile.language;
+  const tag = options.syncLanguage === false || !info.countryCode
+    ? undefined
+    : COUNTRY_LANGUAGES[info.countryCode];
+  if (tag) {
+    const next = normalizeLanguage({
+      ...language,
+      mode: 'preset',
+      acceptLanguage: '',
+      ...languagePatch(tag)
+    });
+    if (next.language !== language.language
+      || next.acceptLanguage !== language.acceptLanguage
+      || next.languages.join(',') !== language.languages.join(',')) {
+      language = next;
+      layers.push('language');
+    }
+  }
+
+  if (normalized.profile.activeProfileId !== null) layers.push('profile');
+
+  const next = normalizeConfig({
+    ...normalized,
+    globalProfile: {
+      language,
+      timezone: { ...timezone, mode: 'manual', timezone: info.timezone },
+      geolocation: {
+        ...geolocation,
+        mode: 'manual',
+        latitude: info.latitude,
+        longitude: info.longitude,
+        country: info.country
+      }
+    },
+    profile: { ...normalized.profile, activeProfileId: null }
+  });
+
+  return { config: next, location, layers };
+}
+
+/**
+ * 手动「从 IP 自动配置」的结果。
+ *
+ * 成功时把关键字段回给界面 —— 弹窗/设置页要拿它写一行「已按出口 IP 配置：
+ * 美国 · America/Los_Angeles · en-US」，否则用户只能靠肉眼比坐标。
+ */
+export type ExitIpApplyOutcome =
+  | {
+    ok: true;
+    changed: boolean;
+    layers: IpSyncLayer[];
+    ip: string;
+    country: string;
+    timezone: string;
+    latitude: number;
+    longitude: number;
+    language: string;
+  }
+  | { ok: false; error: string; frozen?: boolean };
+
 // ---------- 与 chrome.* 解耦的执行层 ----------
 
 export interface ExitIpSyncDeps {
@@ -340,6 +451,31 @@ export function resetExitIpSyncState(): void {
   inFlight = null;
 }
 
+export type ExitIpLookupResult = { info: ExitIpInfo } | { error: string };
+
+/**
+ * 查一次出口归属地：按 `GEO_API_URLS` 顺序打，第一个能解析出坐标+时区的赢。
+ *
+ * 抽成独立函数是因为「跟随出口 IP」（`execute`）和手动「从 IP 自动配置」
+ * （`services.applyExitIpNow`）都得走同一条兜底链 —— 两处各写一遍必然漂移，
+ * 到时候一边能查到一边查不到，用户只会觉得"按钮坏了一个"。
+ */
+export async function lookupExitIp(
+  lookup: (url: string) => Promise<unknown> = (url) => fetchJson(url)
+): Promise<ExitIpLookupResult> {
+  const errors: string[] = [];
+  for (const url of GEO_API_URLS) {
+    try {
+      const info = parseExitIpResponse(await lookup(url));
+      if (info) return { info };
+      errors.push(`${url} no usable exit ip`);
+    } catch (error) {
+      errors.push(`${url} ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return { error: `exit IP lookup failed: ${errors.join(' | ')}` };
+}
+
 async function execute(deps: ExitIpSyncDeps): Promise<ExitIpSyncOutcome> {
   const log = deps.log || ((message: string, error?: unknown) => console.warn(message, error));
   try {
@@ -349,23 +485,12 @@ async function execute(deps: ExitIpSyncDeps): Promise<ExitIpSyncOutcome> {
       return { ok: true, changed: false, skipped: 'sync-disabled', layers: [], ip: '' };
     }
 
-    const lookup = deps.lookup || ((url: string) => fetchJson(url));
-    const errors: string[] = [];
-    let info: ExitIpInfo | null = null;
-    for (const url of GEO_API_URLS) {
-      try {
-        info = parseExitIpResponse(await lookup(url));
-        if (info) break;
-        errors.push(`${url} no usable exit ip`);
-      } catch (error) {
-        errors.push(`${url} ${error instanceof Error ? error.message : String(error)}`);
-      }
+    const looked = await lookupExitIp(deps.lookup || ((url: string) => fetchJson(url)));
+    if ('error' in looked) {
+      log('automatic exit IP sync failed; keeping existing config', looked.error);
+      return { ok: false, error: looked.error };
     }
-    if (!info) {
-      const message = `exit IP lookup failed: ${errors.join(' | ')}`;
-      log('automatic exit IP sync failed; keeping existing config', message);
-      return { ok: false, error: message };
-    }
+    const info = looked.info;
 
     const storedIp = await deps.getStoredIp();
     // 网络请求完成后再读一次配置：这期间用户可能已经关掉开关或改了周期
