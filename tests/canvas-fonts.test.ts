@@ -197,7 +197,7 @@ test('没有原生 measureText 时安静跳过，不抛错', () => {
   assert.deepEqual(installCanvasFontPatches(scope, makeDeps().deps), []);
 });
 
-test('重复安装保持幂等：再装一次仍是同一个函数引用', () => {
+test('底层 installer 再调用会重新包装，重复安装由 runtime 控制', () => {
   const scope: any = { CanvasRenderingContext2D: makeFakeContextClass({}) };
   installCanvasFontPatches(scope, makeDeps().deps);
   const first = scope.CanvasRenderingContext2D.prototype.measureText;

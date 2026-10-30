@@ -38,7 +38,7 @@ test('applyProfileToConfig 应用内置 profile，并保留语言/时区/定位�
   const applied = applyProfileToConfig(base, 'japan');
   assert.equal(applied.profile.activeProfileId, 'japan');
   assert.equal(applied.globalProfile.language.language, 'ja-JP');
-  assert.equal(applied.globalProfile.language.enabled, true);
+  assert.equal(applied.globalProfile.language.enabled, false);
   assert.equal(applied.globalProfile.timezone.timezone, 'Asia/Tokyo');
   assert.equal(applied.globalProfile.timezone.enabled, false);
   assert.equal(applied.globalProfile.geolocation.latitude, 35.6895);

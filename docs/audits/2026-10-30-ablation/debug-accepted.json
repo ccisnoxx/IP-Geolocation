@@ -1,0 +1,25 @@
+{
+  "label": "accepted",
+  "results": [
+    {
+      "name": "debug=false 保持静默且应用 Tokyo",
+      "ok": true
+    },
+    {
+      "name": "debug=true 输出 applied",
+      "ok": true
+    },
+    {
+      "name": "下一次 debug=false 更新时区且不沿用旧日志开关",
+      "ok": true
+    },
+    {
+      "name": "再次 debug=true 恢复日志",
+      "ok": true
+    },
+    {
+      "name": "总关 clear 恢复原生且不输出 applied",
+      "ok": true
+    }
+  ]
+}

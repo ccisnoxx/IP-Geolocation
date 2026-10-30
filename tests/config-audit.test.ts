@@ -196,7 +196,8 @@ test('区域推导：常见组合', () => {
 test('时区偏移与太阳时：数字对得上', () => {
   assert.equal(timezoneOffsetHours('Asia/Shanghai'), 8);
   assert.equal(timezoneOffsetHours('UTC'), 0);
-  assert.equal(timezoneOffsetHours('America/Los_Angeles'), timezoneOffsetHours('America/Los_Angeles'));
+  assert.equal(timezoneOffsetHours('America/Los_Angeles', new Date('2026-01-15T12:00:00Z')), -8);
+  assert.equal(timezoneOffsetHours('America/Los_Angeles', new Date('2026-07-15T12:00:00Z')), -7);
   assert.equal(Number(longitudeOffsetHours(-120).toFixed(1)), -8);
   assert.equal(Number(longitudeOffsetHours(120).toFixed(1)), 8);
 });

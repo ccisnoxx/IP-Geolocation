@@ -1,0 +1,9 @@
+✔ 并发应用等待注册完成；注册失败保留错误且后续同配置应用仍能恢复 (7.62625ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119.505458

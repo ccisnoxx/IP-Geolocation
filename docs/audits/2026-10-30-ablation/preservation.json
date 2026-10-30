@@ -1,0 +1,14 @@
+{
+  "baseline_paths": 267,
+  "unchanged_paths": 264,
+  "changed_paths": [
+    "src/background/services.ts",
+    "src/injected/runtime.ts",
+    "tests/injection-idempotency.test.ts"
+  ],
+  "unexpected_changes": [],
+  "unexpected_new_paths": [],
+  "cached_diff_unchanged": true,
+  "content_bridge_restored": true,
+  "HEAD": "68934c68b3d31ad1537712f44b025966fb0ae033"
+}

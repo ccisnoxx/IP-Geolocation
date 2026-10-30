@@ -20,9 +20,3 @@ export async function applyWebRTCPolicy(config: SiteSpoofConfig): Promise<WebRtc
   }
   return policy;
 }
-
-export async function resetWebRTCPolicy(): Promise<void> {
-  const setting = chrome.privacy?.network?.webRTCIPHandlingPolicy;
-  if (!setting) return;
-  await setting.clear({ scope: 'regular' });
-}

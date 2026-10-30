@@ -1,0 +1,9 @@
+{
+  "task_profile_processes_before_cleanup": [],
+  "removed_task_runtime": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/runtime",
+  "removed_runtime_entries": 23,
+  "removed_bytes": 321355016,
+  "runtime_absent": true,
+  "persona_config_absent": true,
+  "daily_browser_profile_used": false
+}

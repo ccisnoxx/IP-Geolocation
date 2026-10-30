@@ -171,6 +171,13 @@ export function workerPatch(config: WorkerPatchConfig): void {
   const nativeToString = dateProto.toString;
   const nativeGetYear = dateProto.getYear;
   const nativeGetDay = dateProto.getDay;
+  const nativeGetUTCFullYear = dateProto.getUTCFullYear;
+  const nativeGetUTCMonth = dateProto.getUTCMonth;
+  const nativeGetUTCDate = dateProto.getUTCDate;
+  const nativeGetUTCDay = dateProto.getUTCDay;
+  const nativeGetUTCHours = dateProto.getUTCHours;
+  const nativeGetUTCMinutes = dateProto.getUTCMinutes;
+  const nativeGetUTCSeconds = dateProto.getUTCSeconds;
   /** 配置被清空时要把调用原样交还给原生实现（这就是"关补丁"）。 */
   const nativeGetters: Record<string, any> = {
     getFullYear: nativeGetFullYear,
@@ -259,7 +266,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
       formatterZone = live.zone;
     }
     const out: any = {};
-    const parts = formatter.formatToParts(new NativeDate(time));
+    const parts = formatter.formatToParts(time);
     for (let index = 0; index < parts.length; index += 1) {
       const part = parts[index];
       if (part.type !== 'literal') out[part.type] = part.value;
@@ -305,6 +312,21 @@ export function workerPatch(config: WorkerPatchConfig): void {
   const pad = (value: number) => String(value).padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Date() 按规范直接格式化当前时间，不调用页面可改写的原型格式化方法。
+  const formatDate = (time: number): string => {
+    const shifted = wall(time);
+    return `${weekdays[nativeGetUTCDay.call(shifted)]} ${months[nativeGetUTCMonth.call(shifted)]} ${pad(nativeGetUTCDate.call(shifted))} ${nativeGetUTCFullYear.call(shifted)}`;
+  };
+  const formatTime = (time: number): string => {
+    const shifted = wall(time);
+    const offset = offsetAt(time);
+    const sign = offset <= 0 ? '+' : '-';
+    const abs = Math.abs(offset);
+    let label = live.zone;
+    try { label = partsAt(time).timeZoneName || live.zone; } catch { /* ignore */ }
+    return `${pad(nativeGetUTCHours.call(shifted))}:${pad(nativeGetUTCMinutes.call(shifted))}:${pad(nativeGetUTCSeconds.call(shifted))} GMT${sign}${pad(Math.floor(abs / 60))}${pad(abs % 60)} (${label})`;
+  };
 
   const spoofLocale = (locales: any): any => (
     locales === undefined || locales === null ? (live.language || undefined) : locales
@@ -416,21 +438,13 @@ export function workerPatch(config: WorkerPatchConfig): void {
     putValue(dateProto, 'toDateString', wrap(function (this: any) {
       if (!live.zone) return nativeToDateString.call(this);
       if (this.getTime() !== this.getTime()) return 'Invalid Date';
-      const shifted = wall(this.getTime());
-      return `${weekdays[shifted.getUTCDay()]} ${months[shifted.getUTCMonth()]} ${pad(shifted.getUTCDate())} ${shifted.getUTCFullYear()}`;
+      return formatDate(this.getTime());
     }, 'toDateString'), true);
 
     putValue(dateProto, 'toTimeString', wrap(function (this: any) {
       if (!live.zone) return nativeToTimeString.call(this);
       if (this.getTime() !== this.getTime()) return 'Invalid Date';
-      const time = this.getTime();
-      const shifted = wall(time);
-      const offset = offsetAt(time);
-      const sign = offset <= 0 ? '+' : '-';
-      const abs = Math.abs(offset);
-      let label = live.zone;
-      try { label = partsAt(time).timeZoneName || live.zone; } catch { /* ignore */ }
-      return `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())} GMT${sign}${pad(Math.floor(abs / 60))}${pad(abs % 60)} (${label})`;
+      return formatTime(this.getTime());
     }, 'toTimeString'), true);
 
     putValue(dateProto, 'toString', wrap(function (this: any) {
@@ -438,7 +452,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
       // 非法日期必须整体返回 'Invalid Date'；拼两个子串会得到
       // "Invalid Date Invalid Date"，真机不会这么输出。
       if (this.getTime() !== this.getTime()) return 'Invalid Date';
-      return `${(dateProto as any).toDateString.call(this)} ${(dateProto as any).toTimeString.call(this)}`;
+      return `${formatDate(this.getTime())} ${formatTime(this.getTime())}`;
     }, 'toString'), true);
 
     // toLocale* 一族同时受语言与时区影响，两样都空时原样透传
@@ -492,8 +506,12 @@ export function workerPatch(config: WorkerPatchConfig): void {
   // 有配置时按目标时区解释多参数 / 无时区标记的字符串。
   {
     const SpoofedDate = function (this: any, ...args: any[]) {
-      if (!live.zone) return Reflect.construct(NativeDate, args, new.target || NativeDate);
-      if (!new.target) return nativeToString.call(new NativeDate());
+      if (!new.target) {
+        if (!live.zone) return NativeDate();
+        const now = NativeDate.now();
+        return `${formatDate(now)} ${formatTime(now)}`;
+      }
+      if (!live.zone) return Reflect.construct(NativeDate, args, new.target);
       // Reflect.construct 保留 new.target：`class D extends Date {}; new D() instanceof D`
       // 才能是 true（早先直接 `new NativeDate()` 会把子类的原型丢掉）
       const target: any = new.target;

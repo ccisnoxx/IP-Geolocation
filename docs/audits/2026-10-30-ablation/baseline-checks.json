@@ -1,0 +1,20 @@
+[
+  {
+    "name": "baseline-build",
+    "exit_code": 0,
+    "seconds": 1.4,
+    "log": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/baseline-build.log"
+  },
+  {
+    "name": "baseline-lint",
+    "exit_code": 0,
+    "seconds": 0.89,
+    "log": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/baseline-lint.log"
+  },
+  {
+    "name": "baseline-coverage",
+    "exit_code": 0,
+    "seconds": 7.33,
+    "log": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/baseline-coverage.log"
+  }
+]

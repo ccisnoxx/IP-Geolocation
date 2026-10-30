@@ -63,14 +63,13 @@ test('legacy VanishMe storage key is confined to migration code', () => {
   const files = [
     'src/shared/config-model.ts',
     'src/shared/config-resolver.ts',
-    'src/shared/storage.ts',
     'src/content/content.ts',
     'src/popup/popup.ts',
     'src/options/options.ts',
     'src/background/services.ts'
   ];
   const offenders = files
-    .filter((file) => !file.includes('config-') && file !== 'src/shared/storage.ts')
+    .filter((file) => !file.includes('config-'))
     .filter((file) => read(file).includes('bpg_config'));
   assert.deepEqual(offenders, []);
 });
@@ -108,7 +107,7 @@ test('注入层补丁必须自包含：产物里不能出现打包器注入的�
   assert.doesNotMatch(bundle, /^\s*import\s/m, 'injected/runtime.js 必须是经典脚本');
 });
 
-test('payload 通道是私有 MessagePort，不再经 window.postMessage 广播', () => {
+test('payload 经 MessagePort 投递，window 消息只承担握手接线', () => {
   const runtime = read('dist/injected/runtime.js');
   const content = read('dist/content/content.js');
   const services = read('src/background/services.ts');
@@ -120,7 +119,7 @@ test('payload 通道是私有 MessagePort，不再经 window.postMessage 广播'
   assert.match(content, /window\.postMessage\(\{ __vanishGeo: "handshake" \}, "\*", \[channel\.port2\]\)/);
   assert.match(content, /new MessageChannel\(\)/);
   assert.match(content, /postMessage\([^)]*\[[^\]]*port2[^\]]*\]/);
-  // 握手同步发出：document_start 时页面还没有监听器
+  // 接线检查不等于身份认证；页面可构造握手，nonce 也不是秘密。
   assert.doesNotMatch(content, /setTimeout\(\s*handshake\s*,/);
 
   // runtime 收下端口后立刻摘掉 window 监听器，之后没有可观测的握手
@@ -131,8 +130,6 @@ test('payload 通道是私有 MessagePort，不再经 window.postMessage 广播'
   // 后台推 payload 走 tabs.sendMessage → ISOLATED 桥 → 端口
   assert.match(services, /chrome\.tabs\.sendMessage\(tabId, message\)/);
   assert.match(services, /payload === null[\s\S]{0,80}clear: true/);
-  // 排除站点 / 关总开关时桥必须收到 clear，否则烘焙值会一直留在页面上
-  assert.match(services, /clearUnmatched: true/);
 });
 
 test('不透明来源的 iframe 也注入（否则 srcdoc 里能读到原生对象）', () => {
@@ -249,11 +246,11 @@ test('发布流水线接得上：npm 脚本、校验工具、三道闸都在', (
   assert.match(verify, /host-resolver-rules/, '要把包里的域名指到本地');
 });
 
-test('不透明框架（about:blank / srcdoc）用 referrer 解析 payload', () => {
+test('不透明框架保留旧后台地址提示，MAIN 经典脚本保持自包含', () => {
   const content = read('src/content/content-bridge.ts');
+  // 仅检查兼容提示；后台授权不采用自报 URL，由 message-router 行为测试验证。
   assert.match(content, /resolvePayloadUrl\(environment\.window\.location\.href, environment\.document\.referrer\)/);
-  assert.match(content, /url: payloadUrl\(\)/);
-  assert.doesNotMatch(content, /url: environment\.window\.location\.href/);
+  assert.match(content, /action: 'getPayloadForUrl', url: payloadUrl\(\)/);
 
   // runtime 与 content 同时 import shared/frame-url 会抽出共享 chunk，
   // 而 MAIN world 的经典脚本不能有 import —— 所以 runtime 保持自包含。

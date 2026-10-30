@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Opaque navigation HTTP destination</title>
+<script src="/fixtures/opaque/probe.js"></script>
+<body>
+<script>
+  const params = new URLSearchParams(location.search);
+  opaqueProbe({ kind: params.get('kind'), generation: Number(params.get('generation')) });
+</script>

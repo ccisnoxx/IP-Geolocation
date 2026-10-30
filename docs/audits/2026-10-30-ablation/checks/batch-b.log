@@ -1,0 +1,145 @@
+✔ v4 存量配置升级后拿到 7 个检测站，且原有顺序不变 (0.966ms)
+✔ 检测站能被后缀匹配命中，也能被排除式挖掉 (0.548584ms)
+✔ 用户删掉的检测站不会在下次读取时复活（幂等） (0.480333ms)
+✔ 没有版本号的最老配置也按存量处理 (0.251167ms)
+✔ 内置预设同样回填：v4 存盘拿到了 us-west (0.417459ms)
+✔ 用户自定义的预设不会被冲掉，也不会被删 (0.297ms)
+✔ 新配置（v5）一条都不加：迁移只对旧版本生效 (0.125208ms)
+✔ 迁移后的配置能过 validateConfig，且白名单不与内置项重复 (0.316917ms)
+✔ 两个静态清单不许各写一份：JSON 里的站必须都在默认规则里 (0.059334ms)
+✔ 存储层入口 migrateLegacyConfig 走同一条升级路 (0.214083ms)
+✔ 同一份存量配置读两次，规则 id 与整体签名都必须一样 (0.242417ms)
+✔ runtime 的脚本注入按 documentId 去重：同一个文档只执行一次 (12.080584ms)
+✔ 内容脚本上报过 documentId 后，冷启动兜底不会再执行脚本 (1.688292ms)
+✔ 拿不到 documentId 时宁可少装一次，也不重复执行 (1.786917ms)
+✔ 保存配置不触发 IP 定位，重复保存也不重复应用副作用 (1.797ms)
+✔ bootstrap 只在配置真的需要出口坐标时才发定位请求 (12.0575ms)
+✔ configNeedsLocation 能区分 auto 与手填 (0.400542ms)
+✔ 禁用一条规则会保留它，并且只重载该域下的标签页 (2.306417ms)
+✔ 排除之后该站点不再收到 payload，相邻子域照常 (1.776208ms)
+✔ 关闭总开关会给已开标签页下发 clear，重新打开后恢复 payload (1.822833ms)
+✔ 删除规则同样重载受影响标签页，规则真的消失 (3.844333ms)
+✔ 慢读返回的旧快照不许写回缓存：失效之后必须读到保存后的配置 (41.94875ms)
+✔ 改语言重载命中的已打开页面（文档请求头要对齐），只改时区不重载 (1.131042ms)
+✔ 内存快照跟着存储走：保存后立刻读到新值，lastLocation 写入也能看见 (3.848208ms)
+✔ 定位未解析时匹配域名置为 block，解析成功后切回 allow (3.480417ms)
+✔ payload 按 frame 精确投递：独立子域规则不会被父页覆盖 (0.721875ms)
+✔ 不透明 iframe（about:blank/srcdoc）回退到最近的父 frame URL 解析 (1.665459ms)
+✔ 嵌套不透明 frame 沿父链解析，blob/data 也不会越界 (0.592167ms)
+✔ webNavigation 不可用时退回广播，桥仍会用 hostname 拒绝父页 payload (0.306291ms)
+VanishGeo could not resolve frame rules: content parent document chain is unavailable
+VanishGeo could not install runtime in tab 7: main inject failed
+VanishGeo could not deliver payload to tab 7: no receiver
+✔ 多 frame 投递有并发上限，且每个 frame 都收到自己的消息 (77.550708ms)
+✔ parseGeoApiResponse 覆盖新的 API 形态和空响应 (0.226833ms)
+✔ fetchJson 成功返回 JSON，失败时抛出网络错误 (0.35025ms)
+✔ configNeedsLocation 只对 auto 且确实缺定位的配置返回 true (0.144583ms)
+✔ getSiteConfig 首次种子、缓存和 invalidate 行为 (0.212917ms)
+✔ getLastLocation 缓存 null 与对象，并在失效后重读 (0.069042ms)
+✔ reportFontLayers / getFontLayers 处理非法输入、平台值与容量上限 (0.284541ms)
+✔ getExtensionState / setWebRtcGlobalMode / 非法保存 (3.264792ms)
+✔ getCurrentTabState 无 URL / 有 URL，getPayloadForUrl 覆盖空 URL (0.313541ms)
+✔ Worker 包装失败被记录、聚合，并按 hostname 出现在标签页状态里 (0.323416ms)
+✔ 非法 url / 空回报不会污染记录表 (0.067958ms)
+✔ refreshActionBadge 覆盖 broken / active / 非白名单标签页 (0.262833ms)
+✔ openDiagnosticPage 和 reloadAffectedTabs 的边界 (0.094791ms)
+✔ loadInjectedDocuments 会话不可用 / 历史 documentId 去重 (4.811625ms)
+✔ reportFontLayers / getFontLayers 的空 URL、非法层和自动平台分支 (0.0575ms)
+✔ syncTab 跳过非 http、无 webNavigation、frames 报错和不可脚本 frame (4.508291ms)
+✔ runtime 注入失败只记录 warning，不阻断 payload 投递 (0.151334ms)
+✔ pushPayload 投递失败不抛出，clear 失败也不抛出 (2.415625ms)
+✔ updateGeolocation 覆盖 disabled / 非强制不需要 / API 全失败 (0.756875ms)
+✔ 定位回来得晚时用此刻的配置重算，不把用户这几秒里的保存盖回去 (1.689083ms)
+✔ frozen 烘焙配置让保存完全无效 (0.106291ms)
+✔ 注册内容脚本：无匹配时注销、Duplicate 回退 update、已存在时 update (4.558459ms)
+✔ 并发应用等待注册完成；注册失败保留错误且后续同配置应用仍能恢复 (2.441875ms)
+✔ 没有内容脚本 API 时注册直接跳过 (1.893958ms)
+✔ updateGeolocation 读取配置抛错时记录错误并返回失败 (0.119417ms)
+✔ refreshActionBadge 在 tabs.query 失败时静默跳过 (0.099625ms)
+✔ reloadAffectedTabs 跳过非法 URL，reload 抛错也不传播 (0.072166ms)
+✔ addDomainRule 走新建规则分支 (2.165417ms)
+✔ getExitIpSyncState 只读：给出上次同步 IP 与定位，且不发起任何定位请求 (0.080833ms)
+✔ getExitIpSyncState 在没同步过时给出空 IP 与 null 定位 (0.038291ms)
+automatic exit IP sync failed; keeping existing config exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip | https://ipinfo.io/json no usable exit ip
+automatic exit IP sync failed; keeping existing config exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip | https://ipinfo.io/json no usable exit ip
+automatic exit IP sync failed; keeping existing config exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip | https://ipinfo.io/json no usable exit ip
+✔ 开着跟随时 bootstrap 只打一轮归属地接口（不再 updateGeolocation + checkExitIp 各打一次） (29.192959ms)
+✔ 定位接口全挂：返回 ok:false 并把原因写进 lastGeoError (0.167041ms)
+✔ 定位结果和存量一致时报 unchanged，不重复写 storage (1.361334ms)
+✔ IP 接口给不出 ip 时 bootstrap 回退到常规定位（至少把坐标补上） (3.516958ms)
+✔ 规则域名为空时明确抛错，不静默建一条空规则 (0.117917ms)
+✔ 关掉跟随开关时把定时器清掉（宿主有 chrome.alarms 的路径） (3.986458ms)
+✔ applyExitIpNow 真的改写配置（不是只刷 lastLocation） (2.156917ms)
+✔ applyExitIpNow 查不到出口时返回错误，配置原样不动 (0.111292ms)
+✔ 定位权限的 clear 只传 scope：不再把 primaryPattern 塞给 Chrome API (0.364542ms)
+✔ clear 被拒时账本一个字节都不动（不许谎称已撤销） (0.449667ms)
+✔ 被排除的中间子域在权限层退回 ask，不被父域的 allow 盖住 (0.246959ms)
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: unsupported content document URL
+VanishGeo could not resolve frame rules: unsupported parent document URL
+✔ 导航列表漏掉 blob 时仍更新 blob 与 data 子文档，按 documentId 投递并保留最近 HTTP 的独立规则 (1.672125ms)
+✔ blob 发现列表不证明父关系：精确探测未知、无父或失败时不把顶层规则投给 blob/data (0.793959ms)
+✔ 已知导航父链含未知 scheme 时，opaque 子文档不越过它采用顶层规则 (0.156208ms)
+VanishGeo could not resolve frame rules: content document is absent from browser frame snapshot
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+✔ services 共用已证实父边：BFCache 漏掉 data/nesteddata 后仍按 documentId 投递最新配置 (0.6185ms)
+✔ 从未证实的 opaque 文档只收到精确 refresh，无配置；总开关关闭后仍收到强制 clear (0.245292ms)
+✔ 119 BFCache 发现 API 仅列顶层时，成功解析过的 blob/data 均按精确文档更新；切换顶层不遍历冻结身份 (0.574791ms)
+✔ SW 新 services 无发现缓存时仍通知 opaque 自拉，文档凭证恢复后使用当前配置 (0.503333ms)
+✔ getPayloadForUrl 仅按浏览器 sender URL 解析并保留同文档记账 (0.936208ms)
+✔ reportFontLayers 始终按 sender URL 归属，忽略消息自报地址 (0.107167ms)
+✔ setSiteConfig 把空对象交给保存层，applyProfile 先读再写 (0.294542ms)
+✔ checkExitIpSync 透传 force，并把新配置与状态一起回给配置页 (0.195333ms)
+✔ applyFromExitIp 把结果、配置与定位一起回给界面 (0.113958ms)
+✔ getExitIpSyncState 只读：返回 ipSync 配置与上次同步状态 (0.080291ms)
+✔ getWebRtcConfig 返回规范化配置和生效策略 (0.067833ms)
+✔ getCurrentTabState 传 tabId 时按该标签页算，否则取当前活动标签页 (0.09575ms)
+✔ openOptions 调 chrome.runtime.openOptionsPage (0.204791ms)
+✔ 未知 action 抛错，由 service worker 统一转成 error response (0.521792ms)
+✔ 已知 action 都能路由到对应 service（表驱动，防止新增 action 漏接） (0.606208ms)
+✔ 同扩展 ID 的网页调用方只能访问三种 content 动作，特权动作零副作用 (0.536667ms)
+✔ 外部或缺失 ID、伪扩展地址、未知扩展页和不兼容 origin 全部拒绝 (0.365083ms)
+✔ popup/options/leak-test 含 tab 的可信扩展页保留特权，query/hash 不影响白名单 (0.107584ms)
+✔ content 必须具备浏览器 tab/frame/document 身份，消息自报字段不能补齐 (1.020625ms)
+✔ content 的三种动作只按 sender URL 归属，只有 payload 拉取按 sender documentId 记账 (0.121625ms)
+✔ opaque 文档逐级证明父 documentId 并继承最近 HTTP 父规则，不采用自报或创建者域 (5.801541ms)
+✔ opaque 链缺失、断链、换文档、无父、循环、未知父 scheme 或 API 失败均抛错且零 service 副作用 (1.175209ms)
+✔ Chrome 缺失 blob 导航快照时，blob sender 与 data 子文档均按精确父探测继承最近 HTTP 规则 (1.22875ms)
+✔ 缺失 blob 的精确探测为空、身份变化、非 blob、未知父或抛错时，三种 content 动作均零 service 副作用 (0.999ms)
+✔ 缺失非 blob sender 或缺少 parentDocumentId 的链路不能触发 blob 探测 (0.127709ms)
+✔ BFCache 仅剩顶层快照时，同 frame/document 的已证实 data 父边可恢复并重新探测 blob (0.803042ms)
+✔ 新导航快照与同文档已证实父边冲突时拒绝，不沿旧父或新父解析 (0.279375ms)
+✔ 父链解析失败不留下可供缺失快照复用的 data 父边 (0.092708ms)
+✔ Chrome119 合法 blob 端点为三种 content 动作提供父证据，消息自报身份与父地址无效 (0.530167ms)
+✔ Chrome119 端点缺失、错误、SOP 或无效父证据时三个 content 动作均拒绝且零副作用 (2.002916ms)
+✔ Chrome119 回退不会挽救成功但无效的 executeScript 结果，router 三动作仍零副作用 (0.819ms)
+✔ readBlobParent 不新增背景权限，未认证或自报身份调用方不能触发 Chrome119 父查询 (0.169ms)
+✔ Chrome119 已证实 data 父边可在快照缺失后恢复，但每次重读 blob 且端点失败零副作用 (1.05375ms)
+✔ Chrome119 端点失败不缓存未经证明的 data 父边或 blob 发现身份 (0.157958ms)
+✔ 新 services 从文档私有 receipt 恢复 root 与嵌套 data 后，三种 content 动作仍只采用浏览器父规则 (0.714ms)
+✔ 文档 receipt 损坏、身份不符或协议未知时，三个 content 动作拒绝且零业务副作用 (2.715292ms)
+✔ session 密钥 read、set 或 quota 失败使三个 content 动作明确失败，不能发布内存父边或执行业务 (0.50025ms)
+✔ 新 services 也拒绝文档 receipt 父边与当前导航父文档冲突，三个 content 动作零业务副作用 (0.88425ms)
+✔ 关 tab 时尚未完成的 session 密钥提交不能发布 receipt、记账或投递 payload (0.280583ms)
+✔ getPayloadForUrl 必须等待目标文档确认 receipt，响应只带相同凭证而不暴露会话密钥 (0.220625ms)
+✔ 请求体即使携带真实签名 receipt，也不能替代精确目标文档的私有证明 (0.214958ms)
+✔ receipt 写入确认缺失、无效或拒绝时，三种 content 动作零业务副作用且不留下可恢复父边 (1.741042ms)
+✔ 已有会话密钥损坏时不能重置密钥或签发 receipt，三个 content 动作零业务副作用 (0.786292ms)
+✔ 关 tab 时尚未返回的 receipt ACK 不能发布父边、记账或投递 payload (0.328584ms)
+ℹ tests 117
+ℹ suites 0
+ℹ pass 117
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 340.156333

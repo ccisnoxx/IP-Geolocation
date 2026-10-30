@@ -41,10 +41,10 @@ export async function fetchJson(url: string, timeoutMs = GEO_FETCH_TIMEOUT_MS): 
  * 两个坑：
  * 1. `data.latitude && data.longitude` 会把**合法的 0** 当成缺失（赤道 / 本初子午线）；
  * 2. `Number(null)` / `Number('')` 都是 0，缺字段反而会被当成"坐标在几内亚湾"。
- * 所以先显式排除 null / undefined / 空串，再校验范围。
+ * 所以只接受数字或非空数字字符串，再校验范围；布尔和数组不能强转成坐标。
  */
 function toCoordinate(value: unknown, limit: number): number | null {
-  if (value === null || value === undefined) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
   if (typeof value === 'string' && value.trim() === '') return null;
   const numeric = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(numeric) || Math.abs(numeric) > limit) return null;

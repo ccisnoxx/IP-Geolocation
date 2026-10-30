@@ -1,0 +1,18 @@
+✔ 文档里没有真实 IP 和个人绝对路径 (1.504208ms)
+✔ 文档描述的是现行匹配模型：域名规则 + 排除，没有通配符和三模式 (0.428084ms)
+✔ 文档里引用的本地文件都存在 (0.52975ms)
+✔ 品牌统一：除迁移说明与上游署名外不出现旧名 (0.397625ms)
+✔ CI 跑 typecheck + lint + 单测，release 显式声明 contents: write (0.39675ms)
+✔ 横幅：PNG 与 SVG 源文件尺寸一致，README 引用的是渲染结果 (1.511375ms)
+✔ 横幅里不残留旧字标 (0.111959ms)
+✔ 核心覆盖率门禁按文件检查分支且阈值是 85% (0.081459ms)
+✔ nightly 自动安装 Chrome 119 并跑浏览器审计 (0.352792ms)
+✔ 新增 preset / 冷启动 / popup 浏览器检查已接入 audit 与 npm scripts (0.259709ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56.50175

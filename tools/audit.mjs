@@ -65,17 +65,17 @@ const STATIC_CHECKS = [
     run: () => spawnSync(process.execPath, [join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), '--noEmit'], { cwd: ROOT, encoding: 'utf8', timeout: TIMEOUT })
   },
   {
+    id: 'build',
+    label: '构建',
+    run: () => spawnSync(process.execPath, [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], { cwd: ROOT, encoding: 'utf8', timeout: TIMEOUT })
+  },
+  {
     id: 'unittest',
     label: '单元测试',
     run: () => {
       const files = readdirSync(join(ROOT, 'tests')).filter((name) => name.endsWith('.test.ts')).map((name) => join('tests', name));
       return spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--test', ...files], { cwd: ROOT, encoding: 'utf8', timeout: TIMEOUT });
     }
-  },
-  {
-    id: 'build',
-    label: '构建',
-    run: () => spawnSync(process.execPath, [join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], { cwd: ROOT, encoding: 'utf8', timeout: TIMEOUT })
   }
 ];
 
@@ -83,6 +83,8 @@ const CHECKS = [
   { id: 'options', label: 'options 页端到端', script: 'tools/smoke-options.mjs', args: [] },
   { id: 'failclosed', label: '定位失败可见性', script: 'tools/smoke-failclosed.mjs', args: [] },
   { id: 'frames', label: 'frame 隔离', script: 'tools/smoke-frames.mjs', lateArgs: () => ['--extension=' + extensionPath] },
+  { id: 'opaque', label: 'opaque 导航 / BFCache', script: 'tools/smoke-opaque-frames.mjs', lateArgs: () => ['--extension=' + extensionPath] },
+  { id: 'opaquerecovery', label: 'opaque SW / 淘汰恢复', script: 'tools/smoke-opaque-recovery.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'bakedfailclosed', label: '烘焙 fail-closed', script: 'tools/smoke-baked-failclosed.mjs', lateArgs: () => ['--extension=' + extensionPath] },
   { id: 'bakedclear', label: '烘焙 clear / frozen', script: 'tools/smoke-baked-clear.mjs', args: [] },
   { id: 'presets', label: '内置 preset 浏览器 E2E', script: 'tools/smoke-presets.mjs', args: [] },
@@ -103,7 +105,16 @@ const CHECKS = [
 const wanted = (value, allowed) => (value === undefined || value === true ? allowed : String(value).split(',').map((item) => item.trim()));
 const engineIds = wanted(argv.engines, ENGINES.map((item) => item.id));
 const ALL_CHECK_IDS = [...CHECKS.map((item) => item.id), ...STATIC_CHECKS.map((item) => item.id)];
-const checkIds = wanted(argv.only, ALL_CHECK_IDS).filter((id) => !wanted(argv.skip, []).includes(id));
+const skippedIds = wanted(argv.skip, []);
+const checkIds = wanted(argv.only, ALL_CHECK_IDS).filter((id) => !skippedIds.includes(id));
+// 单测读取 dist，单独选择时也要补齐构建；显式跳过依赖属于参数冲突。
+if (checkIds.includes('unittest') && !checkIds.includes('build')) {
+  if (skippedIds.includes('build')) {
+    console.error('audit 参数有冲突：unittest 需要 build，但 --skip 把它排除了');
+    process.exit(2);
+  }
+  checkIds.push('build');
+}
 
 const engines = ENGINES.filter((item) => engineIds.includes(item.id) && existsSync(item.path));
 const checks = CHECKS.filter((item) => checkIds.includes(item.id));
@@ -112,24 +123,20 @@ if (!checks.length && !staticChecks.length) {
   console.error('没有要跑的检查项');
   process.exit(2);
 }
-// 只跑静态项时不要求浏览器在场
-if (!checks.length && argv.engines !== undefined) {
-  console.error('没有可用的浏览器（Chrome / Helium 都不在默认路径）');
-  process.exit(2);
-}
+// 只跑静态项时不要求浏览器在场。
 if (checks.length && !engines.length) {
   console.error('没有可用的浏览器（Chrome / Helium 都不在默认路径）');
   process.exit(2);
 }
 
 const extensionPath = join(homedir(), '.vanishgeo', 'profiles', PERSONA, 'ext');
-if (!argv['no-build'] && existsSync(join(ROOT, 'scripts', 'build-persona.mjs'))) {
+if (checks.length && !argv['no-build'] && existsSync(join(ROOT, 'scripts', 'build-persona.mjs'))) {
   process.stdout.write(`准备 ${PERSONA} 烘焙构建 … `);
   const build = spawnSync(process.execPath, ['scripts/build-persona.mjs', `--persona=${PERSONA}`], { cwd: ROOT, encoding: 'utf8' });
   console.log(build.status === 0 ? '完成' : `失败\n${build.stderr || build.stdout}`);
   if (build.status !== 0) process.exit(2);
 }
-if (!existsSync(join(extensionPath, 'manifest.json'))) {
+if (checks.length && !existsSync(join(extensionPath, 'manifest.json'))) {
   console.error(`找不到扩展构建：${extensionPath}`);
   process.exit(2);
 }
@@ -157,7 +164,7 @@ function run(check, engine) {
   const passed = match ? Number(match[1]) : 0;
   const total = match ? Number(match[2]) : 0;
   return {
-    ok: !timedOut && passed === total && total > 0,
+    ok: result.status === 0 && !result.signal && !result.error && passed === total && total > 0,
     passed,
     total,
     skipped: skippedMatch ? Number(skippedMatch[1]) : 0,

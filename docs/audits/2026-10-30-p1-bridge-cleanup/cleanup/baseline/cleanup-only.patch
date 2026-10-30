@@ -1,0 +1,438 @@
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-model.ts b/src/shared/config-model.ts
+index e5f4cf3..99466f7 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-model.ts
++++ b/src/shared/config-model.ts
+@@ -90,34 +90,6 @@ export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
+   value: null
+ };
+ 
+-export const LANGUAGE_PRESETS = [
+-  { label: 'English (Singapore)', language: 'en-SG', languages: ['en-SG', 'en-US', 'en'], acceptLanguage: 'en-SG,en-US;q=0.9,en;q=0.8' },
+-  { label: 'English (US)', language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
+-  { label: 'English (UK)', language: 'en-GB', languages: ['en-GB', 'en'], acceptLanguage: 'en-GB,en;q=0.9' },
+-  { label: 'Chinese (Simplified)', language: 'zh-CN', languages: ['zh-CN', 'zh', 'en'], acceptLanguage: 'zh-CN,zh;q=0.9,en;q=0.8' },
+-  { label: 'Chinese (Traditional)', language: 'zh-TW', languages: ['zh-TW', 'zh', 'en'], acceptLanguage: 'zh-TW,zh;q=0.9,en;q=0.8' },
+-  { label: 'Japanese', language: 'ja-JP', languages: ['ja-JP', 'ja', 'en'], acceptLanguage: 'ja-JP,ja;q=0.9,en;q=0.8' },
+-  { label: 'Korean', language: 'ko-KR', languages: ['ko-KR', 'ko', 'en'], acceptLanguage: 'ko-KR,ko;q=0.9,en;q=0.8' },
+-  { label: 'German', language: 'de-DE', languages: ['de-DE', 'de', 'en'], acceptLanguage: 'de-DE,de;q=0.9,en;q=0.8' },
+-  { label: 'French', language: 'fr-FR', languages: ['fr-FR', 'fr', 'en'], acceptLanguage: 'fr-FR,fr;q=0.9,en;q=0.8' }
+-] as const;
+-
+-export const TIMEZONE_PRESETS = [
+-  'UTC',
+-  'America/Los_Angeles',
+-  'America/New_York',
+-  'America/Chicago',
+-  'Europe/London',
+-  'Europe/Berlin',
+-  'Europe/Paris',
+-  'Asia/Shanghai',
+-  'Asia/Hong_Kong',
+-  'Asia/Tokyo',
+-  'Asia/Seoul',
+-  'Asia/Singapore',
+-  'Australia/Sydney'
+-];
+-
+ /**
+  * 内置预设：只留三个常用出口。
+  *
+@@ -619,11 +591,3 @@ export function getTimezoneOffsetMinutes(timezone: string, dateInput?: Date | st
+     return null;
+   }
+ }
+-
+-export function formatTimezoneOffsetMinutes(offset: number | null): string | null {
+-  if (!Number.isFinite(Number(offset))) return null;
+-  const normalized = Number(offset);
+-  const sign = normalized <= 0 ? '+' : '-';
+-  const abs = Math.abs(normalized);
+-  return `GMT${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+-}
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-resolver.ts b/src/shared/config-resolver.ts
+index a4898ec..cc834e4 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-resolver.ts
++++ b/src/shared/config-resolver.ts
+@@ -259,16 +259,6 @@ export function getExcludedDomainsFor(domain: string, excludedDomains: string[])
+   return excludedDomains.filter((excluded) => excluded !== domain && excluded.endsWith(`.${domain}`));
+ }
+ 
+-export function isUrlMatchedByEnabledRule(config: Partial<SiteSpoofConfig>, url: string): boolean {
+-  const normalized = normalizeConfig(config);
+-  if (!normalized.masterEnabled) return false;
+-  const hostname = parseHostname(url);
+-  if (!hostname) return false;
+-
+-  const { rule, excluded } = resolveRuleMatch(normalized, hostname);
+-  return Boolean(rule) && !excluded;
+-}
+-
+ function resolveSignal<T extends { enabled: boolean }>(
+   globalValue: T,
+   override: SignalOverride<Partial<T>>,
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts b/src/shared/diagnostic.ts
+index e8d6cb6..edeaf85 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts
++++ b/src/shared/diagnostic.ts
+@@ -1,119 +1,6 @@
+ import { WORKER_COVERAGE, WORKER_FALLBACK_REASON_LABELS } from './worker-coverage';
+ import type { WorkerCoverageKey, WorkerFallbackSummary } from './worker-coverage';
+ 
+-export const REQUEST_HEADER_PROBE_SOURCES = {
+-  browserleaks_ip: 'browserleaks.com/ip',
+-  httpbin_headers: 'httpbin.org/headers',
+-  httpbingo_headers: 'httpbingo.org/headers'
+-} as const;
+-
+-function stripHtml(value: string): string {
+-  return String(value || '')
+-    .replace(/<[^>]*>/g, ' ')
+-    .replace(/\s+/g, ' ')
+-    .trim();
+-}
+-
+-function normalizeObservedHeaderValue(value: unknown): string | null {
+-  if (Array.isArray(value)) {
+-    const items = value.map((item) => String(item || '').trim()).filter(Boolean);
+-    return items.length ? items.join(', ') : null;
+-  }
+-  const normalized = String(value || '').trim();
+-  return normalized || null;
+-}
+-
+-function unsupportedRequestHeaderProbe() {
+-  return {
+-    status: 'unsupported',
+-    source: null,
+-    observedAcceptLanguage: null,
+-    message: `Unsupported page. Open ${REQUEST_HEADER_PROBE_SOURCES.browserleaks_ip}, ${REQUEST_HEADER_PROBE_SOURCES.httpbin_headers}, or ${REQUEST_HEADER_PROBE_SOURCES.httpbingo_headers}.`
+-  };
+-}
+-
+-function parseBrowserleaksAcceptLanguage(html: string): string | null {
+-  const tbodyMatch = String(html || '').match(/<tbody[^>]*id=(["'])headers\1[^>]*>([\s\S]*?)<\/tbody>/i);
+-  if (!tbodyMatch) return null;
+-
+-  const rowRegex = /<tr[^>]*>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+-  let match: RegExpExecArray | null = null;
+-  while ((match = rowRegex.exec(tbodyMatch[2]))) {
+-    if (stripHtml(match[1]).toLowerCase() !== 'accept-language') continue;
+-    return normalizeObservedHeaderValue(stripHtml(match[2]));
+-  }
+-  return null;
+-}
+-
+-function parseJsonHeaderEchoAcceptLanguage(text: string): string | null {
+-  if (!String(text || '').trim()) return null;
+-  let parsed: any = null;
+-  try {
+-    parsed = JSON.parse(String(text));
+-  } catch {
+-    return null;
+-  }
+-  const headers = parsed && typeof parsed === 'object' ? parsed.headers : null;
+-  if (!headers || typeof headers !== 'object') return null;
+-  const key = Object.keys(headers).find((name) => String(name).toLowerCase() === 'accept-language');
+-  return key ? normalizeObservedHeaderValue(headers[key]) : null;
+-}
+-
+-export function buildRequestHeaderProbe(input: { url?: string; html?: string; bodyText?: string }) {
+-  const url = input && input.url ? String(input.url) : '';
+-  let parsedUrl: URL;
+-  try {
+-    parsedUrl = new URL(url);
+-  } catch {
+-    return unsupportedRequestHeaderProbe();
+-  }
+-
+-  const hostname = parsedUrl.hostname.toLowerCase();
+-  const pathname = parsedUrl.pathname;
+-  if (hostname === 'browserleaks.com' && pathname === '/ip') {
+-    const observed = parseBrowserleaksAcceptLanguage(input.html || '');
+-    return observed
+-      ? { status: 'ok', source: 'browserleaks_ip', observedAcceptLanguage: observed, message: 'Parsed browserleaks.com/ip headers.' }
+-      : { status: 'parse_error', source: 'browserleaks_ip', observedAcceptLanguage: null, message: 'Could not parse browserleaks.com/ip headers.' };
+-  }
+-
+-  if ((hostname === 'httpbin.org' && pathname === '/headers') || (hostname === 'httpbingo.org' && pathname === '/headers')) {
+-    const source = hostname === 'httpbin.org' ? 'httpbin_headers' : 'httpbingo_headers';
+-    const observed = parseJsonHeaderEchoAcceptLanguage(input.bodyText || '');
+-    return observed
+-      ? { status: 'ok', source, observedAcceptLanguage: observed, message: `Parsed ${REQUEST_HEADER_PROBE_SOURCES[source]} headers.` }
+-      : { status: 'parse_error', source, observedAcceptLanguage: null, message: `Could not parse ${REQUEST_HEADER_PROBE_SOURCES[source]} headers.` };
+-  }
+-
+-  return unsupportedRequestHeaderProbe();
+-}
+-
+-export function buildFrameProbeSnapshot(executionResults: any[], frameTargets: any[]) {
+-  const normalizedResults = Array.isArray(executionResults)
+-    ? executionResults.reduce<any[]>((items, entry) => {
+-        if (!entry || !entry.result) return items;
+-        items.push({
+-          frameId: Number.isInteger(entry.frameId) ? entry.frameId : null,
+-          documentId: entry.documentId || null,
+-          ...entry.result
+-        });
+-        return items;
+-      }, [])
+-    : [];
+-
+-  const top = normalizedResults.find((entry) => entry.isTopFrame || entry.frameId === 0) || normalizedResults[0] || null;
+-  const frames = normalizedResults.filter((entry) => {
+-    if (!top) return true;
+-    return !(entry.frameId === top.frameId && entry.url === top.url && entry.frameName === top.frameName);
+-  });
+-
+-  return {
+-    top,
+-    frames,
+-    frameTargets: Array.isArray(frameTargets) ? frameTargets.slice() : []
+-  };
+-}
+-
+ function normalizeWorkerDiagnosticEntry(entry: any, fallbackNote = '') {
+   const normalized = entry && typeof entry === 'object' ? entry : {};
+   return {
+@@ -172,15 +59,3 @@ export function buildWorkerDiagnosticsSnapshot(input: any) {
+     serviceWorker: withCoverage('serviceWorker', normalized.serviceWorker, 'Service worker registration hook is not installed.')
+   };
+ }
+-
+-export function buildGeolocationBehaviorSnapshot(input: any) {
+-  const normalized = input && typeof input === 'object' ? input : {};
+-  return {
+-    status: normalized.status || 'not_attempted',
+-    successResult: normalized.successResult || '',
+-    watchResult: normalized.watchResult || '',
+-    clearWatchResult: normalized.clearWatchResult || '',
+-    errorResult: normalized.errorResult || '',
+-    note: normalized.note || ''
+-  };
+-}
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts b/tests/config.test.ts
+index 7469346..1a6a014 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts
++++ b/tests/config.test.ts
+@@ -7,7 +7,6 @@ import {
+   getEffectiveLanguage,
+   getEffectiveProfile,
+   getExcludedDomainsFor,
+-  isUrlMatchedByEnabledRule,
+   migrateLegacyConfig,
+   validateConfig
+ } from '../src/shared/config-resolver';
+@@ -18,7 +17,6 @@ import {
+   DEFAULT_RULE_DOMAINS,
+   DEFAULT_TIMEZONE,
+   DEFAULT_WEBRTC,
+-  formatTimezoneOffsetMinutes,
+   getTimezoneOffsetMinutes,
+   normalizeConfig,
+   normalizeGeolocation,
+@@ -220,15 +218,13 @@ test('parseHostname 处理协议、端口、尾点和非法输入', () => {
+   assert.equal(parseHostname('http://[bad'), 'http');
+ });
+ 
+-test('时区校验 / 偏移 / 格式化覆盖失败分支', () => {
++test('时区校验与偏移计算覆盖失败分支', () => {
+   assert.equal(validateTimezone(''), false);
+   assert.equal(validateTimezone('Not/AZone'), false);
+   assert.equal(validateTimezone('Asia/Tokyo'), true);
+   assert.equal(getTimezoneOffsetMinutes('', new Date()), null);
+   assert.equal(getTimezoneOffsetMinutes('Asia/Tokyo', new Date('invalid')), null);
+   assert.equal(getTimezoneOffsetMinutes('Not/AZone', new Date()), null);
+-  assert.equal(formatTimezoneOffsetMinutes(Number.NaN), null);
+-  assert.equal(formatTimezoneOffsetMinutes(0), 'GMT+00:00');
+ });
+ 
+ test('normalizeGeolocation 过滤非法历史点并补默认值', () => {
+@@ -274,21 +270,6 @@ test('内容脚本注册：把 disabled 子域放进 excludeMatches，已烘焙
+   assert.deepEqual(allBaked.excludeMatches, []);
+ });
+ 
+-test('isUrlMatchedByEnabledRule 覆盖总开关、空 host、排除和命中', () => {
+-  const config = normalizeConfig({
+-    masterEnabled: true,
+-    rules: [
+-      { domain: 'example.com', enabled: true },
+-      { domain: 'mail.example.com', enabled: false }
+-    ]
+-  } as any);
+-  assert.equal(isUrlMatchedByEnabledRule(config, 'https://example.com/a'), true);
+-  assert.equal(isUrlMatchedByEnabledRule(config, 'https://sub.example.com/a'), true);
+-  assert.equal(isUrlMatchedByEnabledRule(config, 'https://mail.example.com/a'), false);
+-  assert.equal(isUrlMatchedByEnabledRule({ ...config, masterEnabled: false }, 'https://example.com'), false);
+-  assert.equal(isUrlMatchedByEnabledRule(config, 'not a url'), false);
+-});
+-
+ test('getEffectiveLanguage 与 getExcludedDomainsFor 的边界', () => {
+   const config = normalizeConfig({
+     masterEnabled: true,
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/rule-exclusion.test.ts b/tests/rule-exclusion.test.ts
+index 0fe66b7..f9e06e8 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/rule-exclusion.test.ts
++++ b/tests/rule-exclusion.test.ts
+@@ -5,7 +5,6 @@ import {
+   getContentScriptRegistration,
+   getEffectiveProfile,
+   getExcludedRuleDomains,
+-  isUrlMatchedByEnabledRule,
+   resolveRuleMatch
+ } from '../src/shared/config-resolver';
+ import { buildAcceptLanguageRules } from '../src/background/dnr';
+@@ -47,15 +46,12 @@ test('disabled 规则命中时整站排除，不回落到父域配置', () => {
+   assert.ok(inherited.payload, '未排除的子域照常生效');
+ });
+ 
+-test('排除影响 URL 判定与内容脚本注册范围', () => {
++test('禁用子域从内容脚本注册范围中排除', () => {
+   const cfg = config([
+     { domain: 'google.com', enabled: true },
+     { domain: 'mail.google.com', enabled: false }
+   ]);
+ 
+-  assert.equal(isUrlMatchedByEnabledRule(cfg, 'https://drive.google.com/x'), true);
+-  assert.equal(isUrlMatchedByEnabledRule(cfg, 'https://mail.google.com/u/0'), false);
+-
+   const { matches, excludeMatches } = getContentScriptRegistration(cfg);
+   assert.deepEqual(matches, ['*://google.com/*', '*://*.google.com/*']);
+   assert.deepEqual(excludeMatches, ['*://mail.google.com/*', '*://*.mail.google.com/*']);
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts b/tests/diagnostic.test.ts
+index d7923f6..f64ad4f 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts
++++ b/tests/diagnostic.test.ts
+@@ -1,64 +1,13 @@
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+-import {
+-  buildFrameProbeSnapshot,
+-  buildGeolocationBehaviorSnapshot,
+-  buildRequestHeaderProbe,
+-  buildWorkerDiagnosticsSnapshot
+-} from '../src/shared/diagnostic';
++import { buildWorkerDiagnosticsSnapshot } from '../src/shared/diagnostic';
+ 
+-test('buildRequestHeaderProbe parses browserleaks header table', () => {
+-  const result = buildRequestHeaderProbe({
+-    url: 'https://browserleaks.com/ip',
+-    html: `
+-      <table>
+-        <tbody id="headers">
+-          <tr><td>Accept-Language</td><td>ja-JP,ja;q=0.9,en;q=0.8</td></tr>
+-        </tbody>
+-      </table>
+-    `
+-  });
+-
+-  assert.equal(result.status, 'ok');
+-  assert.equal(result.source, 'browserleaks_ip');
+-  assert.equal(result.observedAcceptLanguage, 'ja-JP,ja;q=0.9,en;q=0.8');
+-});
+-
+-test('buildRequestHeaderProbe parses httpbingo array header json', () => {
+-  const result = buildRequestHeaderProbe({
+-    url: 'https://httpbingo.org/headers',
+-    bodyText: JSON.stringify({ headers: { 'Accept-Language': ['en-US,en;q=0.9'] } })
+-  });
+-
+-  assert.equal(result.status, 'ok');
+-  assert.equal(result.source, 'httpbingo_headers');
+-  assert.equal(result.observedAcceptLanguage, 'en-US,en;q=0.9');
+-});
+-
+-test('buildFrameProbeSnapshot separates top frame and child frames', () => {
+-  const snapshot = buildFrameProbeSnapshot([
+-    { frameId: 0, result: { url: 'http://localhost/top.html', frameName: '', isTopFrame: true, language: 'en-US' } },
+-    { frameId: 1, result: { url: 'http://localhost/child.html', frameName: 'child', isTopFrame: false, language: 'ja-JP' } }
+-  ], [{ name: 'child', scenario: 'same-origin-child' }]);
+-
+-  assert.equal(snapshot.top.frameId, 0);
+-  assert.equal(snapshot.frames.length, 1);
+-  assert.equal(snapshot.frameTargets.length, 1);
+-});
+-
+-test('worker and geolocation diagnostics normalize partial fixture output', () => {
++test('Worker 诊断为缺失的探测条目保留 not_attempted 状态', () => {
+   const worker = buildWorkerDiagnosticsSnapshot({
+     classicWorker: { status: 'ok', result: { timezone: 'UTC' } }
+   });
+-  const geo = buildGeolocationBehaviorSnapshot({
+-    status: 'ok',
+-    successResult: '{"latitude":1}'
+-  });
+-
+   assert.equal(worker.classicWorker.status, 'ok');
+   assert.equal(worker.moduleWorker.status, 'not_attempted');
+-  assert.equal(geo.watchResult, '');
+-  assert.equal(geo.successResult, '{"latitude":1}');
+ });
+ 
+ test('SharedWorker 探测成功也要标 UNSUPPORTED（能返回值 ≠ 被覆盖）', () => {
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/content-bridge.test.ts b/tests/content-bridge.test.ts
+index 58354f9..483ad5c 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/content-bridge.test.ts
++++ b/tests/content-bridge.test.ts
+@@ -323,14 +323,16 @@ test('没有 ack 时按退避重试握手，stop 后不再重试', async () => {
+   assert.equal(harness.handshakes.length, count);
+ });
+ 
+-test('端口 postMessage 抛错时 deliver 不把异常抛给调用方', async () => {
++test('接收端关闭后 applyPayload 不抛错，也不再投递新 payload', async () => {
+   const harness = createHarness();
+   await waitFor(() => harness.delivered.length > 0);
++  const deliveredCount = harness.delivered.length;
+   harness.runtimePort?.close();
+   assert.doesNotThrow(() => {
+     harness.listener?.({ action: 'applyPayload', payload: { hostname: 'child.localhost', domain: 'child.localhost', languageConfig: { language: 'fr-FR' } } });
+   });
+   await sleep(10);
++  assert.equal(harness.delivered.length, deliveredCount);
+   assert.equal(harness.delivered.at(-1)?.payload.languageConfig.language, 'en-US');
+ });
+ 
+@@ -345,11 +347,15 @@ test('端口就绪前的 clear 先挂起，端口就绪后补发 clear', async (
+   await waitFor(() => harness.delivered.some((message) => message.payload?.clear === true));
+ });
+ 
+-test('MessagePort.postMessage 同步抛错时由 deliver 吞掉', async () => {
++test('发送端 postMessage 同步异常不向 applyPayload 调用方传播', async () => {
+   const harness = createHarness();
+   await waitFor(() => harness.delivered.length > 0);
+   const original = MessagePort.prototype.postMessage;
+-  MessagePort.prototype.postMessage = () => { throw new Error('port closed'); };
++  let attempts = 0;
++  MessagePort.prototype.postMessage = () => {
++    attempts += 1;
++    throw new Error('port closed');
++  };
+   try {
+     assert.doesNotThrow(() => {
+       harness.listener?.({ action: 'applyPayload', payload: { hostname: 'child.localhost', domain: 'child.localhost' } });
+@@ -357,6 +363,7 @@ test('MessagePort.postMessage 同步抛错时由 deliver 吞掉', async () => {
+   } finally {
+     MessagePort.prototype.postMessage = original;
+   }
++  assert.equal(attempts, 1, '必须实际触发发送异常，不能只验证提前返回');
+ });
+ 
+ test('重复创建同一 window 时第二个实例直接 no-op', () => {
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/extension-wiring.test.ts b/tests/extension-wiring.test.ts
+index 618e7bb..f59e5a3 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/extension-wiring.test.ts
++++ b/tests/extension-wiring.test.ts
+@@ -246,11 +246,11 @@ test('发布流水线接得上：npm 脚本、校验工具、三道闸都在', (
+   assert.match(verify, /host-resolver-rules/, '要把包里的域名指到本地');
+ });
+ 
+-test('不透明框架（about:blank / srcdoc）用 referrer 解析 payload', () => {
++test('不透明框架保留旧后台地址提示，MAIN 经典脚本保持自包含', () => {
+   const content = read('src/content/content-bridge.ts');
++  // 仅检查兼容提示；后台授权不采用自报 URL，由 message-router 行为测试验证。
+   assert.match(content, /resolvePayloadUrl\(environment\.window\.location\.href, environment\.document\.referrer\)/);
+-  assert.match(content, /url: payloadUrl\(\)/);
+-  assert.doesNotMatch(content, /url: environment\.window\.location\.href/);
++  assert.match(content, /action: 'getPayloadForUrl', url: payloadUrl\(\)/);
+ 
+   // runtime 与 content 同时 import shared/frame-url 会抽出共享 chunk，
+   // 而 MAIN world 的经典脚本不能有 import —— 所以 runtime 保持自包含。

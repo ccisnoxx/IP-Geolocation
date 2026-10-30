@@ -64,6 +64,14 @@ test('只有国家没有坐标时返回 null（不再伪造 0,0）', () => {
   assert.equal(parseGeoApiResponse({ success: false, country: { code: 'CN' } }), null);
 });
 
+test('parseGeoApiResponse 不把布尔或数组坐标强转成真实地点', () => {
+  for (const value of [false, true, [], [1], {}]) {
+    assert.equal(parseGeoApiResponse({ latitude: value, longitude: 0 }), null);
+    assert.equal(parseGeoApiResponse({ location: { latitude: 0, longitude: value } }), null);
+  }
+  assert.equal(parseGeoApiResponse({ latitude: '0', longitude: '12.5' })?.longitude, 12.5);
+});
+
 test('国家字段是对象时仍然给出字符串', () => {
   const parsed = parseGeoApiResponse({ latitude: 1, longitude: 2, country: { name: 'Singapore', code: 'SG' } });
   assert.equal(parsed?.country, 'Singapore');

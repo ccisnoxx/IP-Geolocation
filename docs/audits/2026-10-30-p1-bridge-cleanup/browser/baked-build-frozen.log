@@ -1,0 +1,30 @@
+vite v5.4.21 building for production...
+transforming...
+✓ 44 modules transformed.
+Generated an empty chunk: "content/content".
+rendering chunks...
+computing gzip size...
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/leak-test/leak-test.css              4.36 kB │ gzip:  1.60 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/popup/popup.css                     21.92 kB │ gzip:  5.45 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/options/options.css                 27.06 kB │ gzip:  6.48 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/content/content.js                   0.00 kB │ gzip:  0.02 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/assets/worker-coverage-BJj0SPfB.js   1.11 kB │ gzip:  0.88 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/assets/site-status-C42b5DNa.js       1.98 kB │ gzip:  1.01 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/assets/profile-QoZdxIw9.js           2.12 kB │ gzip:  0.66 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/assets/ui-values-gHkfWQwy.js         4.69 kB │ gzip:  2.12 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/assets/config-model-DNjWBMJw.js     16.05 kB │ gzip:  5.29 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/popup/popup.js                      21.43 kB │ gzip:  5.26 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/options/options.js                  24.94 kB │ gzip:  6.92 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/leak-test/leak-test.js              33.34 kB │ gzip: 10.42 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/background/service-worker.js        83.72 kB │ gzip: 19.95 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen/injected/runtime.js                 91.59 kB │ gzip: 21.87 kB
+[vite-plugin-static-copy] Copied 12 items.
+✓ built in 186ms
+
+已生成 /var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen
+  persona : (from --config)
+  bridge  : off  (off = runtime.js 里完全没有消息通道，选项改动要重新构建才生效)
+  nonce   : 3a5b1aedcbf331e4477125dc
+  静态规则: rules/baked-language.json  1 条（首帧请求即生效，不依赖 SW）
+
+加载方式：chrome://extensions → 开发者模式 → 加载已解压的扩展程序 → 选择 /var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/frozen

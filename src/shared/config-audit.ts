@@ -356,11 +356,6 @@ export function auditConfig(config: SiteSpoofConfig): AuditFinding[] {
   return findings;
 }
 
-/** 有没有必须先处理的问题（error） */
-export function hasBlockingFinding(findings: AuditFinding[]): boolean {
-  return findings.some((finding) => finding.severity === 'error');
-}
-
 /** 按严重程度排序，UI 直接照着渲染 */
 export function sortFindings(findings: AuditFinding[]): AuditFinding[] {
   const order: Record<AuditSeverity, number> = { error: 0, warn: 1, info: 2 };

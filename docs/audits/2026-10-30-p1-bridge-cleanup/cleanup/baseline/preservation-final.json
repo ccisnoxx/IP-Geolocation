@@ -1,0 +1,14 @@
+{
+  "changed_paths": [
+    "src/shared/config-model.ts",
+    "src/shared/config-resolver.ts",
+    "src/shared/diagnostic.ts",
+    "tests/config.test.ts",
+    "tests/content-bridge.test.ts",
+    "tests/diagnostic.test.ts",
+    "tests/extension-wiring.test.ts",
+    "tests/rule-exclusion.test.ts"
+  ],
+  "preserved_paths": 197,
+  "unexpected_changes": []
+}

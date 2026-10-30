@@ -1,0 +1,23 @@
+✓ bridge 拿到原生基线  zh-CN/Asia/Shanghai/zh-CN,zh;q=0.9
+✓ bridge 初始页面是烘焙值  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ bridge 初始请求头是烘焙语言  ja-JP,ja;q=0.9
+✓ bridge 排除站点后页面恢复原生  zh-CN/Asia/Shanghai/zh-CN,zh;q=0.9
+✓ bridge 排除站点后请求头恢复原生  zh-CN,zh;q=0.9 vs zh-CN,zh;q=0.9
+✓ bridge 恢复规则后重新伪装  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ bridge 恢复规则后请求头恢复烘焙语言  ja-JP,ja;q=0.9
+✓ bridge 关总开关后页面恢复原生  zh-CN/Asia/Shanghai/zh-CN,zh;q=0.9
+✓ bridge 关总开关后请求头恢复原生  zh-CN,zh;q=0.9 vs zh-CN,zh;q=0.9
+✓ bridge 刷新后状态正确  zh-CN/Asia/Shanghai/zh-CN,zh;q=0.9
+✓ bridge 刷新后请求头一致  zh-CN,zh;q=0.9 vs zh-CN,zh;q=0.9
+✓ frozen 拿到原生基线  zh-CN/Asia/Shanghai/zh-CN,zh;q=0.9
+✓ frozen 初始页面是烘焙值  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ frozen 初始请求头是烘焙语言  ja-JP,ja;q=0.9
+✓ frozen 排除站点后页面仍是烘焙值  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ frozen 排除站点后请求头仍是烘焙语言  ja-JP,ja;q=0.9
+✓ frozen 恢复规则后仍是烘焙值  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ frozen 关总开关后页面仍是烘焙值  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ frozen 关总开关后请求头仍是烘焙语言  ja-JP,ja;q=0.9
+✓ frozen 刷新后状态正确  ja-JP/Asia/Tokyo/ja-JP,ja;q=0.9
+✓ frozen 刷新后请求头一致  ja-JP,ja;q=0.9 vs ja-JP
+
+21/21 通过

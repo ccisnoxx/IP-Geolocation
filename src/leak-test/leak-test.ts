@@ -333,7 +333,7 @@ function renderFinding(finding: AuditFinding): HTMLElement {
 }
 
 /**
- * "实际生效"这一行：问后台要注入层的回报。
+ * 页面侧报告：问后台要按 hostname 聚合的注入层回报，不能当作独立验证。
  *
  * 为什么不在这里算：三张字表只编在 injected/runtime.js 里（注入层必须自包含，
  * 一旦与其它入口共享 chunk，产物就不是经典脚本、MAIN world 里根本跑不起来）。
@@ -352,12 +352,12 @@ async function renderFontUsage(): Promise<void> {
     const response = await chrome.runtime.sendMessage({ action: 'getFontLayers', url: target.url });
     const layers = response && response.layers;
     if (!layers) {
-      setText(`${new URL(target.url).hostname}：还没有页面加载过（打开或刷新该页后再看）`);
+      setText(`${new URL(target.url).hostname}：尚未收到页面侧报告（打开或刷新该页后再看）`);
       return;
     }
-    // 与配置对不上时明确说出来：说明页面拿到的 payload 和当前配置不是同一份
+    // MAIN 桥未认证；报告只供排查，不证明当前页面已生效。
     const platformNote = layers.platform === 'auto' ? '自动' : layers.platform;
-    setText(`${new URL(target.url).hostname}：${layers.count} 条 · 平台 ${platformNote} · 中文层 ${layers.hideCjkFonts ? '隐藏' : '保留'}`);
+    setText(`${new URL(target.url).hostname}：${layers.count} 条 · 平台 ${platformNote} · 中文层 ${layers.hideCjkFonts ? '隐藏' : '保留'} · 页面侧报告，未独立验证`);
   } catch (error) {
     setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);
   }
@@ -386,8 +386,8 @@ async function renderWorkerCoverage(): Promise<void> {
       ? `⚠️ classic/module 部分覆盖 · shared/nested/service 不支持`
       : `classic/module 声明支持 · shared/nested/service 不支持`;
     const note = fallback && fallback.count > 0
-      ? ` · ${host} 观察到 ${fallback.count} 个回退（${fallback.reasons.join('、')}），最近一次 ${fallback.lastScript || '未记录'}`
-      : ' · 未观察到回退';
+      ? ` · ${host} 页面侧报告 ${fallback.count} 次回退（${fallback.reasons.join('、')}），未独立验证；最近一次 ${fallback.lastScript || '未记录'}`
+      : ' · 尚未收到页面侧回退报告，不代表完整覆盖';
     setText(`${head}${note}`);
   } catch (error) {
     setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);

@@ -1,9 +1,11 @@
 import { normalizeWebRtc } from '../shared/config-model';
 import { applyProfileToConfig } from '../shared/profile';
 import type { BackgroundServices } from './services';
+import { authorizeBackgroundMessage } from './message-policy';
 
 export function createBackgroundMessageRouter(services: BackgroundServices) {
   async function respond(request: any, sender: chrome.runtime.MessageSender): Promise<any> {
+    const caller = await authorizeBackgroundMessage(request?.action, sender, services.resolveFrameRuleContext);
     switch (request?.action) {
       case 'manualUpdate':
         return { status: 'ok', geo: await services.updateGeolocation(true) };
@@ -57,20 +59,21 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
         };
       }
       case 'getPayloadForUrl': {
-        // 这条消息只可能来自 matches 命中域名的内容脚本：说明该文档已经由注册的
-        // 内容脚本装过 runtime，记下 documentId，后面就不必再对同一文档执行脚本。
-        await services.noteDocumentInjected((sender as { documentId?: string }).documentId);
+        if (caller.kind === 'content') {
+          // 已验证文档中的桥正在运行：保留同文档幂等提示，但这不认证 MAIN 安装。
+          await services.noteDocumentInjected(caller.documentId);
+          return { status: 'ok', ...(await services.getPayloadForUrl(caller.effectiveUrl)), effectiveUrl: caller.effectiveUrl, ...(caller.frameEvidence ? { frameEvidence: caller.frameEvidence } : {}) };
+        }
         return { status: 'ok', ...(await services.getPayloadForUrl(request.url || sender.url || '')) };
       }
       case 'reportFontLayers': {
-        // 来自内容脚本：注入层在 document_start 装完补丁后回报实际生效的字体层
-        services.reportFontLayers(request.url || (sender as { url?: string }).url || '', request.layers);
+        // 固定诊断消息只记录观测声明；桥不能认证 MAIN 对端或字体层实际生效。
+        services.reportFontLayers(caller.kind === 'content' ? caller.effectiveUrl : request.url || sender.url || '', request.layers);
         return { status: 'ok' };
       }
       case 'reportWorkerFallback': {
-        // 来自内容脚本：Worker 入口被换掉后构造失败（最常见是 CSP 拒绝 blob），
-        // runtime 已回退原生；这里记一笔，让弹窗和诊断页能如实标"部分覆盖"。
-        services.reportWorkerFallback(request.url || (sender as { url?: string }).url || '', {
+        // Worker 回退声明用于诊断展示，不授予权限，也不控制配置或覆盖状态。
+        services.reportWorkerFallback(caller.kind === 'content' ? caller.effectiveUrl : request.url || sender.url || '', {
           reason: request.reason,
           script: request.script,
           message: request.message

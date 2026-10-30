@@ -127,7 +127,7 @@ test('概览摘要包含字体伪装，并指向 Canvas 分组', () => {
   assert.equal(el('canvasSection').tagName, 'DETAILS');
 });
 
-test('Worker 包装失败在弹窗里可见，并且说清"已回退原生"', async () => {
+test('Worker 包装失败报告可见，并说明按域聚合且未独立验证', async () => {
   chrome.state.workerFallback = {
     hostname: 'claude.ai',
     count: 2,
@@ -140,9 +140,10 @@ test('Worker 包装失败在弹窗里可见，并且说清"已回退原生"', as
   el<HTMLButtonElement>('disableSite').dispatchEvent(new Event('click', { bubbles: true }));
   await waitFor(() => el('workerFallback').hidden === false);
 
-  assert.match(el('workerFallbackText').textContent || '', /2 个 Worker 未能包装/);
+  assert.match(el('workerFallbackText').textContent || '', /同域页面报告 2 次 Worker 包装失败/);
   assert.match(el('workerFallbackText').textContent || '', /CSP/);
   assert.match(el('workerFallbackHint').textContent || '', /回退原生/);
+  assert.match(el('workerFallbackHint').textContent || '', /尚未独立验证/);
 
   chrome.state.workerFallback = null;
   el<HTMLButtonElement>('disableSite').dispatchEvent(new Event('click', { bubbles: true }));

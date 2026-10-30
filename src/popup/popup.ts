@@ -330,10 +330,10 @@ function renderWorkerFallback(state: any): void {
     ? summary.reasons.map((reason: string) => (WORKER_FALLBACK_REASON_LABELS as Record<string, string>)[reason] || String(reason))
     : [];
   workerFallbackEl.hidden = false;
-  workerFallbackTextEl.textContent = `本页 ${count} 个 Worker 未能包装${reasons.length ? `（${reasons.join('、')}）` : ''}`;
+  workerFallbackTextEl.textContent = `同域页面报告 ${count} 次 Worker 包装失败${reasons.length ? `（${reasons.join('、')}）` : ''}`;
   workerFallbackHintEl.textContent = summary.lastScript
-    ? `已回退原生入口：这些 Worker 里的 Date / Intl 是本机真实值。最近一次：${summary.lastScript}`
-    : '已回退原生入口：这些 Worker 里的 Date / Intl 是本机真实值。';
+    ? `报告称已回退原生入口，尚未独立验证；Date / Intl 可能暴露本机值。最近一次：${summary.lastScript}`
+    : '报告称已回退原生入口，尚未独立验证；Date / Intl 可能暴露本机值。';
 }
 
 async function loadConfig(): Promise<void> {

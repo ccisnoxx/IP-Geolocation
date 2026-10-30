@@ -32,9 +32,9 @@ export function applyProfileToConfig(config: SiteSpoofConfig, profileId: string)
     ...normalized,
     globalProfile: {
       language: normalizeLanguage({
+        ...profile.language,
         enabled: normalized.globalProfile.language.enabled,
-        mode: 'preset',
-        ...profile.language
+        mode: 'preset'
       }),
       timezone: normalizeTimezone({
         enabled: normalized.globalProfile.timezone.enabled,

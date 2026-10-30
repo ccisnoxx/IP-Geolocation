@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "archived_at_utc": "2026-10-30T01:52:46.124901+00:00",
+  "scope": "Four approved cleanup groups and subsequent ordinary Chrome119/155 browser regressions",
+  "main_bridge_P1": "OPEN",
+  "source_copies_byte_verified": 55,
+  "review_text_preserved_verbatim": true,
+  "head_at_archive": "68934c68b3d31ad1537712f44b025966fb0ae033",
+  "entries": [
+    {
+      "path": ".gitignore",
+      "bytes": 97,
+      "sha256": "3db414fc4b260e8bb1dccb62fb539054481ac077da822aca5bdffcc905a436c3",
+      "kind": "archive-log-ignore-exception"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3780,
+      "sha256": "f400a171ac08bab70fe36d0474f9b6092c9775b8d82b0866e0e6c872fc047852",
+      "kind": "archive-index"
+    },
+    {
+      "path": "browser/baked-build-bridge.log",
+      "bytes": 3162,
+      "sha256": "b4ea8782b6a15895d51f69ef960cdcd959ce57f32b2a88e2e793b6fa5cd81aef",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked-build-bridge.log",
+      "source_sha256": "b4ea8782b6a15895d51f69ef960cdcd959ce57f32b2a88e2e793b6fa5cd81aef"
+    },
+    {
+      "path": "browser/baked-build-frozen.log",
+      "bytes": 3208,
+      "sha256": "e5c6d919c373453bdc875e9834c318f6b633d4255ae62efba8e4587b446e3321",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked-build-frozen.log",
+      "source_sha256": "e5c6d919c373453bdc875e9834c318f6b633d4255ae62efba8e4587b446e3321"
+    },
+    {
+      "path": "browser/baked-clear-119.log",
+      "bytes": 1511,
+      "sha256": "2286ad8ba02d665cda255ab174839eca7f1819ed9401b3b411a740ca59794185",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked-clear-119.log",
+      "source_sha256": "2286ad8ba02d665cda255ab174839eca7f1819ed9401b3b411a740ca59794185"
+    },
+    {
+      "path": "browser/baked-clear-155.log",
+      "bytes": 1511,
+      "sha256": "2286ad8ba02d665cda255ab174839eca7f1819ed9401b3b411a740ca59794185",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked-clear-155.log",
+      "source_sha256": "2286ad8ba02d665cda255ab174839eca7f1819ed9401b3b411a740ca59794185"
+    },
+    {
+      "path": "browser/baked-dist-hashes.json",
+      "bytes": 9787,
+      "sha256": "36af28f6f4f026fc1816c89388ca8483e728035f0e6107aed68246e29d663715",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked-dist-hashes.json",
+      "source_sha256": "36af28f6f4f026fc1816c89388ca8483e728035f0e6107aed68246e29d663715"
+    },
+    {
+      "path": "browser/baseline-hashes.json",
+      "bytes": 20103,
+      "sha256": "0c0aaed74731b02d70ef556c8a00c39c990db85177c5887650753c28ee712b32",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baseline-hashes.json",
+      "source_sha256": "0c0aaed74731b02d70ef556c8a00c39c990db85177c5887650753c28ee712b32"
+    },
+    {
+      "path": "browser/baseline-status.txt",
+      "bytes": 1626,
+      "sha256": "d3a3bfcc3946ff2b899e38512d0beaab040ff6f440b2526a12ef77343592a27a",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baseline-status.txt",
+      "source_sha256": "d3a3bfcc3946ff2b899e38512d0beaab040ff6f440b2526a12ef77343592a27a"
+    },
+    {
+      "path": "browser/bfcache-119.log",
+      "bytes": 1397,
+      "sha256": "23223fd0bc9c33cb710cdca79a42bf267c4d4a22656e09244be4c32c72cd3482",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/bfcache-119.log",
+      "source_sha256": "23223fd0bc9c33cb710cdca79a42bf267c4d4a22656e09244be4c32c72cd3482"
+    },
+    {
+      "path": "browser/bfcache-155.log",
+      "bytes": 1397,
+      "sha256": "23223fd0bc9c33cb710cdca79a42bf267c4d4a22656e09244be4c32c72cd3482",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/bfcache-155.log",
+      "source_sha256": "23223fd0bc9c33cb710cdca79a42bf267c4d4a22656e09244be4c32c72cd3482"
+    },
+    {
+      "path": "browser/build.log",
+      "bytes": 1260,
+      "sha256": "dc6213f6728f93ac5a57407df2c6c7b1296c33ace48647f8015db494042d5180",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/build.log",
+      "source_sha256": "dc6213f6728f93ac5a57407df2c6c7b1296c33ace48647f8015db494042d5180"
+    },
+    {
+      "path": "browser/closeout-head.txt",
+      "bytes": 41,
+      "sha256": "9cd0c4d7448445b1bc53c28ee82b1e9c8ca093d373f03e45131da70df2356f5e",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/closeout-head.txt",
+      "source_sha256": "9cd0c4d7448445b1bc53c28ee82b1e9c8ca093d373f03e45131da70df2356f5e"
+    },
+    {
+      "path": "browser/closeout-index.bin",
+      "bytes": 14496,
+      "sha256": "d7ccb206d54945e5b237a82045209504f211c35baf8525eb8be8d87b404a1dec",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/closeout-index.bin",
+      "source_sha256": "d7ccb206d54945e5b237a82045209504f211c35baf8525eb8be8d87b404a1dec"
+    },
+    {
+      "path": "browser/documentation-only.patch",
+      "bytes": 12804,
+      "sha256": "ee77945a1febcd763d51c51a24c755d3ba54afd650f00d9a3998a24bd76a22fd",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/documentation-only.patch",
+      "source_sha256": "ee77945a1febcd763d51c51a24c755d3ba54afd650f00d9a3998a24bd76a22fd"
+    },
+    {
+      "path": "browser/documentation-verification.json",
+      "bytes": 422,
+      "sha256": "fe7d5301ef28b25d755ca10ef98a721104d8f5e7ec6405db5a2f7dc85ce69efe",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/documentation-verification.json",
+      "source_sha256": "fe7d5301ef28b25d755ca10ef98a721104d8f5e7ec6405db5a2f7dc85ce69efe"
+    },
+    {
+      "path": "browser/frames-119.log",
+      "bytes": 1732,
+      "sha256": "716cce8a65c0f2aa855a947aa3fdcc70161f160e10b877cca9a785eb36ae97be",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/frames-119.log",
+      "source_sha256": "716cce8a65c0f2aa855a947aa3fdcc70161f160e10b877cca9a785eb36ae97be"
+    },
+    {
+      "path": "browser/frames-155.log",
+      "bytes": 1732,
+      "sha256": "716cce8a65c0f2aa855a947aa3fdcc70161f160e10b877cca9a785eb36ae97be",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/frames-155.log",
+      "source_sha256": "716cce8a65c0f2aa855a947aa3fdcc70161f160e10b877cca9a785eb36ae97be"
+    },
+    {
+      "path": "browser/installed-browsers.json",
+      "bytes": 366,
+      "sha256": "243ff5fed6829dc46f8e1556b0e8ff65b22c6efc8053c83c52489048874e29eb",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/installed-browsers.json",
+      "source_sha256": "243ff5fed6829dc46f8e1556b0e8ff65b22c6efc8053c83c52489048874e29eb"
+    },
+    {
+      "path": "browser/opaque-evidence-summary.json",
+      "bytes": 3407,
+      "sha256": "fff791815841221611c21edde0a418107f075112798b402b8c1f611d0ed802ef",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/opaque-evidence-summary.json",
+      "source_sha256": "fff791815841221611c21edde0a418107f075112798b402b8c1f611d0ed802ef"
+    },
+    {
+      "path": "browser/opaque-recovery-119.json",
+      "bytes": 147417,
+      "sha256": "44b3cf8c6d317337463a45cbd112ae5cb5957c4e0fa75da9318c3b37f7487032",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/opaque-recovery-119.json",
+      "source_sha256": "44b3cf8c6d317337463a45cbd112ae5cb5957c4e0fa75da9318c3b37f7487032"
+    },
+    {
+      "path": "browser/opaque-recovery-119.log",
+      "bytes": 2512,
+      "sha256": "19cd586dba4ebce9b42c2770b2ae8cec73f776e256c6d8f675f1a3cf208ad269",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/opaque-recovery-119.log",
+      "source_sha256": "19cd586dba4ebce9b42c2770b2ae8cec73f776e256c6d8f675f1a3cf208ad269"
+    },
+    {
+      "path": "browser/opaque-recovery-155.json",
+      "bytes": 146683,
+      "sha256": "25face5c29df1c21bafcd27f8fc6bbc1e5fe99f4cefe0af41e5a4bddbcf37b18",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/opaque-recovery-155.json",
+      "source_sha256": "25face5c29df1c21bafcd27f8fc6bbc1e5fe99f4cefe0af41e5a4bddbcf37b18"
+    },
+    {
+      "path": "browser/opaque-recovery-155.log",
+      "bytes": 2512,
+      "sha256": "92e24a808bdd895a53d947c430a841d572a55a45cc6f92c094510c9269fca496",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/opaque-recovery-155.log",
+      "source_sha256": "92e24a808bdd895a53d947c430a841d572a55a45cc6f92c094510c9269fca496"
+    },
+    {
+      "path": "browser/review-before-closeout.txt",
+      "bytes": 34101,
+      "sha256": "375f0c88f6014d2196938f0ba3818ee7c2b18593c14a64331c763d6e002482d2",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/review-before-closeout.txt",
+      "source_sha256": "375f0c88f6014d2196938f0ba3818ee7c2b18593c14a64331c763d6e002482d2"
+    },
+    {
+      "path": "browser/tested-dist-hashes.json",
+      "bytes": 4523,
+      "sha256": "6df3bb6bbf6da24fba7bae151ee9ea120ad8e77a71dcde728d7ee021762094c9",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/tested-dist-hashes.json",
+      "source_sha256": "6df3bb6bbf6da24fba7bae151ee9ea120ad8e77a71dcde728d7ee021762094c9"
+    },
+    {
+      "path": "browser/verification-summary.json",
+      "bytes": 1744,
+      "sha256": "5fcb01665c2a0fe9f0b8866fbb2b43563a816b433382a1c89ee6f586a761f5d4",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/verification-summary.json",
+      "source_sha256": "5fcb01665c2a0fe9f0b8866fbb2b43563a816b433382a1c89ee6f586a761f5d4"
+    },
+    {
+      "path": "checks/vanishgeo-cleanup-build.log",
+      "bytes": 1260,
+      "sha256": "b429a7da73e8c747be4492c25b44823b561a35b516efb234f268f78c8e9324c0",
+      "kind": "copied-original-log",
+      "source": "/tmp/vanishgeo-cleanup-build.log",
+      "source_sha256": "b429a7da73e8c747be4492c25b44823b561a35b516efb234f268f78c8e9324c0"
+    },
+    {
+      "path": "checks/vanishgeo-cleanup-closeout-docs.log",
+      "bytes": 896,
+      "sha256": "f8c8f38748e84b34d7f002a6f9d4e24ee3152750373fa9352010fca1aa9cb212",
+      "kind": "copied-original-log",
+      "source": "/tmp/vanishgeo-cleanup-closeout-docs.log",
+      "source_sha256": "f8c8f38748e84b34d7f002a6f9d4e24ee3152750373fa9352010fca1aa9cb212"
+    },
+    {
+      "path": "checks/vanishgeo-cleanup-coverage.log",
+      "bytes": 60606,
+      "sha256": "b711e5b3384cf80cef39ec4e08f27970298077a77c1a7b3173b0ddd732556612",
+      "kind": "copied-original-log",
+      "source": "/tmp/vanishgeo-cleanup-coverage.log",
+      "source_sha256": "b711e5b3384cf80cef39ec4e08f27970298077a77c1a7b3173b0ddd732556612"
+    },
+    {
+      "path": "checks/vanishgeo-cleanup-lint.log",
+      "bytes": 44,
+      "sha256": "30d42c94623b584f9717d64baff1f4052fbb78e746ff53166ce61be917184d9e",
+      "kind": "copied-original-log",
+      "source": "/tmp/vanishgeo-cleanup-lint.log",
+      "source_sha256": "30d42c94623b584f9717d64baff1f4052fbb78e746ff53166ce61be917184d9e"
+    },
+    {
+      "path": "checks/vanishgeo-cleanup-targeted.log",
+      "bytes": 6280,
+      "sha256": "f10630eab55b018c90df77de458477b15c4b118b273597b4c6cbbd70fe0c23f4",
+      "kind": "copied-original-log",
+      "source": "/tmp/vanishgeo-cleanup-targeted.log",
+      "source_sha256": "f10630eab55b018c90df77de458477b15c4b118b273597b4c6cbbd70fe0c23f4"
+    },
+    {
+      "path": "cleanup/after/src/shared/config-model.ts",
+      "bytes": 23785,
+      "sha256": "d5fe113c773fbf1bbd46a619f4d10840b66124be195ca1723fd878b0c03f944b",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/src/shared/config-model.ts",
+      "source_sha256": "d5fe113c773fbf1bbd46a619f4d10840b66124be195ca1723fd878b0c03f944b"
+    },
+    {
+      "path": "cleanup/after/src/shared/config-resolver.ts",
+      "bytes": 21200,
+      "sha256": "49b337f048dad2813935087080e02bceb0772d42b71344c20812c63de4e9d89e",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/src/shared/config-resolver.ts",
+      "source_sha256": "49b337f048dad2813935087080e02bceb0772d42b71344c20812c63de4e9d89e"
+    },
+    {
+      "path": "cleanup/after/src/shared/diagnostic.ts",
+      "bytes": 3021,
+      "sha256": "1b873195d0627303f374b0f619117e6db670093d43926e4083d755bade8e0af5",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/src/shared/diagnostic.ts",
+      "source_sha256": "1b873195d0627303f374b0f619117e6db670093d43926e4083d755bade8e0af5"
+    },
+    {
+      "path": "cleanup/after/tests/config.test.ts",
+      "bytes": 14067,
+      "sha256": "c834c8ae8bc73069e713406c31338d80768a0b78a41afcd1b4b09a9b82cf94f3",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/tests/config.test.ts",
+      "source_sha256": "c834c8ae8bc73069e713406c31338d80768a0b78a41afcd1b4b09a9b82cf94f3"
+    },
+    {
+      "path": "cleanup/after/tests/content-bridge.test.ts",
+      "bytes": 28426,
+      "sha256": "649103924000984cf167f3b576a7f7502386d33361c50bf004471daf51203eef",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/tests/content-bridge.test.ts",
+      "source_sha256": "649103924000984cf167f3b576a7f7502386d33361c50bf004471daf51203eef"
+    },
+    {
+      "path": "cleanup/after/tests/diagnostic.test.ts",
+      "bytes": 4978,
+      "sha256": "a1edff0e0755cf7046378c183d4493e08546d925407ecc81dfcd586f08f932b5",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/tests/diagnostic.test.ts",
+      "source_sha256": "a1edff0e0755cf7046378c183d4493e08546d925407ecc81dfcd586f08f932b5"
+    },
+    {
+      "path": "cleanup/after/tests/extension-wiring.test.ts",
+      "bytes": 16732,
+      "sha256": "63221dd3358a08f96f8ced602050b7c44a7476b2bf934e3b47a01aa8b70bfa11",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/tests/extension-wiring.test.ts",
+      "source_sha256": "63221dd3358a08f96f8ced602050b7c44a7476b2bf934e3b47a01aa8b70bfa11"
+    },
+    {
+      "path": "cleanup/after/tests/rule-exclusion.test.ts",
+      "bytes": 9011,
+      "sha256": "d1d61da33ae1e8518efeffc7e9e5f2f6ae22f125cc3c44ed44ff497d3d324b6a",
+      "kind": "current-snapshot-matches-tested-baseline",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/tests/rule-exclusion.test.ts",
+      "source_sha256": "d1d61da33ae1e8518efeffc7e9e5f2f6ae22f125cc3c44ed44ff497d3d324b6a"
+    },
+    {
+      "path": "cleanup/baseline/cleanup-only.patch",
+      "bytes": 20272,
+      "sha256": "af62828fc407161946e8be28e1cc717c128e84a71ab4e8f8bee5ed5dfebe904a",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/cleanup-only.patch",
+      "source_sha256": "af62828fc407161946e8be28e1cc717c128e84a71ab4e8f8bee5ed5dfebe904a"
+    },
+    {
+      "path": "cleanup/baseline/deletion-evidence.txt",
+      "bytes": 6314,
+      "sha256": "8e118fd17d2481c7becbcaba68822bbb0d3e537cea6545b0528a67065be486f4",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/deletion-evidence.txt",
+      "source_sha256": "8e118fd17d2481c7becbcaba68822bbb0d3e537cea6545b0528a67065be486f4"
+    },
+    {
+      "path": "cleanup/baseline/hashes.json",
+      "bytes": 20103,
+      "sha256": "a664fffc1f4503a68f1b8eae0934f33726d30ec0cf0e22115fa18749847e91af",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/hashes.json",
+      "source_sha256": "a664fffc1f4503a68f1b8eae0934f33726d30ec0cf0e22115fa18749847e91af"
+    },
+    {
+      "path": "cleanup/baseline/preservation-final.json",
+      "bytes": 354,
+      "sha256": "157d0bb9987e15a96d6eec7b127f4b5b3720389ddc1d16965a24b6accc6cd733",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/preservation-final.json",
+      "source_sha256": "157d0bb9987e15a96d6eec7b127f4b5b3720389ddc1d16965a24b6accc6cd733"
+    },
+    {
+      "path": "cleanup/baseline/src/shared/config-model.ts",
+      "bytes": 25582,
+      "sha256": "74e0dace0da8c22578bb8c4fc11d75fdb6562aec50950df8a5b28903d3bf36fc",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-model.ts",
+      "source_sha256": "74e0dace0da8c22578bb8c4fc11d75fdb6562aec50950df8a5b28903d3bf36fc"
+    },
+    {
+      "path": "cleanup/baseline/src/shared/config-resolver.ts",
+      "bytes": 21573,
+      "sha256": "e80904332aa9736aadff30b4bd95f664c7efa842c86659c8ee645878841e1c6f",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-resolver.ts",
+      "source_sha256": "e80904332aa9736aadff30b4bd95f664c7efa842c86659c8ee645878841e1c6f"
+    },
+    {
+      "path": "cleanup/baseline/src/shared/diagnostic.ts",
+      "bytes": 7921,
+      "sha256": "fb4505b72dca9f083faf5209135b9fe3b4180e3012e79fb1d2788cd7569c6dbd",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts",
+      "source_sha256": "fb4505b72dca9f083faf5209135b9fe3b4180e3012e79fb1d2788cd7569c6dbd"
+    },
+    {
+      "path": "cleanup/baseline/status.txt",
+      "bytes": 1451,
+      "sha256": "52b734981e1e1e4f0a9a1dfceb0acc78fb4f2890c9571b3fdbc36d9347c30187",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/status.txt",
+      "source_sha256": "52b734981e1e1e4f0a9a1dfceb0acc78fb4f2890c9571b3fdbc36d9347c30187"
+    },
+    {
+      "path": "cleanup/baseline/structure-verification.txt",
+      "bytes": 562,
+      "sha256": "c1e1c4694a684fc84f62418341e6b442c0d8a7e1f881f5d30558639e8a41a591",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/structure-verification.txt",
+      "source_sha256": "c1e1c4694a684fc84f62418341e6b442c0d8a7e1f881f5d30558639e8a41a591"
+    },
+    {
+      "path": "cleanup/baseline/targets.json",
+      "bytes": 259,
+      "sha256": "6015e29ca1b6cae12a40bff9cd75983b556259682932bec02a1aa55b9cab71c0",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/targets.json",
+      "source_sha256": "6015e29ca1b6cae12a40bff9cd75983b556259682932bec02a1aa55b9cab71c0"
+    },
+    {
+      "path": "cleanup/baseline/tests/config.test.ts",
+      "bytes": 14979,
+      "sha256": "4ccc228c400dd2a17dee9ca4ae5921c16a8bfd9722e1810132d294d03b933993",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts",
+      "source_sha256": "4ccc228c400dd2a17dee9ca4ae5921c16a8bfd9722e1810132d294d03b933993"
+    },
+    {
+      "path": "cleanup/baseline/tests/content-bridge.test.ts",
+      "bytes": 28161,
+      "sha256": "886f0a09eb096090fcdda1039e0cf364bbf5e9c699def4f27a580cc74fe57c84",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/content-bridge.test.ts",
+      "source_sha256": "886f0a09eb096090fcdda1039e0cf364bbf5e9c699def4f27a580cc74fe57c84"
+    },
+    {
+      "path": "cleanup/baseline/tests/diagnostic.test.ts",
+      "bytes": 6744,
+      "sha256": "4ce58f7515830505af22762ceb0cca7853b4c494d771d390d045a89463423f2c",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts",
+      "source_sha256": "4ce58f7515830505af22762ceb0cca7853b4c494d771d390d045a89463423f2c"
+    },
+    {
+      "path": "cleanup/baseline/tests/extension-wiring.test.ts",
+      "bytes": 16667,
+      "sha256": "6b795bc405d02db0af9ce99f0c272650c1182590a9a60145a3c33fa018fa0946",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/extension-wiring.test.ts",
+      "source_sha256": "6b795bc405d02db0af9ce99f0c272650c1182590a9a60145a3c33fa018fa0946"
+    },
+    {
+      "path": "cleanup/baseline/tests/rule-exclusion.test.ts",
+      "bytes": 9213,
+      "sha256": "c0046e434ad7e3bcdd841f9603769fbe76f54ec7930b9d46f7a98b431c76c666",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/rule-exclusion.test.ts",
+      "source_sha256": "c0046e434ad7e3bcdd841f9603769fbe76f54ec7930b9d46f7a98b431c76c666"
+    },
+    {
+      "path": "cleanup/baseline/verification-summary.json",
+      "bytes": 922,
+      "sha256": "1a88f5706837a0014704303b944754fb972512985e5f26765f13af828507309a",
+      "kind": "copied-original-file",
+      "source": "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/verification-summary.json",
+      "source_sha256": "1a88f5706837a0014704303b944754fb972512985e5f26765f13af828507309a"
+    },
+    {
+      "path": "context/REVIEW-P1-BRIDGE.before-archive.md",
+      "bytes": 45337,
+      "sha256": "3317363d6e5b10cedaa15989a2f80ab8ab8b47750a1c1fa686e5788bececc2cd",
+      "kind": "pre-archive-document-snapshot",
+      "source": "/Users/sc/PycharmProjects/VanishGeo/REVIEW-P1-BRIDGE.md",
+      "source_sha256": "3317363d6e5b10cedaa15989a2f80ab8ab8b47750a1c1fa686e5788bececc2cd"
+    },
+    {
+      "path": "review/independent-review.txt",
+      "bytes": 3115,
+      "sha256": "12826b24d7008b41184ddbb657a6a5f80edd98f8423cf9e1950fc24c851c019e",
+      "kind": "verbatim-message-content"
+    },
+    {
+      "path": "review/message-excerpt.json",
+      "bytes": 3471,
+      "sha256": "faf2066d14fb894012c66e62132b01438b443fe343e58cc508f99f6dc65bdeba",
+      "kind": "extracted-message-fields"
+    },
+    {
+      "path": "review/provenance.json",
+      "bytes": 861,
+      "sha256": "9532dda0234b8a413308d2bb2556be31bff57e775d0b7f8de502fc96979002e1",
+      "kind": "extraction-provenance"
+    }
+  ],
+  "checksum_scope": "SHA256SUMS covers these entries plus manifest.json; it excludes itself."
+}

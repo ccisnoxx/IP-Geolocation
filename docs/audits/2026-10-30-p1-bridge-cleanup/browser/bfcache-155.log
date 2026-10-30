@@ -1,0 +1,14 @@
+✓ 场景1 A 首屏被伪装（否则"恢复后还是旧值"没有意义）  {"page":"A","language":"ja-JP","timezone":"Asia/Tokyo","persisted":false,"pageshow":1}
+✓ 场景1 A 从 BFCache 恢复（页面自记 pageshow.persisted=true）  {"page":"A","language":"ja-JP","timezone":"Asia/Tokyo","persisted":true,"pageshow":2}
+✓ 场景1 恢复后值不变（配置没动，不该被重启或清掉）  ja-JP/Asia/Tokyo
+✓ 场景2 前台页面 B 立刻拿到新时区（广播链路正常）  ja-JP/America/Los_Angeles
+✓ 场景2 A 仍然从 BFCache 恢复（改时区不把页面踢出缓存）  {"page":"A","language":"ja-JP","timezone":"Asia/Tokyo","persisted":true,"pageshow":2}
+✓ 场景2 恢复后读到新时区（不是冻结前的旧值）  ja-JP/America/Los_Angeles
+✓ 场景3 冻结期间排除站点：回到 A 是原生值（clear 不被旧 payload 挡住）  zh-CN/Asia/Shanghai persisted=false
+✓ 场景4 只改时区：前台页面不被重载（请求头没变）  alive
+✓ 场景4 改语言：前台页面被重载（文档与 JS 值重新对齐）  undefined
+✓ 场景4 重载后页面读到新语言  en-US
+✓ 场景4 重新加载的文档请求带新 Accept-Language  {"path":"/fixtures/bfcache/page.html","acceptLanguage":"en-US,en;q=0.9"}
+· 观察（不是断言）：冻结期间改语言（Accept-Language 头规则）→ 恢复时 persisted=false
+
+11/11 通过

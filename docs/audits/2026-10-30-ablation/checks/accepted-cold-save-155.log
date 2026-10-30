@@ -1,0 +1,5 @@
+✓ 第 1 轮：storage 与 DNR 规则一致（race-1.example）  save=ok 等了 1ms {"storedDomains":["race-1.example"],"storedLanguage":"ja-JP","dnrDomains":["race-1.example"],"dnrValue":["ja-JP,ja;q=0.9"],"dnrCount":1}
+✓ 第 2 轮：storage 与 DNR 规则一致（race-2.example）  save=ok 等了 1ms {"storedDomains":["race-2.example"],"storedLanguage":"ja-JP","dnrDomains":["race-2.example"],"dnrValue":["ja-JP,ja;q=0.9"],"dnrCount":1}
+✓ 第 3 轮：storage 与 DNR 规则一致（race-3.example）  save=ok 等了 1ms {"storedDomains":["race-3.example"],"storedLanguage":"ja-JP","dnrDomains":["race-3.example"],"dnrValue":["ja-JP,ja;q=0.9"],"dnrCount":1}
+
+3/3 通过

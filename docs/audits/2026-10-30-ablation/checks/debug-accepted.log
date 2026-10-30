@@ -1,0 +1,6 @@
+✓ debug=false 保持静默且应用 Tokyo
+✓ debug=true 输出 applied
+✓ 下一次 debug=false 更新时区且不沿用旧日志开关
+✓ 再次 debug=true 恢复日志
+✓ 总关 clear 恢复原生且不输出 applied
+5/5 通过

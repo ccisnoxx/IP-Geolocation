@@ -1,0 +1,14 @@
+{
+  "source_session": "/Users/sc/.codex/sessions/2026/10/30/rollout-2026-10-30T02-28-31-01a188eb-b5e6-7793-80b2-08e6da2d317e.jsonl",
+  "source_line": 3613,
+  "source_record_sha256": "3acba92dd08f278fcb7781c975ae2592b4001008c56a3d735be967b84b071223",
+  "message_id": "amsg_01a18a6a-7e55-7742-bd70-e19787b22b5c",
+  "author": "/root/cleanup_contract_review",
+  "timestamp": "2026-10-30T01:26:37.397Z",
+  "text_sha256": "12826b24d7008b41184ddbb657a6a5f80edd98f8423cf9e1950fc24c851c019e",
+  "content_preserved_verbatim": true,
+  "omitted_fields": [
+    "payload.internal_chat_message_metadata_passthrough"
+  ],
+  "note": "message-excerpt.json retains the original message fields and report content; only application-internal passthrough metadata is omitted. independent-review.txt is the exact original content string, with no rewriting or newline normalization."
+}

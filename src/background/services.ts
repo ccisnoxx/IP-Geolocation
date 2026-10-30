@@ -1,4 +1,5 @@
 import { buildAcceptLanguageRules, updateAcceptLanguageRules } from './dnr';
+import { createFrameRuleResolver, discoverOpaqueDocuments, type FrameRuleResolver, type FrameContextResolver } from './blob-frames';
 import { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
 import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, lookupExitIp, planExitIpApply, runExitIpSync } from './ip-sync';
 import type { ExitIpApplyOutcome, ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
@@ -104,6 +105,9 @@ export function configNeedsLocation(config: Partial<SiteSpoofConfig>): boolean {
 }
 
 export interface BackgroundServices {
+  resolveFrameRuleUrl: FrameRuleResolver;
+  resolveFrameRuleContext: FrameContextResolver;
+  forgetFrameTab(tabId: number): Promise<void>;
   alarmName: string;
   /** 「跟随出口 IP」的 alarm 名（service-worker 按名字分派） */
   ipSyncAlarmName: string;
@@ -136,8 +140,6 @@ export interface BackgroundServices {
   syncTab(tabId: number, url: string, options?: {
     config?: SiteSpoofConfig;
     lastLocation?: LastLocation | null;
-    /** 兼容字段；现在按 frame 决策，未命中的 frame 一律 clear（清掉烘焙残留） */
-    clearUnmatched?: boolean;
   }): Promise<void>;
   /** 内容脚本上报自己的 documentId：说明该文档已经由注册的内容脚本装过 runtime */
   noteDocumentInjected(documentId?: string): Promise<void>;
@@ -163,6 +165,8 @@ export interface BackgroundServices {
 }
 
 export function createBackgroundServices(): BackgroundServices {
+  const frameRules = createFrameRuleResolver();
+  const resolveFrameRuleUrl = frameRules.resolve;
   /**
    * 已经装过 runtime.js 的文档（`documentId`）。
    *
@@ -196,7 +200,7 @@ export function createBackgroundServices(): BackgroundServices {
     return injectedDocumentsReady;
   }
 
-  async function markDocumentInjected(documentId: string): Promise<void> {
+  async function noteDocumentInjected(documentId?: string): Promise<void> {
     if (!documentId) return;
     await loadInjectedDocuments();
     if (injectedDocuments.has(documentId)) return;
@@ -223,7 +227,6 @@ export function createBackgroundServices(): BackgroundServices {
    * 用 `storage.onChanged` 失效，读到的永远和存储一致。
    */
   let snapshotCache: Record<string, any> | null = null;
-  let lastLocationCache: { value: LastLocation | null } | null = null;
   /**
    * 缓存代际。冷启动时 `storage.local.get` 很慢，读的过程中用户可能已经保存了新配置
    * 并触发失效 —— 如果慢读返回时无条件写回缓存，接下来的每一次读都会拿到那份旧快照，
@@ -234,7 +237,6 @@ export function createBackgroundServices(): BackgroundServices {
   function invalidateStorageCache(): void {
     cacheGeneration += 1;
     snapshotCache = null;
-    lastLocationCache = null;
   }
 
   async function getStorageSnapshot(): Promise<Record<string, any>> {
@@ -266,19 +268,15 @@ export function createBackgroundServices(): BackgroundServices {
     // 这次种子写入会把用户配置直接盖掉（丢的不只是 DNR，是整个配置）。
     if (generation === cacheGeneration) {
       await chrome.storage.local.set({ siteSpoofConfig: config });
-      // 种子的这次写入也要反映到缓存里，否则接下来每次读都会重新走种子分支
-      snapshotCache = { ...data, siteSpoofConfig: config };
+      // 与其他写入统一失效；等待期间定位可能已变化，不能回填旧快照。
+      invalidateStorageCache();
     }
     return config;
   }
 
   async function getLastLocation(): Promise<LastLocation | null> {
-    if (lastLocationCache) return lastLocationCache.value;
-    const generation = cacheGeneration;
-    const data = await chrome.storage.local.get(LAST_LOCATION_KEY);
-    const value = (data[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
-    if (generation === cacheGeneration) lastLocationCache = { value };
-    return value;
+    const data = await getStorageSnapshot();
+    return (data[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
   }
 
   async function unregisterSpoofContentScripts(): Promise<void> {
@@ -293,10 +291,6 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
-  // 单飞：重载扩展时 onInstalled / onStartup / popup 可能同时走到这里，
-  // 两条并发路径都读到"还没注册"，后到的 register 就会抛 Duplicate script ID。
-  let registerInFlight: Promise<void> = Promise.resolve();
-
   /** 上一次真正应用过的配置签名：保存路径与 storage 事件都会走到 applyConfig */
   let lastAppliedSignature = '';
 
@@ -308,16 +302,9 @@ export function createBackgroundServices(): BackgroundServices {
    */
   let lastIpSyncEnabled = false;
 
-  function registerSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
-    const run = () => doRegisterSpoofContentScripts(configOverride);
-    const next = registerInFlight.then(run, run);
-    registerInFlight = next.catch(() => undefined);
-    return next;
-  }
-
-  async function doRegisterSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
+  // 唯一调用链来自 applyConfigNow，整次注册已由 applyChain 串行化。
+  async function registerSpoofContentScripts(config: SiteSpoofConfig): Promise<void> {
     if (!chrome.scripting?.registerContentScripts) return;
-    const config = configOverride || await getSiteConfig();
     // 烘焙构建把域名写进了 manifest 的静态 content_scripts：这些域名由浏览器在
     // 渲染进程创建时就注入，比动态注册早一个身位（Chromium 156 上动态注册会漏掉
     // 会话里的第一次导航）。这里只补注册不在烘焙清单里的域名。
@@ -491,9 +478,8 @@ export function createBackgroundServices(): BackgroundServices {
 
   async function applyRuntimeSideEffects(config: SiteSpoofConfig): Promise<void> {
     await registerSpoofContentScripts(config);
-    // 头规则要跟着「当前能不能真的注入」走：定位拿不到时注入侧 fail-closed，
-    // 头也不能继续宣告 en-US，否则请求头和页面 JS 自相矛盾。
-    await updateAcceptLanguageRules(config, await getLastLocation());
+    // 语言与定位独立，头规则只消费语言配置。
+    await updateAcceptLanguageRules(config);
     await applyWebRTCPolicy(config);
     await applyGeolocationPermissions(config);
     // alarm 的存在状态从配置派生：关掉「跟随出口 IP」必须真的 clear，
@@ -545,8 +531,8 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   /**
-   * 注入层报上来的"实际生效字体层"。字表只编在注入脚本里，后台算不出来，
-   * 所以诊断页的数字必须从这里取。只放内存：重启后页面会重新报一次。
+   * 注入层报上来的字体层观察值。MAIN 桥未完成身份认证，这些数据不证明安装成功，
+   * 也不参与配置或权限判定。只按 hostname 聚合在内存：重启后页面会重新报一次。
    */
   const fontLayerReports = new Map<string, { count: number; platform: string; hideCjkFonts: boolean; at: number }>();
 
@@ -647,7 +633,7 @@ export function createBackgroundServices(): BackgroundServices {
         injectImmediately: true,
         world: 'MAIN'
       });
-      await markDocumentInjected(documentId);
+      await noteDocumentInjected(documentId);
     } catch (error) {
       console.warn(`VanishGeo could not install runtime in tab ${tabId}:`, error instanceof Error ? error.message : String(error));
     }
@@ -657,11 +643,11 @@ export function createBackgroundServices(): BackgroundServices {
   /**
    * 推 payload 给指定标签页的所有 frame。
    *
-   * 走 `tabs.sendMessage` 交给 ISOLATED 桥，由桥转进私有 MessagePort —— 不再用
-   * `executeScript` 往页面里 `window.postMessage`：那条消息页面的监听器也收得到，
-   * nonce 和 payload 一起泄露。
+   * 走 `tabs.sendMessage` 交给 ISOLATED 桥，由桥转进 MessagePort。
+   * 端口握手仍可由页面构造，构建 nonce 也不是秘密；后台 sender 分权不会修复
+   * MAIN 端的控制消息认证缺口。这里只描述投递路径，不承诺通道身份或保密性。
    */
-  async function pushPayload(tabId: number, payload: unknown | null, frameId?: number): Promise<void> {
+  async function pushPayload(tabId: number, payload: unknown | null, frameId?: number, documentId?: string): Promise<void> {
     try {
       const message = payload === null
         ? { action: 'applyPayload', clear: true }
@@ -669,7 +655,7 @@ export function createBackgroundServices(): BackgroundServices {
       if (frameId === undefined) {
         await chrome.tabs.sendMessage(tabId, message);
       } else {
-        await chrome.tabs.sendMessage(tabId, message, { frameId });
+        await chrome.tabs.sendMessage(tabId, message, { frameId, ...(documentId ? { documentId } : {}) });
       }
     } catch (error) {
       // 清除指令是广播式的（配置一变就发给所有标签页），没有桥的页面收不到是常态，
@@ -687,7 +673,7 @@ export function createBackgroundServices(): BackgroundServices {
    * 跨域子域用自己的 URL。返回的 frameId 直接交给 tabs.sendMessage，避免父页
    * payload 被广播到独立规则的 iframe。
    */
-  async function getFrameTargets(tabId: number, topUrl: string): Promise<Array<{ frameId?: number; url: string }>> {
+  async function getFrameTargets(tabId: number, topUrl: string): Promise<Array<{ frameId?: number; documentId?: string; url: string | null }>> {
     const webNavigation = (chrome as any).webNavigation;
     if (!webNavigation || typeof webNavigation.getAllFrames !== 'function') {
       // 没有 webNavigation 权限（或测试替身）时退回不带 frameId 的广播；
@@ -699,19 +685,25 @@ export function createBackgroundServices(): BackgroundServices {
       .catch(() => [] as chrome.webNavigation.GetAllFrameResultDetails[])) || [];
     if (!frames.length) return [{ url: topUrl }];
 
-    const byId = new Map<number, chrome.webNavigation.GetAllFrameResultDetails>();
-    for (const frame of frames) byId.set(frame.frameId, frame);
-
-    const resolveUrl = (frame: chrome.webNavigation.GetAllFrameResultDetails, depth = 0): string => {
-      if (isScriptableUrl(frame.url)) return frame.url;
-      if (depth < 10 && frame.parentFrameId >= 0) {
-        const parent = byId.get(frame.parentFrameId);
-        if (parent) return resolveUrl(parent, depth + 1);
-      }
-      return topUrl;
-    };
-
-    return frames.map((frame) => ({ frameId: frame.frameId, url: resolveUrl(frame) }));
+    const discovered = await discoverOpaqueDocuments(tabId).catch((error) => {
+      console.warn('VanishGeo could not enumerate opaque documents:', error instanceof Error ? error.message : String(error));
+      return [];
+    });
+    const known = frameRules.knownDocuments(tabId, frames.find((frame) => frame.frameId === 0)?.documentId);
+    const documents = [...frames, ...discovered.filter((doc) => !frames.some((frame) => frame.frameId === doc.frameId))];
+    for (const doc of known) {
+      // 新导航快照优先；快照缺失时保留同 frame 的不同 documentId，不能让旧项遮住新项。
+      if (!frames.some((frame) => frame.frameId === doc.frameId)
+        && !documents.some((frame) => frame.frameId === doc.frameId && frame.documentId === doc.documentId)) documents.push(doc);
+    }
+    const targets: Array<{ frameId: number; documentId: string; url: string | null }> = [];
+    await runWithConcurrency(documents.map((doc) => async () => {
+      let url: string | null = null;
+      try { url = await resolveFrameRuleUrl(tabId, doc.frameId, doc.documentId, doc.url, frames); }
+      catch (error) { console.warn('VanishGeo could not resolve frame rules:', error instanceof Error ? error.message : String(error)); }
+      targets.push({ frameId: doc.frameId, documentId: doc.documentId, url });
+    }), FRAME_SEND_CONCURRENCY);
+    return targets;
   }
 
   /** 每个标签页最多同时发多少个 frame 消息；IPC 并发太高反而会拖慢浏览器。 */
@@ -735,7 +727,6 @@ export function createBackgroundServices(): BackgroundServices {
   async function syncTab(tabId: number, url: string, options?: {
     config?: SiteSpoofConfig;
     lastLocation?: LastLocation | null;
-    clearUnmatched?: boolean;
   }): Promise<void> {
     // persona 构建：配置已烘焙进 runtime.js，运行时不推 payload
     if (typeof __VANISHGEO_BRIDGE__ === 'boolean' && !__VANISHGEO_BRIDGE__) return;
@@ -746,6 +737,12 @@ export function createBackgroundServices(): BackgroundServices {
       : await getLastLocation();
 
     await ensureRuntimeInDocument(tabId, url);
+    if (config.masterEnabled === false) {
+      // 总关适用于所有文档：119 连脚本枚举也可能漏 blob，不能依赖发现列表清除。
+      try { await chrome.tabs.sendMessage(tabId, { action: 'applyPayload', clear: true, globalDisabled: true }); }
+      catch { /* 没有内容脚本的标签页无需清除。 */ }
+      return;
+    }
     const targets = await getFrameTargets(tabId, url);
 
     // 多个 frame 的解析结果可以复用（about:blank / srcdoc / 同源 iframe 常常
@@ -754,6 +751,13 @@ export function createBackgroundServices(): BackgroundServices {
     // 再把投递限制在固定并发内。顺序不再重要：每个 frame 只有一条自己的消息。
     const resolvedByUrl = new Map<string, Promise<EffectiveProfileResult>>();
     const jobs = targets.map((target) => async () => {
+      if (target.url === null) {
+        try {
+          await chrome.tabs.sendMessage(tabId, { action: 'refreshPayload' }, target.documentId
+            ? { frameId: target.frameId, documentId: target.documentId } : {});
+        } catch { /* 已导航或没有内容脚本的文档不再接收；不重定向给新文档。 */ }
+        return;
+      }
       let pending = resolvedByUrl.get(target.url);
       if (!pending) {
         pending = buildPayloadForUrl(target.url, config, lastLocation);
@@ -761,20 +765,24 @@ export function createBackgroundServices(): BackgroundServices {
       }
       const resolved = await pending;
       if (resolved.matched && resolved.payload) {
-        await pushPayload(tabId, resolved.payload, target.frameId);
+        await pushPayload(tabId, resolved.payload, target.frameId, target.documentId);
       } else {
-        await pushPayload(tabId, null, target.frameId);
+        await pushPayload(tabId, null, target.frameId, target.documentId);
       }
     });
     await runWithConcurrency(jobs, FRAME_SEND_CONCURRENCY);
+    // 119 和 BFCache 恢复后的枚举可能漏项；提示活动 opaque 自报浏览器 sender 并重拉。
+    // 不广播父页 payload，不把发现缓存或 session 中的历史身份当作当前目标清单。
+    try { await chrome.tabs.sendMessage(tabId, { action: 'refreshPayload', opaqueOnly: true }); }
+    catch { /* 没有活动内容脚本的标签页无需重拉。 */ }
   }
 
   /** 上一次落地的「域名 → Accept-Language」表；null 表示还没应用过（安装/冷启动首轮不重载） */
   let lastHeaderValues: Map<string, string> | null = null;
 
-  function headerValues(config: SiteSpoofConfig, lastLocation: LastLocation | null): Map<string, string> {
+  function headerValues(config: SiteSpoofConfig): Map<string, string> {
     const map = new Map<string, string>();
-    for (const rule of buildAcceptLanguageRules(config, lastLocation)) {
+    for (const rule of buildAcceptLanguageRules(config)) {
       const value = (rule.action.requestHeaders || [])
         .find((header) => header.header === 'Accept-Language')?.value || '';
       for (const domain of rule.condition.requestDomains || []) map.set(domain, value);
@@ -794,8 +802,7 @@ export function createBackgroundServices(): BackgroundServices {
    * 首轮应用（安装 / Service Worker 冷启动）不重载，避免一开浏览器就整片刷新。
    */
   async function reloadTabsForHeaderChange(config: SiteSpoofConfig): Promise<void> {
-    const lastLocation = await getLastLocation();
-    const next = headerValues(config, lastLocation);
+    const next = headerValues(config);
     const previous = lastHeaderValues;
     lastHeaderValues = next;
     if (!previous) return;
@@ -832,8 +839,7 @@ export function createBackgroundServices(): BackgroundServices {
 
   async function updateAllTabs(
     configOverride?: SiteSpoofConfig,
-    lastLocationOverride?: LastLocation | null,
-    options?: { clearUnmatched?: boolean }
+    lastLocationOverride?: LastLocation | null
   ): Promise<void> {
     const config = configOverride || await getSiteConfig();
     const lastLocation = lastLocationOverride !== undefined ? lastLocationOverride : await getLastLocation();
@@ -846,8 +852,7 @@ export function createBackgroundServices(): BackgroundServices {
       // 标签页在定位刷新 / 配置变更时永远收不到更新。
       await syncTab(tab.id, tab.url, {
         config,
-        lastLocation,
-        clearUnmatched: options?.clearUnmatched
+        lastLocation
       });
     }
   }
@@ -902,8 +907,7 @@ export function createBackgroundServices(): BackgroundServices {
       }
 
       const nextLocation: LastLocation = { ...locationToSet, updateTime: new Date().toLocaleString() };
-      await chrome.storage.local.set({ [LAST_LOCATION_KEY]: nextLocation, lastGeoError: '', lastGeoErrorAt: '' });
-      invalidateStorageCache();
+      await writeLastLocation(nextLocation);
       // 坐标从"未解析"变成"已解析"时，权限层要从 block 切回 allow；
       // auto 时区也可能跟着变，请求头一起重算。只调 updateAllTabs 会漏掉这两层。
       // 用 applyLocationEffects 而不是就地重算：它现读配置且排进 applyChain，
@@ -923,10 +927,10 @@ export function createBackgroundServices(): BackgroundServices {
   // ---------- 跟随出口 IP ----------
 
   /**
-   * 写 `lastLocation` 但**不**应用副作用。
+   * 坐标写入的唯一入口：成功时成对清空错误，再让快照失效，不应用副作用。
    *
-   * 和 `updateGeolocation` 的分工：那个是"定位层自己更新"，写完自己重算权限/头/标签页；
-   * 这里是 IP 同步流水线里的一步 —— 坐标和时区必须**一起换完再统一应用一次**，
+   * `updateGeolocation` 写完自己重算权限/头/标签页；IP 同步则在坐标和时区
+   * **一起换完后统一应用一次**，
    * 否则中间态（新坐标 + 旧时区）会被当成有效配置写进 DNR。
    */
   async function writeLastLocation(location: LastLocation): Promise<void> {
@@ -1126,7 +1130,7 @@ export function createBackgroundServices(): BackgroundServices {
    * 站点的"启用/排除"两个动作都必须能在任意域名上直接生效，
    * 排除还得能凭空建出"google.com 底下排除 mail.google.com"这种规则。
    */
-  async function upsertDomainRule(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
+  async function setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
     // frozen 包没有桥，也没有可写的运行时配置；改规则只会白重载页面。
     const frozen = frozenBakedConfig();
     if (frozen) return frozen;
@@ -1148,11 +1152,7 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   async function addDomainRule(domain: string): Promise<SiteSpoofConfig> {
-    return upsertDomainRule(domain, true);
-  }
-
-  async function setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
-    return upsertDomainRule(domain, enabled);
+    return setDomainRuleEnabled(domain, true);
   }
 
   async function deleteDomainRule(domain: string): Promise<SiteSpoofConfig> {
@@ -1239,7 +1239,7 @@ export function createBackgroundServices(): BackgroundServices {
       const config = frozenBakedConfig() || normalizeConfig(await getSiteConfig());
       const location = await getLastLocation();
       await applyGeolocationPermissions(config);
-      await updateAcceptLanguageRules(config, location);
+      await updateAcceptLanguageRules(config);
       await updateAllTabs(config, location);
       // 这一次也算"应用过完整状态"：不同步去重基准，下一次同配置的 applyConfig
       // 会以为还没应用过，白白再写一遍 DNR（写一次就驱逐一次 BFCache）
@@ -1260,8 +1260,8 @@ export function createBackgroundServices(): BackgroundServices {
     // 仍然是旧 Accept-Language 的产物。重载受影响的页面，让文档与值重新对齐。
     // 只改时区/定位不碰头规则，这时重载纯属打扰，所以按内容签名判断。
     await reloadTabsForHeaderChange(config);
-    // clearUnmatched：排除站点、关总开关都要主动清掉已开页面上的烘焙值
-    await updateAllTabs(config, undefined, { clearUnmatched: true });
+    // syncTab 按 frame 决策，排除站点、关总开关都主动清掉页面上的烘焙值。
+    await updateAllTabs(config);
     // 只在成功之后记账：中途失败（DNR / 权限被策略锁住）时下一次还能重试，
     // 不会因为"记成已应用"而永久停在半应用状态。
     lastAppliedSignature = signature;
@@ -1277,12 +1277,10 @@ export function createBackgroundServices(): BackgroundServices {
     }
   }
 
-  async function noteDocumentInjected(documentId?: string): Promise<void> {
-    if (!documentId) return;
-    await markDocumentInjected(documentId);
-  }
-
   return {
+    resolveFrameRuleUrl,
+    resolveFrameRuleContext: frameRules.resolveForContent,
+    forgetFrameTab: frameRules.forgetTab,
     alarmName: ALARM_NAME,
     ipSyncAlarmName: IP_SYNC_ALARM_NAME,
     webRtcPolicies: WEBRTC_POLICY_VALUES,

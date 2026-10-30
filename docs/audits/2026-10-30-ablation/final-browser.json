@@ -1,0 +1,154 @@
+[
+  {
+    "name": "final-frames-155",
+    "command": [
+      "node",
+      "tools/smoke-frames.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 4.11,
+    "summary": [
+      "19",
+      "19"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-workers-155",
+    "command": [
+      "node",
+      "tools/smoke-workers.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 4.33,
+    "summary": [
+      "14",
+      "14"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-bfcache-155",
+    "command": [
+      "node",
+      "tools/smoke-bfcache.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 29.3,
+    "summary": [
+      "11",
+      "11"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-cold-save-155",
+    "command": [
+      "node",
+      "tools/smoke-cold-save.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 21.48,
+    "summary": [
+      "3",
+      "3"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-opaque-recovery-155",
+    "command": [
+      "node",
+      "tools/smoke-opaque-recovery.mjs",
+      "--evidence=/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/final-opaque-recovery-155.json"
+    ],
+    "exit_code": 0,
+    "seconds": 73.96,
+    "summary": [
+      "33",
+      "33"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-baked-clear-155",
+    "command": [
+      "node",
+      "tools/smoke-baked-clear.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 13.19,
+    "summary": [
+      "21",
+      "21"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-frames-119",
+    "command": [
+      "node",
+      "tools/smoke-frames.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 4.93,
+    "summary": [
+      "19",
+      "19"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-bfcache-119",
+    "command": [
+      "node",
+      "tools/smoke-bfcache.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 29.47,
+    "summary": [
+      "11",
+      "11"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-opaque-recovery-119",
+    "command": [
+      "node",
+      "tools/smoke-opaque-recovery.mjs",
+      "--evidence=/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/final-opaque-recovery-119.json"
+    ],
+    "exit_code": 0,
+    "seconds": 74.1,
+    "summary": [
+      "33",
+      "33"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  },
+  {
+    "name": "final-baked-clear-119",
+    "command": [
+      "node",
+      "tools/smoke-baked-clear.mjs"
+    ],
+    "exit_code": 0,
+    "seconds": 13.61,
+    "summary": [
+      "21",
+      "21"
+    ],
+    "ordinary_dist_unchanged": true,
+    "persona_config_absent": true
+  }
+]

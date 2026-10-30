@@ -52,19 +52,22 @@ function stage(id, label, cmd, args, { summary, timeoutMs = 600_000, deps = [] }
 }
 
 const SMOKES = [
-  'presets', 'frames', 'workers', 'bfcache', 'cold-start', 'cold-save',
+  'presets', 'frames', 'opaque-frames', 'opaque-recovery', 'workers', 'bfcache', 'cold-start', 'cold-save',
   'baked-clear', 'baked-failclosed', 'ip-apply', 'theme', 'options', 'popup'
 ];
 
 const STAGES = [
   stage('version', '版本与产物一致', null, null, { timeoutMs: 30_000 }),
+  // 单测和覆盖率会读取 dist，完整执行和 --only 都必须先生成当前源码的产物。
+  stage('build', '构建 dist', 'npm', ['run', 'build'], { timeoutMs: 300_000 }),
   stage('verify', 'lint + typecheck + 单测', 'npm', ['run', 'verify'], {
-    summary: (out) => match(out, /ℹ pass (\d+)/, (m) => `${m[1]} pass`)
+    summary: (out) => match(out, /ℹ pass (\d+)/, (m) => `${m[1]} pass`),
+    deps: ['build']
   }),
   stage('coverage', '核心分支覆盖 ≥85%', 'npm', ['run', 'test:coverage:core'], {
-    summary: (out) => match(out, /All files\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)/, (m) => `分支 ${m[2]}%`)
+    summary: (out) => match(out, /All files\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)/, (m) => `分支 ${m[2]}%`),
+    deps: ['build']
   }),
-  stage('build', '构建 dist', 'npm', ['run', 'build'], { timeoutMs: 300_000 }),
   // options / popup 需要构建产物，而 CI 上那份是 runner 临时目录里的；
   // 本地就用同一个构建脚本造一份，别让 preflight 依赖 ~/.vanishgeo 里的旧包
   stage('persona', '烘焙一份 persona 供 UI 冒烟', 'node',
@@ -74,8 +77,9 @@ const STAGES = [
     {
       summary: (out) => match(out, /(\d+)\/(\d+) 通过/, (m) => `${m[1]}/${m[2]}`),
       timeoutMs: 300_000,
-      // 这两条要构建产物，persona 没跑过就是"找不到扩展"而不是"扩展坏了"
-      deps: /^(options|popup)$/.test(name) ? ['persona'] : []
+      // UI 冒烟用 persona，其余读取 dist 的冒烟需要当前源码的普通构建。
+      deps: /^(options|popup)$/.test(name) ? ['persona']
+        : /^(frames|opaque-frames|opaque-recovery|workers|bfcache|cold-save|baked-failclosed|ip-apply|theme)$/.test(name) ? ['build'] : []
     })),
   // 三引擎审计是唯一能覆盖 Helium 的一关，也是唯一会真开浏览器跑真实站点的一关
   stage('audit', '三引擎审计', 'npm', ['run', 'audit'], {

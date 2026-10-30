@@ -102,6 +102,7 @@ test('baked resolver falls back to lastLocation timezone when mode is auto', () 
   assert.deepEqual(actual, expected);
   assert.equal(actual?.timezone, 'Asia/Tokyo');
   assert.equal(actual?.latitude, lastLocation.latitude);
+  assert.equal(resolveBakedPayload(source, 'claude.ai', lastLocation)?.geolocation?.country, 'Japan');
 });
 
 test('baked resolver returns null when the extension is disabled or the host does not match', () => {
@@ -233,18 +234,4 @@ test('baked resolver 分支：canvas 平台 / hideCjk / targetFonts / debug', ()
 
   const none = resolveBakedPayload(config({ canvas: { ...DEFAULT_CANVAS, platform: 'none' } }), 'claude.ai', lastLocation);
   assert.equal(none?.canvasConfig.platform, 'none');
-});
-
-test('baked resolver 分支：auto 定位带时区时优先用定位时区', () => {
-  const source = config({
-    globalProfile: {
-      language: DEFAULT_LANGUAGE,
-      timezone: { enabled: true, mode: 'auto', timezone: '' },
-      geolocation: { ...DEFAULT_GEOLOCATION, enabled: true, mode: 'auto' }
-    },
-    rules: [{ id: 'a', domain: 'claude.ai', enabled: true }] as any
-  });
-  const payload = resolveBakedPayload(source, 'claude.ai', lastLocation);
-  assert.equal(payload?.timezone, 'Asia/Tokyo');
-  assert.equal(payload?.geolocation?.country, 'Japan');
 });

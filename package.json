@@ -20,6 +20,7 @@
     "audit:native": "node tools/native-audit.mjs",
     "smoke:failclosed": "node tools/smoke-failclosed.mjs",
     "smoke:frames": "node tools/smoke-frames.mjs",
+    "smoke:opaque-frames": "node tools/smoke-opaque-frames.mjs",
     "smoke:workers": "node tools/smoke-workers.mjs",
     "smoke:bfcache": "node tools/smoke-bfcache.mjs",
     "smoke:baked-failclosed": "node tools/smoke-baked-failclosed.mjs",
@@ -41,7 +42,8 @@
     "verify": "npm run lint && npm run typecheck && npm test",
     "preflight": "node tools/preflight.mjs",
     "test:coverage": "tsx --test --experimental-test-coverage tests/*.test.ts",
-    "test:coverage:core": "c8 --include='src/background/services.ts' --include='src/background/dnr.ts' --include='src/content/content-bridge.ts' --include='src/injected/baked-resolver.ts' --include='src/shared/config-model.ts' --include='src/shared/config-resolver.ts' --include='src/shared/profile.ts' --include='src/shared/site-status.ts' --reporter=text --check-coverage --per-file --branches=85 --lines=0 --functions=0 --statements=0 node_modules/.bin/tsx --test tests/*.test.ts"
+    "test:coverage:core": "c8 --include='src/background/services.ts' --include='src/background/dnr.ts' --include='src/content/content-bridge.ts' --include='src/injected/baked-resolver.ts' --include='src/shared/config-model.ts' --include='src/shared/config-resolver.ts' --include='src/shared/profile.ts' --include='src/shared/site-status.ts' --reporter=text --check-coverage --per-file --branches=85 --lines=0 --functions=0 --statements=0 node_modules/.bin/tsx --test tests/*.test.ts",
+    "smoke:opaque-recovery": "node tools/smoke-opaque-recovery.mjs"
   },
   "keywords": [
     "privacy",

@@ -1,0 +1,8 @@
+src/shared/config-model.ts: only 3 approved declarations removed; retained statements identical
+src/shared/config-resolver.ts: only 1 approved declarations removed; retained statements identical
+src/shared/diagnostic.ts: only 9 approved declarations removed; retained statements identical
+tests/config.test.ts: 19 -> 18 direct test cases
+tests/rule-exclusion.test.ts: 11 -> 11 direct test cases
+tests/diagnostic.test.ts: 9 -> 6 direct test cases
+tests/content-bridge.test.ts: 37 -> 37 direct test cases
+tests/extension-wiring.test.ts: 21 -> 21 direct test cases

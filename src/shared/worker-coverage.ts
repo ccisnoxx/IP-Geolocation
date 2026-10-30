@@ -52,11 +52,6 @@ export const WORKER_COVERAGE: Record<WorkerCoverageKey, WorkerCoverageEntry> = {
   }
 };
 
-/** 某个 key 是否真的在覆盖范围里 */
-export function isWorkerCovered(key: WorkerCoverageKey): boolean {
-  return WORKER_COVERAGE[key].status === 'supported';
-}
-
 /**
  * 包装失败的观测值。
  *

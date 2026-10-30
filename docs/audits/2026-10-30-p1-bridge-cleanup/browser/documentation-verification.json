@@ -1,0 +1,18 @@
+{
+  "changed_paths": [
+    "REVIEW-P1-BRIDGE.md"
+  ],
+  "preserved_paths": 204,
+  "historical_review_prefix_preserved": true,
+  "appended_lines": 93,
+  "cleanup_patch_unchanged": true,
+  "deleted_symbols_no_maintained_references": true,
+  "docs_tests": {
+    "passed": 10,
+    "failed": 0
+  },
+  "diff_whitespace_check": "passed",
+  "head_unchanged": true,
+  "index_unchanged": true,
+  "original_main_bridge_P1": "OPEN"
+}

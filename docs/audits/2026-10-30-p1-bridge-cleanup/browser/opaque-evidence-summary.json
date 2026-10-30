@@ -1,0 +1,143 @@
+[
+  {
+    "requested_major": "119",
+    "browser_products": [
+      "Chrome/119.0.6045.105",
+      "Chrome/119.0.6045.105"
+    ],
+    "passed": 33,
+    "filesystem_blocked": [
+      true,
+      true
+    ],
+    "navigation_cases": 2,
+    "bfcache_cases": 2,
+    "recovery": [
+      {
+        "stage": "restart",
+        "before": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "after": null,
+        "churn_documents": null,
+        "quota": null,
+        "actual_sw_replaced": true,
+        "restored_persisted": true
+      },
+      {
+        "stage": "eviction",
+        "before": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "after": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "churn_documents": 505,
+        "quota": null,
+        "actual_sw_replaced": null,
+        "restored_persisted": true
+      },
+      {
+        "stage": "quota",
+        "before": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "after": null,
+        "churn_documents": null,
+        "quota": {
+          "before": 41056,
+          "after": 10485744,
+          "fillerLength": 10444639,
+          "rejections": 2,
+          "error": "Error: Session storage quota bytes exceeded. Values were not stored."
+        },
+        "actual_sw_replaced": true,
+        "restored_persisted": true
+      }
+    ],
+    "programmatic_blob_probe": [
+      {
+        "frameId": 6,
+        "documentId": "63EC1E8E79FC49FB440E1FBDDBFFB09B",
+        "error": "Error: Cannot access contents of url \"blob:http://localhost:60055/ea8d2864-e9c7-48b2-bb8a-6b302abf1cf6\". Extension manifest must request permission to access this host."
+      }
+    ]
+  },
+  {
+    "requested_major": "155",
+    "browser_products": [
+      "Chrome/155.0.8059.86",
+      "Chrome/155.0.8059.86"
+    ],
+    "passed": 33,
+    "filesystem_blocked": [
+      true,
+      true
+    ],
+    "navigation_cases": 2,
+    "bfcache_cases": 2,
+    "recovery": [
+      {
+        "stage": "restart",
+        "before": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "after": null,
+        "churn_documents": null,
+        "quota": null,
+        "actual_sw_replaced": true,
+        "restored_persisted": true
+      },
+      {
+        "stage": "eviction",
+        "before": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "after": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "churn_documents": 505,
+        "quota": null,
+        "actual_sw_replaced": null,
+        "restored_persisted": true
+      },
+      {
+        "stage": "quota",
+        "before": {
+          "keys": 1,
+          "bytes": 1056
+        },
+        "after": null,
+        "churn_documents": null,
+        "quota": {
+          "before": 41056,
+          "after": 10485744,
+          "fillerLength": 10444639,
+          "rejections": 2,
+          "error": "Error: Session storage quota bytes exceeded. Values were not stored."
+        },
+        "actual_sw_replaced": true,
+        "restored_persisted": true
+      }
+    ],
+    "programmatic_blob_probe": [
+      [
+        {
+          "documentId": "64BA25BDF5888FDCC6167B1AA85CE9AE",
+          "frameId": 9,
+          "result": {
+            "parentUrl": "http://localhost:60056/fixtures/opaque/top.html",
+            "url": "blob:http://localhost:60056/ea078daa-2afc-4e03-a5c4-8f1627b0923f"
+          }
+        }
+      ]
+    ]
+  }
+]

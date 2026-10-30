@@ -23,7 +23,7 @@ import type { WorkerFallbackReason } from '../shared/worker-coverage';
  *    这类等式必须继续成立，所以只 patch 原型、不 patch 实例；
  * 4. 首屏一致：payload 在构建期烘焙（`__VANISHGEO_BAKED__`），document_start 同步应用，
  *    不存在"先真值后假值"的窗口；
- * 5. 不留可被页面伪造的通道：动态更新走构建期随机 nonce，persona 构建直接关闭。
+ * 5. 动态桥仍有未关闭的认证缺口；构建 nonce 仅作消息标识，frozen 构建关闭桥。
  */
 
 type RuntimePayload = BakedRuntimePayload & {
@@ -40,7 +40,6 @@ interface RuntimeState {
   /** 定位启用但坐标解析不出来：安装 deny 补丁，返回 POSITION_UNAVAILABLE */
   geolocationDenied: boolean;
   installedGeo: boolean;
-  debug: boolean;
   installedCanvas: boolean;
   canvasTargetFonts: string[] | null;
   /** 诊断回报用：当前生效的字体层配置（不含字表本身） */
@@ -65,7 +64,6 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     geolocation: null,
     geolocationDenied: false,
     installedGeo: false,
-    debug: false,
     installedCanvas: false,
     canvasTargetFonts: null,
     canvasConfig: null,
@@ -134,9 +132,9 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
    * 配置热更新的口令，每个文档随机一份。
    *
    * Worker 的补丁入口是创建时烘焙进 blob 的，跑起来之后唯一的同步手段是 postMessage。
-   * 消息通道不是独占的 —— 页面同样能往这个 Worker 发消息 —— 所以靠一份页面猜不到的
-   * 口令区分"扩展下发的配置"和"页面伪造的配置"。口令只活在这份闭包和 Worker 入口里，
-   * 不进 DOM、不进 storage。
+   * 页面同样能往这个 Worker 发消息，文档 token 用来过滤不匹配的配置消息。
+   * 它处于页面共享的 MAIN / Worker 环境，不能作为扩展身份认证或抗页面干扰的证明。
+   * token 只保存在这份闭包和 Worker 入口里，不进 DOM、不进 storage。
    */
   const workerConfigToken = (() => {
     const bytes = new Uint8Array(16);
@@ -488,7 +486,6 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     state.geolocation = null;
     state.geolocationDenied = false;
     state.installedGeo = false;
-    state.debug = false;
     state.installedCanvas = false;
     state.installedWorker = false;
     state.canvasTargetFonts = [];
@@ -508,7 +505,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       return;
     }
 
-    state.debug = Boolean(payload.debugMode);
+    const debug = Boolean(payload.debugMode);
 
     const timezoneConfig = payload.timezoneConfig || { enabled: false, mode: 'auto', timezone: '' };
     const nextTimezone = timezoneConfig.enabled === false
@@ -588,7 +585,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     // 与本 Worker 的时区/语言就能发现两处不一致。这一步对新建 Worker 是幂等的。
     broadcastWorkerConfig();
 
-    if (state.debug) {
+    if (debug) {
       console.log('[VanishGeo] applied', {
         timezone: state.timezone,
         language: state.language,
@@ -609,11 +606,10 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
   // 2) 动态更新：content script 在 document_start 发一条握手，把私有 MessagePort
   //    递进来，之后 payload 全走端口。
   //
-  //    旧做法是把 nonce 和 payload 一起 `window.postMessage` 出去 —— 页面在自己的
-  //    `message` 监听器里能读到两者，等于把伪装的写权限交给了页面。端口只有两端
-  //    持有，页面观察不到也拿不到；端口消息里再校验 nonce，抢到端口也伪造不了。
+  //    已知安全缺口：页面也能构造握手并从 ack 取得 nonce；构建常量随发行包公开。
+  //    当前端口校验不能证明发送者身份，需重新设计隔离侧与 MAIN 的信任边界。
   //
-  //    握手只收一次：收下端口立刻摘掉 window 监听器，之后不存在可观测的握手。
+  //    握手只收一次；这也意味着伪造的首次握手可能阻断合法桥。
   if (BRIDGE_ENABLED && NONCE) {
     const onHandshake = (event: MessageEvent) => {
       if (event.source !== window) return;
@@ -625,7 +621,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
       reportPort = port;
       // 回报通道：诊断页要显示"页面实际生效的字体层"。三张字表只存在于这个文件里
       // （注入层必须自包含），所以数字只能由这里给，不能在诊断页另算一份。
-      // 端口是私有的，页面看不到这条消息。
+      // 该回报只用于诊断，不能把端口本身当作身份认证依据。
       const report = () => {
         try {
           port.postMessage({
