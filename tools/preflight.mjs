@@ -22,8 +22,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { readPresets } from '../scripts/lib/presets.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
+// 发布包的验数必须等于实际产出数：写死 3 时，多出一个 preset 就等于"少验一个也算通过"
+const PRESET_COUNT = readPresets(ROOT).length;
 const flags = new Map();
 for (const arg of process.argv.slice(2)) {
   const [key, value] = arg.split('=');
@@ -86,11 +89,11 @@ const STAGES = [
     summary: (out) => match(out, /合计 (\d+\/\d+) 项通过 · (\d+\/\d+) 组全绿/, (m) => `${m[1]} 项 · ${m[2]} 组`),
     timeoutMs: 1_800_000
   }),
-  stage('package', '打包三个预设', 'node', ['scripts/release.mjs', '--all-presets', '--out=release'], {
+  stage('package', '打包全部预设', 'node', ['scripts/release.mjs', '--all-presets', '--out=release'], {
     summary: (out) => (String(out).match(/vanishgeo-[\d.]+-[a-z0-9-]+\.zip/g) || []).length + ' 个包',
     timeoutMs: 600_000
   }),
-  stage('release-smoke', '发布包冒烟', 'npm', ['run', 'smoke:release', '--', '--dir=release', '--require=3'], {
+  stage('release-smoke', '发布包冒烟', 'npm', ['run', 'smoke:release', '--', '--dir=release', `--require=${PRESET_COUNT}`], {
     summary: (out) => match(out, /(\d+)\/(\d+) 个包通过/, (m) => `${m[1]}/${m[2]} 个包`),
     timeoutMs: 900_000
   }),

@@ -432,7 +432,10 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     fontTargets: string[];
     token: string;
   }): string {
-    return `;(${workerPatch.toString()})(${JSON.stringify(config)});`;
+    // 前导 `"use strict"`：blob 是独立经典脚本，Worker 里每个函数都得是 strict ——
+    // sloppy 的函数对象会多出自有 `arguments`/`caller`，页面在 Worker 里跑一遍
+    // `Object.getOwnPropertyNames(Function.prototype.toString)` 就能看出补丁。
+    return `"use strict";(${workerPatch.toString()})(${JSON.stringify(config)});`;
   }
 
   /**

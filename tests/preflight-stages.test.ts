@@ -44,6 +44,9 @@ function runPreflight(t: TestContext, args: string[]) {
     } else if (!existsSync('dist/manifest.json')) {
       throw new Error('单测读取 dist 前必须先构建');
     }`, true);
+  // preflight 从 DEFAULT_PROFILES 现算发布包验数（不写死 3），所以这里也要有个
+  // 同口径的桩：数量变了，`--require` 必须跟着变
+  write('scripts/lib/presets.mjs', `export function readPresets() { return [{ id: 'a' }, { id: 'b' }, { id: 'c' }]; }`);
   write('scripts/build-persona.mjs', `${record}
     import { join } from 'node:path';
     record('persona');
@@ -162,5 +165,18 @@ test('preflight 能用 npm run 起来，且不把审查逻辑再写一遍', () =
   // 每关都该是一次真实子进程调用：出现自造的断言循环就是第二套真相
   for (const banned of ['assert.equal(', 'results.push({ name']) {
     assert.equal(preflight.includes(banned), false, `preflight 里不该出现 ${banned}`);
+  }
+});
+
+test('发布包冒烟的 --require 由 presets 数量现算，不写死', () => {
+  // 写死 3 的那种坏法很难在单测里撞见：preset 从 3 变 4 之后，
+  // smoke-release 照样"3/3 通过"，少验的那个包没人知道
+  assert.match(preflight, /--require=\$\{PRESET_COUNT\}/);
+  assert.match(preflight, /const PRESET_COUNT = readPresets\(ROOT\)\.length/);
+  assert.ok(!/--require=\d/.test(preflight), 'preflight 里不该再出现写死的 --require=数字');
+  for (const workflow of ['ci.yml', 'release.yml']) {
+    const body = readFileSync(`.github/workflows/${workflow}`, 'utf8');
+    assert.ok(!/--require=\d/.test(body), `${workflow} 里不该再出现写死的 --require=数字`);
+    assert.match(body, /--require="\$PRESETS"|--require="\$\{\{/, `${workflow} 要现算验数`);
   }
 });

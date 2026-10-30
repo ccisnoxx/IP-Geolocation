@@ -450,6 +450,13 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
       return Reflect.construct(NativeDate, [resolveWallTime(base, base)], target);
     }
 
+    // 为什么不用 Proxy 包住原生构造器：Proxy 能把 own keys 和描述符摆平，但
+    // `Date.name`、派生类里的 `new.target` 链、以及 `Function.prototype.toString`
+    // 的输出都得再补一层，`new Proxy(...)` 的 own keys 也还要逐个去抹。而注入层是
+    // strict（vite banner 里的 "use strict"），普通函数不再长出 sloppy 才有的自有
+    // `arguments`/`caller`，补上 prototype 与三个静态方法之后 own keys 就是
+    // ['length','name','prototype','now','parse','UTC']，与原生逐项相同
+    // （`npm run audit:parity` 在真浏览器里对照控制组验这条）。
     const Spoofed: any = disguise(SpoofedDate, 'Date', 7, { construct: true });
     try {
       // 原生 Date.prototype 是 non-writable / non-configurable，这里保持一致

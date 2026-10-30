@@ -184,3 +184,21 @@ test('普通构建不增加 persona 的静态规则或注入', async (t) => {
   await buildRuntime(root, 'plain-output', [buildPlugin(config, 'vanishgeo-baked-ruleset'), manifestPlugin()]);
   assert.deepEqual(JSON.parse(readFileSync(join(root, 'plain-output/manifest.json'), 'utf8')), baseManifest);
 });
+
+test('注入层产物是 IIFE 且显式 strict —— sloppy 会给每个函数加 arguments/caller', async (t) => {
+  const root = buildRoot(t);
+  const config = await loadBuildConfig(root);
+  const output = config.build?.rollupOptions?.output as {
+    banner?: (chunk: { name: string }) => string;
+    footer?: (chunk: { name: string }) => string;
+  };
+  assert.ok(output.banner && output.footer, '必须声明 banner / footer');
+  // 源码是 ESM（隐式 strict）语义，Rollup 拍平成经典 IIFE 时会把 strict 丢掉。
+  // sloppy 下 `Object.getOwnPropertyNames(fn)` 会多出 arguments / caller，
+  // 原生内建函数没有这两样 —— 等于给整层补丁盖了个"非原生"的章。
+  assert.match(output.banner({ name: 'injected/runtime' }), /^\(function \(\) \{\n"use strict";$/);
+  assert.equal(output.footer({ name: 'injected/runtime' }), '})();');
+  // 其它入口是正常模块产物，不能被包一层
+  assert.equal(output.banner({ name: 'content/content' }), '');
+  assert.equal(output.footer({ name: 'content/content' }), '');
+});

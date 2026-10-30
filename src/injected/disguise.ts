@@ -51,6 +51,31 @@ export function createDisguise(): Disguise {
 
   let installed = false;
 
+  /**
+   * `Function.prototype.toString` 自己也是被观察的对象，所以它也得长成原生内建函数的
+   * 样子：方法形状（无自有 `prototype`、不可 `new`）比普通函数表达式更接近原生。
+   *
+   * 原生内建函数只可能被 `Object.getOwnPropertyNames` 看到 `length` / `name`；
+   * 普通函数表达式在 sloppy 代码里还会多出 `arguments` / `caller`，并且是构造器：
+   *
+   *     Object.getOwnPropertyNames(Function.prototype.toString)          // ['length','name']
+   *     new (Function.prototype.toString)                                 // TypeError
+   *     Reflect.construct(function () {}, [], Function.prototype.toString) // TypeError
+   *
+   * 补丁要在这三件事上都对得上，否则"toString 被换过"一行就能测出来。
+   */
+  const toStringImpl = methodShaped(function toString(this: any) {
+    if (typeof this === 'function') {
+      const signature = signatures.get(this);
+      if (signature !== undefined) return signature;
+    }
+    return nativeToString.call(this);
+  }, 'toString');
+
+  // 这个补丁自己的 toString 也要像原生（否则页面拿它一测就露）。登记放在安装之前：
+  // 真正安装发生在第一次 disguise（或页面自己触发 toString 之前），登记本身不可观测。
+  signatures.set(toStringImpl, signatureOf('toString'));
+
   const install = (): void => {
     if (installed) return;
     installed = true;
@@ -64,18 +89,14 @@ export function createDisguise(): Disguise {
     } catch { /* ignore */ }
   };
 
-  const toStringImpl = function toString(this: any) {
-    if (typeof this === 'function') {
-      const signature = signatures.get(this);
-      if (signature !== undefined) return signature;
-    }
-    return nativeToString.call(this);
-  };
-  // 这个补丁自己的 toString 也要像原生（否则页面拿它一测就露）
-  signatures.set(toStringImpl, signatureOf('toString'));
-
-  install();
-
+  /**
+   * 惰性安装：**第一次真的需要伪装时才动全局**。
+   *
+   * 原生语言/时区已经等于目标值时上层根本不会调用 disguise（见 patch-needs.ts），
+   * 旧实现却在 `createDisguise()` 里立刻替换 `Function.prototype.toString` ——
+   * 于是"什么都不用改"的页面上，`Function.prototype.toString === native` 这个平凡
+   * 恒等式反而成了唯一破绽。现在没有 disguise 调用就没有任何可观测修改。
+   */
   const disguise = ((impl: any, name: string, length: number, options?: { construct?: boolean }) => {
     // clear 之后可能已经还原过；再次伪装时把 toString 补回来
     install();
@@ -88,9 +109,9 @@ export function createDisguise(): Disguise {
     try {
       Object.defineProperty(shaped, 'length', { value: length, configurable: true });
     } catch { /* ignore */ }
-    try {
-      signatures.set(shaped, signatureOf(name));
-    } catch { /* ignore */ }
+    // WeakMap 以对象为键，set 不会抛 —— 这里的 try/catch 只会让"分支覆盖率"
+    // 里多一条永不执行的分支，删掉。
+    signatures.set(shaped, signatureOf(name));
     return shaped;
   }) as Disguise;
 

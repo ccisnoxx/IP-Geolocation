@@ -10,9 +10,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  # 同一个 tag 重复推（或重打）时不要让两个发布流程同时改同一份 Release 资产
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -44,6 +50,11 @@ jobs:
       - name: Core branch coverage
         run: npm run test:coverage:core
 
+      # 安全模块（消息来源策略 / opaque frame 证据 / 函数伪装 / 补丁开关）单独一档：
+      # 它们退化的表现是"页面能看出被改过"，单测不会红，只有覆盖率会红。
+      - name: Security branch coverage
+        run: npm run test:coverage:security
+
       - name: Get version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
@@ -62,6 +73,11 @@ jobs:
           zip -r ../vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip .
           cd ..
 
+      # release/ 在 .gitignore 里，但重跑历史 job / 本地调试时会留着上一版产物：
+      # 那就可能把 2.4.1 的 zip 一起传进 2.4.2 的 Release。
+      - name: Clean release directory
+        run: rm -rf release
+
       # 上面那个 zip 是开发构建：配置要经一次异步 IPC 才进页面，页面的第一个内联
       # 脚本可能先跑。这一步额外产出烘焙构建（每个 preset 一份），首屏零窗口。
       # 三道闸（产物里有目标时区 / 经典脚本 / 静态规则非空）不过就不出包。
@@ -74,20 +90,52 @@ jobs:
             node scripts/release.mjs --check="$zip"
           done
 
-      - name: Generate changelog
-        id: changelog
+      # 单测只能证明"参数被算出来了"，证明不了"页面第一个内联脚本读到的就是它"。
+      # 浏览器冒烟必须挡在创建 Release **之前**：以前它在另一条并行的 CI 里跑，
+      # Release 可能先发布、冒烟随后红，坏资产已经挂在 Release 上了。
+      - name: Preflight Chrome
         run: |
-          PREV_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          set -euo pipefail
+          CHROME="$(node -e "import('./tools/lib/cdp.mjs').then(m => console.log(m.CHROME_PATH))")"
+          test -x "$CHROME" || { echo "找不到可执行的 Chrome：$CHROME"; exit 1; }
+          "$CHROME" --version
 
+      - name: Smoke every package in a real browser
+        run: |
+          set -euo pipefail
+          # --require 的数量必须等于实际产出的包数，别再写死 3：
+          # preset 增删时写死的那一端会变成"少验一个包也算通过"。
+          PRESETS="$(node -e "import('./scripts/lib/presets.mjs').then(m => console.log(m.readPresets(process.cwd()).length))")"
+          echo "presets: $PRESETS"
+          npm run smoke:release -- --dir=release --require="$PRESETS"
+
+      - name: Build changelog
+        run: |
+          set -euo pipefail
+          PREV_TAG=$(git describe --abbrev=0 --tags "$(git rev-list --tags --skip=1 --max-count=1)" 2>/dev/null || true)
           if [ -z "$PREV_TAG" ]; then
-            CHANGELOG="- VanishGeo 首个发布"
+            printf '%s\n' '- VanishGeo 首个发布' > "$RUNNER_TEMP/changelog.md"
           else
-            CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" | grep -v "Merge pull request" || echo "- 修复与改进")
+            # grep 没匹配到会返回 1，在 set -e 下会把这一步判红 —— 显式兜底
+            git log "$PREV_TAG..HEAD" --pretty=format:"- %s" | grep -v "Merge pull request" > "$RUNNER_TEMP/changelog.md" || true
+            if [ ! -s "$RUNNER_TEMP/changelog.md" ]; then
+              printf '%s\n' '- 修复与改进' > "$RUNNER_TEMP/changelog.md"
+            fi
           fi
+          cat "$RUNNER_TEMP/changelog.md"
 
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      # 正文不手写：域名条数、预设包清单、安全承诺全部从 default-domains.json /
+      # DEFAULT_PROFILES / release/*.zip 生成。写死过的"13 个域名""五个预设包"
+      # "私有 MessagePort" 就是这么和产物分叉的（见 tests/release-notes.test.ts）。
+      - name: Generate release notes
+        run: |
+          node scripts/release-notes.mjs \
+            --version="${{ steps.get_version.outputs.VERSION }}" \
+            --release-dir=release \
+            --changelog-file="$RUNNER_TEMP/changelog.md" \
+            --out="$RUNNER_TEMP/release-notes.md"
+          echo '--- release body ---'
+          cat "$RUNNER_TEMP/release-notes.md"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -95,48 +143,7 @@ jobs:
           files: |
             vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip
             release/*.zip
-          body: |
-            ## VanishGeo v${{ steps.get_version.outputs.VERSION }}
-
-            ### 安装 / Installation
-
-            1. 下载 `vanishgeo-v${{ steps.get_version.outputs.VERSION }}.zip` / Download the zip
-            2. 解压 / Extract it
-            3. 打开 `chrome://extensions/`，启用「开发者模式」 / Open `chrome://extensions/` and enable Developer mode
-            4. 「加载已解压的扩展程序」→ 选择解压出来的文件夹 / Load unpacked → pick the extracted folder
-
-            首次安装会自动启用内置的 13 个域名规则（`src/shared/default-domains.json`）。
-            The built-in allowlist of 13 domains is enabled on first install.
-
-            ### 零首屏窗口（可选）/ Zero first-paint window
-
-            `vanishgeo-v…zip` 是开发构建：配置经异步 IPC 进页面，页面的**第一个内联脚本**
-            可能读到原生值。要彻底关掉这个窗口，用按城市烘焙好的包：
-
-            ```
-            vanishgeo-${{ steps.get_version.outputs.VERSION }}-singapore.zip    Asia/Singapore   en-SG
-            vanishgeo-${{ steps.get_version.outputs.VERSION }}-japan.zip        Asia/Tokyo       ja-JP
-            vanishgeo-${{ steps.get_version.outputs.VERSION }}-germany.zip      Europe/Berlin    de-DE
-            vanishgeo-${{ steps.get_version.outputs.VERSION }}-united-states.zip America/New_York en-US
-            vanishgeo-${{ steps.get_version.outputs.VERSION }}-china.zip        Asia/Shanghai    zh-CN
-            ```
-
-            配置已编译进 `injected/runtime.js`，`document_start` 同步生效。安装方式同上。
-            其余城市/地区可本地构建：`npm run release -- --preset=<id>`（见 CONFIG_GUIDE §十）。
-
-            ### 更新日志 / Changelog
-
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
-            ### 功能 / Features
-
-            - 时区 / 语言 / 地理位置 / canvas 四层一致伪装
-            - 请求头与页面内 API 同源，`Accept-Language` 由 DNR 在首个请求前改好
-            - 反检测：原生签名、WebIDL 形状、会话固定偏移、私有 MessagePort 下发配置
-            - 域名规则支持显式排除（`!mail.google.com`），最长匹配优先
-            - WebRTC 防泄漏、失败即关闭（fail-closed）并给出可见提示
-
-            完整文档见 README.md。
+          body_path: ${{ runner.temp }}/release-notes.md
           draft: false
           prerelease: false
 
@@ -146,3 +153,13 @@ jobs:
           name: vanishgeo-v${{ steps.get_version.outputs.VERSION }}
           path: dist/
           retention-days: 30
+
+      - name: Upload packages on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zips-v${{ steps.get_version.outputs.VERSION }}
+          path: |
+            release/*.zip
+            release/*.json
+          retention-days: 3

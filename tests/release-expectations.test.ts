@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { inferBakedFields, headerLocaleFromRules, resolveExpectations } from '../tools/lib/release-expectations.mjs';
+import {
+  headerLocaleFromRules,
+  headerValueFromRules,
+  inferBakedFields,
+  inferBakedLanguages,
+  resolveExpectations,
+  ruleDomains
+} from '../tools/lib/release-expectations.mjs';
 
 /**
  * 这一层是「发布验证的恒真断言」的补丁。
@@ -86,4 +93,35 @@ test('跨层一致性靠 bakedLocale 与 headerLocale 两个字段暴露', () =>
   const mismatch = resolveExpectations({ source: BAKED_SOURCE, rules: conflicting });
   assert.equal(mismatch.expectLocale, 'ja-JP', '烘焙值优先');
   assert.notEqual(mismatch.headerLocale, mismatch.bakedLocale);
+});
+
+test('完整 Accept-Language 取整串（含 q 权重），不是只取首段', () => {
+  assert.equal(headerValueFromRules(RULES), 'ja-JP,ja;q=0.9,en-US;q=0.8');
+  assert.equal(headerValueFromRules([]), null);
+});
+
+test('规则域名去重保序', () => {
+  const doubled = [RULES[0], { ...RULES[0], id: 2 }, { id: 3, condition: { requestDomains: ['openai.com'] } }];
+  assert.deepEqual(ruleDomains(doubled), ['chatgpt.com', 'openai.com']);
+  assert.deepEqual(ruleDomains(undefined), []);
+});
+
+test('从烘焙字面量里取完整 languages 列表', () => {
+  assert.deepEqual(inferBakedLanguages(BAKED_SOURCE), ['ja-JP', 'ja', 'en-US', 'en']);
+  assert.equal(inferBakedLanguages('var x = 1;'), null);
+  assert.equal(inferBakedLanguages('languages: []'), null);
+  // 注入层里 `languages: []`（默认空配置）出现在烘焙字面量之前：拿第一个 match 当答案
+  // 会让"navigator.languages 与烘焙列表一致"这条断言永远验证不到东西
+  assert.deepEqual(
+    inferBakedLanguages('languages: [] ; const c = { languages: ["en-GB", "en"] };'),
+    ['en-GB', 'en']
+  );
+});
+
+test('清单里的 languages 优先，其次包内字面量', () => {
+  const fromSummary = resolveExpectations({ summary: { languages: ['en-GB', 'en'] }, source: BAKED_SOURCE, rules: RULES });
+  assert.deepEqual(fromSummary.bakedLanguages, ['en-GB', 'en']);
+  const fromBundle = resolveExpectations({ source: BAKED_SOURCE, rules: RULES });
+  assert.deepEqual(fromBundle.bakedLanguages, ['ja-JP', 'ja', 'en-US', 'en']);
+  assert.equal(fromBundle.headerValue, 'ja-JP,ja;q=0.9,en-US;q=0.8');
 });

@@ -32,9 +32,44 @@ const PROBE = String.raw`
     catch (error) { return 'ERR:' + (error && error.message); }
   };
 
+  const isConstructor = (value) => {
+    try { Reflect.construct(function () {}, [], value); return true; }
+    catch { return false; }
+  };
+
+  /**
+   * 函数对象**自身**的形状。
+   *
+   * 只比 name / length / toString 是不够的：原生内建函数只暴露 length / name 两个
+   * 自有属性、并且不可构造；普通函数表达式（尤其 sloppy 代码里的）还会长出
+   * prototype / arguments / caller，而且能被当成 newTarget：
+   *
+   *     Object.getOwnPropertyNames(Function.prototype.toString)
+   *     Reflect.construct(function () {}, [], Function.prototype.toString)  // 原生抛 TypeError
+   *
+   * 这两行都能一行分辨补丁，所以逐项对上才算"形状一致"。
+   */
+  const functionShape = (fn) => {
+    const own = Object.getOwnPropertyNames(fn);
+    const descriptors = {};
+    for (const key of own) {
+      const found = Object.getOwnPropertyDescriptor(fn, key);
+      if (!found) continue;
+      descriptors[key] = 'value' in found
+        ? { kind: 'data', writable: found.writable, enumerable: found.enumerable, configurable: found.configurable }
+        : { kind: 'accessor', enumerable: found.enumerable, configurable: found.configurable };
+    }
+    return {
+      own,
+      symbols: Object.getOwnPropertySymbols(fn).map((symbol) => Symbol.keyFor(symbol) || String(symbol)),
+      descriptors,
+      isConstructor: isConstructor(fn)
+    };
+  };
+
   const shape = (value) => {
     if (typeof value === 'function') {
-      return { kind: 'function', name: value.name, length: value.length, toString: safeToString(value) };
+      return { kind: 'function', name: value.name, length: value.length, toString: safeToString(value), fn: functionShape(value) };
     }
     if (value === null) return { kind: 'null' };
     if (value === undefined) return { kind: 'undefined' };

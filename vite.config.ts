@@ -201,7 +201,12 @@ export default defineConfig({
         entryFileNames: '[name].js',
         // runtime.js 注入到 MAIN world 时是经典脚本：模块顶层的 function/var 会变成
         // window 的可枚举属性，等于告诉页面"这里被动过"。只给这一个入口包 IIFE。
-        banner: (chunk) => (chunk.name === 'injected/runtime' ? '(function () {' : ''),
+        //
+        // 包裹层里再加 `"use strict"`：源码是在 ESM（=strict）语义下写的，Rollup 拍平成
+        // 经典 IIFE 时会把隐式 strict 丢掉。sloppy 下每个函数对象都会长出自有
+        // `arguments` / `caller`（`Object.getOwnPropertyNames(fn)` 直接可见），原生内建
+        // 函数没有这两样，等于给整层补丁盖了个"非原生"的章。
+        banner: (chunk) => (chunk.name === 'injected/runtime' ? '(function () {\n"use strict";' : ''),
         footer: (chunk) => (chunk.name === 'injected/runtime' ? '})();' : ''),
         assetFileNames: (assetInfo) => {
           const name = assetInfo.name || '';

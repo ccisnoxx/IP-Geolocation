@@ -199,6 +199,9 @@ function releaseOne(target) {
     manifestVersion: manifest.version,
     timezone: target.config.globalProfile.timezone.timezone,
     locale: target.config.globalProfile.language.language,
+    // 完整 languages 列表也要记账：发布验收要断言 navigator.languages 整串，
+    // 只记首选语言时只能从包内字面量反推 —— 反推是"尽力而为"，记账是"发布意图"。
+    languages: [...target.config.globalProfile.language.languages],
     acceptLanguage: target.config.globalProfile.language.acceptLanguage,
     coordinates: [
       target.config.globalProfile.geolocation.latitude,
