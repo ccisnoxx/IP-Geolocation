@@ -85,15 +85,22 @@ permissions:
    `--require` 的数量由 `DEFAULT_PROFILES` 现算，不写死：preset 增删时写死的那一端
    会变成"少验一个包也算通过"。这一步必须挡在创建 Release **之前** —— 单测只能证明
    "参数被算出来了"，证明不了"页面第一个内联脚本读到的就是它"
-6. 生成 changelog（上一个 tag..HEAD 的提交标题），再用
-   `node scripts/release-notes.mjs` 生成 Release 正文
+6. 用 `node scripts/release-notes.mjs` 生成 Release 正文（变更日志取自 `CHANGELOG.md`
+   的 `## <version>` 小节 —— 发版前先在那个文件里补一节，没有就会退回占位文案）
 7. 创建 Release 并上传全部 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
 
 Release 正文**不是手写的**。域名条数来自 `src/shared/default-domains.json`，包清单来自
 `release/*.json` 里的真实产物体检（标签、时区、语言、`Accept-Language`、域名覆盖、
 静态规则条数），安全承诺固定成"后台权限已分权 + MAIN 桥 P1 已开放"的表述。任何一处
 对不上（旧版本包混进来、summary 少了 zip、包里的域名和默认清单分叉）都直接失败，
-而不是发一段描述着不存在资产的文案。守卫用例：`tests/release-notes.test.ts`。
+而不是发一段描述着不存在资产的文案。守卫用例：`tests/release-notes.test.ts`、
+`tests/changelog.test.ts`。
+
+**变更日志为什么不再从 git 历史现算**：v2.4.2 第一次发版时正文的日志写成了
+「VanishGeo 首个发布」—— workflow 里现算 `git log 上一个 tag..HEAD`，而
+`actions/checkout` 默认 shallow，上一个 tag 不在本地，fallback 就顶上了。正文看着
+正常、内容完全是假的，比崩掉更难发现。现在这条线只有一个来源：仓库里的
+`CHANGELOG.md`。
 
 这些 zip 之间不是重复：开发构建是"装一次就跟着你走"的通用包（选项页改动实时生效），
 烘焙包是"这条机器就长这样"的定制品。用户要哪个取决于他会不会在第一帧被看穿。
