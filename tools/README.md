@@ -286,6 +286,20 @@ npm run smoke:baked-clear
 目的就是防止"改一处悄悄破坏契约"——类型、单测、构建任何一项红，整体退出码就是 1。
 版本号同步也进了单测：`manifest.json` 的 version 必须等于 `package.json`，且不再是 `1.0.0`。
 
+覆盖率门禁有两条，盯的不是同一批文件：
+
+```bash
+npm run test:coverage:core      # 配置解析 / DNR 构建 / 内容桥：每文件分支 ≥ 85%
+npm run test:coverage:security  # 安全决策点：消息来源策略、opaque frame 证据、函数伪装、补丁开关
+```
+
+`test:coverage:security` 走 `scripts/coverage-security.mjs`：一次 c8 跑全量测试，按**逐文件**
+阈值表判定（阈值取当前实际值向下取整的保守值，等于"不许退步"）。它和 core 那条分开，
+是因为安全模块退化的表现不是"功能不对"，而是"页面能看出被改过"——单测不会红，只有覆盖率会。
+`worker-patch.ts` 不在阈值表里：它的执行体是以字符串塞进 blob 在 Worker 里跑的，c8 只看得见
+模块顶层，那条守卫是 `tests/disguise-shape.test.ts` 的 blob 形状用例（真在 vm 里跑源码，
+比对 `Object.getOwnPropertyNames` 与可构造性）。
+
 ## 主题免疫（`smoke:theme`）
 
 ```bash
@@ -460,7 +474,7 @@ npm run preflight -- --verbose        # 子进程输出全部直出（默认只�
 | `persona` | 烘一份 persona 到临时目录，供 `options` / `popup` 冒烟用（不依赖 `~/.vanishgeo` 里的旧包） |
 | `smoke:*` × 12 | 与 CI `Offline browser smokes` 完全同一份清单 |
 | `audit` | 三引擎 × 十三路（唯一覆盖 Helium 的一关，也是唯一真开浏览器跑真实站点的） |
-| `package` / `release-smoke` | 打三个预设包，再对每个包量首屏四项 |
+| `package` / `release-smoke` | 打全部预设包（数量跟着 `DEFAULT_PROFILES` 走），再对每个包量首屏四项 |
 | `stray` | 结束时不剩 headless 浏览器（残留会抢 CPU 把后面的检查拖成超时） |
 
 preflight 自己不重写任何检查逻辑 —— 每一关都是一次真实子进程调用，检查住在各自脚本里，

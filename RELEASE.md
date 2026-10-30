@@ -69,15 +69,31 @@ permissions:
 
 流程：
 
-1. `npm ci` → **typecheck** → **lint** → **单测** → `npm run build`
+1. `npm ci` → **typecheck** → **lint** → `npm run build` → **单测** →
+   `test:coverage:core` → `test:coverage:security`
+   （构建在单测之前：有几条接线用例要读 `dist/injected/runtime.js`；
+   安全模块的分支门禁与核心门禁分开，见 §4 清单与 §6 命令表）
 2. 从 tag 提取版本号，**校验与 `dist/manifest.json` 的 `version` 一致**（不一致直接失败）
 3. 打包成 `vanishgeo-v<version>.zip`（**开发构建**：配置经异步 IPC 进页面，
    页面的第一个内联脚本可能读到原生值 —— 也就是"首屏窗口"）
-4. 再跑一遍发布流水线 `npm run release -- --all-presets`，产出三个**烘焙**包
-   `vanishgeo-<version>-<preset>.zip`（配置编译进 `runtime.js`，`document_start`
-   同步生效，首屏零窗口），逐个用 `--check` 校验
-5. 生成 changelog（上一个 tag..HEAD 的提交标题）
-6. 创建 Release 并上传全部 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
+4. **清空 `release/`** 后再跑 `npm run release -- --all-presets`，产出每个 preset
+   一份**烘焙**包 `vanishgeo-<version>-<preset>.zip`（配置编译进 `runtime.js`，
+   `document_start` 同步生效，首屏零窗口），逐个用 `--check` 校验。
+   清空这一步不是洁癖：`release/` 在 `.gitignore` 里，本地重跑会留着上一版的 zip，
+   而上传用的是 `release/*.zip` 通配 —— 不清理就可能把 2.4.1 的资产挂进 2.4.2 的 Release
+5. **每个包真开一次浏览器**（`npm run smoke:release -- --dir=release --require=<preset 数>`）。
+   `--require` 的数量由 `DEFAULT_PROFILES` 现算，不写死：preset 增删时写死的那一端
+   会变成"少验一个包也算通过"。这一步必须挡在创建 Release **之前** —— 单测只能证明
+   "参数被算出来了"，证明不了"页面第一个内联脚本读到的就是它"
+6. 生成 changelog（上一个 tag..HEAD 的提交标题），再用
+   `node scripts/release-notes.mjs` 生成 Release 正文
+7. 创建 Release 并上传全部 zip；同时把 `dist/` 作为 Actions artifact 保留 30 天
+
+Release 正文**不是手写的**。域名条数来自 `src/shared/default-domains.json`，包清单来自
+`release/*.json` 里的真实产物体检（标签、时区、语言、`Accept-Language`、域名覆盖、
+静态规则条数），安全承诺固定成"后台权限已分权 + MAIN 桥 P1 已开放"的表述。任何一处
+对不上（旧版本包混进来、summary 少了 zip、包里的域名和默认清单分叉）都直接失败，
+而不是发一段描述着不存在资产的文案。守卫用例：`tests/release-notes.test.ts`。
 
 这些 zip 之间不是重复：开发构建是"装一次就跟着你走"的通用包（选项页改动实时生效），
 烘焙包是"这条机器就长这样"的定制品。用户要哪个取决于他会不会在第一帧被看穿。
@@ -96,11 +112,13 @@ permissions:
 npm run typecheck
 npm run lint
 npm run build          # 必须在 npm test 之前：有些接线用例要读 dist/
-node scripts/release.mjs --all-presets --out=release
-npm run smoke:release -- --dir=release --require=3   # 三个包各开一次真浏览器
-npm run smoke:ipfollow                               # 跟随出口 IP：不换网络，桩改一次算换一次出口
+rm -rf release && node scripts/release.mjs --all-presets --out=release
 npm test
 npm run test:coverage:core
+npm run test:coverage:security
+# 每个包各开一次真浏览器：--require 的数量跟着 DEFAULT_PROFILES 走
+npm run smoke:release -- --dir=release --require="$(node -e "import('./scripts/lib/presets.mjs').then(m => console.log(m.readPresets(process.cwd()).length))")"
+npm run smoke:ipfollow                               # 跟随出口 IP：不换网络，桩改一次算换一次出口
 
 # 2) 同步版本号（manifest.json 与 package.json 必须一致）
 #    例如 1.1.0 -> 1.1.1
@@ -167,9 +185,12 @@ git push origin :refs/tags/v1.1.1
 
 ```bash
 npm run release          # 烘焙 → 校验 → 打包 → 记账，见 CONFIG_GUIDE §十
-node scripts/release.mjs --all-presets  # 三个内置 preset 全量构建
+node scripts/release.mjs --all-presets  # 全部内置 preset 全量构建
 for z in release/*.zip; do node scripts/release.mjs --check="$z"; done  # 逐个校验
+node scripts/release-notes.mjs --version=2.4.2 --release-dir=release --out=release-notes.md
+                         # 从产物生成 Release 正文（先自己在本地看一眼再打 tag）
 npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
+npm run test:coverage:security  # 安全模块分支门禁（改过 message-policy / disguise / patch-needs 时必跑）
 npm run audit            # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium）
 # GitHub Actions nightly 每天自动安装 Chrome 119 并跑可自动化的浏览器矩阵
 npm run smoke:options    # 选项页写入路径的端到端冒烟
@@ -240,3 +261,25 @@ npm run smoke:real-site  # 真实站点核对
 npx tsx --test tests/config-migration.test.ts   # 回填、幂等、不复活删除项、同对象两次读签名一致
 npx tsx --test tests/presets.test.ts            # 预设解析与源文件严格一致
 ```
+
+## 8. 2.4.1 → 2.4.2：为什么必须换版本号
+
+公开的 `v2.4.1` Release 是**旧代码**：tag 指向 `9b78968`，而 `main` 上后续的修复
+（后台消息来源分权、opaque frame 证据、函数伪装形状、发布校验去恒真）都在这之后。
+于是同一个 `2.4.1` 底下存在两套实际不同的代码：
+
+- 从 Release 下载的 zip：修复前
+- 从 `main` 自己构建：修复后
+
+用户报问题时光看版本号分不清是那一套。所以这一版把版本抬到 **2.4.2** 并重新出资产，
+而不是让两套代码继续共用 `2.4.1`。想让版本号重新"一版一号"，唯一要做的事是：
+`manifest.json` / `package.json` / `package-lock.json` 三处一起改，tag 打在同一提交上。
+
+顺带把两处会分叉的东西钉住了：
+
+- **Release 正文**：`scripts/release-notes.mjs` 从 `default-domains.json` /
+  `DEFAULT_PROFILES` / `release/*.json` 生成，不再手写"13 个域名""五个预设"
+- **发布包验数**：`--require` 跟着 `DEFAULT_PROFILES` 现算，不再写死 3
+
+发布前的判据没变：真浏览器冒烟必须在**创建 Release 之前**跑完。旧的拓扑里浏览器冒烟
+躺在另一条并行 CI 上，Release 可能先发出去、冒烟随后红 —— 坏资产已经挂上去了。

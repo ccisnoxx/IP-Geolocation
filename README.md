@@ -125,9 +125,10 @@ iprisk.top）—— 装上就能直接打开自测，不用手动加域名。
 npm run typecheck     # 类型（含 tests/）
 npm run lint          # ESLint
 npm run verify        # lint + typecheck + test
-npm test              # 单测（523 条）
+npm test              # 单测（全部 tests/）
 npm run test:coverage # 单测 + Node 覆盖率报告
 npm run test:coverage:core # 核心文件分支覆盖率门禁（每文件 ≥ 85%）
+npm run test:coverage:security # 安全模块分支覆盖率门禁（消息来源策略 / 函数伪装 / 补丁开关）
 # options / popup 的 DOM 测试用 jsdom 驱动真实点击与表单事件
 npm run build         # 构建
 npm run setup:chrome119 # 下载/校验 Chrome for Testing 119（macOS arm64）
@@ -197,6 +198,15 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - **三层一致**：进程环境 / 请求头（DNR）/ 页面 JS（MAIN world 原型补丁）
 - **签名表，不是 Proxy**：`Function.prototype.toString` 输出
   `function setHours() { [native code] }` 且 `name`/`length` 与原生 arity 表一致
+- **反射形状对齐**：替换物的 own keys、属性描述符、可构造性和内建同形 ——
+  `methodShaped()` 产出的是**方法**（自有 `length`/`name`，没有 `prototype`，`new` 抛
+  `TypeError`），所以 `Object.getOwnPropertyNames(Function.prototype.toString)`
+  仍是 `['length','name']`；注入层与 Worker blob 都是显式 strict，否则 V8 会给普通
+  函数补上 sloppy 才有的自有 `arguments`/`caller`。`disguise()` 也是惰性的：原生值
+  已经等于目标值时不动 `Function.prototype.toString`
+- **尺度的边界（照实写）**：目标是主要 Web API 的行为与常见描述符一致，而不是承诺
+  所有 JavaScript 反射结果与内建逐位相同；`npm run audit:parity` 在真浏览器里逐项比对
+  控制组与打了补丁的一侧，覆盖 own keys / symbols / descriptors / IsConstructor
 - **WebIDL 形状**：`GeolocationCoordinates` 的属性是原型上的只读 getter，实例零自有属性
 - **不造假信号**：不接管 `document.fonts.check`（原生对系统字体本来就返回 `true`）
 - **消息桥仍有 P1 认证缺口**：payload 经窗口握手取得的 `MessagePort` 下发。
@@ -397,9 +407,10 @@ Command line:
 npm run typecheck     # types (tests included)
 npm run lint          # ESLint
 npm run verify        # lint + typecheck + test
-npm test              # unit tests (523)
+npm test              # unit tests (everything under tests/)
 npm run test:coverage # unit tests + Node coverage report
 npm run test:coverage:core # core-file branch gate (per file >= 85%)
+npm run test:coverage:security # security-module branch gate (message policy / disguise / patch needs)
 # options / popup DOM tests drive real clicks and form events through jsdom
 npm run build         # build
 npm run setup:chrome119 # download/verify Chrome for Testing 119 (macOS arm64)
@@ -454,6 +465,16 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 - **Three-layer consistency**: process environment / request headers (DNR) / page JS (MAIN-world prototype patches)
 - **Signature table, not Proxy**: `Function.prototype.toString` returns
   `function setHours() { [native code] }`, with `name`/`length` matching the native arity table
+- **Reflection shape**: replacements match the builtin's own keys, descriptors and
+  constructibility — `methodShaped()` yields a *method* (own `length`/`name`, no `prototype`,
+  `new` throws `TypeError`), so `Object.getOwnPropertyNames(Function.prototype.toString)`
+  stays `['length','name']`; the injected script and the Worker blob are both explicitly
+  strict, otherwise V8 adds the sloppy-only own `arguments`/`caller`. `disguise()` is lazy:
+  no touch to `Function.prototype.toString` while the native value already matches the target
+- **Scope of that claim**: the goal is matching behaviour and common descriptors of the main
+  Web APIs, not bit-identical reflection for every builtin. `npm run audit:parity` compares a
+  control profile against a patched one in a real browser across own keys / symbols /
+  descriptors / IsConstructor
 - **WebIDL shape**: `GeolocationCoordinates` attributes are read-only prototype getters, instances carry no own properties
 - **No invented signals**: `document.fonts.check` is left alone (the native one already returns `true` for system fonts)
 - **Open P1 bridge authentication issue**: payloads arrive through a `MessagePort` obtained by a window handshake. Pages can construct that handshake, and the build nonce is public in the distributed package. Neither the port nor `document_start` timing authenticates the extension. Background message authorization limits content-script capabilities and document scope; it does not fix forged MAIN-world configuration. The existing bridge forwards only fixed payload and diagnostic actions, not arbitrary privileged actions. See [the security review and selected scope](REVIEW-P1-BRIDGE.md).

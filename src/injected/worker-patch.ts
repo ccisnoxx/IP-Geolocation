@@ -69,22 +69,6 @@ export function workerPatch(config: WorkerPatchConfig): void {
    * `arity` 是原生的 `Function.prototype.length`，同样必须一致：
    * `Date.prototype.setHours.length === 4` 也是一行检测。
    */
-  const signatures = new WeakMap<object, string>();
-  const nativeFunctionToString = Function.prototype.toString;
-  const toStringProbe = function toString(this: any) {
-    if (typeof this === 'function') {
-      const signature = signatures.get(this);
-      if (signature !== undefined) return signature;
-    }
-    return nativeFunctionToString.call(this);
-  };
-  signatures.set(toStringProbe, 'function toString() { [native code] }');
-  try {
-    Object.defineProperty(Function.prototype, 'toString', {
-      value: toStringProbe, writable: true, enumerable: false, configurable: true
-    });
-  } catch { /* ignore */ }
-
   /**
    * 方法形状的等价实现：原生原型方法没有自有 `prototype`，也不能被 `new`。
    *
@@ -100,6 +84,25 @@ export function workerPatch(config: WorkerPatchConfig): void {
     };
     return holder[name];
   };
+
+  const signatures = new WeakMap<object, string>();
+  const nativeFunctionToString = Function.prototype.toString;
+  // `Function.prototype.toString` 自己也得是方法形状：原生内建函数不可 `new`、没有自有
+  // `prototype`，`Object.getOwnPropertyNames(Function.prototype.toString)` 只有
+  // `['length','name']`。普通函数表达式在 sloppy 代码里还会多出自有 `arguments`/`caller`。
+  const toStringProbe = methodShaped(function toString(this: any) {
+    if (typeof this === 'function') {
+      const signature = signatures.get(this);
+      if (signature !== undefined) return signature;
+    }
+    return nativeFunctionToString.call(this);
+  }, 'toString');
+  signatures.set(toStringProbe, 'function toString() { [native code] }');
+  try {
+    Object.defineProperty(Function.prototype, 'toString', {
+      value: toStringProbe, writable: true, enumerable: false, configurable: true
+    });
+  } catch { /* ignore */ }
   const wrap = (impl: any, name: string, arity?: number, options?: { construct?: boolean }) => {
     const shaped = options && options.construct === true ? impl : methodShaped(impl, name);
     try { Object.defineProperty(shaped, 'name', { value: name, configurable: true }); } catch { /* ignore */ }

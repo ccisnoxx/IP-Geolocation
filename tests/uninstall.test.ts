@@ -139,12 +139,11 @@ test('geolocation：还原 getCurrentPosition / watchPosition / clearWatch', () 
     delete (globalThis as any).Geolocation;
   }
 });
-test('disguise：还原 Function.prototype.toString，再次 disguise 会重新安装', () => {
+test('disguise：惰性安装 —— 没真的伪装时不动 Function.prototype.toString', () => {
   const nativeToString = Function.prototype.toString;
   const disguise = createDisguise();
-  assert.notEqual(Function.prototype.toString, nativeToString);
-
-  disguise.uninstall();
+  // 旧实现一创建就换掉 toString；页面什么都不用改时（原生语言/时区已等于目标），
+  // `Function.prototype.toString === 原生` 这个平凡恒等式反而成了唯一破绽。
   assert.equal(Function.prototype.toString, nativeToString);
 
   const impl = function fakeSetHours() { /* fake */ };
@@ -152,6 +151,12 @@ test('disguise：还原 Function.prototype.toString，再次 disguise 会重新�
   const shaped = disguise(impl, 'setHours', 0);
   assert.equal(shaped.toString(), 'function setHours() { [native code] }');
   assert.notEqual(Function.prototype.toString, nativeToString);
+
+  // clear 之后再次伪装要能重新安装
+  disguise.uninstall();
+  assert.equal(Function.prototype.toString, nativeToString);
+  const again = disguise(function fakeGetHours() { /* fake */ }, 'getHours', 0);
+  assert.equal(again.toString(), 'function getHours() { [native code] }');
   disguise.uninstall();
   assert.equal(Function.prototype.toString, nativeToString);
 });

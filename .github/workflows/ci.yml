@@ -51,6 +51,11 @@ jobs:
       - name: Core branch coverage
         run: npm run test:coverage:core
 
+      # 安全模块单独一档门禁（消息来源策略 / opaque frame 证据 / 函数伪装 / 补丁开关）：
+      # 它们退化的表现是"页面能看出被改过"，单测不会红，只有覆盖率会红
+      - name: Security branch coverage
+        run: npm run test:coverage:security
+
       # 横幅是渲染产物：PNG 与 SVG 尺寸对不上就说明改了源文件没重新渲染
       - name: Verify banner renders
         run: node scripts/render-banner.mjs --check
@@ -87,7 +92,11 @@ jobs:
         run: node scripts/release.mjs --all-presets --out=release
 
       - name: Smoke every package in a real browser
-        run: npm run smoke:release -- --dir=release --require=3
+        run: |
+          set -euo pipefail
+          # 数量跟着 DEFAULT_PROFILES 走：写死 3 时，多出一个 preset 就等于"少验一个也算通过"
+          PRESETS="$(node -e "import('./scripts/lib/presets.mjs').then(m => console.log(m.readPresets(process.cwd()).length))")"
+          npm run smoke:release -- --dir=release --require="$PRESETS"
 
       - name: Upload packages on failure
         if: failure()
