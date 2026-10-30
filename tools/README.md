@@ -71,6 +71,52 @@ fixture 在 `fixtures/iframe/`，端口由页面自身决定，不依赖固定�
 单测另外覆盖嵌套不透明 frame 链、`blob:` / `data:`、`getAllFrames` 失败回退和
 frame 投递并发上限（最多 8 个同时发送）。
 
+### blob/data 的导航与 BFCache
+
+```bash
+npm run smoke:opaque-frames
+npm run smoke:opaque-frames -- --extension=/path/to/ext --evidence=/tmp/opaque.json
+npm run smoke:opaque-recovery -- --evidence=/tmp/opaque-recovery.json
+```
+
+使用 `fixtures/opaque/` 的普通页面，先在无扩展浏览器取得原生对照，再加载扩展。
+覆盖 blob、data、blob 内嵌 data 的父规则继承、同一 iframe 跨到独立子域再返回、
+时区热更新、真实 BFCache 未改配置/冻结时改配置、同文档时区 clear 后语言保留。
+BFCache 同时检查 `pageshow.persisted`、页面 token 和浏览器 documentId；不会把重新加载算作缓存恢复。
+该工具也已接入 preflight、CI 普通冒烟和 audit 的 `opaque` 组，失败会使该组检查失败。
+
+Chrome 155 的 `webNavigation` 会省略 blob，BFCache 恢复后还可能省略 data。
+脚本枚举只负责发现文档；规则授权复用已验证的父边，缺失 blob 则在 ISOLATED 中同步读取可访问父窗口。
+Chrome119 的程序化 blob 注入仍会被浏览器拒绝；仅在 API 抛错时，后台用完整 frameId/documentId
+询问已经合法注入的内容脚本，查询不经过 MAIN，也不接受请求自报的父 URL。
+成功解析过的 opaque 身份按 tab 与顶层 documentId 补充发现，父地址每次重新解析。
+成功浏览器父链由后台签发 HMAC-SHA256 凭证，每份绑定 tab/frame/document，并由所属文档的
+ISOLATED 私有闭包保管完整链。后台 session 仅保存一个会话随机256-bit密钥，绝不采用构建nonce，
+也不把密钥或凭证交给MAIN。data URI仍只保留协议标记；缺失blob节点仍每次现场读取。
+精确 `storeFrameEvidence` 收到文档同步保存ACK后才发布新事实，恢复时只向当前解析需要的
+精确双ID节点查询凭证、验MAC并核对浏览器父边冲突，不用查询失败、年龄或LRU猜测文档死亡。
+文档实际释放后凭证交由浏览器GC；活动和BFCache文档继续保留自身证明，不依赖后台历史表。
+配置更新的无payload opaque自拉提示与500项内存缓存保留。关闭tab仅清内存，不删其他文档共享密钥。
+
+2026-10-30 最新实测：Chrome119/155普通构建各33/33，Chrome119可变烘焙包33/33，
+包含原有导航/clear、真实SW停止/新实例、505普通data导航、父边session字节不增长，
+真实10MB配额拒绝后新data生效、满额状态下重启SW、热更新、真实BFCache恢复和clear。
+505次导航前后父边模块均为1个key、1056字节；这是模块统计，不代表整个扩展只有一个session键。
+原bridge/frozen清除合同检查21/21，不覆盖frozen opaque首脚本值。
+`smoke:opaque-recovery` 已接入preflight、CI与audit的 `opaquerecovery` 组；
+可用 `smoke:opaque-frames -- --recovery=restart`、`--recovery=eviction` 或 `--recovery=quota` 单跑阶段。
+工具旁观真实runtime请求的Chrome sender以补足119身份，不以查询回包自报身份代替浏览器元数据；
+119程序化blob注入的原生拒绝仍保存在证据中。
+
+session的10MB仍与其他组件共享：已有密钥时父边恢复/签发不再增加存储，首次建键若被其他数据挤满
+仍明确失败，不擅删其他key。扩展禁用、重载、更新或浏览器重启会清空密钥；
+新版本须正常reload/update激活，不支持旧SW与新脚本混合热替换，也不恢复从未持证且已缺父边的文档。
+跨源不可读、坏MAC/身份/父边、缺密钥及ACK失败继续拒绝，普通重拉失败可能保留旧值；总关仍可clear。
+这些是普通功能回归，不能外推到完整最低版本兼容或发布验收。
+两个版本的 filesystem iframe 导航均在裸浏览器和加载扩展时被明确阻止；
+该部分记录为浏览器不支持，未执行文档内生命周期检查，也未使用启动开关解除限制。
+原 MAIN 消息桥 P1 继续未关闭。
+
 ## Worker 覆盖面（SharedWorker 不包装）
 
 ```bash

@@ -1,0 +1,28 @@
+✖ 消融反例：拉取响应的异域 hostname 与显式 clear 组合 (74.81175ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 158.804625
+
+✖ failing tests:
+
+test at ../../../../private/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/candidate-counterexample.test.ts:2:29142
+✖ 消融反例：拉取响应的异域 hostname 与显式 clear 组合 (74.81175ms)
+  AssertionError [ERR_ASSERTION]: 保持原有行为：拉取响应先按本 frame hostname 拒绝
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (/private/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/candidate-counterexample.test.ts:655:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

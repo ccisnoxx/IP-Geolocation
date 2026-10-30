@@ -1,0 +1,34 @@
+{
+  "scope": "Four approved unused-code groups; preserve compatibility contracts and prior cleanup",
+  "independent_review": "cleanup_contract_review: no actionable new findings; limited to eight-file cleanup diff and directly affected contracts",
+  "removed_standalone_tests": 4,
+  "targeted": {
+    "passed": 72,
+    "failed": 0,
+    "exit_code": 0
+  },
+  "lint": {
+    "exit_code": 0
+  },
+  "build_including_typecheck": {
+    "exit_code": 0
+  },
+  "core_coverage_gate": {
+    "passed": 647,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "exit_code": 0,
+    "branches_percent": 89.05,
+    "per_file_minimum": 85,
+    "scope_files": 8
+  },
+  "browser_regression": "Not rerun in this cleanup task",
+  "main_bridge_P1": "OPEN",
+  "logs": [
+    "/tmp/vanishgeo-cleanup-targeted.log",
+    "/tmp/vanishgeo-cleanup-lint.log",
+    "/tmp/vanishgeo-cleanup-build.log",
+    "/tmp/vanishgeo-cleanup-coverage.log"
+  ]
+}

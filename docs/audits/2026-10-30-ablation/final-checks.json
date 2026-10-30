@@ -1,0 +1,52 @@
+[
+  {
+    "name": "final-build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit_code": 0,
+    "seconds": 1.22
+  },
+  {
+    "name": "final-lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exit_code": 0,
+    "seconds": 0.94
+  },
+  {
+    "name": "final-coverage",
+    "command": [
+      "npm",
+      "run",
+      "test:coverage:core"
+    ],
+    "exit_code": 0,
+    "seconds": 7.17
+  },
+  {
+    "name": "banner",
+    "command": [
+      "node",
+      "scripts/render-banner.mjs",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.02
+  },
+  {
+    "name": "diff-whitespace",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.01
+  }
+]

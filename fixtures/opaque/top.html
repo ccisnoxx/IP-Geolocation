@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Opaque frame regression</title>
+<script src="/fixtures/opaque/probe.js"></script>
+<body>
+<h1>Opaque frame regression</h1>
+<script>
+  window.__opaque = { reports: {}, generations: {}, filesystemUrl: '', filesystemError: '', shows: 0, persisted: false, token: `${performance.timeOrigin}-${Math.random()}` };
+  addEventListener('pageshow', (event) => {
+    __opaque.persisted = event.persisted;
+    __opaque.shows += 1;
+  });
+  addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || data.fixture !== 'opaque-regression') return;
+    const owner = data.kind === 'nested-data' ? 'blob' : data.kind;
+    if (data.generation !== __opaque.generations[owner]) return;
+    __opaque.reports[data.kind] = data;
+  });
+  const urls = [];
+  window.__navigateOpaque = async (kind, destination = kind) => {
+    const generation = (__opaque.generations[kind] || 0) + 1;
+    __opaque.generations[kind] = generation;
+    delete __opaque.reports[kind];
+    if (kind === 'blob') delete __opaque.reports['nested-data'];
+    let frame = document.getElementById(kind);
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.id = kind;
+      frame.name = kind;
+      document.body.appendChild(frame);
+    }
+    const html = `<!doctype html><meta charset="utf-8"><body><script>(${opaqueProbe.toString()})(${JSON.stringify({ kind, generation, nested: kind === 'blob' && destination === 'blob' })});<\/script>`;
+    if (destination === 'http') {
+      frame.src = `${location.protocol}//child.localhost:${location.port}/fixtures/opaque/frame.html?kind=${kind}&generation=${generation}`;
+    } else if (destination === 'data') {
+      frame.src = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    } else if (destination === 'blob') {
+      frame.src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      urls.push(frame.src);
+    } else if (destination === 'filesystem') {
+      try {
+        const fs = await new Promise((resolve, reject) => webkitRequestFileSystem(TEMPORARY, 1024 * 1024, resolve, reject));
+        const file = await new Promise((resolve, reject) => fs.root.getFile('frame.html', { create: true }, resolve, reject));
+        const writer = await new Promise((resolve, reject) => file.createWriter(resolve, reject));
+        await new Promise((resolve, reject) => {
+          writer.onwriteend = resolve;
+          writer.onerror = reject;
+          writer.write(new Blob([html], { type: 'text/html' }));
+        });
+        __opaque.filesystemUrl = file.toURL();
+        frame.src = __opaque.filesystemUrl;
+      } catch (error) {
+        __opaque.filesystemError = String(error);
+      }
+    }
+  };
+  // 不加 unload 监听或页面恢复时重建 iframe，保留真实 BFCache 生命周期。
+  if (new URLSearchParams(location.search).has('filesystem')) {
+    __navigateOpaque('filesystem');
+  } else {
+    __navigateOpaque('blob');
+    __navigateOpaque('data');
+  }
+</script>

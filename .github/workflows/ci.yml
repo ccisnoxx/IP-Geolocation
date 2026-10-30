@@ -145,10 +145,10 @@ jobs:
           # theme 用 dist（验的是面板本身），其余各用各的构建：
           #   - presets / baked-* / cold-* 脚本内部自己烘 fixture
           #   - options / popup 用上面那份 persona
-          # 一条红了继续跑下一条：这个 job 的价值就是在 Linux 上把 12 条都过一遍，
+          # 一条红了继续跑下一条：这个 job 的价值就是在 Linux 上把所有普通冒烟都过一遍，
           # 停在第一条等于每修一次只能看到一条问题
           failed=""
-          for script in presets frames workers bfcache cold-start cold-save \
+          for script in presets frames opaque-frames opaque-recovery workers bfcache cold-start cold-save \
                         baked-clear baked-failclosed ip-apply theme options popup; do
             extra=""
             case "$script" in

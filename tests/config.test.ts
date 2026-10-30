@@ -7,7 +7,6 @@ import {
   getEffectiveLanguage,
   getEffectiveProfile,
   getExcludedDomainsFor,
-  isUrlMatchedByEnabledRule,
   migrateLegacyConfig,
   validateConfig
 } from '../src/shared/config-resolver';
@@ -18,7 +17,6 @@ import {
   DEFAULT_RULE_DOMAINS,
   DEFAULT_TIMEZONE,
   DEFAULT_WEBRTC,
-  formatTimezoneOffsetMinutes,
   getTimezoneOffsetMinutes,
   normalizeConfig,
   normalizeGeolocation,
@@ -220,15 +218,13 @@ test('parseHostname 处理协议、端口、尾点和非法输入', () => {
   assert.equal(parseHostname('http://[bad'), 'http');
 });
 
-test('时区校验 / 偏移 / 格式化覆盖失败分支', () => {
+test('时区校验与偏移计算覆盖失败分支', () => {
   assert.equal(validateTimezone(''), false);
   assert.equal(validateTimezone('Not/AZone'), false);
   assert.equal(validateTimezone('Asia/Tokyo'), true);
   assert.equal(getTimezoneOffsetMinutes('', new Date()), null);
   assert.equal(getTimezoneOffsetMinutes('Asia/Tokyo', new Date('invalid')), null);
   assert.equal(getTimezoneOffsetMinutes('Not/AZone', new Date()), null);
-  assert.equal(formatTimezoneOffsetMinutes(Number.NaN), null);
-  assert.equal(formatTimezoneOffsetMinutes(0), 'GMT+00:00');
 });
 
 test('normalizeGeolocation 过滤非法历史点并补默认值', () => {
@@ -272,21 +268,6 @@ test('内容脚本注册：把 disabled 子域放进 excludeMatches，已烘焙�
   assert.deepEqual(baked.excludeMatches, ['*://mail.example.com/*', '*://*.mail.example.com/*']);
   const allBaked = getContentScriptRegistration(config, ['example.com', 'mail.example.com']);
   assert.deepEqual(allBaked.excludeMatches, []);
-});
-
-test('isUrlMatchedByEnabledRule 覆盖总开关、空 host、排除和命中', () => {
-  const config = normalizeConfig({
-    masterEnabled: true,
-    rules: [
-      { domain: 'example.com', enabled: true },
-      { domain: 'mail.example.com', enabled: false }
-    ]
-  } as any);
-  assert.equal(isUrlMatchedByEnabledRule(config, 'https://example.com/a'), true);
-  assert.equal(isUrlMatchedByEnabledRule(config, 'https://sub.example.com/a'), true);
-  assert.equal(isUrlMatchedByEnabledRule(config, 'https://mail.example.com/a'), false);
-  assert.equal(isUrlMatchedByEnabledRule({ ...config, masterEnabled: false }, 'https://example.com'), false);
-  assert.equal(isUrlMatchedByEnabledRule(config, 'not a url'), false);
 });
 
 test('getEffectiveLanguage 与 getExcludedDomainsFor 的边界', () => {

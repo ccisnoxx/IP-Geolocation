@@ -29,6 +29,8 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   scope[guard] = true;
 
   let port: MessagePort | null = null;
+  /** 仅 runtime 后台交付；不进入 MAIN，也不由端口输入更新。 */
+  let frameEvidence: unknown = null;
   /** 端口还没就绪时暂存最后一份 payload，就绪后补发 */
   let pendingPayload: unknown = null;
   let handshakes = 0;
@@ -36,14 +38,14 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   const HANDSHAKE_RETRY = [60, 200, 600, 1500, 4000];
 
   /**
-   * 解析规则用的地址。about:blank / about:srcdoc 这类框架没有 hostname，
-   * 直接拿 location.href 去问后台会 matched=false，子框架就保持原生值了。
-   * 这类框架的 document.referrer 是父文档地址，用它才能落到父页面的规则上。
+   * 保留给旧后台的地址提示；当前后台只采用浏览器 sender URL 和可证明的父文档链。
+   * 本地 referrer 可能不同于后台采用的最近 HTTP(S) 父文档，不能用于后台授权。
    */
   const payloadUrl = (): string => resolvePayloadUrl(environment.window.location.href, environment.document.referrer);
 
-  /** 当前 frame 自己的 hostname（about:blank / srcdoc 落到父页地址） */
-  const frameHostname = (): string => resolvePayloadHostname(environment.window.location.href, environment.document.referrer)
+  /** 仅由可信 runtime 拉取响应更新，MAIN 消息不能修改这项归属参考。 */
+  let effectiveHostname: string | undefined;
+  const frameHostname = (): string => effectiveHostname ?? resolvePayloadHostname(environment.window.location.href, environment.document.referrer)
     .toLowerCase()
     .replace(/\.+$/, '');
 
@@ -117,6 +119,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
     clearPullRetry();
     const seq = ++pullSeq;
     environment.chrome.runtime.sendMessage({ action: 'getPayloadForUrl', url: payloadUrl() }, (response: any) => {
+      if (!environment.chrome.runtime.lastError && response?.status === 'ok' && response.frameEvidence) frameEvidence = response.frameEvidence;
       if (seq !== pullSeq) return; // 更新的拉取已经发出，别用旧响应覆盖
       const failed = environment.chrome.runtime.lastError || !response || response.status === 'error';
       if (failed) {
@@ -131,6 +134,9 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
         return;
       }
       pendingClear = false;
+      if (typeof response.effectiveUrl === 'string') {
+        effectiveHostname = resolvePayloadHostname(response.effectiveUrl, '').toLowerCase().replace(/\.+$/, '');
+      }
       // 不匹配也要说话：烘焙构建的静态脚本已经先应用了一遍烘焙值，这里必须
       // 显式 clear，否则排除站点 / 关总开关后页面会一直停在烘焙的时区和语言上。
       if (!response.matched || !response.payload) {
@@ -185,14 +191,13 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
         return;
       }
       if (port) return;
-      // ack 里带 nonce：确认对面真的是那个 runtime，而不是页面伪造的端口
+      // 只匹配本构建的 ack；nonce 在握手中可见，不能据此证明对端身份。
       if (!data || data.__vanishGeo !== 'ack' || data.nonce !== NONCE) return;
       pendingInboxes.delete(inbox);
       onPortReady(inbox);
     };
     inbox.start();
-    // 同步发出。content script 在 document_start 执行，页面脚本还没跑，
-    // 这条消息（和它携带的端口）页面观察不到。
+    // postMessage 异步派发；页面可能观察到消息及端口，不能依靠发送时机保密。
     environment.window.postMessage({ __vanishGeo: 'handshake' }, '*', [channel.port2]);
   };
 
@@ -200,8 +205,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
 
   const scheduleRetry = (): void => {
     if (port || handshakes > HANDSHAKE_RETRY.length) return;
-    // runtime 走动态注入时它比我们晚一步，这里补几次握手。这条路径上页面可能
-    // 已经挂好监听器，但端口里的消息仍然需要 nonce，伪造不了。
+    // runtime 走动态注入时可能晚一步，这里补几次握手；安全限制见 content.ts。
     retryTimer = setTimeout(() => {
       retryTimer = null;
       if (port) return;
@@ -230,9 +234,57 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   // 后台推来的增量更新（配置变更、定位刷新）走这里，不再经 window.postMessage。
   // clear 也要先重拉自己的 payload：父页未命中而子域 iframe 命中时，广播 clear
   // 不能把子框架的伪装一起清掉；重拉后按本 frame 的规则决定 apply / clear。
-  environment.chrome.runtime.onMessage.addListener((message: any) => {
+  environment.chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response: unknown) => void) => {
+    if (message?.action === 'readFrameEvidence' || message?.action === 'storeFrameEvidence') {
+      if (!environment.chrome.runtime.id || sender?.id !== environment.chrome.runtime.id) return;
+      if (message.action === 'storeFrameEvidence') {
+        frameEvidence = message.frameEvidence;
+        sendResponse({ stored: true });
+      } else sendResponse({ frameEvidence });
+      return;
+    }
+    if (message?.action === 'readBlobParent') {
+      if (!environment.chrome.runtime.id || sender?.id !== environment.chrome.runtime.id) return;
+      // 此查询只走扩展 runtime，不经过 MAIN。同步读取原生父对象；SOP 拒绝时明确失败。
+      // 与后台序列化探测保持相同规则，避免跨入口共享模块使经典 content.js 产生 import。
+      try {
+        let frame = environment.window;
+        const url = frame.location.href;
+        if (new URL(url).protocol !== 'blob:') throw new Error('target document is not blob');
+        while (frame !== frame.parent) {
+          frame = frame.parent;
+          const parentUrl = new URL(frame.location.href);
+          if (/^https?:$/.test(parentUrl.protocol)) { sendResponse({ url, parentUrl: parentUrl.href }); return; }
+          if (!['blob:', 'data:', 'filesystem:'].includes(parentUrl.protocol)
+            && !(parentUrl.protocol === 'about:' && ['blank', 'srcdoc'].includes(parentUrl.pathname))) break;
+        }
+        throw new Error('blob document has no accessible HTTP parent');
+      } catch (error) {
+        sendResponse({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+      }
+      return;
+    }
+    if (message?.action === 'refreshPayload') {
+      if (message.opaqueOnly === true) {
+        const url = new URL(environment.window.location.href);
+        if (!['blob:', 'data:', 'filesystem:'].includes(url.protocol)
+          && !(url.protocol === 'about:' && ['blank', 'srcdoc'].includes(url.pathname))) return;
+      }
+      requestPull();
+      return;
+    }
     if (!message || message.action !== 'applyPayload') return;
     if (message.clear) {
+      // 总开关关闭对所有文档都成立，不依赖此时是否还能查询到父链。
+      if (message.globalDisabled === true) {
+        ++pullSeq;
+        clearPullRetry();
+        if (pullTimer) clearTimeout(pullTimer);
+        pullTimer = null;
+        pendingClear = false;
+        deliver(CLEAR_PAYLOAD);
+        return;
+      }
       requestPull(true);
       return;
     }
@@ -257,6 +309,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
       }
       pendingInboxes.clear();
       pendingPayload = null;
+      frameEvidence = null;
     }
   };
 

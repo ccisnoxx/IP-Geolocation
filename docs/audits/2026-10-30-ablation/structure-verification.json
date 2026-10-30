@@ -1,0 +1,10 @@
+{
+  "original_test_statements": 76,
+  "current_test_statements": 77,
+  "all_original_test_statements_byte_identical": true,
+  "added_statements": 1,
+  "unchanged_services_functions": 45,
+  "unexpected_function_changes": [],
+  "note_injection_body_unchanged": true,
+  "domain_update_body_unchanged": true
+}

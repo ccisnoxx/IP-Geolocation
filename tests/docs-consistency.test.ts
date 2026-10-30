@@ -103,12 +103,6 @@ test('CI 跑 typecheck + lint + 单测，release 显式声明 contents: write', 
   assert.doesNotMatch(release, /vanishme-v/, '产物名不该再带旧品牌');
 });
 
-test('版本号只有一个来源：manifest 与 package 一致', () => {
-  const manifest = JSON.parse(read('manifest.json'));
-  const pkg = JSON.parse(read('package.json'));
-  assert.equal(manifest.version, pkg.version);
-  assert.equal(manifest.name, 'VanishGeo');
-});
 test('横幅：PNG 与 SVG 源文件尺寸一致，README 引用的是渲染结果', () => {
   for (const name of ['banner-zh', 'banner-en']) {
     const svgPath = `images/${name}.svg`;

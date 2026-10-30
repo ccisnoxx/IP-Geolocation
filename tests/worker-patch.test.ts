@@ -71,11 +71,6 @@ const TOKYO: WorkerPatchConfig = {
   fontTargets: []
 };
 
-test('Worker 补丁自包含：裸上下文里能直接执行', () => {
-  const context = createWorkerContext(TOKYO);
-  assert.equal(evaluate(context, 'typeof Date'), 'function');
-});
-
 test('Worker 里的 navigator 跟着 payload 走', () => {
   const context = createWorkerContext(TOKYO);
   assert.equal(evaluate(context, 'navigator.language'), 'ja-JP');
@@ -301,6 +296,7 @@ function createCanvasWorkerContext(fontTargets: string[]): vm.Context {
       // 列表外的字体：假定它真的装着，宽度与 monospace 不同
       globalThis.__widths['Helvetica'] = 555;
       globalThis.OffscreenCanvasRenderingContext2D = FakeCtx;
+      globalThis.__nativeMeasureText = FakeCtx.prototype.measureText;
     `
   );
 }
@@ -308,9 +304,11 @@ function createCanvasWorkerContext(fontTargets: string[]): vm.Context {
 const measure = (context: vm.Context, font: string): number =>
   vm.runInContext(`(() => { const c = new OffscreenCanvasRenderingContext2D(); c.font = ${JSON.stringify(font)}; return c.measureText('x').width; })()`, context);
 
-test('Worker 只补一次：补丁后 measureText 落在原型上', () => {
+test('Worker 替换原型上的 measureText，实例不增加自有方法', () => {
   const context = createCanvasWorkerContext(['SimSun']);
   assert.equal(vm.runInContext('Object.prototype.hasOwnProperty.call(OffscreenCanvasRenderingContext2D.prototype, "measureText")', context), true);
+  assert.equal(evaluate(context, 'OffscreenCanvasRenderingContext2D.prototype.measureText === __nativeMeasureText'), false);
+  assert.equal(evaluate(context, 'Object.hasOwn(new OffscreenCanvasRenderingContext2D(), "measureText")'), false);
 });
 
 test('Worker 的 measureText 保留原生描述符的 enumerable', () => {
@@ -585,6 +583,7 @@ test('Worker 创建时没有配置，之后仍能被接管（晚注入的兜底�
 test('Worker 热更新不改变 navigator.languages 的稳定引用语义', () => {
   const token = 'live-token-5';
   const context = createWorkerContext({ ...TOKYO, token });
+  evaluate(context, 'globalThis.languagesBeforeUpdate = navigator.languages');
   evaluate(
     context,
     `__dispatch({ __vanishGeoWorkerConfig: ${JSON.stringify(token)}, config: ${JSON.stringify({
@@ -592,11 +591,25 @@ test('Worker 热更新不改变 navigator.languages 的稳定引用语义', () =
     })} })`
   );
   // 值没变 → 引用不能变（页面会缓存 navigator.languages 再比 ===）
-  assert.equal(evaluate(context, 'navigator.languages === navigator.languages'), true);
+  assert.equal(evaluate(context, 'navigator.languages === languagesBeforeUpdate'), true);
   assert.equal(evaluate(context, 'Object.isFrozen(navigator.languages)'), true);
 });
 
 // ---------- 原生语义 ----------
+
+test('Worker 的 Date() 返回目标时区字符串，无时区或关闭后保持原生调用语义', () => {
+  const context = createWorkerContext({ ...TOKYO, token: 'date-call' }, 'globalThis.nativeDateCall = Date;');
+  assert.equal(evaluate(context, 'typeof Date()'), 'string');
+  assert.match(evaluate(context, 'Date()'), /GMT\+0900/);
+  assert.match(evaluate(context, 'Date(0)'), /GMT\+0900/);
+
+  evaluate(context, '__dispatch({ __vanishGeoWorkerConfig: "date-call", config: { disabled: true } })');
+  assert.equal(evaluate(context, 'typeof Date()'), 'string');
+  assert.equal(evaluate(context, 'Date().slice(25)'), evaluate(context, 'nativeDateCall().slice(25)'));
+
+  const languageOnly = createWorkerContext({ language: 'ja-JP', languages: ['ja-JP'] });
+  assert.equal(evaluate(languageOnly, 'typeof Date()'), 'string');
+});
 
 test('Worker 的 Date 构造器保留子类语义（new.target 不能被吞掉）', () => {
   const context = createWorkerContext(TOKYO);
@@ -604,6 +617,18 @@ test('Worker 的 Date 构造器保留子类语义（new.target 不能被吞掉�
   assert.equal(evaluate(context, '(() => { class D extends Date {}; return new D(0) instanceof Date; })()'), true);
   // 无参构造、字符串构造也要走同一条 new.target 路径
   assert.equal(evaluate(context, '(() => { class D extends Date {}; return new D("2026-01-01T00:00:00Z") instanceof D; })()'), true);
+});
+
+test('Worker 的 Date() 不调用页面后来覆盖的日期方法', () => {
+  for (const method of [
+    'toString', 'toDateString', 'toTimeString', 'valueOf', 'getTime',
+    'getUTCFullYear', 'getUTCMonth', 'getUTCDate', 'getUTCDay',
+    'getUTCHours', 'getUTCMinutes', 'getUTCSeconds'
+  ]) {
+    const context = createWorkerContext(TOKYO);
+    evaluate(context, `Date.prototype.${method} = () => { throw new Error('page override'); };`);
+    assert.match(evaluate(context, 'Date()'), /GMT\+0900/);
+  }
 });
 
 test('Worker 的 setFullYear 在 Invalid Date 上仍能成功（规范特例）', () => {

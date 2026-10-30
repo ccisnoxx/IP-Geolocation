@@ -1,0 +1,43 @@
+✓ 裸浏览器 blob/data/nested 正常加载并取得原生基线
+✓ filesystem 两个浏览器均明确拒绝导航（不计作扩展覆盖）  native=true extension=true
+· filesystem 导航：浏览器不支持，未执行该文档内的更新/导航/BFCache 检查
+✓ blob 继承父域语言及时区
+✓ data 继承父域语言及时区
+✓ nested-data 继承父域语言及时区
+✓ 浏览器发现 blob 文档，nested data 的父 documentId 指向该文档
+✓ blob 同 frame 跨导航更换 documentId、按新文档生效
+✓ data 同 frame 跨导航更换 documentId、按新文档生效
+✓ blob 已创建文档热更新
+✓ data 已创建文档热更新
+✓ nested-data 已创建文档热更新
+✓ BFCache 配置未变：顶层与三个 frame 真实恢复
+✓ BFCache 未变：documentId 保持，当前可查父边无冲突
+· BFCache 未变：0 个文档由 scripting 发现；另有 3 个身份来自浏览器 sender，父规则重新解析
+✓ BFCache 冻结时配置已变：顶层与三个 frame 真实恢复
+✓ BFCache 已变：documentId 保持，当前可查父边无冲突
+· BFCache 已变：0 个文档由 scripting 发现；另有 3 个身份来自浏览器 sender，父规则重新解析
+✓ blob clear 恢复原生时区，语言保留
+✓ data clear 恢复原生时区，语言保留
+✓ nested-data clear 恢复原生时区，语言保留
+✓ restart：SW 真实停止后由普通消息唤醒新实例
+✓ restart 后 blob/data/nested-data 同文档热更新
+✓ restart 后 BFCache 保持原文档并应用当前配置
+✓ restart 后全部 opaque 同文档 clear 并保留语言
+· 普通 data 导航淘汰进度 100/505
+· 普通 data 导航淘汰进度 200/505
+· 普通 data 导航淘汰进度 300/505
+· 普通 data 导航淘汰进度 400/505
+· 普通 data 导航淘汰进度 500/505
+✓ 505 个普通 data 文档均实际生效，超过两个 500 项内存缓存上限
+✓ 普通历史导航不增加后台父边持久状态
+✓ eviction 后 blob/data/nested-data 同文档热更新
+✓ eviction 后 BFCache 保持原文档并应用当前配置
+✓ eviction 后全部 opaque 同文档 clear 并保留语言
+✓ 真实10MB共享session配额已触发浏览器拒绝
+✓ 配额耗尽后新data文档正常继承父规则
+✓ quota：SW 真实停止后由普通消息唤醒新实例
+✓ quota 后 blob/data/nested-data 同文档热更新
+✓ quota 后 BFCache 保持原文档并应用当前配置
+✓ quota 后全部 opaque 同文档 clear 并保留语言
+
+33/33 通过

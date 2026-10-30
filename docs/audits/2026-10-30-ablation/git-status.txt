@@ -1,0 +1,120 @@
+ M .github/workflows/ci.yml
+ M README.md
+ M package.json
+ M src/background/geo-api.ts
+ M src/background/message-router.ts
+ M src/background/service-worker.ts
+ M src/background/services.ts
+ M src/background/webrtc.ts
+ M src/content/content-bridge.ts
+ M src/content/content.ts
+ M src/injected/runtime.ts
+ M src/injected/worker-patch.ts
+ M src/leak-test/leak-test.html
+ M src/leak-test/leak-test.ts
+ M src/popup/popup.ts
+ M src/shared/config-audit.ts
+ M src/shared/config-model.ts
+ M src/shared/config-resolver.ts
+ D src/shared/defaults.ts
+ M src/shared/diagnostic.ts
+ M src/shared/profile.ts
+ D src/shared/storage.ts
+ M src/shared/worker-coverage.ts
+ M tests/background-services.test.ts
+ M tests/baked-resolver.test.ts
+ M tests/canvas-fonts.test.ts
+ M tests/config-audit.test.ts
+ M tests/config.test.ts
+ M tests/content-bridge.test.ts
+ M tests/diagnostic.test.ts
+ M tests/docs-consistency.test.ts
+ M tests/extension-wiring.test.ts
+ M tests/geo-error-record.test.ts
+ M tests/geolocation.test.ts
+ M tests/injection-idempotency.test.ts
+ M tests/message-router.test.ts
+ M tests/preflight-stages.test.ts
+ M tests/profile.test.ts
+ M tests/rule-exclusion.test.ts
+ M tests/ui-popup.test.ts
+ M tests/worker-patch.test.ts
+ M tools/README.md
+ M tools/audit.mjs
+ M tools/preflight.mjs
+ M vite.config.ts
+?? REVIEW-P1-BRIDGE.md
+?? docs/audits/2026-10-30-p1-bridge-cleanup/.gitignore
+?? docs/audits/2026-10-30-p1-bridge-cleanup/README.md
+?? docs/audits/2026-10-30-p1-bridge-cleanup/SHA256SUMS
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baked-build-bridge.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baked-build-frozen.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baked-clear-119.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baked-clear-155.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baked-dist-hashes.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baseline-hashes.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/baseline-status.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/bfcache-119.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/bfcache-155.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/build.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/closeout-head.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/closeout-index.bin
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/documentation-only.patch
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/documentation-verification.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/frames-119.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/frames-155.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/installed-browsers.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-evidence-summary.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-119.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-119.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-155.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-155.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/review-before-closeout.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/tested-dist-hashes.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/browser/verification-summary.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-build.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-closeout-docs.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-coverage.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-lint.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-targeted.log
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/src/shared/config-model.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/src/shared/config-resolver.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/src/shared/diagnostic.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/tests/config.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/tests/content-bridge.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/tests/diagnostic.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/tests/extension-wiring.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/after/tests/rule-exclusion.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/cleanup-only.patch
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/deletion-evidence.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/hashes.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/preservation-final.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/src/shared/config-model.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/src/shared/config-resolver.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/src/shared/diagnostic.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/status.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/structure-verification.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/targets.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/tests/config.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/tests/content-bridge.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/tests/diagnostic.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/tests/extension-wiring.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/tests/rule-exclusion.test.ts
+?? docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/verification-summary.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/context/REVIEW-P1-BRIDGE.before-archive.md
+?? docs/audits/2026-10-30-p1-bridge-cleanup/manifest.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/review/independent-review.txt
+?? docs/audits/2026-10-30-p1-bridge-cleanup/review/message-excerpt.json
+?? docs/audits/2026-10-30-p1-bridge-cleanup/review/provenance.json
+?? fixtures/opaque/frame.html
+?? fixtures/opaque/probe.js
+?? fixtures/opaque/top.html
+?? src/background/blob-frames.ts
+?? src/background/frame-receipts.ts
+?? src/background/message-policy.ts
+?? tests/audit-runner.test.ts
+?? tests/blob-frames.test.ts
+?? tests/build-output.test.ts
+?? tests/frame-receipts.test.ts
+?? tools/smoke-opaque-frames.mjs
+?? tools/smoke-opaque-recovery.mjs

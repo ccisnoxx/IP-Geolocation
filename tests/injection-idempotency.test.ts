@@ -25,7 +25,7 @@ interface Harness {
     probes: number;
     fetches: number;
     reloads: number[];
-    messages: Array<{ tabId: number; frameId?: number; clear: boolean; hostname?: string; language?: string | null }>;
+    messages: Array<{ tabId: number; frameId?: number; documentId?: string; clear: boolean; hostname?: string; language?: string | null }>;
     permissions: Array<{ setting: string; pattern: string }>;
     permissionClears: string[];
     /** 假 Chrome 里 contentSettings 的**真实**状态：pattern → setting */
@@ -45,12 +45,15 @@ interface Harness {
   };
   setDocumentId(id: string): void;
   storage: Record<string, any>;
+  sessionStorage: Record<string, any>;
 }
 
 function createHarness(options: {
   tabs?: Array<{ id: number; url: string }>;
-  frames?: Array<{ frameId: number; url: string; parentFrameId?: number }>;
+  frames?: Array<{ frameId: number; url: string; parentFrameId?: number; documentId?: string; parentDocumentId?: string }>;
   framesError?: boolean;
+  /** 显式提供浏览器脚本探测输出；不从导航列表推导缺失的父关系。 */
+  probeScript?: (details: any) => any[] | Promise<any[]>;
   sendDelayMs?: number;
   registeredScripts?: any[];
   registerError?: string;
@@ -70,7 +73,7 @@ function createHarness(options: {
     probes: 0,
     fetches: 0,
     reloads: [] as number[],
-    messages: [] as Array<{ tabId: number; frameId?: number; clear: boolean; hostname?: string; language?: string | null }>,
+    messages: [] as Array<{ tabId: number; frameId?: number; documentId?: string; clear: boolean; hostname?: string; language?: string | null }>,
     permissions: [] as Array<{ setting: string; pattern: string }>,
     permissionClears: [] as string[],
     permissionState: new Map<string, string>(),
@@ -87,9 +90,10 @@ function createHarness(options: {
   let activeSends = 0;
   const local: Record<string, any> = {};
   const session: Record<string, any> = {};
+  const frameReceipts = new Map<string, unknown>();
   let documentId = 'doc-1';
   const tabs = options.tabs || [{ id: 7, url: TAB_URL }];
-  const framesForTab = (tabId: number) => {
+  const framesForTab = (tabId: number): NonNullable<typeof options.frames> => {
     if (options.frames) return options.frames;
     const tab = tabs.find((item) => item.id === tabId);
     return [{ frameId: 0, url: tab ? tab.url : TAB_URL, parentFrameId: -1 }];
@@ -124,7 +128,8 @@ function createHarness(options: {
           if (typeof keys === 'string') return keys in session ? { [keys]: session[keys] } : {};
           return { ...session };
         },
-        set: async (values: Record<string, any>) => { Object.assign(session, values); }
+        set: async (values: Record<string, any>) => { Object.assign(session, values); },
+        remove: async (keys: string | string[]) => { for (const key of [keys].flat()) delete session[key]; }
       }
     },
     scripting: {
@@ -141,8 +146,9 @@ function createHarness(options: {
           if (options.mainInjectError) throw new Error('main inject failed');
           return [{ documentId, frameId: 0 }];
         }
-        // 剩下的都是探测 documentId 的注入
+        // 无文件的脚本包括 documentId、blob 列表和精确父窗口探测。
         stats.probes += 1;
+        if (options.probeScript) return options.probeScript(details);
         return [{ documentId, frameId: 0 }];
       }
     },
@@ -156,17 +162,21 @@ function createHarness(options: {
       create: async () => { stats.tabCreates += 1; return { id: 99 }; },
       // payload 不再走 executeScript + window.postMessage，而是交给 ISOLATED 桥，
       // 由它转进私有 MessagePort
-      sendMessage: async (tabId: number, message: any, sendOptions?: { frameId?: number }) => {
+      sendMessage: async (tabId: number, message: any, sendOptions?: { frameId?: number; documentId?: string }) => {
         activeSends += 1;
         stats.maxConcurrentSends = Math.max(stats.maxConcurrentSends, activeSends);
         try {
           if (options.sendDelayMs) await new Promise((resolve) => setTimeout(resolve, options.sendDelayMs));
+          const receiptKey = `${tabId}:${sendOptions?.frameId}:${sendOptions?.documentId}`;
+          if (message?.action === 'readFrameEvidence') return { frameEvidence: frameReceipts.get(receiptKey) || null };
+          if (message?.action === 'storeFrameEvidence') { frameReceipts.set(receiptKey, message.frameEvidence); return { stored: true }; }
           if (message && message.action === 'applyPayload') {
             if (message.clear) stats.clearPushes += 1;
             else stats.payloadPushes += 1;
             stats.messages.push({
               tabId,
               frameId: sendOptions?.frameId,
+              documentId: sendOptions?.documentId,
               clear: Boolean(message.clear),
               hostname: message.payload && message.payload.hostname,
               language: message.payload && message.payload.languageConfig
@@ -192,7 +202,11 @@ function createHarness(options: {
           frameId: frame.frameId,
           url: frame.url,
           parentFrameId: frame.parentFrameId === undefined ? -1 : frame.parentFrameId,
-          documentId: `doc-${tabId}-${frame.frameId}`,
+          documentId: frame.documentId || `doc-${tabId}-${frame.frameId}`,
+          // 真实导航元数据同时提供 parentFrameId / parentDocumentId；旧简写 fixture 补齐这层身份。
+          parentDocumentId: frame.parentDocumentId ?? (frame.parentFrameId !== undefined && frame.parentFrameId >= 0
+            ? framesForTab(tabId).find((parent) => parent.frameId === frame.parentFrameId)?.documentId || `doc-${tabId}-${frame.parentFrameId}`
+            : undefined),
           documentLifecycle: 'active',
           frameType: frame.frameId === 0 ? 'outermost_frame' : 'sub_frame',
           processId: 1,
@@ -252,7 +266,8 @@ function createHarness(options: {
     services: createBackgroundServices(),
     stats,
     setDocumentId: (id: string) => { documentId = id; },
-    storage: local
+    storage: local,
+    sessionStorage: session
   };
 }
 
@@ -445,6 +460,63 @@ test('慢读返回的旧快照不许写回缓存：失效之后必须读到保�
     '慢读的旧快照被写进缓存了：后续读会一直停在保存前');
   assert.deepEqual(harness.storage.siteSpoofConfig.rules.map((rule: any) => rule.domain), ['late.example'],
     '种子写入把用户配置盖掉了');
+});
+
+test('定位慢读跨过失效后不污染后续配置和定位', async () => {
+  const harness = createHarness({ tabs: [] });
+  const oldLocation = { latitude: 1, longitude: 2, country: 'Old', timezone: 'Asia/Tokyo', updateTime: 'old' };
+  const nextLocation = { ...oldLocation, latitude: 3, timezone: 'UTC', updateTime: 'new' };
+  harness.storage.siteSpoofConfig = normalizeConfig({ debugMode: false });
+  harness.storage.lastLocation = oldLocation;
+  const originalGet = chrome.storage.local.get;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let entered: () => void = () => {};
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  let first = true;
+  (chrome.storage.local as any).get = async (keys: any) => {
+    const data = await originalGet(keys);
+    if (first) {
+      first = false;
+      entered();
+      await gate;
+    }
+    return data;
+  };
+  const slow = harness.services.getLastLocation();
+  await started;
+  harness.storage.siteSpoofConfig = normalizeConfig({ debugMode: true });
+  harness.storage.lastLocation = nextLocation;
+  harness.services.invalidateStorageCache();
+  release();
+  assert.deepEqual(await slow, oldLocation, '在途读取可以返回它已取得的旧值');
+  assert.equal((await harness.services.getSiteConfig()).debugMode, true);
+  assert.deepEqual(await harness.services.getLastLocation(), nextLocation, '旧读不得重新填入已失效的缓存');
+});
+
+test('首次种子写入等待期间定位变化，后续读取保留新定位', async () => {
+  const harness = createHarness({ tabs: [] });
+  const nextLocation = { latitude: 3, longitude: 4, country: 'New', timezone: 'UTC', updateTime: 'new' };
+  const originalSet = chrome.storage.local.set;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let entered: () => void = () => {};
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  (chrome.storage.local as any).set = async (values: any) => {
+    await originalSet(values);
+    if (values.siteSpoofConfig) {
+      entered();
+      await gate;
+    }
+  };
+  const seed = harness.services.getSiteConfig();
+  await started;
+  harness.storage.lastLocation = nextLocation;
+  harness.services.invalidateStorageCache();
+  release();
+  await seed;
+  assert.deepEqual(await harness.services.getLastLocation(), nextLocation, '种子完成后不能回填含旧定位的快照');
+  assert.ok(harness.storage.siteSpoofConfig, '种子配置仍必须落库');
 });
 
 test('改语言重载命中的已打开页面（文档请求头要对齐），只改时区不重载', async () => {
@@ -869,8 +941,7 @@ test('loadInjectedDocuments 会话不可用 / 历史 documentId 去重', async (
   assert.equal(harness.stats.fileInjections, 1, 'session 失败也要能装');
 
   const harness2 = createHarness();
-  harness2.storage.injectedDocumentIds = ['doc-1', '', 42];
-  await harness2.services.noteDocumentInjected('doc-1');
+  harness2.sessionStorage.injectedDocumentIds = ['doc-1', '', 42];
   await harness2.services.applyConfig(await harness2.services.getSiteConfig());
   assert.equal(harness2.stats.fileInjections, 0, '历史 session 已记录文档');
 });
@@ -914,9 +985,17 @@ test('runtime 注入失败只记录 warning，不阻断 payload 投递', async (
 
 test('pushPayload 投递失败不抛出，clear 失败也不抛出', async () => {
   const harness = createHarness();
-  (globalThis as any).chrome.tabs.sendMessage = async () => { throw new Error('no receiver'); };
+  const messages: any[] = [];
+  (globalThis as any).chrome.tabs.sendMessage = async (_tabId: number, message: any) => {
+    messages.push(message);
+    throw new Error('no receiver');
+  };
   const config = await harness.services.getSiteConfig();
   await assert.doesNotReject(() => harness.services.applyConfig(config));
+  assert.ok(messages.some((message) => message.payload));
+  messages.length = 0;
+  await assert.doesNotReject(() => harness.services.setExtensionEnabled(false));
+  assert.ok(messages.some((message) => message.clear === true));
 });
 
 test('updateGeolocation 覆盖 disabled / 非强制不需要 / API 全失败', async () => {
@@ -1028,6 +1107,42 @@ test('注册内容脚本：无匹配时注销、Duplicate 回退 update、已存
   assert.ok(existing.stats.updated > 0);
 });
 
+test('并发应用等待注册完成；注册失败保留错误且后续同配置应用仍能恢复', async () => {
+  const harness = createHarness();
+  const config = await harness.services.getSiteConfig();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let entered: () => void = () => {};
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const registrations: chrome.scripting.RegisteredContentScript[][] = [];
+  (chrome.scripting as any).registerContentScripts = async (definitions: chrome.scripting.RegisteredContentScript[]) => {
+    registrations.push(definitions);
+    if (registrations.length === 1) {
+      entered();
+      await gate;
+      throw new Error('registration blocked');
+    }
+  };
+
+  const failed = assert.rejects(harness.services.applyConfig(config), /registration blocked/);
+  const recovered = harness.services.applyConfig(config);
+  try {
+    await started;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(registrations.length, 1, '前一次注册未完成，后一次应用不能进入注册');
+    assert.equal(harness.stats.dnrWrites.length, 0, '注册未成功，不得先应用后续副作用');
+  } finally {
+    release();
+  }
+  await failed;
+  await recovered;
+  assert.equal(registrations.length, 2, '注册失败不能记成成功或阻断下一次应用');
+  assert.deepEqual(registrations[1], registrations[0], '恢复时仍注册同一份完整定义');
+  assert.ok(harness.stats.dnrWrites.length > 0, '恢复后必须真正完成副作用');
+  await harness.services.applyConfig(config);
+  assert.equal(registrations.length, 2, '成功后的同配置应用仍应去重');
+});
+
 test('没有内容脚本 API 时注册直接跳过', async () => {
   const harness = createHarness();
   (globalThis as any).chrome.scripting.registerContentScripts = undefined;
@@ -1137,6 +1252,24 @@ test('定位接口全挂：返回 ok:false 并把原因写进 lastGeoError', asy
   assert.equal(result.ok, false);
   assert.match(result.error ?? '', /no valid coordinates/);
   assert.match(String(harness.storage.lastGeoError ?? ''), /no valid coordinates/);
+});
+
+test('普通定位与手动出口配置成功后都清空错误原文和时间', async () => {
+  const harness = createHarness({
+    geoPayload: { ip: '203.0.113.7', success: true, latitude: 35.68, longitude: 139.76, country: 'Japan', timezone: { id: 'Asia/Tokyo', offset: 32400 } }
+  });
+  for (const update of [
+    () => harness.services.updateGeolocation(true),
+    () => harness.services.applyExitIpNow()
+  ]) {
+    harness.storage.lastGeoError = 'previous failure';
+    harness.storage.lastGeoErrorAt = '2026-01-01T00:00:00Z';
+    const result = await update();
+    assert.equal(result.ok, true);
+    assert.equal(harness.storage.lastGeoError, '');
+    assert.equal(harness.storage.lastGeoErrorAt, '');
+    assert.equal((await harness.services.getLastLocation())?.timezone, 'Asia/Tokyo');
+  }
 });
 
 test('定位结果和存量一致时报 unchanged，不重复写 storage', async () => {
@@ -1381,4 +1514,287 @@ test('被排除的中间子域在权限层退回 ask，不被父域的 allow 盖
     '不能和父域同一个 setting'
   );
   assert.ok(ledger.has('active.child.carveout.example'), '深层重新启用的域名仍要生效');
+});
+
+test('导航列表漏掉 blob 时仍更新 blob 与 data 子文档，按 documentId 投递并保留最近 HTTP 的独立规则', async () => {
+  const tabUrl = 'https://claude.ai/login';
+  const childUrl = 'https://console.claude.ai/frame';
+  const blobUrl = 'blob:https://claude.ai/missing-from-navigation';
+  const probes: any[] = [];
+  const harness = createHarness({
+    tabs: [{ id: 7, url: tabUrl }],
+    frames: [
+      { frameId: 0, documentId: 'top-doc', url: tabUrl, parentFrameId: -1 },
+      { frameId: 2, documentId: 'http-doc', url: childUrl, parentFrameId: 0, parentDocumentId: 'top-doc' },
+      { frameId: 6, documentId: 'data-doc', url: 'data:text/html,child', parentFrameId: 5, parentDocumentId: 'blob-doc' }
+    ],
+    probeScript: (details) => {
+      probes.push(details);
+      if (details.target.allFrames) return [
+        { frameId: 0, documentId: 'top-doc', result: tabUrl },
+        { frameId: 2, documentId: 'http-doc', result: childUrl },
+        { frameId: 5, documentId: 'blob-doc', result: blobUrl },
+        { frameId: 6, documentId: 'data-doc', result: 'data:text/html,child' }
+      ];
+      if (details.target.documentIds) return [{ frameId: 5, documentId: 'blob-doc', result: { url: blobUrl, parentUrl: childUrl } }];
+      return [{ frameId: 0, documentId: 'top-doc' }];
+    }
+  });
+  const base = await harness.services.getSiteConfig();
+  const configFor = (language: string) => normalizeConfig({
+    ...base,
+    globalProfile: {
+      ...base.globalProfile,
+      timezone: { enabled: true, mode: 'manual', timezone: 'America/Los_Angeles' },
+      geolocation: { ...base.globalProfile.geolocation, enabled: false },
+      language: { enabled: true, mode: 'preset', language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' }
+    },
+    rules: [
+      { id: 'parent', domain: 'claude.ai', enabled: true, overrides: inheritOverrides() },
+      {
+        id: 'child', domain: 'console.claude.ai', enabled: true,
+        overrides: {
+          language: { mode: 'override', value: { enabled: true, mode: 'preset', language, languages: [language], acceptLanguage: language } },
+          timezone: { mode: 'inherit', value: null },
+          geolocation: { mode: 'inherit', value: null }
+        }
+      }
+    ]
+  });
+  for (const language of ['ja-JP', 'de-DE']) {
+    const before = harness.stats.messages.length;
+    await harness.services.syncTab(7, tabUrl, { config: configFor(language), lastLocation: null });
+    const sent = harness.stats.messages.slice(before).sort((a, b) => Number(a.frameId) - Number(b.frameId));
+    assert.deepEqual(sent.map((message) => [message.frameId, message.documentId]), [
+      [0, 'top-doc'], [2, 'http-doc'], [5, 'blob-doc'], [6, 'data-doc']
+    ]);
+    assert.equal(sent[0].hostname, 'claude.ai');
+    assert.equal(sent[0].language, 'en-US');
+    for (const message of sent.slice(1)) {
+      assert.equal(message.clear, false);
+      assert.equal(message.hostname, 'console.claude.ai');
+      assert.equal(message.language, language, 'blob/data 要跟随最近 HTTP 规则的新配置');
+    }
+  }
+  const ancestryProbes = probes.filter((probe) => probe.target.documentIds);
+  assert.ok(ancestryProbes.length > 0);
+  for (const probe of ancestryProbes) {
+    assert.deepEqual(probe.target, { tabId: 7, documentIds: ['blob-doc'] });
+    assert.equal(probe.world, 'ISOLATED');
+  }
+});
+
+test('blob 发现列表不证明父关系：精确探测未知、无父或失败时不把顶层规则投给 blob/data', async () => {
+  const tabUrl = 'https://claude.ai/login';
+  const blobUrl = 'blob:https://claude.ai/unproven';
+  const outcomes: Array<any[] | Error> = [
+    [],
+    [{ frameId: 5, documentId: 'other-document', result: { url: blobUrl, parentUrl: tabUrl } }],
+    [{ frameId: 5, documentId: 'blob-doc', result: { url: blobUrl, parentUrl: null } }],
+    [{ frameId: 5, documentId: 'blob-doc', result: { url: blobUrl, parentUrl: 'file:///tmp/unknown.html' } }],
+    new Error('Blocked a frame from accessing a cross-origin frame')
+  ];
+  for (const outcome of outcomes) {
+    const harness = createHarness({
+      tabs: [{ id: 7, url: tabUrl }],
+      frames: [
+        { frameId: 0, documentId: 'top-doc', url: tabUrl, parentFrameId: -1 },
+        { frameId: 6, documentId: 'data-doc', url: 'data:text/html,child', parentFrameId: 5, parentDocumentId: 'blob-doc' }
+      ],
+      probeScript: (details) => {
+        if (details.target.allFrames) return [{ frameId: 5, documentId: 'blob-doc', result: blobUrl }];
+        if (details.target.documentIds) {
+          if (outcome instanceof Error) throw outcome;
+          return outcome;
+        }
+        return [{ frameId: 0, documentId: 'top-doc' }];
+      }
+    });
+    const config = await harness.services.getSiteConfig();
+    await harness.services.syncTab(7, tabUrl, { config, lastLocation: null });
+    assert.deepEqual(harness.stats.messages.map((message) => [message.frameId, message.documentId]), [[0, 'top-doc']]);
+  }
+});
+
+test('已知导航父链含未知 scheme 时，opaque 子文档不越过它采用顶层规则', async () => {
+  const tabUrl = 'https://claude.ai/login';
+  const harness = createHarness({
+    tabs: [{ id: 7, url: tabUrl }],
+    frames: [
+      { frameId: 0, documentId: 'top-doc', url: tabUrl, parentFrameId: -1 },
+      { frameId: 3, documentId: 'unknown-doc', url: 'file:///tmp/unknown.html', parentFrameId: 0, parentDocumentId: 'top-doc' },
+      { frameId: 6, documentId: 'data-doc', url: 'data:text/html,child', parentFrameId: 3, parentDocumentId: 'unknown-doc' }
+    ]
+  });
+  await harness.services.syncTab(7, tabUrl);
+  assert.deepEqual(harness.stats.messages.map((message) => [message.frameId, message.documentId]), [[0, 'top-doc']]);
+});
+
+test('services 共用已证实父边：BFCache 漏掉 data/nesteddata 后仍按 documentId 投递最新配置', async () => {
+  const tabUrl = 'https://claude.ai/login';
+  const blobUrl = 'blob:https://claude.ai/parent';
+  const dataUrl = 'data:text/html,child';
+  const nestedUrl = 'data:text/html,nested-child';
+  const frames = [
+    { frameId: 0, documentId: 'top-doc', url: tabUrl, parentFrameId: -1 },
+    { frameId: 6, documentId: 'data-doc', url: dataUrl, parentFrameId: 5, parentDocumentId: 'blob-doc' },
+    { frameId: 7, documentId: 'nested-doc', url: nestedUrl, parentFrameId: 6, parentDocumentId: 'data-doc' }
+  ];
+  const harness = createHarness({
+    tabs: [{ id: 7, url: tabUrl }],
+    frames,
+    probeScript: (details) => {
+      if (details.target.allFrames) return [
+        { frameId: 5, documentId: 'blob-doc', result: blobUrl },
+        { frameId: 6, documentId: 'data-doc', result: dataUrl },
+        { frameId: 7, documentId: 'nested-doc', result: nestedUrl }
+      ];
+      if (details.target.documentIds) return [{ frameId: 5, documentId: 'blob-doc', result: { url: blobUrl, parentUrl: tabUrl } }];
+      return [{ frameId: 0, documentId: 'top-doc' }];
+    }
+  });
+  assert.equal(await harness.services.resolveFrameRuleUrl(7, 7, 'nested-doc', nestedUrl), tabUrl);
+  frames.splice(1);
+  const base = await harness.services.getSiteConfig();
+  for (const language of ['en-US', 'ja-JP']) {
+    const config = normalizeConfig({
+      ...base,
+      globalProfile: {
+        ...base.globalProfile,
+        timezone: { enabled: true, mode: 'manual', timezone: 'America/Los_Angeles' },
+        geolocation: { ...base.globalProfile.geolocation, enabled: false },
+        language: { enabled: true, mode: 'preset', language, languages: [language], acceptLanguage: language }
+      },
+      rules: [{ id: 'parent', domain: 'claude.ai', enabled: true, overrides: inheritOverrides() }]
+    });
+    const before = harness.stats.messages.length;
+    await harness.services.syncTab(7, tabUrl, { config, lastLocation: null });
+    const sent = harness.stats.messages.slice(before).sort((a, b) => Number(a.frameId) - Number(b.frameId));
+    assert.deepEqual(sent.map((message) => [message.frameId, message.documentId]), [
+      [0, 'top-doc'], [5, 'blob-doc'], [6, 'data-doc'], [7, 'nested-doc']
+    ]);
+    assert.ok(sent.every((message) => !message.clear && message.hostname === 'claude.ai' && message.language === language));
+  }
+});
+
+test('从未证实的 opaque 文档只收到精确 refresh，无配置；总开关关闭后仍收到强制 clear', async () => {
+  const tabUrl = 'https://claude.ai/login';
+  const harness = createHarness({
+    tabs: [{ id: 7, url: tabUrl }],
+    frames: [{ frameId: 0, documentId: 'top-doc', url: tabUrl, parentFrameId: -1 }],
+    probeScript: (details) => {
+      if (details.target.allFrames) return [
+        { frameId: 5, documentId: 'blob-doc', result: 'blob:https://claude.ai/unproven' },
+        { frameId: 6, documentId: 'data-doc', result: 'data:text/html,unproven' }
+      ];
+      if (details.target.documentIds) return [];
+      return [{ frameId: 0, documentId: 'top-doc' }];
+    }
+  });
+  const outgoing: Array<{ tabId: number; message: any; options: any }> = [];
+  const send = chrome.tabs.sendMessage;
+  (chrome as any).tabs.sendMessage = async (tabId: number, message: any, options: any) => {
+    outgoing.push({ tabId, message, options });
+    return send(tabId, message, options);
+  };
+  const config = await harness.services.getSiteConfig();
+  await harness.services.syncTab(7, tabUrl, { config, lastLocation: null });
+  const refresh = outgoing.filter((item) => item.message.action === 'refreshPayload' && item.options?.documentId).sort((a, b) => a.options.frameId - b.options.frameId);
+  assert.deepEqual(outgoing.filter(item => item.message.opaqueOnly === true), [{ tabId: 7, message: { action: 'refreshPayload', opaqueOnly: true }, options: undefined }]);
+  assert.deepEqual(refresh, [
+    { tabId: 7, message: { action: 'refreshPayload' }, options: { frameId: 5, documentId: 'blob-doc' } },
+    { tabId: 7, message: { action: 'refreshPayload' }, options: { frameId: 6, documentId: 'data-doc' } }
+  ]);
+  assert.deepEqual(harness.stats.messages.map((message) => [message.frameId, message.documentId]), [[0, 'top-doc']]);
+
+  outgoing.length = 0;
+  await harness.services.syncTab(7, tabUrl, { config: { ...config, masterEnabled: false }, lastLocation: null });
+  // Chrome119 的枚举可完全漏掉 blob；总关必须广播到这些仍有内容桥的文档。
+  assert.deepEqual(outgoing, [
+    { tabId: 7, message: { action: 'applyPayload', clear: true, globalDisabled: true }, options: undefined }
+  ]);
+});
+
+test('119 BFCache 发现 API 仅列顶层时，成功解析过的 blob/data 均按精确文档更新；切换顶层不遍历冻结身份', async () => {
+  const tabUrl = 'https://claude.ai/opaque';
+  const blobUrl = 'blob:https://claude.ai/parent';
+  const frames = [
+    { frameId: 0, documentId: 'top-a', url: tabUrl, parentFrameId: -1 },
+    { frameId: 6, documentId: 'data-doc', url: 'data:text/html,root', parentFrameId: 0, parentDocumentId: 'top-a' },
+    { frameId: 7, documentId: 'nested-doc', url: 'data:text/html,nested', parentFrameId: 5, parentDocumentId: 'blob-doc' }
+  ];
+  const harness = createHarness({ tabs: [{ id: 7, url: tabUrl }], frames, probeScript: (details) => {
+    if (details.target.documentIds) throw new Error('Cannot access contents of url blob:');
+    return [{ frameId: 0, documentId: frames[0].documentId }];
+  } });
+  const queryOptions: any[] = [];
+  const originalSend = chrome.tabs.sendMessage;
+  (chrome.tabs as any).sendMessage = async (tabId: number, message: any, options: any) => {
+    if (message.action === 'readBlobParent') {
+      queryOptions.push(options);
+      assert.deepEqual(options, { frameId: 5, documentId: 'blob-doc' });
+      return { url: blobUrl, parentUrl: tabUrl };
+    }
+    return originalSend(tabId, message, options);
+  };
+  assert.equal(await harness.services.resolveFrameRuleUrl(7, 5, 'blob-doc', blobUrl), tabUrl);
+  for (const frame of frames.slice(1)) assert.equal(await harness.services.resolveFrameRuleUrl(7, frame.frameId, frame.documentId, frame.url), tabUrl);
+  frames.splice(1);
+  const base = await harness.services.getSiteConfig();
+  const config = normalizeConfig({ ...base, globalProfile: {
+    ...base.globalProfile,
+    timezone: { ...base.globalProfile.timezone, enabled: false },
+    language: { enabled: true, mode: 'preset', language: 'ja-JP', languages: ['ja-JP'], acceptLanguage: 'ja-JP' },
+    geolocation: { ...base.globalProfile.geolocation, enabled: false }
+  }, rules: [{ id: 'parent', domain: 'claude.ai', enabled: true, overrides: inheritOverrides() }] });
+  await harness.services.syncTab(7, tabUrl, { config, lastLocation: null });
+  assert.deepEqual(harness.stats.messages.map(m => [m.frameId, m.documentId]).sort((a,b) => Number(a[0])-Number(b[0])), [
+    [0, 'top-a'], [5, 'blob-doc'], [6, 'data-doc'], [7, 'nested-doc']
+  ]);
+  for (const message of harness.stats.messages) assert.equal(message.language, 'ja-JP');
+  assert.ok(queryOptions.length >= 3, '发现身份不代替 blob 当前祖先查询');
+  queryOptions.length = 0;
+  harness.stats.messages.length = 0;
+  frames[0].documentId = 'top-b';
+  await harness.services.syncTab(7, tabUrl, { config, lastLocation: null });
+  assert.deepEqual(harness.stats.messages.map(m => [m.frameId, m.documentId]), [[0, 'top-b']]);
+  assert.deepEqual(queryOptions, [], 'B 活动时不主动查询 A 的冻结 blob');
+});
+
+
+test('SW 新 services 无发现缓存时仍通知 opaque 自拉，文档凭证恢复后使用当前配置', async () => {
+  const tabUrl = 'https://claude.ai/session';
+  const frames = [
+    { frameId: 0, documentId: 'session-top', url: tabUrl, parentFrameId: -1 },
+    { frameId: 6, documentId: 'session-data', url: 'data:text/html,private-content', parentFrameId: 0, parentDocumentId: 'session-top' }
+  ];
+  const harness = createHarness({ tabs: [{ id: 7, url: tabUrl }], frames });
+  assert.equal(await harness.services.resolveFrameRuleUrl(7, 6, 'session-data', frames[1].url), tabUrl);
+  frames.splice(1);
+  const base = await harness.services.getSiteConfig();
+  const config = normalizeConfig({ ...base, globalProfile: {
+    ...base.globalProfile, timezone: { enabled: true, mode: 'manual', timezone: 'Europe/Paris' },
+    language: { enabled: true, mode: 'preset', language: 'fr-FR', languages: ['fr-FR'], acceptLanguage: 'fr-FR' },
+    geolocation: { ...base.globalProfile.geolocation, enabled: false }
+  }, rules: [{ id: 'parent', domain: 'claude.ai', enabled: true, overrides: inheritOverrides() }] });
+  harness.storage.siteSpoofConfig = config;
+  const restarted = createBackgroundServices();
+  const outgoing: any[] = [];
+  const original = chrome.tabs.sendMessage;
+  (chrome.tabs as any).sendMessage = async (tabId: number, message: any, options: any) => {
+    outgoing.push({ tabId, message, options });
+    return original(tabId, message, options);
+  };
+  await restarted.syncTab(7, tabUrl, { config, lastLocation: null });
+  assert.deepEqual(outgoing.filter(item => item.message.action === 'refreshPayload'), [
+    { tabId: 7, message: { action: 'refreshPayload', opaqueOnly: true }, options: undefined }
+  ]);
+  const effectiveUrl = await restarted.resolveFrameRuleUrl(7, 6, 'session-data', 'data:text/html,private-content');
+  assert.equal(effectiveUrl, tabUrl);
+  const result = await restarted.getPayloadForUrl(effectiveUrl);
+  assert.equal(result.payload?.languageConfig?.language, 'fr-FR');
+  await restarted.forgetFrameTab(7);
+  assert.equal(Object.keys(harness.sessionStorage).some(key => key.startsWith('vanishgeo.frame-evidence.v1:')), false);
+  assert.ok(harness.sessionStorage['vanishgeo.frame-receipt-key.v1'], '关 tab 不能删除其他文档依赖的会话密钥');
+  await assert.rejects(() => restarted.resolveFrameRuleUrl(7, 6, 'session-data', 'data:text/html,private-content'), /tab has closed/);
 });

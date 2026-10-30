@@ -1,0 +1,16 @@
+✓ 页面顶层已被规则伪装（说明扩展在这一页生效）  {"language":"ja-JP","timezone":"Asia/Tokyo"}
+✓ 原生基线取自未命中规则的地址（127.0.0.1 不在白名单里）  {"language":"zh-CN","timezone":"Asia/Shanghai"}
+✓ classic Worker 仍被包装：时区/语言跟着规则走  {"workerType":"classic","language":"ja-JP","languages":["ja-JP","ja"],"dateTimeFormatLocale":"ja-JP","numberFormatLocale":"ja-JP","timezone":"Asia/Tokyo","offsetMinutes":-540,"dateString":"Fri Oct 30 2026 11:16:48 GMT+0900 (Japan Standard Time)"}
+✓ classic Worker 初始化没有被打断（blob 前缀没有让构造失败）  undefined
+✓ SharedWorker 不被包装：入口仍是页面的脚本地址  http://localhost:61234/fixtures/workers/shared-counter.js
+✓ SharedWorker 跨标签页共享同一实例（connections 累加）  A=1 B=2 A2=3
+✓ SharedWorker 读到原生值（不伪装，符合 UNSUPPORTED 声明）  {"workerType":"shared-counter","connections":1,"createdAt":1793326608079,"workerUrl":"http://localhost:61234/fixtures/workers/shared-counter.js","language":"zh-CN","timezone":"Asia/Shanghai","offsetMinutes":-480}
+✓ CSP 页面本身仍被伪装（顶层 payload 不受 worker-src 影响）  {"language":"ja-JP","timezone":"Asia/Tokyo"}
+✓ CSP 拒绝 blob 后 Worker 仍能跑（回退原生入口，不是直接坏掉）  {"workerType":"classic","language":"zh-CN","languages":["zh-CN","zh"],"dateTimeFormatLocale":"zh-CN","numberFormatLocale":"zh-CN","timezone":"Asia/Shanghai","offsetMinutes":-480,"dateString":"Fri Oct 30 2026 10:16:49 GMT+0800 (中国标准时间)"}
+✓ 回退后的 Worker 读到原生值（明确知道它没被接管）  zh-CN/Asia/Shanghai
+✓ 包装失败被上报到后台（弹窗/诊断因此能显示）  {"count":3,"reasons":["csp-blocked"],"script":"http://csp.localhost:61234/fixtures/workers/nested-parent.js"}
+✓ 上报原因归为 csp-blocked，且指向被包装过的夹具脚本  csp-blocked http://csp.localhost:61234/fixtures/workers/nested-parent.js
+✓ 夹具里每个被包装的 Worker 都记了一笔（classic / module / nested-parent）  count=3
+✓ 诊断页渲染出 Worker 覆盖面（声明 + 回退观察）  classic/module 声明支持 · shared/nested/service 不支持 · 尚未收到页面侧回退报告，不代表完整覆盖
+
+14/14 通过

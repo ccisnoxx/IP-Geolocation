@@ -1,0 +1,101 @@
+diff --git a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/review-before-closeout.txt b/REVIEW-P1-BRIDGE.md
+index 8b8e106..5971887 100644
+--- a/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/review-before-closeout.txt
++++ b/REVIEW-P1-BRIDGE.md
+@@ -235,3 +235,96 @@ Chrome119/155 的 `webNavigation.getFrame(documentId)` 与 `getAllFrames` 共用
+ 原始证据：`/tmp/vanishgeo-gc-final-{119,155}.{log,json}`、`/tmp/vanishgeo-gc-baked-119.{log,json}`、`/tmp/vanishgeo-receipt-baked-clear-119.log`、`/tmp/vanishgeo-receipt-{coverage,typecheck,lint}.log`、`/tmp/vanishgeo-receipt-final-build.log`、`/tmp/vanishgeo-receipt-content-injection.log`、`/tmp/vanishgeo-receipt-router-tests.log`。原32项中间通过记录另留 `/tmp/vanishgeo-gc-after-{119,155}.{log,json}`；最终33项额外验证满额时真实重启SW。
+ 
+ 剩余边界：首次建key即被其他组件挤满时仍明确失败，不能擅删其他key；扩展reload/update/禁用或浏览器重启清空key后的旧凭证不再有效。没有取得并ACK凭证、浏览器又失去父边的文档仍可能无法恢复；ACK前冻结/导航的操作不报告成功，未强制浏览器命中这个精确交错，延迟ACK与关闭测试已覆盖保守失败。正常活动/BFCache持证文档不按年龄或未枚举到而被扩展回收。filesystem文档内行为及frozen opaque首脚本值仍未覆盖，原MAIN P1仍开放。
++
++## 遗留代码清理与 Chrome 119/155 回归复核（2026-10-30）
++
++本节补录四组已获用户批准的清理、实际差异的独立只读审查，以及清理后追加的普通浏览器回归。原 MAIN 消息桥 P1 保持未关闭；没有把公开构建常量当作秘密，没有增加权限、修改最低版本、放宽浏览器限制或重试此前被拒绝的攻击复现。前文 651/651 是清理前阶段记录；移除四个仅验证孤立代码的独立用例后，清理阶段的完整测试为 647/647。
++
++### 删除依据与保留的测试合同
++
++删除前对仓库源码、测试和工具进行了符号引用检索，结合实际入口核对调用链；删除后的维护代码再次检索无残留引用。判断针对当前仓库的运行路径，不把“仅被测试调用”一概等同于可删除。
++
++| 清理组 | 删除前证据 | 实际清理与保留范围 |
++| --- | --- | --- |
++| `config-model.ts` 的 `LANGUAGE_PRESETS`、`TIMEZONE_PRESETS` | 仅有声明，无业务、工具或测试调用；当前设置页使用 `DEFAULT_PROFILES` 与表单字段 | 删除两份旧数据，保留正在使用的默认 profile |
++| `diagnostic.ts` 的 `buildRequestHeaderProbe`、`buildFrameProbeSnapshot`、`buildGeolocationBehaviorSnapshot` | 调用只在 `diagnostic.test.ts`，未接入当前诊断页或工具；五个私有 helper 和 `REQUEST_HEADER_PROBE_SOURCES` 仅服务于被删链路 | 删除三个导出及其孤立辅助代码；保留诊断页实际调用的 `buildWorkerDiagnosticsSnapshot` 与覆盖声明 |
++| `config-resolver.ts` 的 `isUrlMatchedByEnabledRule` | 无业务调用，只有两份测试引用；实际行为由 `resolveRuleMatch`、`getEffectiveProfile` 和内容脚本注册逻辑承担 | 删除旧包装函数，保留实际匹配、排除与注册行为 |
++| `config-model.ts` 的 `formatTimezoneOffsetMinutes` | 无业务调用，只有 `config.test.ts` 两条断言；当前 UI 不通过它显示偏移 | 删除函数及其专属断言，保留时区校验和偏移计算 |
++
++代码与测试共 8 文件，新增 17 行、删除 255 行，统计不含本节文档。TypeScript AST 核对确认：三个生产文件仅移除批准的 13 个顶层声明，所有保留的语句逐字一致。`defaults.ts`、`storage.ts` 在清理前基线中已删除，本阶段没有重复计入。
++
++删除的独立用例恰为四个：两个旧请求头解析用例、一个 frame 快照用例，以及旧 URL 包装函数用例。三个混合用例仅移除对应遗留函数的断言，仍保留时区校验/偏移失败、注册范围/排除、Worker 缺失条目的 `not_attempted` 等有效行为。其他规则排除、DNR、Worker 的 unsupported/degraded、安全路由与凭证测试没有删除。
++
++另外两处按已确认范围修正，没有整项删除：
++
++- `content-bridge.test.ts` 分别保留“接收端关闭”和“发送端同步异常”。前者核对不抛错、投递数量不增加及原 payload；后者通过 `attempts === 1` 证明实际触发发送异常，并在 `finally` 恢复原型方法。Node 关闭对端本身不使发送同步抛错，不能继续把前者命名为异常分支测试。
++- `extension-wiring.test.ts` 限定为旧后台地址提示与 MAIN 经典脚本自包含检查，保留 referrer 兼容提示和打包约束，不宣称 referrer 可授权后台。忽略自报 URL、按浏览器身份授权及失败后零业务副作用仍由路由行为测试保护。
++
++旧后台地址提示、没有 `hostname` 的旧 payload、IP 同步单飞的测试隔离/观察接口均保留。兼容桥、消息授权、父链凭证、注入 runtime、路由/父链凭证安全测试和既有清理成果未被此次整理改写。
++
++### 独立审查与最终差异复核
++
++独立只读审查由 `/root/cleanup_contract_review`（`critical_reviewer`）完成，以清理前快照到实际候选的八文件差异为对象，不用包含前轮成果的 HEAD 总差异替代本轮范围。审查重建删除前引用，核对保留断言、端口的两个不同场景、referrer 测试范围及未改变的后台信任边界，未发现本轮新增的可行动缺陷。
++
++审查者另行核对 205 个基线路径：只有约定的 8 文件变化，其余 197 个路径的内容与存在状态一致，并查阅主代理执行的定向、lint、构建与核心覆盖率日志；审查者没有自行运行浏览器攻击验证，也没有重新审计未改变的凭证协议。该结论仅覆盖清理差异及其直接影响，不能关闭原 MAIN P1。
++
++本次文档补录前再次重建八文件差异，与保存的 `cleanup-only.patch` 逐字一致；重新核对删除证据与维护代码引用。浏览器补跑前后 205 个仓库路径均保持不变，普通构建的 46 文件指纹在测试期间一致。此次仅追加本节，其他 204 个路径与补跑基线一致，既有历史段落保留；不暂存、不提交、不推送。
++
++### 清理后的验证结果
++
++| 检查 | 已执行结果 |
++| --- | --- |
++| config、rule-exclusion、diagnostic、content-bridge 定向测试 | 72/72，失败/取消/跳过均为 0 |
++| `npm run lint` | 退出码 0，以进程最终退出结果为准 |
++| `npm run build`（含 typecheck） | 清理阶段与浏览器补跑前均成功 |
++| `npm run test:coverage:core` | 647/647，失败/取消/跳过均为 0；指定八文件整体分支 89.05%，每文件至少 85% |
++| 差异空白、删除引用、快照与保留语句复核 | 通过 |
++| 本次文档补录的 `tests/docs-consistency.test.ts` | 10/10，失败/取消/跳过均为 0 |
++
++八文件覆盖率仍不包含 `blob-frames.ts`、`frame-receipts.ts` 或 `diagnostic.ts`。删除代码改变了覆盖率分母，89.05% 不能解释为新增安全验证或整个凭证协议的覆盖率。本次文档补录复用了输入未变的代码检查结果，没有重跑完整单元或浏览器套件。
++
++补跑使用实际 Chrome 119.0.6045.105 与 155.0.8059.86、临时隔离 profile 和当前构建。119 正常通过 `--load-extension` 激活，155 使用已有 CDP 装载能力；没有混合旧 SW 与新磁盘脚本，也没有禁用 SOP、导航保护或提高配额。
++
++| 普通功能回归 | Chrome 119 | Chrome 155 |
++| --- | --- | --- |
++| 普通构建 `smoke:opaque-recovery`：跨导航、热更新、SW 重启、淘汰与配额恢复 | 33/33 | 33/33 |
++| 普通构建 `smoke:frames`：父子框架规则、排除与恢复原生 | 19/19 | 19/19 |
++| 普通构建 `smoke:bfcache`：真实恢复、配置变更及页面/请求头对齐 | 11/11 | 11/11 |
++| 临时 bridge/frozen 包 `smoke:baked-clear`：排除、总关、刷新后的约定 | 21/21 | 21/21 |
++| 合计 | 84/84 | 84/84 |
++
++八次脚本运行最终退出码均为 0，共 168/168。关键证据为：
++
++- 两版均确认旧 SW target 消失，再由普通管理消息唤醒不同的新实例；普通 session 状态及真实满额状态下均重新完成热更新、BFCache 恢复和同文档 clear。
++- 两版均完成 505 个普通 data 文档实际生效后才继续；父边模块导航前后均为 1 个 session key、1056 字节。这是模块统计，不代表整个扩展只有一个 session key。
++- 两版共享 session 达到 10485744 字节并发生浏览器真实配额拒绝后，新 data 仍继承父规则；满额下 SW 重启、更新、BFCache 与 clear 通过，测试填充 key 在 `finally` 删除。
++- opaque 恢复检查真实 `pageshow.persisted`、页面 token 与文档身份。普通页面冻结期间改语言后的 `persisted=false` 只作观察，不计为缓存命中证明；改时区不重载、改语言后新文档及 Accept-Language 对齐由各自断言验证。
++- bridge 的排除/总关/刷新恢复原生，frozen 保留烘焙页面与请求头值；这些通过项保护原约定，不改变兼容模型。
++
++补跑未发现新的运行时 Bug，未修改实现或删除失败断言。临时浏览器、profile 和 bridge/frozen 测试包已清理；没有遗留本任务浏览器进程或 `persona.config.json`，原始证据及构建指纹保留。
++
++### 证据定位与剩余边界
++
++清理证据目录：`/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q`。
++
++- `cleanup-only.patch`、八个原文件快照、`deletion-evidence.txt`：删除前引用与实际差异。
++- `structure-verification.txt`、`preservation-final.json`、`verification-summary.json`：保留语句、路径基线、审查结论和执行结果。
++- 清理阶段原始日志为 `/tmp/vanishgeo-cleanup-{targeted,lint,build,coverage}.log`。
++- 本次文档相关检查日志为 `/tmp/vanishgeo-cleanup-closeout-docs.log`。
++
++浏览器证据目录：`/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa`。
++
++- `opaque-recovery-{119,155}.{log,json}`、`frames-{119,155}.log`、`bfcache-{119,155}.log`、`baked-clear-{119,155}.log`：八次运行的原始结果。
++- `opaque-evidence-summary.json`、`verification-summary.json`：浏览器实际版本、SW 更换、配额、父边占用、通过数与退出码。
++- `tested-dist-hashes.json`、`baked-dist-hashes.json`：普通构建与两种临时包的文件指纹；临时包本体已删除。
++
++复核时 `cleanup-only.patch` 的 SHA-256 为 `af62828fc407161946e8be28e1cc717c128e84a71ab4e8f8bee5ed5dfebe904a`，浏览器 `verification-summary.json` 为 `5fcb01665c2a0fe9f0b8866fbb2b43563a816b433382a1c89ee6f586a761f5d4`。这些原始文件位于本地临时目录，尚未归档为持久发布制品；本节已摘录核心结论，原始细节复查仍依赖这些文件。
++
++剩余问题和验收边界保持明确：
++
++1. 原 MAIN 消息桥仍不能认证页面提供的握手端口或端口载荷，公开构建 nonce 不是秘密；P1 继续未关闭。此前被平台安全审查拒绝的真实攻击复现没有重试，本次普通功能检查与独立代码复核不替代该验收。
++2. Chrome119 的程序化 blob 注入仍被浏览器拒绝，现有合法注入内容脚本的精确双 ID 查询兼容路径通过。跨源不可读或 sandbox 不允许读取父 Location 的链仍拒绝，不能回退顶层规则或自报 referrer。
++3. 两版无扩展/有扩展环境均明确拒绝 filesystem 导航；拒绝对照是通过项，但 filesystem 文档内更新、导航与 BFCache 行为未覆盖。frozen opaque 首脚本值仍未覆盖。
++4. 首次建立会话 key 就遇到其他数据占满配额时仍明确失败；扩展 reload/update/禁用或浏览器重启清空 key 后，旧凭证无效。未持有已 ACK 凭证且浏览器父边已缺失的文档仍可能无法恢复；普通重拉失败可能保留旧值，总关 clear 合同保留。
++5. ACK 前精确冻结/导航交错未强制在真实浏览器命中；延迟 ACK、关闭与保守失败由已有测试保护。505 次导航和真实配额压力是所测场景，不能证明无限历史、所有并发交错或所有资源压力下均可恢复。
++6. 本次仅为两个精确版本、隔离 profile 的普通功能回归。临时 bridge/frozen 包只重跑清除合同；前文 Chrome119 可变烘焙包完整 opaque 33/33 是此前阶段结果，不计入本次 168 项。未验证真实日常 profile、跨版本升级、全部 Chrome119 API 合同或发布验收。

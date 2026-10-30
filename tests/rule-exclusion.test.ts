@@ -5,7 +5,6 @@ import {
   getContentScriptRegistration,
   getEffectiveProfile,
   getExcludedRuleDomains,
-  isUrlMatchedByEnabledRule,
   resolveRuleMatch
 } from '../src/shared/config-resolver';
 import { buildAcceptLanguageRules } from '../src/background/dnr';
@@ -47,14 +46,11 @@ test('disabled 规则命中时整站排除，不回落到父域配置', () => {
   assert.ok(inherited.payload, '未排除的子域照常生效');
 });
 
-test('排除影响 URL 判定与内容脚本注册范围', () => {
+test('禁用子域从内容脚本注册范围中排除', () => {
   const cfg = config([
     { domain: 'google.com', enabled: true },
     { domain: 'mail.google.com', enabled: false }
   ]);
-
-  assert.equal(isUrlMatchedByEnabledRule(cfg, 'https://drive.google.com/x'), true);
-  assert.equal(isUrlMatchedByEnabledRule(cfg, 'https://mail.google.com/u/0'), false);
 
   const { matches, excludeMatches } = getContentScriptRegistration(cfg);
   assert.deepEqual(matches, ['*://google.com/*', '*://*.google.com/*']);

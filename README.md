@@ -199,11 +199,11 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
   `function setHours() { [native code] }` 且 `name`/`length` 与原生 arity 表一致
 - **WebIDL 形状**：`GeolocationCoordinates` 的属性是原型上的只读 getter，实例零自有属性
 - **不造假信号**：不接管 `document.fonts.check`（原生对系统字体本来就返回 `true`）
-- **私有通道**：payload 经 `document_start` 握手换来的 `MessagePort` 下发，页面既看不到也伪造不了。
-  已知边界：握手本身没有"证明对方是扩展"的能力 —— 注入层接受第一个形状正确的端口再回 nonce，
-  所以真正的保证来自时序（`document_start` 在页面脚本之前跑）而不是密码学。晚注入、
-  或页面在注入前就抓到过握手消息的场景下，页面理论上能先占到这个端口；能拿到的是
-  payload 通道，不是扩展的特权 API（那需要 `chrome.*`，页面没有）
+- **消息桥仍有 P1 认证缺口**：payload 经窗口握手取得的 `MessagePort` 下发。
+  页面可以构造握手，构建 nonce 随发行包公开；端口、nonce 和 `document_start` 时序均不构成扩展身份认证。
+  后台消息分权只限制内容脚本能调用的动作及文档归属，不修复 MAIN 接受伪造配置的问题。
+  当前桥只转发固定的配置拉取和诊断消息，不能据此推断网页已能调用任意后台动作。
+  研究、独立审查与保留功能合同的阶段决策见 [消息桥安全记录](REVIEW-P1-BRIDGE.md)。
 - **按 frame 投递**：payload 带解析时的精确 `hostname`；后台用 `webNavigation.getAllFrames` 为每个 frame 单独算规则并带 `frameId` 下发，父页不会覆盖独立子域 iframe，子框架规则删除后也会收到自己的 `clear`。同一 URL 的解析结果复用，投递最多 8 个并发，避免几十个 iframe 被串行 IPC 拖慢
 - **BFCache 恢复会重拉**：页面进 BFCache 后内容脚本不会重新注入，payload 也不会自己再来一遍。桥在 `pageshow` 且 `event.persisted === true` 时按本 frame 的规则重拉一次，所以"冻结期间改了配置/排除了站点，恢复后仍是旧值"这条路径不存在；普通加载的 `pageshow` 不重复拉取。已知代价：改语言要重写 DNR 请求头规则（Chromium 实测任何 DNR 写入都会驱逐 BFCache，同内容重写也算），而前台页面不会自己重载、文档仍是旧头 —— 所以检测到请求头值变化时**主动重载命中该域名的已打开页面**；只改时区不写 DNR、也不重载。细节见 [CONFIG_GUIDE](CONFIG_GUIDE.md)
 - **静态优先**：烘焙构建把 DNR 规则与内容脚本写进 manifest，首帧即生效
@@ -239,8 +239,8 @@ blob 入口，而 Chrome 在这种拒绝下**不会让构造函数抛错**，只
 - 探测被拒 → 该文档里所有 Worker 走原生入口（页面不会坏），并回报 `csp-blocked`；
 - 探测未完成（毫秒级窗口）→ 该次构造先走原生，宁可少伪装一次也不把页面弄坏。
 
-回报经私有端口 → ISOLATED 桥 → 后台，按 hostname 聚合。用户可见的出口有两处：
-弹窗会显示「本页 N 个 Worker 未能包装（页面 CSP 拒绝 blob 入口）」并说明这些 Worker 里是原生值；
+回报经 MessagePort → ISOLATED 桥 → 后台，按 hostname 聚合，属于未独立验证的页面侧报告。
+弹窗会显示「同域页面报告 N 次 Worker 包装失败」并提示可能回退原生值；
 诊断快照把 classic / module 标成 `degraded`（`coverage` 仍是 `supported`，`fallback` 字段带计数与原因），
 不会混成 `ok`，也不会冒充 `unsupported`。
 
@@ -456,7 +456,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
   `function setHours() { [native code] }`, with `name`/`length` matching the native arity table
 - **WebIDL shape**: `GeolocationCoordinates` attributes are read-only prototype getters, instances carry no own properties
 - **No invented signals**: `document.fonts.check` is left alone (the native one already returns `true` for system fonts)
-- **Private channel**: payloads arrive through a `MessagePort` obtained by a `document_start` handshake; the page cannot observe the port's contents. Known limit: the handshake cannot *prove* the peer is the extension — the injection layer accepts the first well-formed port and answers with a nonce, so the guarantee comes from timing (`document_start` runs before page scripts), not from cryptography. With a late injection, or if the page wins that slot, it can hold the payload channel; what it still cannot reach is `chrome.*` — a page has no privileged API there
+- **Open P1 bridge authentication issue**: payloads arrive through a `MessagePort` obtained by a window handshake. Pages can construct that handshake, and the build nonce is public in the distributed package. Neither the port nor `document_start` timing authenticates the extension. Background message authorization limits content-script capabilities and document scope; it does not fix forged MAIN-world configuration. The existing bridge forwards only fixed payload and diagnostic actions, not arbitrary privileged actions. See [the security review and selected scope](REVIEW-P1-BRIDGE.md).
 - **Per-frame delivery**: payloads carry the exact `hostname` they were resolved for; the background uses `webNavigation.getAllFrames` to resolve and send each frame with its own `frameId`, so a parent payload cannot overwrite an independently-ruled child iframe, and a removed child rule still receives its own `clear`. Payload resolution is shared per URL and sends are capped at 8 concurrent IPC calls
 - **BFCache restore re-pulls**: a page in BFCache is not re-injected and receives no new payload on its own. When `pageshow` fires with `event.persisted === true`, the bridge re-pulls for its own frame, so "config changed while frozen, stale value after restore" does not happen; a normal-load `pageshow` does not trigger an extra pull
 - **Static first**: baked builds ship DNR rules and content scripts in the manifest, live on the first frame

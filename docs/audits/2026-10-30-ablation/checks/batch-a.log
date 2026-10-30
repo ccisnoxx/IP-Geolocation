@@ -1,0 +1,105 @@
+✔ parseGeoApiResponse accepts ipwho.is shape (0.357625ms)
+✔ parseGeoApiResponse accepts ipapi location shape (0.041291ms)
+✔ parseGeoApiResponse accepts ipinfo loc shape (0.033542ms)
+✔ parseGeoApiResponse 接受 0 纬度 / 0 经度（赤道与本初子午线） (0.043167ms)
+✔ parseGeoApiResponse 接受 loc 里的 0 值 (0.033458ms)
+✔ parseGeoApiResponse 拒绝越界与 NaN，而不是静默取整 (0.040833ms)
+✔ 只有国家没有坐标时返回 null（不再伪造 0,0） (0.029875ms)
+✔ parseGeoApiResponse 不把布尔或数组坐标强转成真实地点 (0.043708ms)
+✔ 国家字段是对象时仍然给出字符串 (0.046416ms)
+✔ fetchJson 在超时后中止请求 (20.758875ms)
+✔ fetchJson 对非 2xx 抛 HTTP 错误 (0.107459ms)
+✔ runtime 的脚本注入按 documentId 去重：同一个文档只执行一次 (12.53275ms)
+✔ 内容脚本上报过 documentId 后，冷启动兜底不会再执行脚本 (1.675792ms)
+✔ 拿不到 documentId 时宁可少装一次，也不重复执行 (1.7185ms)
+✔ 保存配置不触发 IP 定位，重复保存也不重复应用副作用 (2.214417ms)
+✔ bootstrap 只在配置真的需要出口坐标时才发定位请求 (12.630792ms)
+✔ configNeedsLocation 能区分 auto 与手填 (0.473916ms)
+✔ 禁用一条规则会保留它，并且只重载该域下的标签页 (2.324625ms)
+✔ 排除之后该站点不再收到 payload，相邻子域照常 (1.954459ms)
+✔ 关闭总开关会给已开标签页下发 clear，重新打开后恢复 payload (1.749916ms)
+✔ 删除规则同样重载受影响标签页，规则真的消失 (3.679375ms)
+✔ 慢读返回的旧快照不许写回缓存：失效之后必须读到保存后的配置 (41.98025ms)
+✔ 改语言重载命中的已打开页面（文档请求头要对齐），只改时区不重载 (1.159625ms)
+✔ 内存快照跟着存储走：保存后立刻读到新值，lastLocation 写入也能看见 (3.866333ms)
+✔ 定位未解析时匹配域名置为 block，解析成功后切回 allow (3.278625ms)
+✔ payload 按 frame 精确投递：独立子域规则不会被父页覆盖 (0.71425ms)
+✔ 不透明 iframe（about:blank/srcdoc）回退到最近的父 frame URL 解析 (1.886584ms)
+✔ 嵌套不透明 frame 沿父链解析，blob/data 也不会越界 (0.626584ms)
+✔ webNavigation 不可用时退回广播，桥仍会用 hostname 拒绝父页 payload (0.214042ms)
+VanishGeo could not resolve frame rules: content parent document chain is unavailable
+VanishGeo could not install runtime in tab 7: main inject failed
+VanishGeo could not deliver payload to tab 7: no receiver
+✔ 多 frame 投递有并发上限，且每个 frame 都收到自己的消息 (77.671459ms)
+✔ parseGeoApiResponse 覆盖新的 API 形态和空响应 (0.161833ms)
+✔ fetchJson 成功返回 JSON，失败时抛出网络错误 (0.311875ms)
+✔ configNeedsLocation 只对 auto 且确实缺定位的配置返回 true (0.102583ms)
+✔ getSiteConfig 首次种子、缓存和 invalidate 行为 (0.171459ms)
+✔ getLastLocation 缓存 null 与对象，并在失效后重读 (0.066541ms)
+✔ reportFontLayers / getFontLayers 处理非法输入、平台值与容量上限 (0.26975ms)
+✔ getExtensionState / setWebRtcGlobalMode / 非法保存 (3.487667ms)
+✔ getCurrentTabState 无 URL / 有 URL，getPayloadForUrl 覆盖空 URL (0.329625ms)
+✔ Worker 包装失败被记录、聚合，并按 hostname 出现在标签页状态里 (0.344708ms)
+✔ 非法 url / 空回报不会污染记录表 (0.086542ms)
+✔ refreshActionBadge 覆盖 broken / active / 非白名单标签页 (0.284917ms)
+✔ openDiagnosticPage 和 reloadAffectedTabs 的边界 (0.103083ms)
+✔ loadInjectedDocuments 会话不可用 / 历史 documentId 去重 (5.339416ms)
+✔ reportFontLayers / getFontLayers 的空 URL、非法层和自动平台分支 (0.084ms)
+✔ syncTab 跳过非 http、无 webNavigation、frames 报错和不可脚本 frame (4.944166ms)
+✔ runtime 注入失败只记录 warning，不阻断 payload 投递 (0.182208ms)
+✔ pushPayload 投递失败不抛出，clear 失败也不抛出 (2.7385ms)
+✔ updateGeolocation 覆盖 disabled / 非强制不需要 / API 全失败 (0.90725ms)
+✔ 定位回来得晚时用此刻的配置重算，不把用户这几秒里的保存盖回去 (1.750042ms)
+✔ frozen 烘焙配置让保存完全无效 (0.118458ms)
+✔ 注册内容脚本：无匹配时注销、Duplicate 回退 update、已存在时 update (4.689917ms)
+✔ 并发应用等待注册完成；注册失败保留错误且后续同配置应用仍能恢复 (2.478375ms)
+✔ 没有内容脚本 API 时注册直接跳过 (2.031875ms)
+✔ updateGeolocation 读取配置抛错时记录错误并返回失败 (0.104833ms)
+✔ refreshActionBadge 在 tabs.query 失败时静默跳过 (0.091334ms)
+✔ reloadAffectedTabs 跳过非法 URL，reload 抛错也不传播 (0.066833ms)
+✔ addDomainRule 走新建规则分支 (2.199916ms)
+✔ getExitIpSyncState 只读：给出上次同步 IP 与定位，且不发起任何定位请求 (0.087917ms)
+✔ getExitIpSyncState 在没同步过时给出空 IP 与 null 定位 (0.0415ms)
+automatic exit IP sync failed; keeping existing config exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip | https://ipinfo.io/json no usable exit ip
+automatic exit IP sync failed; keeping existing config exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip | https://ipinfo.io/json no usable exit ip
+automatic exit IP sync failed; keeping existing config exit IP lookup failed: https://ipwho.is/ no usable exit ip | https://ipapi.co/json/ no usable exit ip | https://ipinfo.io/json no usable exit ip
+✔ 开着跟随时 bootstrap 只打一轮归属地接口（不再 updateGeolocation + checkExitIp 各打一次） (30.597375ms)
+✔ 定位接口全挂：返回 ok:false 并把原因写进 lastGeoError (0.190291ms)
+✔ 定位结果和存量一致时报 unchanged，不重复写 storage (1.369791ms)
+✔ IP 接口给不出 ip 时 bootstrap 回退到常规定位（至少把坐标补上） (3.499833ms)
+✔ 规则域名为空时明确抛错，不静默建一条空规则 (0.100375ms)
+✔ 关掉跟随开关时把定时器清掉（宿主有 chrome.alarms 的路径） (4.090291ms)
+✔ applyExitIpNow 真的改写配置（不是只刷 lastLocation） (2.167416ms)
+✔ applyExitIpNow 查不到出口时返回错误，配置原样不动 (0.120042ms)
+✔ 定位权限的 clear 只传 scope：不再把 primaryPattern 塞给 Chrome API (0.333875ms)
+✔ clear 被拒时账本一个字节都不动（不许谎称已撤销） (0.405875ms)
+✔ 被排除的中间子域在权限层退回 ask，不被父域的 allow 盖住 (0.232167ms)
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+VanishGeo could not resolve frame rules: unsupported content document URL
+VanishGeo could not resolve frame rules: unsupported parent document URL
+✔ 导航列表漏掉 blob 时仍更新 blob 与 data 子文档，按 documentId 投递并保留最近 HTTP 的独立规则 (1.797ms)
+✔ blob 发现列表不证明父关系：精确探测未知、无父或失败时不把顶层规则投给 blob/data (0.824041ms)
+✔ 已知导航父链含未知 scheme 时，opaque 子文档不越过它采用顶层规则 (0.151834ms)
+VanishGeo could not resolve frame rules: content document is absent from browser frame snapshot
+VanishGeo could not resolve frame rules: blob document ancestry is unavailable or changed
+✔ services 共用已证实父边：BFCache 漏掉 data/nesteddata 后仍按 documentId 投递最新配置 (0.601542ms)
+✔ 从未证实的 opaque 文档只收到精确 refresh，无配置；总开关关闭后仍收到强制 clear (0.233042ms)
+✔ 119 BFCache 发现 API 仅列顶层时，成功解析过的 blob/data 均按精确文档更新；切换顶层不遍历冻结身份 (0.566667ms)
+✔ SW 新 services 无发现缓存时仍通知 opaque 自拉，文档凭证恢复后使用当前配置 (0.509ms)
+ℹ tests 77
+ℹ suites 0
+ℹ pass 77
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 344.043583

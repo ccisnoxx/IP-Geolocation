@@ -355,17 +355,28 @@ test('spoofPermission=false 的 watchPosition 直接复用原生的 watch id', a
 
 test('watchPosition 的每次回调都落在同一个点上，clearWatch 能停掉', async () => {
   setPayload({ randomize: true, randomRadiusMeters: 500 });
+  reinstall(() => 5);
 
   const seen: any[] = [];
-  const id = (navigator.geolocation as any).watchPosition((position: any) => { seen.push(position.coords); });
-
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  (navigator.geolocation as any).clearWatch(id);
-
-  assert.ok(seen.length >= 1, '至少要回调一次');
-  for (const coords of seen) {
-    assert.equal(coords.latitude, seen[0].latitude);
-    assert.equal(coords.longitude, seen[0].longitude);
+  let id = 0;
+  try {
+    await new Promise<void>((resolve) => {
+      id = navigator.geolocation.watchPosition((position) => {
+        seen.push(position.coords);
+        if (seen.length === 3) resolve();
+      });
+    });
+    navigator.geolocation.clearWatch(id);
+    const count = seen.length;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(seen.length, count, 'clear 后跨过多个心跳仍无回调');
+    for (const coords of seen) {
+      assert.equal(coords.latitude, seen[0].latitude);
+      assert.equal(coords.longitude, seen[0].longitude);
+    }
+  } finally {
+    navigator.geolocation.clearWatch(id);
+    reinstall();
   }
 });
 test('坐标未解析时 deny：不调用原生，直接返回 POSITION_UNAVAILABLE', async () => {

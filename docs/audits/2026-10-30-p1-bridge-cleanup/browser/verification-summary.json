@@ -1,0 +1,76 @@
+{
+  "browser_runs": [
+    {
+      "stage": "opaque-recovery",
+      "chrome_major": "119",
+      "passed": 33,
+      "total": 33
+    },
+    {
+      "stage": "opaque-recovery",
+      "chrome_major": "155",
+      "passed": 33,
+      "total": 33
+    },
+    {
+      "stage": "frames",
+      "chrome_major": "119",
+      "passed": 19,
+      "total": 19
+    },
+    {
+      "stage": "frames",
+      "chrome_major": "155",
+      "passed": 19,
+      "total": 19
+    },
+    {
+      "stage": "bfcache",
+      "chrome_major": "119",
+      "passed": 11,
+      "total": 11
+    },
+    {
+      "stage": "bfcache",
+      "chrome_major": "155",
+      "passed": 11,
+      "total": 11
+    },
+    {
+      "stage": "baked-clear",
+      "chrome_major": "119",
+      "passed": 21,
+      "total": 21
+    },
+    {
+      "stage": "baked-clear",
+      "chrome_major": "155",
+      "passed": 21,
+      "total": 21
+    }
+  ],
+  "total_passed": 168,
+  "executed_exit_codes": {
+    "recovery-119": 0,
+    "recovery-155": 0,
+    "frames-119": 0,
+    "frames-155": 0,
+    "bfcache-119": 0,
+    "bfcache-155": 0,
+    "baked-clear-119": 0,
+    "baked-clear-155": 0
+  },
+  "unchanged_repository_paths": 205,
+  "repository_changes": [],
+  "ordinary_dist_files": 46,
+  "ordinary_dist_unchanged_during_tests": true,
+  "persona_config_absent": true,
+  "leftover_task_browser_processes": [],
+  "removed_temporary_directories": [
+    "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/runtime",
+    "/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked"
+  ],
+  "new_bugs_found": false,
+  "original_main_bridge_P1": "OPEN",
+  "scope": "Ordinary browser functionality; not attack reproduction or release acceptance"
+}

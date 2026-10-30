@@ -14,15 +14,21 @@ import { buildContentScriptMatchesForDomain, getEnabledRuleDomains } from './src
  * 拆出 `import '../assets/config-model-xxx.js'`，浏览器 smoke 直挂。
  */
 function injectedClassicScriptPlugin() {
+  let root = process.cwd();
+  let outDir = 'dist';
   return {
     name: 'vanishgeo-injected-classic-script',
+    configResolved(config: { root: string; build: { outDir: string } }) {
+      root = config.root;
+      outDir = config.build.outDir;
+    },
     closeBundle() {
-      const file = resolve(__dirname, 'dist/injected/runtime.js');
+      const file = resolvePath(root, outDir, 'injected/runtime.js');
       if (!existsSync(file)) return;
       const source = readFileSync(file, 'utf8');
       if (/^\s*(import|export)\s/m.test(source)) {
         throw new Error(
-          'dist/injected/runtime.js 必须是零 import 的经典脚本：注入层不要 import shared/*，把需要的逻辑内联'
+          `${file} 必须是零 import 的经典脚本：注入层不要 import shared/*，把需要的逻辑内联`
         );
       }
     }
@@ -68,10 +74,11 @@ function bakedRulesetPlugin(
     },
     // viteStaticCopy 在 writeBundle 里落 manifest.json，这里必须排在它之后
     closeBundle() {
-      if (!rules || rules.length === 0) return;
+      // 没有语言 DNR 规则时，时区和定位仍可能需要静态注入。
+      if (!rules) return;
       // outDir 可能是绝对路径（persona 构建写进 ~/.vanishgeo/profiles/...），必须用 resolve
       const dir = resolvePath(root, outDir);
-      if (rules && rules.length > 0) {
+      if (rules.length > 0) {
         mkdirSync(join(dir, 'rules'), { recursive: true });
         writeFileSync(join(dir, 'rules', `${BAKED_RULESET_ID}.json`), `${JSON.stringify(rules, null, 2)}\n`);
       }
@@ -79,7 +86,7 @@ function bakedRulesetPlugin(
       const manifestPath = join(dir, 'manifest.json');
       if (!existsSync(manifestPath)) return;
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-      if (rules && rules.length > 0) {
+      if (rules.length > 0) {
         manifest.declarative_net_request = {
           ...(manifest.declarative_net_request || {}),
           rule_resources: [
@@ -94,10 +101,8 @@ function bakedRulesetPlugin(
 
       const matches = domains.flatMap((domain) => buildContentScriptMatchesForDomain(domain));
       if (matches.length > 0) {
-        // match_about_blank 是 manifest 里的开关（scripting API 那边叫
-        // matchOriginAsFallback）：不打开的话，页面建一个 <iframe srcdoc> 就能从
-        // contentWindow 里读到没打补丁的原生 Date / navigator —— 主框架和子框架
-        // 说法不一致，比任何原型检测都硬。
+        // about:blank 匹配与来源回退是不同开关。blob/data 还需要 Chrome119 起的
+        // match_origin_as_fallback；这些域名不会再动态注册，不能漏掉静态来源回退。
         const entries: unknown[] = [
           {
             matches,
@@ -105,6 +110,7 @@ function bakedRulesetPlugin(
             run_at: 'document_start',
             all_frames: true,
             match_about_blank: true,
+            match_origin_as_fallback: true,
             world: 'MAIN'
           }
         ];
@@ -115,7 +121,8 @@ function bakedRulesetPlugin(
             js: ['content/content.js'],
             run_at: 'document_start',
             all_frames: true,
-            match_about_blank: true
+            match_about_blank: true,
+            match_origin_as_fallback: true
           });
         }
         manifest.content_scripts = entries;

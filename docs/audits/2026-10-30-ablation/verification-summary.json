@@ -1,0 +1,300 @@
+{
+  "scope": "A/B/C equivalent simplification; D reverted; ordinary functionality only",
+  "node_version": "v24.16.0",
+  "baseline_tests": {
+    "tests": 647,
+    "pass": 647,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "accepted_tests": {
+    "tests": 648,
+    "pass": 648,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "core_branch_coverage_percent": 89.35,
+  "core_scope_files": 8,
+  "per_file_branch_minimum": 85,
+  "coverage_excludes_runtime_and_frame_receipts": true,
+  "accepted_checks": [
+    {
+      "name": "accepted-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit_code": 0,
+      "seconds": 1.28
+    },
+    {
+      "name": "accepted-lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit_code": 0,
+      "seconds": 0.89
+    },
+    {
+      "name": "accepted-coverage",
+      "command": [
+        "npm",
+        "run",
+        "test:coverage:core"
+      ],
+      "exit_code": 0,
+      "seconds": 7.17
+    },
+    {
+      "name": "accepted-whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01
+    }
+  ],
+  "browser_runs": [
+    {
+      "name": "accepted-frames-155",
+      "command": [
+        "node",
+        "tools/smoke-frames.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 3.85,
+      "summary": [
+        "19",
+        "19"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-workers-155",
+      "command": [
+        "node",
+        "tools/smoke-workers.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 4.37,
+      "summary": [
+        "14",
+        "14"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-bfcache-155",
+      "command": [
+        "node",
+        "tools/smoke-bfcache.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 28.99,
+      "summary": [
+        "11",
+        "11"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-cold-save-155",
+      "command": [
+        "node",
+        "tools/smoke-cold-save.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 21.49,
+      "summary": [
+        "3",
+        "3"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-opaque-recovery-155",
+      "command": [
+        "node",
+        "tools/smoke-opaque-recovery.mjs",
+        "--evidence=/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/accepted-opaque-recovery-155.json"
+      ],
+      "exit_code": 0,
+      "seconds": 74.98,
+      "summary": [
+        "33",
+        "33"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-baked-clear-155",
+      "command": [
+        "node",
+        "tools/smoke-baked-clear.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 13.24,
+      "summary": [
+        "21",
+        "21"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-frames-119",
+      "command": [
+        "node",
+        "tools/smoke-frames.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 4.96,
+      "summary": [
+        "19",
+        "19"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-bfcache-119",
+      "command": [
+        "node",
+        "tools/smoke-bfcache.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 29.52,
+      "summary": [
+        "11",
+        "11"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-opaque-recovery-119",
+      "command": [
+        "node",
+        "tools/smoke-opaque-recovery.mjs",
+        "--evidence=/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-ablation-20261030-m0yg_pqy/accepted-opaque-recovery-119.json"
+      ],
+      "exit_code": 0,
+      "seconds": 72.95,
+      "summary": [
+        "33",
+        "33"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    },
+    {
+      "name": "accepted-baked-clear-119",
+      "command": [
+        "node",
+        "tools/smoke-baked-clear.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 13.59,
+      "summary": [
+        "21",
+        "21"
+      ],
+      "ordinary_dist_unchanged": true,
+      "persona_config_absent": true
+    }
+  ],
+  "browser_smoke_passed": 185,
+  "debug_baseline": {
+    "label": "baseline",
+    "results": [
+      {
+        "name": "debug=false 保持静默且应用 Tokyo",
+        "ok": true
+      },
+      {
+        "name": "debug=true 输出 applied",
+        "ok": true
+      },
+      {
+        "name": "下一次 debug=false 更新时区且不沿用旧日志开关",
+        "ok": true
+      },
+      {
+        "name": "再次 debug=true 恢复日志",
+        "ok": true
+      },
+      {
+        "name": "总关 clear 恢复原生且不输出 applied",
+        "ok": true
+      }
+    ]
+  },
+  "debug_accepted": {
+    "label": "accepted",
+    "results": [
+      {
+        "name": "debug=false 保持静默且应用 Tokyo",
+        "ok": true
+      },
+      {
+        "name": "debug=true 输出 applied",
+        "ok": true
+      },
+      {
+        "name": "下一次 debug=false 更新时区且不沿用旧日志开关",
+        "ok": true
+      },
+      {
+        "name": "再次 debug=true 恢复日志",
+        "ok": true
+      },
+      {
+        "name": "总关 clear 恢复原生且不输出 applied",
+        "ok": true
+      }
+    ]
+  },
+  "counterexample": {
+    "baseline_exit_code": 0,
+    "candidate_D_exit_code": 1,
+    "restored_exit_code": 0,
+    "trigger": "Synthetic trusted-runtime reply combining mismatched hostname and clear; current background does not generate it",
+    "classification": "Non-equivalence counterexample, not a demonstrated live production security defect"
+  },
+  "preservation": {
+    "baseline_paths": 267,
+    "unchanged_paths": 264,
+    "changed_paths": [
+      "src/background/services.ts",
+      "src/injected/runtime.ts",
+      "tests/injection-idempotency.test.ts"
+    ],
+    "unexpected_changes": [],
+    "unexpected_new_paths": [],
+    "cached_diff_unchanged": true,
+    "content_bridge_restored": true,
+    "HEAD": "68934c68b3d31ad1537712f44b025966fb0ae033"
+  },
+  "main_bridge_P1": "OPEN",
+  "not_run": [
+    "Node 22 CI environment",
+    "Complete preflight/release package gates",
+    "Security attack acceptance",
+    "Daily browser profile",
+    "Cross-version extension upgrade",
+    "Filesystem document lifecycle",
+    "Frozen opaque first-script values"
+  ]
+}

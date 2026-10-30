@@ -1,0 +1,21 @@
+✓ 拿到原生 control 基线  {"language":"zh-CN","languages":["zh-CN","zh"],"timezone":"Asia/Shanghai","offset":-480}
+✓ 顶层 使用父域规则  got=ja-JP/Asia/Tokyo want=ja-JP/Asia/Tokyo
+✓ allowlisted iframe 使用独立子域规则  got=fr-FR/Europe/Paris want=fr-FR/Europe/Paris
+✓ nonmatch iframe 保持原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ same-origin iframe 继承父页  got=ja-JP/Asia/Tokyo want=ja-JP/Asia/Tokyo
+✓ srcdoc iframe 继承父页  got=ja-JP/Asia/Tokyo want=ja-JP/Asia/Tokyo
+✓ about:blank iframe 继承父页  got=ja-JP/Asia/Tokyo want=ja-JP/Asia/Tokyo
+✓ 父页 父域规则移除后恢复原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ allowlisted iframe 未被父页 clear 覆盖  got=fr-FR/Europe/Paris want=fr-FR/Europe/Paris
+✓ nonmatch iframe 保持原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ same-origin iframe 继承已恢复原生的父页  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ srcdoc iframe 继承已恢复原生的父页  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ about:blank iframe 继承已恢复原生的父页  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ 顶层 规则清空后恢复原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ allowlisted iframe 规则清空后恢复原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ nonmatch iframe 保持原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ same-origin iframe 恢复原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ srcdoc iframe 恢复原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+✓ about:blank iframe 恢复原生  got=zh-CN/Asia/Shanghai want=zh-CN/Asia/Shanghai
+
+19/19 通过

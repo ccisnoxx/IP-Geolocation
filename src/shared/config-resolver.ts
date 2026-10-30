@@ -259,16 +259,6 @@ export function getExcludedDomainsFor(domain: string, excludedDomains: string[])
   return excludedDomains.filter((excluded) => excluded !== domain && excluded.endsWith(`.${domain}`));
 }
 
-export function isUrlMatchedByEnabledRule(config: Partial<SiteSpoofConfig>, url: string): boolean {
-  const normalized = normalizeConfig(config);
-  if (!normalized.masterEnabled) return false;
-  const hostname = parseHostname(url);
-  if (!hostname) return false;
-
-  const { rule, excluded } = resolveRuleMatch(normalized, hostname);
-  return Boolean(rule) && !excluded;
-}
-
 function resolveSignal<T extends { enabled: boolean }>(
   globalValue: T,
   override: SignalOverride<Partial<T>>,

@@ -1,0 +1,35 @@
+Pre-edit references in the backed-up source and tests:
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:10:  isUrlMatchedByEnabledRule,
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:21:  formatTimezoneOffsetMinutes,
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:230:  assert.equal(formatTimezoneOffsetMinutes(Number.NaN), null);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:231:  assert.equal(formatTimezoneOffsetMinutes(0), 'GMT+00:00');
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:277:test('isUrlMatchedByEnabledRule 覆盖总开关、空 host、排除和命中', () => {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:285:  assert.equal(isUrlMatchedByEnabledRule(config, 'https://example.com/a'), true);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:286:  assert.equal(isUrlMatchedByEnabledRule(config, 'https://sub.example.com/a'), true);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:287:  assert.equal(isUrlMatchedByEnabledRule(config, 'https://mail.example.com/a'), false);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:288:  assert.equal(isUrlMatchedByEnabledRule({ ...config, masterEnabled: false }, 'https://example.com'), false);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/config.test.ts:289:  assert.equal(isUrlMatchedByEnabledRule(config, 'not a url'), false);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-model.ts:93:export const LANGUAGE_PRESETS = [
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-model.ts:105:export const TIMEZONE_PRESETS = [
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-model.ts:623:export function formatTimezoneOffsetMinutes(offset: number | null): string | null {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:4:  buildFrameProbeSnapshot,
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:5:  buildGeolocationBehaviorSnapshot,
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:6:  buildRequestHeaderProbe,
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:10:test('buildRequestHeaderProbe parses browserleaks header table', () => {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:11:  const result = buildRequestHeaderProbe({
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:27:test('buildRequestHeaderProbe parses httpbingo array header json', () => {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:28:  const result = buildRequestHeaderProbe({
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:38:test('buildFrameProbeSnapshot separates top frame and child frames', () => {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:39:  const snapshot = buildFrameProbeSnapshot([
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/diagnostic.test.ts:53:  const geo = buildGeolocationBehaviorSnapshot({
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/config-resolver.ts:262:export function isUrlMatchedByEnabledRule(config: Partial<SiteSpoofConfig>, url: string): boolean {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:4:export const REQUEST_HEADER_PROBE_SOURCES = {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:31:    message: `Unsupported page. Open ${REQUEST_HEADER_PROBE_SOURCES.browserleaks_ip}, ${REQUEST_HEADER_PROBE_SOURCES.httpbin_headers}, or ${REQUEST_HEADER_PROBE_SOURCES.httpbingo_headers}.`
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:62:export function buildRequestHeaderProbe(input: { url?: string; html?: string; bodyText?: string }) {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:84:      ? { status: 'ok', source, observedAcceptLanguage: observed, message: `Parsed ${REQUEST_HEADER_PROBE_SOURCES[source]} headers.` }
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:85:      : { status: 'parse_error', source, observedAcceptLanguage: null, message: `Could not parse ${REQUEST_HEADER_PROBE_SOURCES[source]} headers.` };
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:91:export function buildFrameProbeSnapshot(executionResults: any[], frameTargets: any[]) {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/src/shared/diagnostic.ts:176:export function buildGeolocationBehaviorSnapshot(input: any) {
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/rule-exclusion.test.ts:8:  isUrlMatchedByEnabledRule,
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/rule-exclusion.test.ts:56:  assert.equal(isUrlMatchedByEnabledRule(cfg, 'https://drive.google.com/x'), true);
+/var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-baseline-5_90j45q/tests/rule-exclusion.test.ts:57:  assert.equal(isUrlMatchedByEnabledRule(cfg, 'https://mail.google.com/u/0'), false);

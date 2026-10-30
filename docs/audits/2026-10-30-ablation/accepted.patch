@@ -1,0 +1,173 @@
+--- a/src/background/services.ts
++++ b/src/background/services.ts
+@@ -200,7 +200,7 @@
+     return injectedDocumentsReady;
+   }
+ 
+-  async function markDocumentInjected(documentId: string): Promise<void> {
++  async function noteDocumentInjected(documentId?: string): Promise<void> {
+     if (!documentId) return;
+     await loadInjectedDocuments();
+     if (injectedDocuments.has(documentId)) return;
+@@ -297,10 +297,6 @@
+     }
+   }
+ 
+-  // 单飞：重载扩展时 onInstalled / onStartup / popup 可能同时走到这里，
+-  // 两条并发路径都读到"还没注册"，后到的 register 就会抛 Duplicate script ID。
+-  let registerInFlight: Promise<void> = Promise.resolve();
+-
+   /** 上一次真正应用过的配置签名：保存路径与 storage 事件都会走到 applyConfig */
+   let lastAppliedSignature = '';
+ 
+@@ -312,16 +308,9 @@
+    */
+   let lastIpSyncEnabled = false;
+ 
+-  function registerSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
+-    const run = () => doRegisterSpoofContentScripts(configOverride);
+-    const next = registerInFlight.then(run, run);
+-    registerInFlight = next.catch(() => undefined);
+-    return next;
+-  }
+-
+-  async function doRegisterSpoofContentScripts(configOverride?: SiteSpoofConfig): Promise<void> {
++  // 唯一调用链来自 applyConfigNow，整次注册已由 applyChain 串行化。
++  async function registerSpoofContentScripts(config: SiteSpoofConfig): Promise<void> {
+     if (!chrome.scripting?.registerContentScripts) return;
+-    const config = configOverride || await getSiteConfig();
+     // 烘焙构建把域名写进了 manifest 的静态 content_scripts：这些域名由浏览器在
+     // 渲染进程创建时就注入，比动态注册早一个身位（Chromium 156 上动态注册会漏掉
+     // 会话里的第一次导航）。这里只补注册不在烘焙清单里的域名。
+@@ -651,7 +640,7 @@
+         injectImmediately: true,
+         world: 'MAIN'
+       });
+-      await markDocumentInjected(documentId);
++      await noteDocumentInjected(documentId);
+     } catch (error) {
+       console.warn(`VanishGeo could not install runtime in tab ${tabId}:`, error instanceof Error ? error.message : String(error));
+     }
+@@ -1150,7 +1139,7 @@
+    * 站点的"启用/排除"两个动作都必须能在任意域名上直接生效，
+    * 排除还得能凭空建出"google.com 底下排除 mail.google.com"这种规则。
+    */
+-  async function upsertDomainRule(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
++  async function setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
+     // frozen 包没有桥，也没有可写的运行时配置；改规则只会白重载页面。
+     const frozen = frozenBakedConfig();
+     if (frozen) return frozen;
+@@ -1172,11 +1161,7 @@
+   }
+ 
+   async function addDomainRule(domain: string): Promise<SiteSpoofConfig> {
+-    return upsertDomainRule(domain, true);
+-  }
+-
+-  async function setDomainRuleEnabled(domain: string, enabled: boolean): Promise<SiteSpoofConfig> {
+-    return upsertDomainRule(domain, enabled);
++    return setDomainRuleEnabled(domain, true);
+   }
+ 
+   async function deleteDomainRule(domain: string): Promise<SiteSpoofConfig> {
+@@ -1299,11 +1284,6 @@
+     } else if (!ipSyncEnabled) {
+       lastIpSyncEnabled = false;
+     }
+-  }
+-
+-  async function noteDocumentInjected(documentId?: string): Promise<void> {
+-    if (!documentId) return;
+-    await markDocumentInjected(documentId);
+   }
+ 
+   return {
+--- a/src/injected/runtime.ts
++++ b/src/injected/runtime.ts
+@@ -40,7 +40,6 @@
+   /** 定位启用但坐标解析不出来：安装 deny 补丁，返回 POSITION_UNAVAILABLE */
+   geolocationDenied: boolean;
+   installedGeo: boolean;
+-  debug: boolean;
+   installedCanvas: boolean;
+   canvasTargetFonts: string[] | null;
+   /** 诊断回报用：当前生效的字体层配置（不含字表本身） */
+@@ -65,7 +64,6 @@
+     geolocation: null,
+     geolocationDenied: false,
+     installedGeo: false,
+-    debug: false,
+     installedCanvas: false,
+     canvasTargetFonts: null,
+     canvasConfig: null,
+@@ -488,7 +486,6 @@
+     state.geolocation = null;
+     state.geolocationDenied = false;
+     state.installedGeo = false;
+-    state.debug = false;
+     state.installedCanvas = false;
+     state.installedWorker = false;
+     state.canvasTargetFonts = [];
+@@ -508,7 +505,7 @@
+       return;
+     }
+ 
+-    state.debug = Boolean(payload.debugMode);
++    const debug = Boolean(payload.debugMode);
+ 
+     const timezoneConfig = payload.timezoneConfig || { enabled: false, mode: 'auto', timezone: '' };
+     const nextTimezone = timezoneConfig.enabled === false
+@@ -588,7 +585,7 @@
+     // 与本 Worker 的时区/语言就能发现两处不一致。这一步对新建 Worker 是幂等的。
+     broadcastWorkerConfig();
+ 
+-    if (state.debug) {
++    if (debug) {
+       console.log('[VanishGeo] applied', {
+         timezone: state.timezone,
+         language: state.language,
+--- a/tests/injection-idempotency.test.ts
++++ b/tests/injection-idempotency.test.ts
+@@ -1050,6 +1050,42 @@
+   assert.ok(existing.stats.updated > 0);
+ });
+ 
++test('并发应用等待注册完成；注册失败保留错误且后续同配置应用仍能恢复', async () => {
++  const harness = createHarness();
++  const config = await harness.services.getSiteConfig();
++  let release: () => void = () => {};
++  const gate = new Promise<void>((resolve) => { release = resolve; });
++  let entered: () => void = () => {};
++  const started = new Promise<void>((resolve) => { entered = resolve; });
++  const registrations: chrome.scripting.RegisteredContentScript[][] = [];
++  (chrome.scripting as any).registerContentScripts = async (definitions: chrome.scripting.RegisteredContentScript[]) => {
++    registrations.push(definitions);
++    if (registrations.length === 1) {
++      entered();
++      await gate;
++      throw new Error('registration blocked');
++    }
++  };
++
++  const failed = assert.rejects(harness.services.applyConfig(config), /registration blocked/);
++  const recovered = harness.services.applyConfig(config);
++  try {
++    await started;
++    await new Promise((resolve) => setImmediate(resolve));
++    assert.equal(registrations.length, 1, '前一次注册未完成，后一次应用不能进入注册');
++    assert.equal(harness.stats.dnrWrites.length, 0, '注册未成功，不得先应用后续副作用');
++  } finally {
++    release();
++  }
++  await failed;
++  await recovered;
++  assert.equal(registrations.length, 2, '注册失败不能记成成功或阻断下一次应用');
++  assert.deepEqual(registrations[1], registrations[0], '恢复时仍注册同一份完整定义');
++  assert.ok(harness.stats.dnrWrites.length > 0, '恢复后必须真正完成副作用');
++  await harness.services.applyConfig(config);
++  assert.equal(registrations.length, 2, '成功后的同配置应用仍应去重');
++});
++
+ test('没有内容脚本 API 时注册直接跳过', async () => {
+   const harness = createHarness();
+   (globalThis as any).chrome.scripting.registerContentScripts = undefined;

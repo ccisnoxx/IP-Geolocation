@@ -1,0 +1,29 @@
+
+> vanishgeo@2.4.1 build
+> npm run typecheck && vite build
+
+
+> vanishgeo@2.4.1 typecheck
+> tsc --noEmit
+
+vite v5.4.21 building for production...
+transforming...
+✓ 44 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/leak-test/leak-test.css              4.36 kB │ gzip:  1.60 kB
+dist/popup/popup.css                     21.92 kB │ gzip:  5.45 kB
+dist/options/options.css                 27.06 kB │ gzip:  6.48 kB
+dist/assets/worker-coverage-CNeMGMiP.js   1.11 kB │ gzip:  0.88 kB
+dist/assets/site-status-C42b5DNa.js       1.98 kB │ gzip:  1.01 kB
+dist/assets/profile-0_Qlitgr.js           2.12 kB │ gzip:  0.66 kB
+dist/assets/ui-values-BgOSOL3E.js         4.69 kB │ gzip:  2.12 kB
+dist/content/content.js                   8.60 kB │ gzip:  2.40 kB
+dist/assets/config-model-BpLDa24f.js     16.05 kB │ gzip:  5.29 kB
+dist/popup/popup.js                      21.43 kB │ gzip:  5.25 kB
+dist/options/options.js                  24.94 kB │ gzip:  6.92 kB
+dist/leak-test/leak-test.js              33.34 kB │ gzip: 10.42 kB
+dist/injected/runtime.js                 85.10 kB │ gzip: 19.92 kB
+dist/background/service-worker.js        88.49 kB │ gzip: 20.84 kB
+[vite-plugin-static-copy] Copied 12 items.
+✓ built in 173ms

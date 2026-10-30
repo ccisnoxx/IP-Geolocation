@@ -1,0 +1,29 @@
+vite v5.4.21 building for production...
+transforming...
+✓ 44 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/leak-test/leak-test.css              4.36 kB │ gzip:  1.60 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/popup/popup.css                     21.92 kB │ gzip:  5.45 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/options/options.css                 27.06 kB │ gzip:  6.48 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/assets/worker-coverage-CNeMGMiP.js   1.11 kB │ gzip:  0.88 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/assets/site-status-C42b5DNa.js       1.98 kB │ gzip:  1.01 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/assets/profile-0_Qlitgr.js           2.12 kB │ gzip:  0.66 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/assets/ui-values-BgOSOL3E.js         4.69 kB │ gzip:  2.12 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/content/content.js                   8.60 kB │ gzip:  2.40 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/assets/config-model-BpLDa24f.js     16.05 kB │ gzip:  5.29 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/popup/popup.js                      21.43 kB │ gzip:  5.25 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/options/options.js                  24.94 kB │ gzip:  6.92 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/leak-test/leak-test.js              33.34 kB │ gzip: 10.42 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/background/service-worker.js        89.91 kB │ gzip: 21.24 kB
+../../../../var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge/injected/runtime.js                 92.86 kB │ gzip: 22.13 kB
+[vite-plugin-static-copy] Copied 12 items.
+✓ built in 478ms
+
+已生成 /var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge
+  persona : (from --config)
+  bridge  : on  (off = runtime.js 里完全没有消息通道，选项改动要重新构建才生效)
+  nonce   : 76d88ac2eac5145ca488d642
+  静态规则: rules/baked-language.json  1 条（首帧请求即生效，不依赖 SW）
+
+加载方式：chrome://extensions → 开发者模式 → 加载已解压的扩展程序 → 选择 /var/folders/m5/j06tv2sn1hn93d6f33j559jm0000gn/T/vanishgeo-cleanup-browser-taqw4cqa/baked/bridge

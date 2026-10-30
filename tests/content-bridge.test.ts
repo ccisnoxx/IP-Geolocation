@@ -29,13 +29,14 @@ after(() => {
   for (const harness of activeHarnesses) harness.stop();
 });
 
-function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ackDelayMs?: number } = {}) {
+function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ackDelayMs?: number; href?: string; referrer?: string } = {}) {
   const delivered: any[] = [];
   const pulls: string[] = [];
   const reports: any[] = [];
   const handshakes: any[] = [];
+  const requests: any[] = [];
   const ports: MessagePort[] = [];
-  let listener: ((message: any) => void) | null = null;
+  let listener: ((message: any, sender?: any, sendResponse?: any) => void) | null = null;
   let runtimePort: MessagePort | null = null;
   let response: any = {
     status: 'ok',
@@ -45,8 +46,10 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
 
   const chrome = {
     runtime: {
+      id: 'test-extension',
       lastError: undefined,
       sendMessage: (message: any, callback?: (value: any) => void) => {
+        requests.push(message);
         if (typeof callback === 'function') {
           pulls.push(message.url);
           const current = response;
@@ -57,14 +60,14 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
         return Promise.resolve({ status: 'ok' });
       },
       onMessage: {
-        addListener: (fn: (message: any) => void) => { listener = fn; }
+        addListener: (fn: (message: any, sender?: any, sendResponse?: any) => void) => { listener = fn; }
       }
     }
   };
 
   const listeners = new Map<string, Array<(event: any) => void>>();
   const window = {
-    location: { href: CHILD_URL },
+    location: { href: options.href ?? CHILD_URL },
     addEventListener: (type: string, fn: (event: any) => void) => {
       const list = listeners.get(type) || [];
       list.push(fn);
@@ -92,7 +95,7 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
 
   const handle = createContentBridge({
     window,
-    document: { referrer: PARENT_REFERRER },
+    document: { referrer: options.referrer ?? PARENT_REFERRER },
     chrome,
     nonce: NONCE,
     retryDelays: options.retryDelays
@@ -100,6 +103,7 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
 
   const harness = {
     delivered,
+    requests,
     pulls,
     reports,
     handshakes,
@@ -261,7 +265,7 @@ test('Worker 包装失败按本 frame 的 URL 转发给后台', async () => {
   assert.equal(harness.reports[0].script, 'http://child.localhost/worker.js');
 });
 
-test('nonce 不对的 workerFallback 回报被丢弃（页面伪造不了）', async () => {
+test('错误 nonce 的 workerFallback 回报被丢弃', async () => {
   const harness = createHarness();
   await waitFor(() => harness.delivered.length > 0);
 
@@ -319,14 +323,16 @@ test('没有 ack 时按退避重试握手，stop 后不再重试', async () => {
   assert.equal(harness.handshakes.length, count);
 });
 
-test('端口 postMessage 抛错时 deliver 不把异常抛给调用方', async () => {
+test('接收端关闭后 applyPayload 不抛错，也不再投递新 payload', async () => {
   const harness = createHarness();
   await waitFor(() => harness.delivered.length > 0);
+  const deliveredCount = harness.delivered.length;
   harness.runtimePort?.close();
   assert.doesNotThrow(() => {
     harness.listener?.({ action: 'applyPayload', payload: { hostname: 'child.localhost', domain: 'child.localhost', languageConfig: { language: 'fr-FR' } } });
   });
   await sleep(10);
+  assert.equal(harness.delivered.length, deliveredCount);
   assert.equal(harness.delivered.at(-1)?.payload.languageConfig.language, 'en-US');
 });
 
@@ -341,11 +347,15 @@ test('端口就绪前的 clear 先挂起，端口就绪后补发 clear', async (
   await waitFor(() => harness.delivered.some((message) => message.payload?.clear === true));
 });
 
-test('MessagePort.postMessage 同步抛错时由 deliver 吞掉', async () => {
+test('发送端 postMessage 同步异常不向 applyPayload 调用方传播', async () => {
   const harness = createHarness();
   await waitFor(() => harness.delivered.length > 0);
   const original = MessagePort.prototype.postMessage;
-  MessagePort.prototype.postMessage = () => { throw new Error('port closed'); };
+  let attempts = 0;
+  MessagePort.prototype.postMessage = () => {
+    attempts += 1;
+    throw new Error('port closed');
+  };
   try {
     assert.doesNotThrow(() => {
       harness.listener?.({ action: 'applyPayload', payload: { hostname: 'child.localhost', domain: 'child.localhost' } });
@@ -353,6 +363,7 @@ test('MessagePort.postMessage 同步抛错时由 deliver 吞掉', async () => {
   } finally {
     MessagePort.prototype.postMessage = original;
   }
+  assert.equal(attempts, 1, '必须实际触发发送异常，不能只验证提前返回');
 });
 
 test('重复创建同一 window 时第二个实例直接 no-op', () => {
@@ -418,4 +429,218 @@ test('后台广播里的无关消息直接忽略，不触发重拉', async () =>
   });
   await sleep(30);
   assert.equal(harness.pulls.length, before + 1, '只有无效 payload 的那条触发一次重拉');
+});
+
+test('opaque frame 采用可信 runtime effectiveUrl 校验 payload，忽略不同的本地 referrer 和 MAIN 自报域', async () => {
+  const harness = createHarness({ href: 'about:srcdoc', referrer: PARENT_REFERRER });
+  harness.setResponse({
+    status: 'ok', matched: true, effectiveUrl: 'https://proven.example/frame',
+    payload: { hostname: 'proven.example', domain: 'proven.example' }
+  });
+  await waitFor(() => harness.delivered.length > 0);
+  assert.equal(harness.delivered.at(-1)?.payload.hostname, 'proven.example');
+
+  const before = harness.delivered.length;
+  harness.runtimePort?.postMessage({ __vanishGeo: NONCE, kind: 'other', effectiveUrl: 'https://attacker.example/' });
+  harness.listener?.({ action: 'applyPayload', effectiveUrl: 'https://attacker.example/', payload: { hostname: 'attacker.example' } });
+  await waitFor(() => harness.pulls.length >= 2);
+  await sleep(20);
+  assert.equal(harness.delivered.some((entry) => entry.payload?.hostname === 'attacker.example'), false);
+  assert.equal(harness.delivered.length, before + 1);
+  assert.equal(harness.delivered.at(-1)?.payload.hostname, 'proven.example');
+});
+
+test('可信 effectiveUrl 仍须与响应 payload hostname 精确一致，旧 referrer 命中不能绕过', async () => {
+  const harness = createHarness({ href: 'about:blank', referrer: PARENT_REFERRER });
+  harness.setResponse({
+    status: 'ok', matched: true, effectiveUrl: 'https://proven.example/frame',
+    payload: { hostname: 'parent.localhost', domain: 'parent.localhost' }
+  });
+  await waitFor(() => harness.pulls.length === 1);
+  await sleep(20);
+  assert.deepEqual(harness.delivered, []);
+});
+
+test('父链暂不可用的 error 响应保留首屏重试，恢复后按可信 effectiveUrl 应用且不提前 clear', async () => {
+  const harness = createHarness({ href: 'data:text/html,hello', referrer: '', retryDelays: [30, 30] });
+  harness.setResponse({ status: 'error', message: 'document chain unavailable' });
+  await waitFor(() => harness.pulls.length === 1);
+  await sleep(10);
+  assert.equal(harness.delivered.length, 0);
+  harness.setResponse({
+    status: 'ok', matched: true, effectiveUrl: 'https://proven.example/',
+    payload: { hostname: 'proven.example' }
+  });
+  await waitFor(() => harness.delivered.length > 0);
+  assert.equal(harness.pulls.length, 2);
+  assert.equal(harness.delivered.some((entry) => entry.payload?.clear === true), false);
+  assert.equal(harness.delivered.at(-1)?.payload.hostname, 'proven.example');
+});
+
+test('文档定向重拉信号只请求自己的规则，不采用消息里的 payload', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const before = harness.pulls.length;
+  harness.listener?.({ action: 'refreshPayload', payload: { hostname: 'foreign.example' } });
+  await waitFor(() => harness.pulls.length > before);
+  assert.equal(harness.pulls.at(-1), CHILD_URL);
+  assert.equal(harness.delivered.some((entry) => entry.payload?.hostname === 'foreign.example'), false);
+});
+
+test('总开关关闭立即 clear，并忽略关闭前尚未返回的配置', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  let pending: ((response: any) => void) | undefined;
+  harness.chrome.runtime.sendMessage = ((_message: any, callback?: (response: any) => void) => { pending = callback; }) as any;
+  harness.listener?.({ action: 'refreshPayload' });
+  await waitFor(() => Boolean(pending));
+  harness.listener?.({ action: 'applyPayload', clear: true, globalDisabled: true });
+  pending!({ status: 'ok', matched: true, payload: { hostname: 'child.localhost' } });
+  await waitFor(() => harness.delivered.at(-1)?.payload?.clear === true);
+  await sleep(20);
+  assert.equal(harness.delivered.at(-1)?.payload.clear, true);
+});
+
+
+test('blob 父读取只接受本扩展 runtime 查询，未握手时也同步响应且不拉取配置', () => {
+  const harness = createHarness({ autoAck: false, href: 'blob:https://parent.example/document', referrer: 'https://forged.example/' });
+  const parent = { location: { href: 'https://parent.example/current' } };
+  (parent as any).parent = parent;
+  (harness.window as any).parent = parent;
+  const responses: any[] = [];
+  harness.listener?.({ action: 'readBlobParent', url: 'https://forged.example/', parentUrl: 'https://forged.example/' },
+    { id: 'test-extension' }, (result: any) => responses.push(result));
+  assert.deepEqual(responses, [{ url: 'blob:https://parent.example/document', parentUrl: 'https://parent.example/current' }]);
+  assert.deepEqual(harness.requests, []);
+  for (const sender of [undefined, {}, { id: 'other-extension' }]) {
+    harness.listener?.({ action: 'readBlobParent' }, sender, (result: any) => responses.push(result));
+  }
+  assert.equal(responses.length, 1);
+  assert.equal(harness.handshakes.length, 1, '只读取父位置，不另造 MAIN 握手');
+  harness.stop();
+});
+
+test('blob 现场查询穿过已知 opaque 祖先，最近 HTTP 父地址每次重读', () => {
+  const harness = createHarness({ autoAck: false, href: 'blob:https://parent.example/document' });
+  const web: any = { location: { href: 'http://parent.example/before' } };
+  web.parent = web;
+  let parent = web;
+  for (const href of ['about:blank', 'about:srcdoc', 'blob:https://parent.example/parent', 'data:text/html,parent', 'filesystem:https://parent.example/temporary/parent']) {
+    parent = { location: { href }, parent };
+  }
+  (harness.window as any).parent = parent;
+  const read = () => {
+    let result;
+    harness.listener?.({ action: 'readBlobParent' }, { id: 'test-extension' }, (response: any) => { result = response; });
+    return result;
+  };
+  assert.deepEqual(read(), { url: 'blob:https://parent.example/document', parentUrl: 'http://parent.example/before' });
+  web.location.href = 'http://parent.example/after';
+  assert.deepEqual(read(), { url: 'blob:https://parent.example/document', parentUrl: 'http://parent.example/after' });
+  harness.stop();
+});
+
+test('blob 现场查询不越过 SOP、未知 scheme、无父窗口，也不为已导航的 HTTP 文档应答父规则', () => {
+  const harness = createHarness({ autoAck: false, href: 'blob:https://parent.example/document', referrer: 'https://forged.example/' });
+  const top: any = { location: { href: 'https://forged.example/' } };
+  top.parent = top;
+  const blocked: any = { parent: top };
+  Object.defineProperty(blocked, 'location', { get() { throw new DOMException('native SOP denial', 'SecurityError'); } });
+  const read = () => {
+    let result: any;
+    harness.listener?.({ action: 'readBlobParent' }, { id: 'test-extension' }, (response: any) => { result = response; });
+    return result;
+  };
+  for (const parent of [blocked, ...['file:///tmp/parent', 'chrome://settings/', 'about:config'].map(href => ({ location: { href }, parent: top })), harness.window]) {
+    (harness.window as any).parent = parent;
+    const response = read();
+    assert.equal(response.status, 'error');
+    assert.equal(response.parentUrl, undefined);
+    assert.ok(response.message);
+  }
+  harness.window.location.href = 'https://parent.example/new-document';
+  (harness.window as any).parent = top;
+  assert.match(read().message, /not blob/);
+  assert.deepEqual(harness.requests, []);
+  harness.stop();
+});
+
+
+test('opaqueOnly 无配置提示只让支持的不透明文档重拉，HTTP 与未知协议忽略', async () => {
+  for (const href of ['blob:https://parent.example/doc', 'data:text/html,private', 'about:blank', 'about:srcdoc', 'filesystem:https://parent.example/temporary/doc', 'https://child.localhost/web', 'file:///tmp/page', 'about:config']) {
+    const harness = createHarness({ href });
+    await waitFor(() => harness.pulls.length === 1);
+    const opaque = /^(blob:|data:|filesystem:|about:blank$|about:srcdoc$)/.test(href);
+    harness.listener?.({ action: 'refreshPayload', opaqueOnly: true });
+    if (opaque) await waitFor(() => harness.pulls.length === 2);
+    else { await sleep(10); assert.equal(harness.pulls.length, 1); }
+    assert.ok(harness.requests.every(request => request.action === 'getPayloadForUrl'));
+    harness.stop();
+  }
+});
+
+
+test('文档私有凭证同步存储后才ACK，只向本扩展runtime读取且绝不进入MAIN端口', async () => {
+  const harness = createHarness({ autoAck: false, href: 'data:text/html,doc' });
+  const receipt = { body: 'signed browser facts', mac: '00'.repeat(32) };
+  const sender = { id: 'test-extension' };
+  const query = (message: any, from: any = sender) => {
+    let response: any;
+    harness.listener?.(message, from, (value: any) => { response = value; });
+    return response;
+  };
+  assert.deepEqual(query({ action: 'readFrameEvidence' }), { frameEvidence: null });
+  for (const from of [{}, { id: 'other-extension' }]) {
+    assert.equal(query({ action: 'storeFrameEvidence', frameEvidence: receipt }, from), undefined);
+  }
+  assert.deepEqual(query({ action: 'readFrameEvidence' }), { frameEvidence: null });
+  assert.deepEqual(query({ action: 'storeFrameEvidence', frameEvidence: receipt }), { stored: true });
+  assert.deepEqual(query({ action: 'readFrameEvidence' }), { frameEvidence: receipt });
+  assert.deepEqual(harness.requests, []);
+  assert.deepEqual(harness.delivered, []);
+  harness.stop();
+  assert.deepEqual(query({ action: 'readFrameEvidence' }), { frameEvidence: null });
+});
+
+test('成功runtime响应的凭证只留在ISOLATED，端口上报不能替换它', async () => {
+  const harness = createHarness({ autoAck: false });
+  const receipt = { body: 'browser-only receipt', mac: 'ab'.repeat(32) };
+  harness.setResponse({ status: 'ok', matched: true, effectiveUrl: CHILD_URL,
+    frameEvidence: receipt, payload: { hostname: 'child.localhost', languageConfig: { language: 'en-US' } } });
+  harness.sendAck();
+  await waitFor(() => harness.delivered.length > 0);
+  let read: any;
+  const readReceipt = () => {
+    harness.listener?.({ action: 'readFrameEvidence' }, { id: 'test-extension' }, (value: any) => { read = value.frameEvidence; });
+    return read;
+  };
+  assert.deepEqual(readReceipt(), receipt);
+  assert.ok(harness.delivered.every(message => !JSON.stringify(message).includes('browser-only receipt')));
+  harness.runtimePort?.postMessage({ __vanishGeo: NONCE, kind: 'fontLayers', layers: ['canvas'], frameEvidence: { body: 'forged' } });
+  await waitFor(() => harness.reports.length > 0);
+  assert.deepEqual(readReceipt(), receipt);
+  assert.ok(harness.reports.every(message => !('frameEvidence' in message)));
+  harness.stop();
+});
+
+test('跨clear迟到的成功响应保留文档凭证，但旧payload不能重新应用', async () => {
+  const harness = createHarness({ autoAck: false });
+  let callback: ((response: any) => void) | undefined;
+  harness.chrome.runtime.sendMessage = (message: any, cb?: (response: any) => void) => {
+    if (cb) callback = cb;
+    return undefined as any;
+  };
+  harness.sendAck();
+  await waitFor(() => Boolean(callback));
+  harness.listener?.({ action: 'applyPayload', clear: true, globalDisabled: true });
+  await waitFor(() => harness.delivered.at(-1)?.payload.clear === true);
+  const receipt = { body: 'late but authenticated document proof', mac: 'cd'.repeat(32) };
+  callback?.({ status: 'ok', matched: true, effectiveUrl: CHILD_URL, frameEvidence: receipt,
+    payload: { hostname: 'child.localhost', languageConfig: { language: 'fr-FR' } } });
+  await sleep(10);
+  let stored: any;
+  harness.listener?.({ action: 'readFrameEvidence' }, { id: 'test-extension' }, (value: any) => { stored = value.frameEvidence; });
+  assert.deepEqual(stored, receipt);
+  assert.equal(harness.delivered.at(-1)?.payload.clear, true);
+  harness.stop();
 });

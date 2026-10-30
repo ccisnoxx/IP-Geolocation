@@ -16,6 +16,12 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
   }
 });
 
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void services.forgetFrameTab(tabId).catch((error) => {
+    console.warn('VanishGeo could not forget closed tab frame cache:', error instanceof Error ? error.message : String(error));
+  });
+});
+
 chrome.tabs.onActivated.addListener(() => {
   void services.refreshActionBadge();
 });

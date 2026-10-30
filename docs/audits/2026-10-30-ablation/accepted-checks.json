@@ -1,0 +1,42 @@
+[
+  {
+    "name": "accepted-build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit_code": 0,
+    "seconds": 1.28
+  },
+  {
+    "name": "accepted-lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exit_code": 0,
+    "seconds": 0.89
+  },
+  {
+    "name": "accepted-coverage",
+    "command": [
+      "npm",
+      "run",
+      "test:coverage:core"
+    ],
+    "exit_code": 0,
+    "seconds": 7.17
+  },
+  {
+    "name": "accepted-whitespace",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.01
+  }
+]

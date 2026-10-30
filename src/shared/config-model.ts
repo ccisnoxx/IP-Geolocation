@@ -90,34 +90,6 @@ export const DEFAULT_SIGNAL_OVERRIDE: SignalOverride<never> = {
   value: null
 };
 
-export const LANGUAGE_PRESETS = [
-  { label: 'English (Singapore)', language: 'en-SG', languages: ['en-SG', 'en-US', 'en'], acceptLanguage: 'en-SG,en-US;q=0.9,en;q=0.8' },
-  { label: 'English (US)', language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' },
-  { label: 'English (UK)', language: 'en-GB', languages: ['en-GB', 'en'], acceptLanguage: 'en-GB,en;q=0.9' },
-  { label: 'Chinese (Simplified)', language: 'zh-CN', languages: ['zh-CN', 'zh', 'en'], acceptLanguage: 'zh-CN,zh;q=0.9,en;q=0.8' },
-  { label: 'Chinese (Traditional)', language: 'zh-TW', languages: ['zh-TW', 'zh', 'en'], acceptLanguage: 'zh-TW,zh;q=0.9,en;q=0.8' },
-  { label: 'Japanese', language: 'ja-JP', languages: ['ja-JP', 'ja', 'en'], acceptLanguage: 'ja-JP,ja;q=0.9,en;q=0.8' },
-  { label: 'Korean', language: 'ko-KR', languages: ['ko-KR', 'ko', 'en'], acceptLanguage: 'ko-KR,ko;q=0.9,en;q=0.8' },
-  { label: 'German', language: 'de-DE', languages: ['de-DE', 'de', 'en'], acceptLanguage: 'de-DE,de;q=0.9,en;q=0.8' },
-  { label: 'French', language: 'fr-FR', languages: ['fr-FR', 'fr', 'en'], acceptLanguage: 'fr-FR,fr;q=0.9,en;q=0.8' }
-] as const;
-
-export const TIMEZONE_PRESETS = [
-  'UTC',
-  'America/Los_Angeles',
-  'America/New_York',
-  'America/Chicago',
-  'Europe/London',
-  'Europe/Berlin',
-  'Europe/Paris',
-  'Asia/Shanghai',
-  'Asia/Hong_Kong',
-  'Asia/Tokyo',
-  'Asia/Seoul',
-  'Asia/Singapore',
-  'Australia/Sydney'
-];
-
 /**
  * 内置预设：只留三个常用出口。
  *
@@ -618,12 +590,4 @@ export function getTimezoneOffsetMinutes(timezone: string, dateInput?: Date | st
   } catch {
     return null;
   }
-}
-
-export function formatTimezoneOffsetMinutes(offset: number | null): string | null {
-  if (!Number.isFinite(Number(offset))) return null;
-  const normalized = Number(offset);
-  const sign = normalized <= 0 ? '+' : '-';
-  const abs = Math.abs(normalized);
-  return `GMT${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
 }
