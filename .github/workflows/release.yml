@@ -109,30 +109,18 @@ jobs:
           echo "presets: $PRESETS"
           npm run smoke:release -- --dir=release --require="$PRESETS"
 
-      - name: Build changelog
-        run: |
-          set -euo pipefail
-          PREV_TAG=$(git describe --abbrev=0 --tags "$(git rev-list --tags --skip=1 --max-count=1)" 2>/dev/null || true)
-          if [ -z "$PREV_TAG" ]; then
-            printf '%s\n' '- VanishGeo 首个发布' > "$RUNNER_TEMP/changelog.md"
-          else
-            # grep 没匹配到会返回 1，在 set -e 下会把这一步判红 —— 显式兜底
-            git log "$PREV_TAG..HEAD" --pretty=format:"- %s" | grep -v "Merge pull request" > "$RUNNER_TEMP/changelog.md" || true
-            if [ ! -s "$RUNNER_TEMP/changelog.md" ]; then
-              printf '%s\n' '- 修复与改进' > "$RUNNER_TEMP/changelog.md"
-            fi
-          fi
-          cat "$RUNNER_TEMP/changelog.md"
-
       # 正文不手写：域名条数、预设包清单、安全承诺全部从 default-domains.json /
       # DEFAULT_PROFILES / release/*.zip 生成。写死过的"13 个域名""五个预设包"
       # "私有 MessagePort" 就是这么和产物分叉的（见 tests/release-notes.test.ts）。
+      # 变更日志取自仓库里的 CHANGELOG.md 的 `## <version>` 小节。早先这里是现算
+      # `git log 上一个 tag..HEAD`：checkout 默认 shallow，上一个 tag 不在本地，
+      # 于是 v2.4.2 的正文写成了「VanishGeo 首个发布」—— 又一个"正文和源码分叉"。
       - name: Generate release notes
         run: |
           node scripts/release-notes.mjs \
             --version="${{ steps.get_version.outputs.VERSION }}" \
             --release-dir=release \
-            --changelog-file="$RUNNER_TEMP/changelog.md" \
+            --changelog-md=CHANGELOG.md \
             --out="$RUNNER_TEMP/release-notes.md"
           echo '--- release body ---'
           cat "$RUNNER_TEMP/release-notes.md"

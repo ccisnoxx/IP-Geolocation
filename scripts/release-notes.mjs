@@ -3,7 +3,7 @@
  * 从**实际产物**生成 Release 正文。
  *
  *   node scripts/release-notes.mjs --version=2.4.2 --release-dir=release \
- *        --changelog-file=changelog.md --out=release-notes.md
+ *        --changelog-md=CHANGELOG.md --out=release-notes.md
  *
  * 为什么不再手写 YAML 正文：旧正文里写死了「13 个域名」「五个预设包（含 germany /
  * china / united-states）」「私有 MessagePort 下发配置」，而实际默认域名是 20 条、
@@ -20,6 +20,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readPresets } from './lib/presets.mjs';
+import { sectionOf } from './lib/changelog.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -32,8 +33,26 @@ function arg(name, fallback) {
 const version = arg('version', JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version);
 const releaseDir = resolve(ROOT, arg('release-dir', 'release'));
 const changelogFile = arg('changelog-file', '');
+const changelogMd = arg('changelog-md', 'CHANGELOG.md');
 const outPath = arg('out', '');
 const domainsFile = resolve(ROOT, arg('domains', 'src/shared/default-domains.json'));
+
+
+function pickChangelog({ version: releaseVersion, changelogMd, changelogFile }) {
+  const mdPath = resolve(ROOT, changelogMd);
+  if (changelogMd && existsSync(mdPath)) {
+    const section = sectionOf(readFileSync(mdPath, 'utf8'), releaseVersion);
+    if (section) return section;
+    console.warn(`提示：${mdPath} 里没有 ${releaseVersion} 的小节，正文会退回占位文案`);
+  }
+  if (changelogFile) {
+    const path = resolve(ROOT, changelogFile);
+    if (!existsSync(path)) throw new Error(`没有 changelog 文件：${path}`);
+    const text = readFileSync(path, 'utf8').trim();
+    if (text) return text;
+  }
+  return '- 见提交历史 / See commit history';
+}
 
 const problems = [];
 
@@ -105,14 +124,13 @@ if (problems.length) {
 
 builds.sort((a, b) => (presetOrder.get(a.label) ?? 99) - (presetOrder.get(b.label) ?? 99) || a.label.localeCompare(b.label));
 
-// ── 变更日志：可选 ─────────────────────────────────────────────────────────
-let changelog = '';
-if (changelogFile) {
-  const path = resolve(ROOT, changelogFile);
-  if (!existsSync(path)) throw new Error(`没有 changelog 文件：${path}`);
-  changelog = readFileSync(path, 'utf8').trim();
-}
-if (!changelog) changelog = '- 见提交历史 / See commit history';
+// ── 变更日志 ──────────────────────────────────────────────────────────────
+//
+// 以前这一步是 release.yml 里现算 `git log 上一个 tag..HEAD`：shallow clone 下
+// 上一个 tag 根本不在本地，于是正文写成了「VanishGeo 首个发布」—— 发出去的正文
+// 和实际改动无关，正是这一版要消灭的那种分叉。现在改成读仓库里的 CHANGELOG.md，
+// 按 `## <version>` 小节取；没有这一节就退回 --changelog-file，再退回一句占位。
+const changelog = pickChangelog({ version, changelogMd, changelogFile });
 
 const devZip = `vanishgeo-v${version}.zip`;
 const tableRows = builds
