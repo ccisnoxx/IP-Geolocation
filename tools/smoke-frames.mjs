@@ -184,7 +184,9 @@ const initial = await waitFor(async () => {
   return Object.keys(snap.frames).length >= 5
     && snap.top.language === 'ja-JP'
     && snap.frames['allowlisted-child']?.language === 'fr-FR'
-    && snap.frames['aboutblank-child']?.language === 'ja-JP' ? snap : null;
+    // 下面断言的每个继承父页的 frame 都要等到：srcdoc 的首次拉取可能撞上浏览器还没登记
+    // 这次导航而被拒、退避重试后才到，只等 about:blank 会在慢机器上抢先取快照
+    && ['same-origin-child', 'srcdoc-child', 'aboutblank-child'].every((name) => snap.frames[name]?.language === 'ja-JP') ? snap : null;
 }, { label: '首屏 frame payload 全部生效', timeout: 12000 });
 
 assertFrame('顶层', initial.top, { language: 'ja-JP', timezone: 'Asia/Tokyo' }, '使用父域规则');

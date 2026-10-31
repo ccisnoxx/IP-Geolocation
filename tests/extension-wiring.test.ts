@@ -43,7 +43,7 @@ test('vite builds the single injected runtime entry', () => {
 });
 
 test('background registers only dynamic runtime and bridge scripts', () => {
-  const services = read('src/background/services.ts');
+  const services = read('src/background/content-scripts.ts');
   assert.match(services, /const MAIN_RUNTIME_FILES = \['injected\/runtime\.js'\]/);
   assert.match(services, /const BRIDGE_FILES = \['content\/content\.js'\]/);
   assert.doesNotMatch(services, /matches: \['<all_urls>'\]/);
@@ -138,12 +138,14 @@ test('payload 经 MessagePort 投递，端口只在 document_start 同步握手�
   // 后台推 payload 走 tabs.sendMessage → ISOLATED 桥 → 端口；后台从不晚注入 runtime
   assert.match(services, /chrome\.tabs\.sendMessage\(tabId, message\)/);
   assert.match(services, /payload === null[\s\S]{0,80}clear: true/);
-  assert.doesNotMatch(services, /files: MAIN_RUNTIME_FILES/);
+  for (const file of ['src/background/services.ts', 'src/background/content-scripts.ts']) {
+    assert.doesNotMatch(read(file), /executeScript\([^)]*\bfiles:/s, `${file} 不允许晚注入脚本文件`);
+  }
 });
 
 test('不透明来源的 iframe 也注入（否则 srcdoc 里能读到原生对象）', () => {
-  const services = read('src/background/services.ts');
-  assert.equal((services.match(/matchOriginAsFallback: true/g) || []).length, 2);
+  const registration = read('src/background/content-scripts.ts');
+  assert.equal((registration.match(/matchOriginAsFallback: true/g) || []).length, 2);
 
   const vite = read('vite.config.ts');
   assert.equal((vite.match(/match_about_blank: true/g) || []).length, 2);
