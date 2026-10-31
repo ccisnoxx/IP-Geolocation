@@ -41,7 +41,7 @@ html {
 }
 
 header {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 2px solid #333;
 }
@@ -72,29 +72,14 @@ h2 {
   margin-bottom: 24px;
 }
 
-.test-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.test-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  background: #1a1a1a;
-  border-radius: 6px;
-}
-
 .label {
-  font-size: 14px;
+  font-size: 13px;
   color: #888;
   font-weight: 500;
 }
 
 .value {
-  font-size: 14px;
+  font-size: 13px;
   color: #fff;
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
   word-break: break-all;
@@ -105,8 +90,8 @@ h2 {
 .note {
   font-size: 12px;
   color: #888;
-  font-style: italic;
-  margin-top: 8px;
+  line-height: 1.6;
+  margin-top: 10px;
 }
 
 .btn-primary {
@@ -148,57 +133,159 @@ h2 {
   background: #222;
 }
 
-footer {
-  margin-top: 32px;
-  padding-top: 16px;
-  border-top: 2px solid #333;
+h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ccc;
+  margin: 18px 0 8px;
 }
 
-.disclaimer {
+/* 站点实测：先给结论，再给逐项对比 */
+.probe-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.probe-select {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  background: #1a1a1a;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
   font-size: 13px;
-  color: #888;
-  line-height: 1.5;
 }
 
-/* 探测结果表：这里要能一眼看出哪一行不达标，所以只用颜色标出失败项 */
-.probe-result {
+.probe-bar .btn-primary {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.scope {
   margin-top: 12px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.summary:empty {
+  display: none;
+}
+
+.summary-ok {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4caf50;
+}
+
+.summary-bad {
+  background: rgba(229, 72, 77, 0.14);
+  color: #ff6b6f;
+}
+
+.probe-result {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #aaa;
 }
 
 .probe-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
 }
 
-.probe-table td {
+.probe-table th {
+  text-align: left;
+  font-weight: 500;
+  color: #777;
   padding: 4px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.probe-table th:nth-child(1) { width: 32%; }
+.probe-table th:nth-child(4) { width: 28px; }
+
+.probe-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   vertical-align: top;
   word-break: break-all;
+  color: #ddd;
 }
 
 .probe-table td:first-child {
-  width: 45%;
-  opacity: 0.75;
+  color: #999;
 }
 
-.probe-ok {
-  color: #4caf50;
+.probe-table td:nth-child(2),
+.probe-table td:nth-child(3) {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 12px;
 }
 
-.probe-bad {
-  color: #d93025;
+.probe-table tr.row-ok td:last-child { color: #4caf50; }
+.probe-table tr.row-skip td:last-child { color: #777; }
+.probe-table tr.row-bad td { background: rgba(229, 72, 77, 0.08); }
+.probe-table tr.row-bad td:nth-child(3),
+.probe-table tr.row-bad td:last-child {
+  color: #ff6b6f;
   font-weight: 600;
 }
 
-.probe-select {
-  max-width: 100%;
-  padding: 4px 6px;
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+.probe-more {
+  margin-top: 16px;
+}
+
+.probe-more > summary,
+.advanced > summary {
+  cursor: pointer;
+  color: #bbb;
+  font-size: 14px;
+}
+
+/* 键值行：配置概览与原生基线 */
+.kv {
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  border-radius: 6px;
+}
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.kv-row:last-child {
+  border-bottom: none;
+}
+
+.advanced > summary {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ddd;
+}
+
+.advanced[open] > summary {
+  margin-bottom: 12px;
+}
+
+.advanced .btn-secondary {
+  margin-top: 10px;
+  margin-right: 8px;
 }
 
 /* 配置体检 */
