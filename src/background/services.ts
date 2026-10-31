@@ -4,37 +4,28 @@ import { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
 import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, lookupExitIp, planExitIpApply, runExitIpSync } from './ip-sync';
 import type { ExitIpApplyOutcome, ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy } from './webrtc';
+import { registerSpoofContentScripts } from './content-scripts';
+import { createDiagnosticReports } from './diagnostic-reports';
 import {
   LAST_LOCATION_KEY,
   domainMatches,
   getEffectiveProfile,
   getCarveOutDomains,
   getEnabledRuleDomains,
-  getContentScriptRegistration,
   migrateLegacyConfig,
   validateConfig
 } from '../shared/config-resolver';
 import { createRule, normalizeConfig, normalizeDomain, normalizeWebRtc } from '../shared/config-model';
 import { describeSiteStatus } from '../shared/site-status';
-import { normalizeWorkerFallbackReason } from '../shared/worker-coverage';
 import type { WorkerFallbackReport, WorkerFallbackSummary } from '../shared/worker-coverage';
 import type { EffectiveProfileResult, LastLocation, SiteSpoofConfig } from '../shared/types';
 
 const ALARM_NAME = 'vanishgeo-update-location';
-const MAIN_RUNTIME_SCRIPT_ID = 'vanishgeo-main-runtime';
-const BRIDGE_SCRIPT_ID = 'vanishgeo-bridge';
-const CONTENT_SCRIPT_IDS = [MAIN_RUNTIME_SCRIPT_ID, BRIDGE_SCRIPT_ID];
 const GEO_PERMISSION_KEY = 'geoPermissionDomains';
 const GEO_DENIED_KEY = 'geoDeniedDomains';
 const GEO_ASK_KEY = 'geoAskDomains';
 /** contentSettings 里 location 允许的三种取值，账本按这个维度记录 */
 type GeoPermissionSetting = 'allow' | 'block' | 'ask';
-/** 构建期烘焙进 manifest 的域名（普通构建为空数组） */
-function bakedScriptDomains(): string[] {
-  if (typeof __VANISHGEO_STATIC_SCRIPT_DOMAINS__ === 'undefined') return [];
-  const domains = __VANISHGEO_STATIC_SCRIPT_DOMAINS__;
-  return Array.isArray(domains) ? domains : [];
-}
 
 /**
  * frozen 烘焙包：`--no-bridge` 且配置真的被烘焙。
@@ -51,9 +42,6 @@ function frozenBakedConfig(): SiteSpoofConfig | null {
   if (!baked || !baked.config) return null;
   return migrateLegacyConfig({ siteSpoofConfig: baked.config });
 }
-
-const MAIN_RUNTIME_FILES = ['injected/runtime.js'];
-const BRIDGE_FILES = ['content/content.js'];
 
 // 出口 IP 接口的解析与请求都搬到了 `geo-api`（自动跟随出口 IP 也要用同一份校验）。
 // 这里保留同名导出，调用方（smoke 脚本 / 测试 / 其它模块）不受影响。
@@ -201,18 +189,6 @@ export function createBackgroundServices(): BackgroundServices {
     return (data[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
   }
 
-  async function unregisterSpoofContentScripts(): Promise<void> {
-    if (!chrome.scripting?.unregisterContentScripts) return;
-    try {
-      await chrome.scripting.unregisterContentScripts({ ids: CONTENT_SCRIPT_IDS });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!/non[- ]?existent|not found|does not exist/i.test(message)) {
-        console.warn('Content script unregister failed:', message);
-      }
-    }
-  }
-
   /** 上一次真正应用过的配置签名：保存路径与 storage 事件都会走到 applyConfig */
   let lastAppliedSignature = '';
 
@@ -223,74 +199,6 @@ export function createBackgroundServices(): BackgroundServices {
    * 不落 storage——它描述的是本进程的内状态，重启后由 bootstrap 负责首同步。
    */
   let lastIpSyncEnabled = false;
-
-  // 唯一调用链来自 applyConfigNow，整次注册已由 applyChain 串行化。
-  async function registerSpoofContentScripts(config: SiteSpoofConfig): Promise<void> {
-    if (!chrome.scripting?.registerContentScripts) return;
-    // 烘焙构建把域名写进了 manifest 的静态 content_scripts：这些域名由浏览器在
-    // 渲染进程创建时就注入，比动态注册早一个身位（Chromium 156 上动态注册会漏掉
-    // 会话里的第一次导航）。这里只补注册不在烘焙清单里的域名。
-    const { matches, excludeMatches } = getContentScriptRegistration(config, bakedScriptDomains());
-
-    if (!matches.length) {
-      await unregisterSpoofContentScripts();
-      return;
-    }
-
-    // 已存在时走 updateContentScripts：unregister + register 之间有一个窗口期，
-    // 这期间加载的页面不会有任何脚本注入，等于裸奔一次。
-    // 桥排在 runtime 前面：握手要求 ISOLATED 先挂监听（见 content-bridge.ts 的 BRIDGE_EVENT）。
-    // Chrome 119 / 156 实测动态注册时不论注册顺序都先跑 ISOLATED，这里按依赖顺序声明。
-    const definitions: chrome.scripting.RegisteredContentScript[] = [
-      {
-        id: BRIDGE_SCRIPT_ID,
-        matches,
-        ...(excludeMatches.length ? { excludeMatches } : {}),
-        js: BRIDGE_FILES,
-        runAt: 'document_start',
-        allFrames: true,
-        matchOriginAsFallback: true,
-        world: 'ISOLATED',
-        persistAcrossSessions: true
-      },
-      {
-        id: MAIN_RUNTIME_SCRIPT_ID,
-        matches,
-        ...(excludeMatches.length ? { excludeMatches } : {}),
-        js: MAIN_RUNTIME_FILES,
-        runAt: 'document_start',
-        allFrames: true,
-        // 不透明来源的 iframe（about:blank / srcdoc / blob:）默认不注入。页面只要建一个
-        // <iframe srcdoc> 进去读 contentWindow.Date，拿到的就是没打补丁的原生对象 ——
-        // 主框架和子框架说法不一致，这一条比任何原型检测都硬。
-        // matchOriginAsFallback 让这类 frame 按其**创建者**的来源参与匹配。
-        matchOriginAsFallback: true,
-        world: 'MAIN',
-        persistAcrossSessions: true
-      }
-    ];
-
-    const existing = await chrome.scripting
-      .getRegisteredContentScripts({ ids: CONTENT_SCRIPT_IDS })
-      .catch(() => [] as chrome.scripting.RegisteredContentScript[]);
-    const existingIds = new Set(existing.map((script) => script.id));
-    const toUpdate = definitions.filter((script) => existingIds.has(script.id));
-    const toRegister = definitions.filter((script) => !existingIds.has(script.id));
-
-    if (toRegister.length) {
-      try {
-        await chrome.scripting.registerContentScripts(toRegister);
-      } catch (error) {
-        // 浏览器重载后旧注册仍挂在配置里，但 getRegisteredContentScripts 可能暂时读不到，
-        // 此时 register 会抛 Duplicate script ID；改走 update 即可，不必让重载报错。
-        if (!/Duplicate script ID/i.test(String((error as Error)?.message ?? error))) throw error;
-        await chrome.scripting.updateContentScripts(toRegister);
-      }
-    }
-    if (toUpdate.length) {
-      await chrome.scripting.updateContentScripts(toUpdate);
-    }
-  }
 
   /**
    * 用 contentSettings 把匹配域名的定位权限置为 allow。
@@ -454,79 +362,7 @@ export function createBackgroundServices(): BackgroundServices {
     return { config: await getSiteConfig(), lastLocation: await getLastLocation() };
   }
 
-  /**
-   * 注入层报上来的字体层观察值。MAIN 桥未完成身份认证，这些数据不证明安装成功，
-   * 也不参与配置或权限判定。只按 hostname 聚合在内存：重启后页面会重新报一次。
-   */
-  const fontLayerReports = new Map<string, { count: number; platform: string; hideCjkFonts: boolean; at: number }>();
-
-  function reportFontLayers(url: string, layers: unknown): void {
-    const hostname = url ? (() => { try { return new URL(url).hostname; } catch { return ''; } })() : '';
-    if (!hostname || !layers || typeof layers !== 'object') return;
-    const value = layers as { count?: unknown; platform?: unknown; hideCjkFonts?: unknown };
-    const count = Number(value.count);
-    if (!Number.isFinite(count) || count < 0) return;
-    fontLayerReports.set(hostname, {
-      count,
-      platform: value.platform === 'none' ? 'none' : 'auto',
-      hideCjkFonts: Boolean(value.hideCjkFonts),
-      at: Date.now()
-    });
-    // 只保留最近 50 个域名，别让这张表无限长
-    if (fontLayerReports.size > 50) {
-      const oldest = [...fontLayerReports.entries()].sort((a, b) => a[1].at - b[1].at)[0];
-      if (oldest) fontLayerReports.delete(oldest[0]);
-    }
-  }
-
-  function getFontLayers(url: string): { count: number; platform: string; hideCjkFonts: boolean; at: number } | null {
-    const hostname = url ? (() => { try { return new URL(url).hostname; } catch { return ''; } })() : '';
-    if (!hostname) return null;
-    return fontLayerReports.get(hostname) || null;
-  }
-
-  /**
-   * Worker 包装失败：按 hostname 聚合，只放内存。
-   *
-   * 为什么要记：包装只能靠 blob 入口，页面 CSP 的 worker-src / script-src 有权拒绝。
-   * 拒绝时 runtime 回退原生，页面照常跑，但那个 Worker 里读到的是原生值 ——
-   * 这是"部分覆盖"，不能和"已生效"显示成同一件事。
-   *
-   * 内存而不是 storage：页面刷新后 runtime 会重新报；Service Worker 重启丢掉旧记录
-   * 也无所谓，下一次构造会补上。真正要求的是**别把旧状态当现状**。
-   */
-  const workerFallbacks = new Map<string, WorkerFallbackSummary>();
-
-  function hostnameOf(url: string): string {
-    try {
-      return new URL(url).hostname.toLowerCase();
-    } catch {
-      return '';
-    }
-  }
-
-  function reportWorkerFallback(url: string, report: Partial<WorkerFallbackReport> | null | undefined): void {
-    const hostname = hostnameOf(url);
-    if (!hostname || !report || typeof report !== 'object') return;
-    const reason = normalizeWorkerFallbackReason(report.reason);
-    const entry: WorkerFallbackSummary = workerFallbacks.get(hostname)
-      || { hostname, count: 0, reasons: [], lastScript: '', lastMessage: '', at: 0 };
-    entry.count += 1;
-    if (!entry.reasons.includes(reason)) entry.reasons.push(reason);
-    if (typeof report.script === 'string' && report.script) entry.lastScript = report.script.slice(0, 300);
-    if (typeof report.message === 'string' && report.message) entry.lastMessage = report.message.slice(0, 300);
-    entry.at = Date.now();
-    workerFallbacks.set(hostname, entry);
-    if (workerFallbacks.size > 50) {
-      const oldest = [...workerFallbacks.entries()].sort((a, b) => a[1].at - b[1].at)[0];
-      if (oldest) workerFallbacks.delete(oldest[0]);
-    }
-  }
-
-  function getWorkerFallbacks(url: string): WorkerFallbackSummary | null {
-    const hostname = hostnameOf(url);
-    return hostname ? workerFallbacks.get(hostname) || null : null;
-  }
+  const diagnostics = createDiagnosticReports();
 
   async function buildPayloadForUrl(url: string, configOverride?: SiteSpoofConfig, lastLocationOverride?: LastLocation | null): Promise<EffectiveProfileResult> {
     const hostname = url ? new URL(url).hostname : '';
@@ -954,7 +790,7 @@ export function createBackgroundServices(): BackgroundServices {
       ? getEffectiveProfile(config, domain, lastLocation)
       : { matched: false, rule: null, payload: null, errors: [] };
     // 按标签页 hostname 取，不按规则 domain：子域和父域是两份独立记录
-    const workerFallback = getWorkerFallbacks(tab?.url || '');
+    const workerFallback = diagnostics.getWorkerFallbacks(tab?.url || '');
     return { domain, config, lastLocation, workerFallback, ...resolved };
   }
 
@@ -1183,10 +1019,7 @@ export function createBackgroundServices(): BackgroundServices {
     saveSiteConfig,
     invalidateStorageCache,
     getBakeSnapshot,
-    reportFontLayers,
-    getFontLayers,
-    reportWorkerFallback,
-    getWorkerFallbacks,
+    ...diagnostics,
     getLastLocation,
     getExtensionState,
     setExtensionEnabled,
