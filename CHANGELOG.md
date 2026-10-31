@@ -2,7 +2,7 @@
 
 只记对使用者有影响的变化。格式按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号跟 `manifest.json` 一致。
 
-## 未发布
+## 2.4.4
 
 - 时区一致性补齐：`Temporal.Now.timeZoneId()` 与不带时区的 `Temporal.Now.*ISO()` 按目标时区返回
   （Chrome 156 默认开启 Temporal，此前一行代码就能读到真实时区并与 `Date` 对质）；`Temporal.Instant` 的
