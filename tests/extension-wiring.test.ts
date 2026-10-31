@@ -51,7 +51,7 @@ test('background registers only dynamic runtime and bridge scripts', () => {
 
 test('runtime 只有一条注入路径：导航不再由 tabs.onUpdated 注入脚本', () => {
   const worker = read('src/background/service-worker.ts');
-  // 注入只发生在 updateAllTabs 的 ensureRuntimeInDocument 里，且按 documentId 去重
+  // runtime 只由注册的内容脚本在 document_start 注入；service worker 与后台都不执行脚本文件
   assert.doesNotMatch(worker, /injectScript|syncTab/);
   assert.match(worker, /services\.bootstrap\(\)/);
   assert.match(worker, /services\.applyConfig\(\)/);
@@ -107,29 +107,38 @@ test('注入层补丁必须自包含：产物里不能出现打包器注入的�
   assert.doesNotMatch(bundle, /^\s*import\s/m, 'injected/runtime.js 必须是经典脚本');
 });
 
-test('payload 经 MessagePort 投递，window 消息只承担握手接线', () => {
+test('payload 经 MessagePort 投递，端口只在 document_start 同步握手里交接', () => {
   const runtime = read('dist/injected/runtime.js');
   const content = read('dist/content/content.js');
   const services = read('src/background/services.ts');
 
   // 旧模型：nonce 和 payload 一起 postMessage 出去，页面的 message 监听器能读到两者
   assert.doesNotMatch(runtime, /postMessage\(\s*\{[^}]*__vanishGeo[^}]*payload/s);
-  // 广播里只允许出现握手，payload 永远只能走端口
-  assert.doesNotMatch(content, /window\.postMessage\(\s*\{[^}]*payload/);
-  assert.match(content, /window\.postMessage\(\{ __vanishGeo: "handshake" \}, "\*", \[channel\.port2\]\)/);
-  assert.match(content, /new MessageChannel\(\)/);
-  assert.match(content, /postMessage\([^)]*\[[^\]]*port2[^\]]*\]/);
-  // 接线检查不等于身份认证；页面可构造握手，nonce 也不是秘密。
-  assert.doesNotMatch(content, /setTimeout\(\s*handshake\s*,/);
+  // 第二版用 window.postMessage 递端口：异步派发，页面监听器能截走端口
+  assert.doesNotMatch(content, /window\.postMessage\(/);
+  assert.doesNotMatch(runtime, /window\.postMessage\(/);
 
-  // runtime 收下端口后立刻摘掉 window 监听器，之后没有可观测的握手
-  assert.match(runtime, /removeEventListener\(["']message["'], onHandshake\)/);
-  // 端口消息仍要校验 nonce
-  assert.match(runtime, /__vanishGeo !== NONCE/);
+  // 两侧事件名必须一致（各自定义，经典脚本不能共享模块）
+  const eventName = /const BRIDGE_EVENT = "([^"]+)"/;
+  const runtimeEvent = runtime.match(eventName)?.[1];
+  assert.ok(runtimeEvent, 'runtime 产物里应有握手事件名');
+  assert.equal(content.match(eventName)?.[1], runtimeEvent);
 
-  // 后台推 payload 走 tabs.sendMessage → ISOLATED 桥 → 端口
+  // runtime 只同步派发、绝不监听 window 消息或握手事件：页面没有入口把端口塞给它
+  assert.match(runtime, /window\.dispatchEvent\(new MessageEvent\(BRIDGE_EVENT, \{ cancelable: true, ports: \[channel\.port2\] \}\)\)/);
+  // （Worker 补丁在 Worker 作用域里另有 token 过滤的 message 监听，不在本条范围）
+  assert.doesNotMatch(runtime, /window\.addEventListener\(["']message["']/);
+  assert.doesNotMatch(runtime, /addEventListener\(BRIDGE_EVENT/);
+  // 不再回传 nonce
+  assert.doesNotMatch(runtime, /__vanishGeo: "ack"/);
+  // 桥收下第一个端口后撤掉监听，并阻止后续监听者看到端口
+  assert.match(content, /removeEventListener\(BRIDGE_EVENT, onBridgeEvent, true\)/);
+  assert.match(content, /stopImmediatePropagation\(\)/);
+
+  // 后台推 payload 走 tabs.sendMessage → ISOLATED 桥 → 端口；后台从不晚注入 runtime
   assert.match(services, /chrome\.tabs\.sendMessage\(tabId, message\)/);
   assert.match(services, /payload === null[\s\S]{0,80}clear: true/);
+  assert.doesNotMatch(services, /files: MAIN_RUNTIME_FILES/);
 });
 
 test('不透明来源的 iframe 也注入（否则 srcdoc 里能读到原生对象）', () => {

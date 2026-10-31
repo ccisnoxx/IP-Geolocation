@@ -103,19 +103,11 @@ function bakedRulesetPlugin(
       if (matches.length > 0) {
         // about:blank 匹配与来源回退是不同开关。blob/data 还需要 Chrome119 起的
         // match_origin_as_fallback；这些域名不会再动态注册，不能漏掉静态来源回退。
-        const entries: unknown[] = [
-          {
-            matches,
-            js: ['injected/runtime.js'],
-            run_at: 'document_start',
-            all_frames: true,
-            match_about_blank: true,
-            match_origin_as_fallback: true,
-            world: 'MAIN'
-          }
-        ];
+        const entries: unknown[] = [];
         if (bridge) {
-          // 通道关闭的构建没必要多注入一个隔离世界的空脚本
+          // 通道关闭的构建没必要多注入一个隔离世界的空脚本。
+          // 桥必须排在 runtime 前面：静态清单按声明顺序执行，桥先挂监听，
+          // runtime 才能在 document_start 同步握手（见 content-bridge.ts 的 BRIDGE_EVENT）。
           entries.push({
             matches,
             js: ['content/content.js'],
@@ -125,6 +117,15 @@ function bakedRulesetPlugin(
             match_origin_as_fallback: true
           });
         }
+        entries.push({
+          matches,
+          js: ['injected/runtime.js'],
+          run_at: 'document_start',
+          all_frames: true,
+          match_about_blank: true,
+          match_origin_as_fallback: true,
+          world: 'MAIN'
+        });
         manifest.content_scripts = entries;
       }
       writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

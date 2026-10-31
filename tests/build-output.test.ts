@@ -147,14 +147,15 @@ for (const bridge of [false, true]) {
       match_origin_as_fallback: true,
       world: 'MAIN'
     };
-    assert.deepEqual(manifest.content_scripts, bridge ? [main, {
+    // 桥排在 runtime 前面：静态清单按声明顺序执行，同步握手要求桥先挂监听
+    assert.deepEqual(manifest.content_scripts, bridge ? [{
       matches: main.matches,
       js: ['content/content.js'],
       run_at: 'document_start',
       all_frames: true,
       match_about_blank: true,
       match_origin_as_fallback: true
-    }] : [main]);
+    }, main] : [main]);
     assert.equal(manifest.declarative_net_request, undefined);
     assert.equal(existsSync(join(outDir, 'rules', `${BAKED_RULESET_ID}.json`)), false);
   });
