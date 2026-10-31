@@ -2,251 +2,328 @@ import './leak-test.css';
 import { LAST_LOCATION_KEY, SITE_CONFIG_KEY, normalizeConfig } from '../shared/config-model';
 import { auditConfig, sortFindings, type AuditEnvironment, type AuditFinding, type AuditSeverity } from '../shared/config-audit';
 import { buildWorkerDiagnosticsSnapshot } from '../shared/diagnostic';
+import { buildProbeReport, type NativeBaseline, type ProbeReport, type ProbeSnapshot, type ReportRow } from '../shared/probe-report';
 import type { LastLocation, SiteSpoofConfig } from '../shared/types';
 
-// Geolocation elements
-const geolocationExistsEl = document.getElementById('geolocationExists') as HTMLElement;
-const geolocationResultEl = document.getElementById('geolocationResult') as HTMLElement;
-const latitudeEl = document.getElementById('latitude') as HTMLElement;
-const longitudeEl = document.getElementById('longitude') as HTMLElement;
-const accuracyEl = document.getElementById('accuracy') as HTMLElement;
-const geolocationPermissionEl = document.getElementById('geolocationPermission') as HTMLElement;
-const testGeolocationBtn = document.getElementById('testGeolocation') as HTMLButtonElement;
-const testWatchPositionBtn = document.getElementById('testWatchPosition') as HTMLButtonElement;
+/**
+ * 诊断页。
+ *
+ * 本页跑在扩展源下，注入层不作用于这里，所以本页自己读到的是浏览器原生值。
+ * 主区块是「站点实测」：在选中标签页的 MAIN world 里采集真实取值，与按该站点
+ * 解析出的期望值逐项对比；本页的原生值只作为“不在规则里的站点应当是什么”的基线，
+ * 放在折叠的高级区里。
+ */
 
-// Language elements
-const navigatorLanguageEl = document.getElementById('navigatorLanguage') as HTMLElement;
-const navigatorLanguagesEl = document.getElementById('navigatorLanguages') as HTMLElement;
-const intlLocaleEl = document.getElementById('intlLocale') as HTMLElement;
+const setText = (id: string, value: string): void => {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+};
 
-// Timezone elements
-const intlTimezoneEl = document.getElementById('intlTimezone') as HTMLElement;
-const timezoneOffsetEl = document.getElementById('timezoneOffset') as HTMLElement;
-const dateToStringEl = document.getElementById('dateToString') as HTMLElement;
-const dateToLocaleStringEl = document.getElementById('dateToLocaleString') as HTMLElement;
-
-// WebRTC elements
-const rtcExistsEl = document.getElementById('rtcExists') as HTMLElement;
-const iceCandidatesEl = document.getElementById('iceCandidates') as HTMLElement;
-const testWebRTCBtn = document.getElementById('testWebRTC') as HTMLButtonElement;
-
-// Navigator elements
-const platformEl = document.getElementById('platform') as HTMLElement;
-const hardwareConcurrencyEl = document.getElementById('hardwareConcurrency') as HTMLElement;
-const deviceMemoryEl = document.getElementById('deviceMemory') as HTMLElement;
-const userAgentEl = document.getElementById('userAgent') as HTMLElement;
-const screenSizeEl = document.getElementById('screenSize') as HTMLElement;
-const colorDepthEl = document.getElementById('colorDepth') as HTMLElement;
-const devicePixelRatioEl = document.getElementById('devicePixelRatio') as HTMLElement;
-
-function initialize() {
-  renderConfig();
-  checkGeolocation();
-  checkLanguage();
-  checkTimezone();
-  checkWebRTC();
-  checkNavigator();
+/** 本页读到的就是浏览器原生值（注入层不作用于扩展源） */
+function nativeBaseline(): NativeBaseline {
+  return {
+    timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    language: navigator.language,
+    languages: Array.from(navigator.languages || [])
+  };
 }
 
-function checkGeolocation() {
-  geolocationExistsEl.textContent = navigator.geolocation ? 'Yes' : 'No';
-
-  if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' as PermissionName }).then(result => {
-      geolocationPermissionEl.textContent = result.state;
-    }).catch(() => {
-      geolocationPermissionEl.textContent = 'N/A';
-    });
-  } else {
-    geolocationPermissionEl.textContent = 'N/A';
-  }
+async function readStoredState(): Promise<{ config: SiteSpoofConfig; exit: LastLocation | null }> {
+  const stored = await chrome.storage.local.get([SITE_CONFIG_KEY, LAST_LOCATION_KEY]);
+  return {
+    config: normalizeConfig(stored[SITE_CONFIG_KEY] || null),
+    exit: (stored[LAST_LOCATION_KEY] as LastLocation | undefined) || null
+  };
 }
 
-function testGeolocation() {
-  if (!navigator.geolocation) {
-    geolocationResultEl.textContent = 'Not available';
-    return;
-  }
+// ---------- 站点实测 ----------
 
-  geolocationResultEl.textContent = 'Testing...';
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      geolocationResultEl.textContent = 'Success';
-      latitudeEl.textContent = position.coords.latitude.toString();
-      longitudeEl.textContent = position.coords.longitude.toString();
-      accuracyEl.textContent = `${position.coords.accuracy}m`;
-    },
-    (error) => {
-      geolocationResultEl.textContent = `Error: ${error.message}`;
-      latitudeEl.textContent = 'N/A';
-      longitudeEl.textContent = 'N/A';
-      accuracyEl.textContent = 'N/A';
-    }
-  );
-}
-
-let watchId: number | null = null;
-
-function testWatchPosition() {
-  if (!navigator.geolocation) {
-    alert('Geolocation not available');
-    return;
-  }
-
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-    testWatchPositionBtn.textContent = 'Test watchPosition';
-    return;
-  }
-
-  let count = 0;
-  watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      count++;
-      geolocationResultEl.textContent = `watchPosition callback #${count}`;
-      latitudeEl.textContent = position.coords.latitude.toString();
-      longitudeEl.textContent = position.coords.longitude.toString();
-      accuracyEl.textContent = `${position.coords.accuracy}m`;
-    },
-    (error) => {
-      geolocationResultEl.textContent = `Error: ${error.message}`;
-    }
-  );
-
-  testWatchPositionBtn.textContent = 'Stop watching';
-}
-
-function checkLanguage() {
-  navigatorLanguageEl.textContent = navigator.language || 'N/A';
-  navigatorLanguagesEl.textContent = navigator.languages ? navigator.languages.join(', ') : 'N/A';
-
-  try {
-    const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
-    intlLocaleEl.textContent = locale;
-  } catch {
-    intlLocaleEl.textContent = 'N/A';
-  }
-}
-
-function checkTimezone() {
-  try {
-    const timezone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
-    intlTimezoneEl.textContent = timezone;
-  } catch {
-    intlTimezoneEl.textContent = 'N/A';
-  }
-
-  const offset = new Date().getTimezoneOffset();
-  timezoneOffsetEl.textContent = `${offset} minutes (UTC${offset > 0 ? '-' : '+'}${Math.abs(offset / 60)})`;
-
-  dateToStringEl.textContent = new Date().toString();
-  dateToLocaleStringEl.textContent = new Date().toLocaleString();
-}
-
-function checkWebRTC() {
-  rtcExistsEl.textContent = window.RTCPeerConnection ? 'Yes' : 'No';
-}
-
-async function testWebRTC() {
-  if (!window.RTCPeerConnection) {
-    iceCandidatesEl.textContent = 'Not available';
-    return;
-  }
-
-  iceCandidatesEl.textContent = 'Testing...';
-
-  try {
-    const pc = new RTCPeerConnection({
-      iceServers: []
-    });
-
-    const candidates: string[] = [];
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        candidates.push(event.candidate.candidate);
-        iceCandidatesEl.textContent = candidates.length > 0
-          ? candidates.join(' | ')
-          : 'No candidates (protected)';
-      } else {
-        // Gathering complete
-        if (candidates.length === 0) {
-          iceCandidatesEl.textContent = 'No candidates detected (protected)';
-        }
-      }
-    };
-
-    // Create offer to trigger ICE gathering
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    // Close after 3 seconds
-    setTimeout(() => {
-      pc.close();
-    }, 3000);
-
-  } catch (error) {
-    iceCandidatesEl.textContent = `Error: ${error}`;
-  }
-}
-
-function checkNavigator() {
-  platformEl.textContent = navigator.platform || 'N/A';
-  hardwareConcurrencyEl.textContent = navigator.hardwareConcurrency
-    ? navigator.hardwareConcurrency.toString()
-    : 'N/A';
-
-  const nav = navigator as any;
-  deviceMemoryEl.textContent = nav.deviceMemory
-    ? `${nav.deviceMemory} GB`
-    : 'N/A';
-
-  userAgentEl.textContent = navigator.userAgent || 'N/A';
-  screenSizeEl.textContent = `${screen.width} × ${screen.height}`;
-  colorDepthEl.textContent = `${screen.colorDepth} bits`;
-  devicePixelRatioEl.textContent = window.devicePixelRatio.toString();
-}
-
-// Event listeners
-testGeolocationBtn.addEventListener('click', testGeolocation);
-testWatchPositionBtn.addEventListener('click', testWatchPosition);
-testWebRTCBtn.addEventListener('click', testWebRTC);
-
-// Initialize - delay to ensure spoofs are installed
-console.log('Leak test: Waiting for spoofs...');
-setTimeout(() => {
-  console.log('Leak test: Running checks now');
-  initialize();
-}, 100);
-
-// ---------- 当前配置（期望值） ----------
-
-async function renderConfig(): Promise<void> {
-  const setText = (id: string, value: string) => {
-    const element = document.getElementById(id);
-    if (element) element.textContent = value;
+/**
+ * 被 `chrome.scripting.executeScript` 序列化后注入目标页面的 MAIN world，
+ * 必须**自包含** —— 任何外部引用在页面里都是 ReferenceError。
+ */
+async function pageProbe(): Promise<ProbeSnapshot> {
+  const checks: ProbeSnapshot['checks'] = [];
+  const check = (group: string, label: string, value: unknown, ok: boolean | null) => {
+    checks.push({ group, label, value: String(value), ok });
   };
 
+  const resolved = new Intl.DateTimeFormat().resolvedOptions();
+  const temporal = (globalThis as any).Temporal;
+  let temporalTimeZone: string | null = null;
   try {
-    const stored = await chrome.storage.local.get([SITE_CONFIG_KEY, LAST_LOCATION_KEY]);
-    const config = normalizeConfig(stored[SITE_CONFIG_KEY] || null);
-    const exit = (stored[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
+    if (temporal && temporal.Now) temporalTimeZone = String(temporal.Now.timeZoneId());
+  } catch { /* 不支持 Temporal 的浏览器 */ }
+
+  // Date 语义：字符串日期按本地时间解释、set* 往返
+  try {
+    const stringDate = new Date('2026-01-01T00:00:00');
+    check('Date 语义', 'new Date("2026-01-01T00:00:00").getHours() 为 0', stringDate.getHours(), stringDate.getHours() === 0);
+    const roundTrip = new Date('2026-01-01T00:00:00');
+    roundTrip.setHours(15, 0, 0, 0);
+    check('Date 语义', 'setHours(15) 后 getHours() 为 15', roundTrip.getHours(), roundTrip.getHours() === 15);
+    check('Date 语义', '非法日期 toString()', new Date('nope').toString(), new Date('nope').toString() === 'Invalid Date');
+  } catch (error) {
+    check('Date 语义', '读取', `失败：${error}`, false);
+  }
+
+  // 反检测：补丁不能留下可被一行代码看出来的痕迹
+  check('反检测', 'navigator.languages 是冻结数组', Object.isFrozen(navigator.languages), Object.isFrozen(navigator.languages));
+  check('反检测', 'Date.prototype.setHours 显示为原生函数', Date.prototype.setHours.toString(),
+    Date.prototype.setHours.toString() === 'function setHours() { [native code] }');
+  check('反检测', 'new Date() 没有自有属性', Object.keys(new Date()).length, Object.keys(new Date()).length === 0);
+  check('反检测', 'Date.prototype.constructor === Date', Date.prototype.constructor === Date, Date.prototype.constructor === Date);
+  if (document.fonts) {
+    const fontsCheck = document.fonts.check('12px Helvetica');
+    check('反检测', "document.fonts.check('12px Helvetica') 保持原生 true", fontsCheck, fontsCheck === true);
+  }
+
+  // 字体：复刻公开检测站的 canvas 宽度探测（只在字体伪装开启时参与判定）
+  try {
+    const measureFonts = (ctx: any) => {
+      const probe = (family: string) => ['monospace', 'sans-serif', 'serif'].some((generic) => {
+        ctx.font = `72px ${generic}`;
+        const base = ctx.measureText('中文字体检测ABCabc012').width;
+        ctx.font = `72px "${family}", ${generic}`;
+        return Math.abs(ctx.measureText('中文字体检测ABCabc012').width - base) > 0.5;
+      });
+      return ['SimSun', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', '宋体', '苹方-简', '微软雅黑', 'MiSans', 'HarmonyOS Sans SC'].filter(probe);
+    };
+    const canvasCtx = document.createElement('canvas').getContext('2d');
+    if (canvasCtx) {
+      const hits = measureFonts(canvasCtx);
+      check('字体', 'canvas 探测不到被隐藏的中文字体', hits.join(', ') || '无', hits.length === 0);
+    }
+    const offscreenCtx = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(8, 8).getContext('2d') : null;
+    if (offscreenCtx) {
+      const hits = measureFonts(offscreenCtx);
+      check('字体', 'OffscreenCanvas 探测不到被隐藏的中文字体', hits.join(', ') || '无', hits.length === 0);
+    }
+  } catch (error) {
+    check('字体', '字体度量', `失败：${error}`, null);
+  }
+
+  // 定位：只在已授权时读取，绝不触发授权框
+  let permission = 'unknown';
+  let coords: ProbeSnapshot['geolocation']['coords'] = null;
+  let geoError: string | null = null;
+  try {
+    permission = (await navigator.permissions.query({ name: 'geolocation' })).state;
+  } catch { /* permissions API 不可用 */ }
+  if (permission === 'granted' && navigator.geolocation) {
+    const position = await new Promise<GeolocationPosition | string>((resolve) => {
+      navigator.geolocation.getCurrentPosition(resolve, (error) => resolve(`错误：${error.message || error.code}`), { timeout: 5000 });
+    });
+    if (typeof position === 'string') {
+      geoError = position;
+    } else {
+      coords = { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy };
+      const own = Object.keys(position.coords).length;
+      check('反检测', 'GeolocationCoordinates 没有自有属性', own, own === 0);
+    }
+  }
+
+  // WebRTC：在网页里收集本机候选（扩展页不受策略约束、不做 mDNS 匿名化，测不准）。
+  // 必须建数据通道：没有任何 m-line 的 offer 不会触发 ICE 收集。
+  let webrtc: ProbeSnapshot['webrtc'] = null;
+  if (typeof RTCPeerConnection === 'function') {
+    webrtc = await new Promise<NonNullable<ProbeSnapshot['webrtc']>>((resolve) => {
+      const candidates: string[] = [];
+      let pc: RTCPeerConnection | null = null;
+      let done = false;
+      const finish = (error: string | null) => {
+        if (done) return;
+        done = true;
+        try { pc?.close(); } catch { /* ignore */ }
+        resolve({ candidates, error });
+      };
+      try {
+        pc = new RTCPeerConnection({ iceServers: [] });
+        pc.createDataChannel('vanishgeo-probe');
+        pc.onicecandidate = (event) => {
+          if (!event.candidate) { finish(null); return; }
+          const address = event.candidate.candidate.split(' ')[4];
+          if (address) candidates.push(address);
+        };
+        pc.createOffer().then((offer) => pc!.setLocalDescription(offer)).catch((error) => finish(`失败：${error}`));
+        setTimeout(() => finish(null), 3000);
+      } catch (error) {
+        finish(`失败：${error}`);
+      }
+    });
+  }
+
+  return {
+    webrtc,
+    timezone: resolved.timeZone,
+    offsetMinutes: new Date().getTimezoneOffset(),
+    temporalTimeZone,
+    locale: resolved.locale,
+    language: navigator.language,
+    languages: Array.from(navigator.languages || []),
+    geolocation: { permission, coords, error: geoError },
+    checks
+  };
+}
+
+/**
+ * 填目标下拉框：本窗口的 http(s) 标签页，默认选最近用过的那个。
+ * 本页自己就是活动标签页，所以不能用 `active: true` 去找目标。
+ */
+async function renderProbeTargets(): Promise<void> {
+  const select = document.getElementById('probeTarget') as HTMLSelectElement | null;
+  if (!select) return;
+  select.textContent = '';
+  try {
+    const tabs = (await chrome.tabs.query({ currentWindow: true }))
+      .filter((tab) => tab.id && tab.url && /^https?:/i.test(tab.url));
+    const recent = tabs.slice().sort((a, b) => ((b as any).lastAccessed || b.index) - ((a as any).lastAccessed || a.index))[0];
+    for (const tab of tabs) {
+      const option = document.createElement('option');
+      option.value = String(tab.id);
+      option.textContent = `${tab.title || tab.url} — ${new URL(tab.url!).hostname}`;
+      option.selected = tab === recent;
+      select.appendChild(option);
+    }
+    if (!tabs.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = '（本窗口没有 http/https 网页，先打开一个要检测的站点）';
+      select.appendChild(option);
+    }
+  } catch (error) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = `读取标签页失败：${error instanceof Error ? error.message : String(error)}`;
+    select.appendChild(option);
+  }
+}
+
+const STATUS_MARK: Record<ReportRow['status'], string> = { ok: '✓', bad: '✗', skip: '—' };
+/** 结论先看这几组；反检测、Date 语义、字体折叠成一行汇总 */
+const MAIN_GROUPS = ['时区', '语言', '定位', 'WebRTC'];
+
+function renderRows(rows: ReportRow[]): HTMLTableElement {
+  const table = document.createElement('table');
+  table.className = 'probe-table';
+  const head = document.createElement('tr');
+  for (const title of ['项目', '期望', '网页实际', '']) {
+    const th = document.createElement('th');
+    th.textContent = title;
+    head.appendChild(th);
+  }
+  table.appendChild(head);
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    tr.className = `row-${row.status}`;
+    for (const text of [row.label, row.expected, row.actual, STATUS_MARK[row.status]]) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  return table;
+}
+
+function renderReport(report: ProbeReport): void {
+  setText('probeScope', report.scope);
+  const summary = document.getElementById('probeSummary');
+  if (summary) {
+    summary.className = `summary ${report.failed ? 'summary-bad' : 'summary-ok'}`;
+    summary.textContent = report.failed
+      ? `✗ ${report.failed} 项与期望不一致，${report.passed} 项一致`
+      : `✓ ${report.passed} 项全部与期望一致${report.spoofed ? '' : '（该站点按原生值判定）'}`;
+  }
+
+  const container = document.getElementById('probeResult');
+  if (!container) return;
+  container.textContent = '';
+  for (const group of MAIN_GROUPS) {
+    const rows = report.rows.filter((row) => row.group === group);
+    if (!rows.length) continue;
+    const title = document.createElement('h3');
+    title.textContent = group;
+    container.append(title, renderRows(rows));
+  }
+
+  const others = report.rows.filter((row) => !MAIN_GROUPS.includes(row.group));
+  if (others.length) {
+    const failed = others.filter((row) => row.status === 'bad').length;
+    const passed = others.filter((row) => row.status === 'ok').length;
+    const details = document.createElement('details');
+    details.className = 'probe-more';
+    details.open = failed > 0;
+    const label = document.createElement('summary');
+    label.textContent = `反检测与 Date 语义检查：${passed}/${passed + failed} 通过${failed ? `，${failed} 项未通过` : ''}`;
+    details.append(label, renderRows(others));
+    container.appendChild(details);
+  }
+}
+
+let probing = false;
+
+async function probeSelectedTab(): Promise<void> {
+  const select = document.getElementById('probeTarget') as HTMLSelectElement | null;
+  const container = document.getElementById('probeResult');
+  const tabId = Number(select?.value || 0);
+  if (!container) return;
+  if (!tabId) {
+    setText('probeScope', '');
+    setText('probeSummary', '');
+    container.textContent = '先在本窗口打开一个要检测的网页（扩展加载后打开或刷新过），再回到这里。';
+    return;
+  }
+  if (probing) return;
+  probing = true;
+  setText('probeSummary', '检测中…');
+  container.textContent = '';
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab?.url || !/^https?:/i.test(tab.url)) {
+      container.textContent = '目标不是 http/https 网页，无法检测。';
+      return;
+    }
+    const results = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: pageProbe });
+    const probe = results?.[0]?.result as ProbeSnapshot | undefined;
+    if (!probe) {
+      setText('probeSummary', '');
+      container.textContent = '没有取到结果（网页可能拒绝了注入）。';
+      return;
+    }
+    const { config, exit } = await readStoredState();
+    renderReport(buildProbeReport(config, tab.url, exit, nativeBaseline(), probe));
+  } catch (error) {
+    setText('probeSummary', '');
+    container.textContent = `检测失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    probing = false;
+  }
+}
+
+// ---------- 配置概览 ----------
+
+async function renderConfig(): Promise<void> {
+  try {
+    const { config, exit } = await readStoredState();
     const webRtc = await readWebRtcState();
     const language = config.globalProfile.language;
     const timezone = config.globalProfile.timezone;
     const geolocation = config.globalProfile.geolocation;
 
-    setText('configMaster', config.masterEnabled ? 'enabled' : 'disabled');
-    setText('configLanguage', `${language.language} [${language.languages.join(', ')}]`);
-    setText('configAcceptLanguage', language.acceptLanguage);
-    setText('configTimezone', timezone.mode === 'auto'
-      ? 'auto（跟随出口 IP 推导；推导不出来就留原生值）'
-      : timezone.timezone || '-');
-    setText('configGeolocation', geolocation.mode === 'auto'
-      ? `auto（跟随出口 IP；accuracy ${geolocation.accuracy}m）`
-      : `${geolocation.latitude}, ${geolocation.longitude}（accuracy ${geolocation.accuracy}m）`);
+    setText('configMaster', config.masterEnabled ? '开启' : '关闭（所有站点保持原生）');
+    setText('configLanguage', language.enabled ? `${language.language}（${language.languages.join(', ')}）` : '不接管');
+    setText('configAcceptLanguage', language.enabled ? language.acceptLanguage : '不接管');
+    setText('configTimezone', !timezone.enabled
+      ? '不接管'
+      : timezone.mode === 'auto'
+        ? `跟随出口 IP${exit && exit.timezone ? `（当前 ${exit.timezone}）` : '（尚未取得，暂留原生值）'}`
+        : timezone.timezone || '-');
+    setText('configGeolocation', !geolocation.enabled
+      ? '不接管'
+      : geolocation.mode === 'auto'
+        ? `跟随出口 IP${exit ? `（当前 ${exit.latitude}, ${exit.longitude}）` : '（尚未取得）'} · 精度 ${geolocation.accuracy}m`
+        : `${geolocation.latitude}, ${geolocation.longitude} · 精度 ${geolocation.accuracy}m`);
 
     // 字体层：这里只显示"配置说了什么"。三张字表只存在于注入层（它必须自包含，
     // 不能与其它入口共享 chunk），所以"实际生效多少条"要问页面里的 runtime ——
@@ -255,12 +332,12 @@ async function renderConfig(): Promise<void> {
     const claimed = canvas.platform === 'auto' || !canvas.platform ? '自动（跟随浏览器）' : canvas.platform;
     setText('configFonts', canvas.enabled
       ? `${claimed} · 中文层 ${canvas.hideCjkFonts ? '隐藏' : '保留'} · 手动追加 ${canvas.targetFonts.length} 条`
-      : 'off（页面按原生字表判定）');
+      : '不接管');
     setText('configFontTargets', canvas.enabled ? '正在查询页面实际上报…' : '（未启用字体伪装）');
 
     const enabled = config.rules.filter((rule) => rule.enabled).map((rule) => rule.domain);
     const excluded = config.rules.filter((rule) => !rule.enabled).map((rule) => `!${rule.domain}`);
-    setText('configRules', [...enabled, ...excluded].join('、') || '（空）');
+    setText('configRules', `${enabled.length} 个启用${excluded.length ? `、${excluded.length} 个排除` : ''}：${[...enabled, ...excluded].join('、') || '（空）'}`);
 
     setText('configWebRtc', describeWebRtc(webRtc));
 
@@ -271,8 +348,6 @@ async function renderConfig(): Promise<void> {
     setText('configMaster', `读取失败：${error instanceof Error ? error.message : String(error)}`);
   }
 }
-
-const SEVERITY_LABEL: Record<AuditSeverity, string> = { error: '必错', warn: '可疑', info: '取舍' };
 
 /** 后台读回的 WebRTC 策略：期望值来自配置，实际值与控制权来自浏览器 */
 async function readWebRtcState(): Promise<AuditEnvironment['webRtc']> {
@@ -304,6 +379,10 @@ function describeWebRtc(state: AuditEnvironment['webRtc']): string {
   return `${expected} / ${state.value || '-'}（${owner}）`;
 }
 
+// ---------- 配置体检 ----------
+
+const SEVERITY_LABEL: Record<AuditSeverity, string> = { error: '必错', warn: '可疑', info: '取舍' };
+
 /** 配置体检：把纯逻辑模块的结论渲染成清单，可点的给出修法 */
 function renderAudit(config: SiteSpoofConfig, environment: AuditEnvironment = {}): void {
   const container = document.getElementById('auditList');
@@ -314,7 +393,7 @@ function renderAudit(config: SiteSpoofConfig, environment: AuditEnvironment = {}
   if (!findings.length) {
     const ok = document.createElement('div');
     ok.className = 'audit-ok';
-    ok.textContent = '没有发现自相矛盾的配置。';
+    ok.textContent = '✓ 没有发现自相矛盾的配置。';
     container.appendChild(ok);
     return;
   }
@@ -358,6 +437,8 @@ function renderFinding(finding: AuditFinding): HTMLElement {
         button.disabled = true;
         button.textContent = '已应用，重新读取…';
         await renderConfig();
+        // 配置会热推给已打开的网页，稍等一下再复测
+        setTimeout(() => { void probeSelectedTab(); }, 600);
       })();
     });
     item.appendChild(button);
@@ -374,26 +455,24 @@ function renderFinding(finding: AuditFinding): HTMLElement {
  * 所以数字只能由 document_start 装完补丁的 runtime 自己报回来。
  */
 async function renderFontUsage(): Promise<void> {
-  const element = document.getElementById('configFontTargets');
-  const setText = (value: string) => { if (element) element.textContent = value; };
+  const report = (value: string) => setText('configFontTargets', value);
   try {
     const tabs = await chrome.tabs.query({ currentWindow: true });
     const target = tabs.find((tab) => tab.url && /^https?:/i.test(tab.url));
     if (!target || !target.url) {
-      setText('没有可比对的站点（先打开一个 http/https 页面，且该域名已启用）');
+      report('没有可比对的站点（先打开一个 http/https 页面，且该域名已启用）');
       return;
     }
     const response = await chrome.runtime.sendMessage({ action: 'getFontLayers', url: target.url });
     const layers = response && response.layers;
     if (!layers) {
-      setText(`${new URL(target.url).hostname}：尚未收到页面侧报告（打开或刷新该页后再看）`);
+      report(`${new URL(target.url).hostname}：尚未收到页面侧报告（打开或刷新该页后再看）`);
       return;
     }
-    // MAIN 桥未认证；报告只供排查，不证明当前页面已生效。
     const platformNote = layers.platform === 'auto' ? '自动' : layers.platform;
-    setText(`${new URL(target.url).hostname}：${layers.count} 条 · 平台 ${platformNote} · 中文层 ${layers.hideCjkFonts ? '隐藏' : '保留'} · 页面侧报告，未独立验证`);
+    report(`${new URL(target.url).hostname}：${layers.count} 条 · 平台 ${platformNote} · 中文层 ${layers.hideCjkFonts ? '隐藏' : '保留'} · 页面侧报告，未独立验证`);
   } catch (error) {
-    setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);
+    report(`查询失败：${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -405,8 +484,7 @@ async function renderFontUsage(): Promise<void> {
  * degraded，不能和"已生效"混成一句话。
  */
 async function renderWorkerCoverage(): Promise<void> {
-  const element = document.getElementById('workerCoverage');
-  const setText = (value: string) => { if (element) element.textContent = value; };
+  const report = (value: string) => setText('workerCoverage', value);
   try {
     const tabs = await chrome.tabs.query({ currentWindow: true });
     const target = tabs.find((tab) => tab.url && /^https?:/i.test(tab.url));
@@ -417,304 +495,86 @@ async function renderWorkerCoverage(): Promise<void> {
     const snapshot = buildWorkerDiagnosticsSnapshot({ workerFallback: fallback });
     const host = target && target.url ? new URL(target.url).hostname : '当前站点';
     const head = snapshot.classicWorker.status === 'degraded'
-      ? `⚠️ classic/module 部分覆盖 · shared/nested/service 不支持`
-      : `classic/module 声明支持 · shared/nested/service 不支持`;
+      ? '⚠️ classic/module/nested 部分覆盖 · shared/service 不支持'
+      : 'classic/module/nested 已覆盖 · shared/service 不支持';
     const note = fallback && fallback.count > 0
       ? ` · ${host} 页面侧报告 ${fallback.count} 次回退（${fallback.reasons.join('、')}），未独立验证；最近一次 ${fallback.lastScript || '未记录'}`
-      : ' · 尚未收到页面侧回退报告，不代表完整覆盖';
-    setText(`${head}${note}`);
+      : '';
+    report(`${head}${note}`);
   } catch (error) {
-    setText(`查询失败：${error instanceof Error ? error.message : String(error)}`);
+    report(`查询失败：${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-// ---------- 探测当前标签页 ----------
+// ---------- 高级：本页原生基线与手动测试 ----------
 
-/**
- * 这个函数会被 `chrome.scripting.executeScript` 序列化后注入目标页面，
- * 所以它必须**自包含** —— 任何外部引用在页面里都是 ReferenceError。
- */
-async function pageProbe() {
-  const rows: Array<{ label: string; value: string; ok?: boolean }> = [];
-  const push = (label: string, value: unknown, ok?: boolean) => {
-    rows.push({ label, value: String(value), ok });
-  };
-  const same = (label: string, expected: string, actual: string) => {
-    rows.push({ label, value: actual, ok: actual === expected });
-  };
+function renderBaseline(): void {
+  const native = nativeBaseline();
+  setText('navigatorLanguage', native.language || 'N/A');
+  setText('navigatorLanguages', native.languages.join(', ') || 'N/A');
+  setText('intlLocale', new Intl.DateTimeFormat().resolvedOptions().locale);
+  setText('intlTimezone', native.timezone);
+  const offset = new Date().getTimezoneOffset();
+  setText('timezoneOffset', `${offset}（UTC${offset > 0 ? '-' : '+'}${Math.abs(offset / 60)}）`);
+  setText('dateToString', new Date().toString());
+  setText('platform', navigator.platform || 'N/A');
+  setText('userAgent', navigator.userAgent || 'N/A');
+  const memory = (navigator as any).deviceMemory;
+  setText('hardware', `${navigator.hardwareConcurrency || 'N/A'} 核 / ${memory ? `${memory} GB` : 'N/A'}`);
+  setText('screenSize', `${screen.width} × ${screen.height} · ${window.devicePixelRatio}`);
 
-  // 时区
-  try {
-    push('Intl 时区', new Intl.DateTimeFormat().resolvedOptions().timeZone);
-    push('Intl locale', new Intl.DateTimeFormat().resolvedOptions().locale);
-    push('getTimezoneOffset()', new Date().getTimezoneOffset());
-    push('Date.toString()', new Date().toString());
-  } catch (error) {
-    push('时区', `读取失败：${error}`);
-  }
-
-  // 语言
-  push('navigator.language', navigator.language);
-  push('navigator.languages', navigator.languages.join(', '));
-  rows.push({
-    label: 'languages 冻结（FrozenArray）',
-    value: String(Object.isFrozen(navigator.languages)),
-    ok: Object.isFrozen(navigator.languages)
-  });
-
-  // Date 语义
-  try {
-    const stringDate = new Date('2026-01-01T00:00:00');
-    push('new Date("2026-01-01T00:00:00").getHours()', stringDate.getHours());
-    push('同上 toISOString()', stringDate.toISOString());
-    same('非法日期 toString()', 'Invalid Date', new Date('nope').toString());
-
-    const roundTrip = new Date('2026-01-01T00:00:00');
-    roundTrip.setHours(15, 0, 0, 0);
-    rows.push({
-      label: 'setHours(15) 往返',
-      value: String(roundTrip.getHours()),
-      ok: roundTrip.getHours() === 15
-    });
-  } catch (error) {
-    push('Date 语义', `读取失败：${error}`);
-  }
-
-  // 反检测不变量
-  rows.push({
-    label: 'Date.prototype.setHours.toString()',
-    value: Date.prototype.setHours.toString(),
-    ok: Date.prototype.setHours.toString() === 'function setHours() { [native code] }'
-  });
-  rows.push({
-    label: 'new Date() 自有属性个数',
-    value: String(Object.keys(new Date()).length),
-    ok: Object.keys(new Date()).length === 0
-  });
-  rows.push({
-    label: "document.fonts.check('12px Helvetica')",
-    value: document.fonts ? String(document.fonts.check('12px Helvetica')) : 'n/a',
-    ok: document.fonts ? document.fonts.check('12px Helvetica') === true : undefined
-  });
-
-  // 字体度量：检测脚本的标准写法（canvas 宽度探测 + 本地化名字 + OffscreenCanvas）
-  //
-  // 这一组直接复刻公开检测站的实现：单选一个字体名，和三个通用族各比一次宽度。
-  // 只要有一条命中，就说明那个字体名没有被伪装。中文名（苹方-简 / 微软雅黑）必须
-  // 单独列出来 —— 它们和拉丁名指向同一个字体，但字符串完全不同。
-  try {
-    const measureFonts = (ctx: any) => {
-      const probe = (family: string) => ['monospace', 'sans-serif', 'serif'].some((generic) => {
-        ctx.font = `72px ${generic}`;
-        const base = ctx.measureText('中文字体检测ABCabc012').width;
-        ctx.font = `72px "${family}", ${generic}`;
-        const width = ctx.measureText('中文字体检测ABCabc012').width;
-        return Math.abs(width - base) > 0.5;
-      });
-      return {
-        latin: ['SimSun', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB'].filter(probe),
-        alias: ['宋体', '苹方-简', '微软雅黑'].filter(probe),
-        vendor: ['MiSans', 'HarmonyOS Sans SC', 'OPPO Sans'].filter(probe)
-      };
-    };
-
-    const canvasCtx = document.createElement('canvas').getContext('2d');
-    const viaCanvas = canvasCtx ? measureFonts(canvasCtx) : null;
-    if (viaCanvas) {
-      for (const [key, label] of [['latin', 'canvas 拉丁名'], ['alias', 'canvas 中文别名'], ['vendor', 'canvas 厂商字体']] as const) {
-        rows.push({
-          label: `${label}探测命中`,
-          value: (viaCanvas as any)[key].join(', ') || 'none',
-          ok: (viaCanvas as any)[key].length === 0
-        });
-      }
-    }
-
-    // OffscreenCanvas 是另一条路径：只补 <canvas> 的实现会在这里全露
-    const offscreenCtx = typeof OffscreenCanvas === 'function'
-      ? new OffscreenCanvas(8, 8).getContext('2d')
-      : null;
-    if (offscreenCtx) {
-      const viaOffscreen = measureFonts(offscreenCtx);
-      rows.push({
-        label: 'OffscreenCanvas 探测命中',
-        value: [...viaOffscreen.latin, ...viaOffscreen.alias, ...viaOffscreen.vendor].join(', ') || 'none',
-        ok: viaOffscreen.latin.length + viaOffscreen.alias.length + viaOffscreen.vendor.length === 0
-      });
-    }
-  } catch (error) {
-    push('字体度量', `读取失败：${error}`);
-  }
-
-  // 本地字体清单：canvas 之外的第二条路，而且更硬 —— 直接枚举，没有阈值也没有误差。
-  // 只在权限已授予时去取，否则一探测就弹权限框，太扰人。
-  try {
-    const fontsApi = (window as any).queryLocalFonts;
-    const permission = await navigator.permissions
-      .query({ name: 'local-fonts' as any })
-      .catch(() => null);
-    const state = permission?.state || 'unknown';
-    if (typeof fontsApi !== 'function') {
-      push('queryLocalFonts', 'API 不存在（这个浏览器没实现？）');
-    } else if (state !== 'granted') {
-      push('queryLocalFonts', `未授权（${state}）：站点拿不到清单，这一层暂时无从泄漏`);
-    } else {
-      const list = await fontsApi.call(window);
-      const families = [...new Set(list.map((font: any) => font.family))];
-      const hiddenHits = ['PingFang SC', 'PingFang MO', 'Songti SC', 'SimSun', 'Microsoft YaHei']
-        .filter((name) => families.includes(name));
-      push('queryLocalFonts 条数', `${list.length} 条 / ${families.length} 个族`);
-      rows.push({
-        label: '清单里的中文族',
-        value: hiddenHits.join(', ') || 'none',
-        ok: hiddenHits.length === 0
-      });
-    }
-  } catch (error) {
-    push('queryLocalFonts', `读取失败：${error}`);
-  }
-
-  // 定位
-  try {
-    const permission = await navigator.permissions.query({ name: 'geolocation' });
-    push('permissions.geolocation', permission.state);
-  } catch {
-    push('permissions.geolocation', 'n/a');
-  }
-
-  const position = await new Promise<GeolocationPosition | null>((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (value) => resolve(value),
-      () => resolve(null),
-      { timeout: 5000 }
-    );
-  });
-  if (position) {
-    const coords: any = position.coords;
-    push('坐标', `${coords.latitude}, ${coords.longitude} ±${coords.accuracy}m`);
-    rows.push({
-      label: 'Coordinates 自有属性个数',
-      value: String(Object.keys(coords).length),
-      ok: Object.keys(coords).length === 0
-    });
-    rows.push({
-      label: 'Coordinates toStringTag',
-      value: Object.prototype.toString.call(coords),
-      ok: Object.prototype.toString.call(coords) === '[object GeolocationCoordinates]'
-    });
-  } else {
-    push('坐标', '未取得（权限被拒或超时）');
-  }
-
-  // canvas 字体度量：被伪装的字体应该和兜底字体量出一样的宽度
-  try {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (context) {
-      const measure = (family: string) => {
-        context.font = `16px ${family}`;
-        return context.measureText('mmmmmmmmmmlli').width;
-      };
-      push('measureText(monospace)', measure('monospace'));
-      push('measureText(serif)', measure('serif'));
-    }
-  } catch (error) {
-    push('canvas', `读取失败：${error}`);
-  }
-
-  return rows;
-}
-
-/**
- * 填目标下拉框。
- *
- * 不能用 `active: true, currentWindow: true` —— 本页自己就是活动标签页，
- * 那样永远探测到自己。这里把同窗口的 http(s) 标签页列出来让用户挑。
- */
-async function renderProbeTargets(): Promise<void> {
-  const select = document.getElementById('probeTarget') as HTMLSelectElement | null;
-  if (!select) return;
-
-  try {
-    const tabs = await chrome.tabs.query({ currentWindow: true });
-    const self = tabs.find((tab) => tab.active && tab.url?.startsWith('chrome-extension://'));
-    for (const tab of tabs) {
-      if (!tab.id || !tab.url || !/^https?:/i.test(tab.url)) continue;
-      const option = document.createElement('option');
-      option.value = String(tab.id);
-      option.textContent = `${tab.title || tab.url} — ${tab.url}`;
-      if (self && tab.index < self.index) option.selected = true;
-      select.appendChild(option);
-    }
-    if (!select.options.length) {
-      const option = document.createElement('option');
-      option.textContent = '（同窗口没有 http/https 标签页）';
-      option.value = '';
-      select.appendChild(option);
-    }
-  } catch (error) {
-    select.textContent = '';
-    const option = document.createElement('option');
-    option.textContent = `读取标签页失败：${error instanceof Error ? error.message : String(error)}`;
-    option.value = '';
-    select.appendChild(option);
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' as PermissionName })
+      .then((result) => setText('geolocationPermission', result.state))
+      .catch(() => setText('geolocationPermission', 'N/A'));
   }
 }
 
-async function probeActiveTab(): Promise<void> {
-  const container = document.getElementById('probeResult');
-  const select = document.getElementById('probeTarget') as HTMLSelectElement | null;
-  if (!container) return;
-  const tabId = Number(select?.value || 0);
-  if (!tabId) {
-    container.textContent = '先选一个 http/https 标签页。';
+function testGeolocation(): void {
+  if (!navigator.geolocation) {
+    setText('geolocationResult', '浏览器不支持');
     return;
   }
-  container.textContent = '探测中…';
-
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab?.url || !/^https?:/i.test(tab.url)) {
-      container.textContent = '目标不是 http/https 页面，无法探测。';
-      return;
-    }
-
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: 'MAIN',
-      func: pageProbe
-    });
-    const rows = (results?.[0]?.result || []) as Array<{ label: string; value: string; ok?: boolean }>;
-    if (!rows.length) {
-      container.textContent = '没有取到结果（页面可能拒绝了注入）。';
-      return;
-    }
-
-    container.textContent = '';
-    const target = document.createElement('p');
-    target.className = 'note';
-    target.textContent = `目标：${tab.url}`;
-    container.appendChild(target);
-
-    const table = document.createElement('table');
-    table.className = 'probe-table';
-    for (const row of rows) {
-      const tr = document.createElement('tr');
-      const label = document.createElement('td');
-      label.textContent = row.label;
-      const value = document.createElement('td');
-      value.textContent = row.value;
-      if (row.ok === true) value.className = 'probe-ok';
-      if (row.ok === false) value.className = 'probe-bad';
-      tr.append(label, value);
-      table.appendChild(tr);
-    }
-    container.appendChild(table);
-  } catch (error) {
-    container.textContent = `探测失败：${error instanceof Error ? error.message : String(error)}`;
-  }
+  setText('geolocationResult', '读取中…');
+  navigator.geolocation.getCurrentPosition(
+    (position) => setText('geolocationResult', `${position.coords.latitude}, ${position.coords.longitude} ±${position.coords.accuracy}m`),
+    (error) => setText('geolocationResult', `错误：${error.message}`)
+  );
 }
 
-document.getElementById('probeTab')?.addEventListener('click', probeActiveTab);
-void renderProbeTargets();
+let watchId: number | null = null;
+
+function testWatchPosition(): void {
+  const button = document.getElementById('testWatchPosition');
+  if (!navigator.geolocation) {
+    setText('geolocationResult', '浏览器不支持');
+    return;
+  }
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    if (button) button.textContent = 'watchPosition';
+    return;
+  }
+  let count = 0;
+  watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      count += 1;
+      setText('geolocationResult', `第 ${count} 次回调：${position.coords.latitude}, ${position.coords.longitude} ±${position.coords.accuracy}m`);
+    },
+    (error) => setText('geolocationResult', `错误：${error.message}`)
+  );
+  if (button) button.textContent = '停止 watchPosition';
+}
+
+// ---------- 启动 ----------
+
+document.getElementById('probeTab')?.addEventListener('click', () => { void probeSelectedTab(); });
+document.getElementById('probeTarget')?.addEventListener('change', () => { void probeSelectedTab(); });
+document.getElementById('testGeolocation')?.addEventListener('click', testGeolocation);
+document.getElementById('testWatchPosition')?.addEventListener('click', testWatchPosition);
+
+renderBaseline();
+void renderConfig();
+// 打开即检测：没有可检测的网页时 probeSelectedTab 会给出提示
+void renderProbeTargets().then(() => probeSelectedTab());

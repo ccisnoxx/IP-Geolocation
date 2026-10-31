@@ -1,225 +1,83 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <title>VanishGeo Leak Test</title>
+  <title>VanishGeo 诊断</title>
   <link rel="stylesheet" href="leak-test.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>VanishGeo Leak Test</h1>
-      <p class="subtitle">浏览器原生基线 + 选中标签页的实测值</p>
-      <p class="note">
-        本页运行在扩展源下，注入层不作用于这里，所以下面显示的浏览器原生基线。
-        要确认某个站点上生效的值，用「探测当前标签页」按钮，或直接打开该站点查看。
-      </p>
+      <h1>VanishGeo 诊断</h1>
+      <p class="subtitle">检查网页实际读到的时区、语言、定位，是否和你的配置一致。</p>
     </header>
 
     <section class="test-section">
-      <h2>当前配置（期望值）</h2>
-      <div class="test-content">
-        <div class="test-item">
-          <span class="label">总开关:</span>
-          <span id="configMaster" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">语言:</span>
-          <span id="configLanguage" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Accept-Language:</span>
-          <span id="configAcceptLanguage" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">时区:</span>
-          <span id="configTimezone" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">地理位置:</span>
-          <span id="configGeolocation" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">字体层（判定平台 / 中文层）:</span>
-          <span id="configFonts" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">字体层（页面侧报告）:</span>
-          <span id="configFontTargets" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Worker 覆盖（实际观察）:</span>
-          <span id="workerCoverage" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">WebRTC（期望 / 浏览器实际）:</span>
-          <span id="configWebRtc" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">启用域名:</span>
-          <span id="configRules" class="value">-</span>
-        </div>
+      <h2>站点实测</h2>
+      <div class="probe-bar">
+        <select id="probeTarget" class="probe-select" aria-label="要检测的标签页"></select>
+        <button id="probeTab" class="btn-primary">重新检测</button>
+      </div>
+      <p id="probeScope" class="scope"></p>
+      <div id="probeSummary" class="summary"></div>
+      <div id="probeResult" class="probe-result"></div>
+      <p class="note">
+        只能检测本窗口里的 http/https 网页；扩展加载前就打开的标签页要先刷新一次。
+        定位只在该网页已获授权时读取，不会弹出授权框；WebRTC 在网页里收集本机候选地址（扩展页面不受策略约束，在这里测不准）。
+        请求头 Accept-Language 无法在网页里读取，以下方配置为准。
+      </p>
+    </section>
+
+    <section class="test-section">
+      <h2>配置概览</h2>
+      <div class="kv">
+        <div class="kv-row"><span class="label">总开关</span><span id="configMaster" class="value">-</span></div>
+        <div class="kv-row"><span class="label">语言</span><span id="configLanguage" class="value">-</span></div>
+        <div class="kv-row"><span class="label">Accept-Language</span><span id="configAcceptLanguage" class="value">-</span></div>
+        <div class="kv-row"><span class="label">时区</span><span id="configTimezone" class="value">-</span></div>
+        <div class="kv-row"><span class="label">定位</span><span id="configGeolocation" class="value">-</span></div>
+        <div class="kv-row"><span class="label">WebRTC（期望 / 浏览器实际）</span><span id="configWebRtc" class="value">-</span></div>
+        <div class="kv-row"><span class="label">字体</span><span id="configFonts" class="value">-</span></div>
+        <div class="kv-row"><span class="label">字体（页面上报）</span><span id="configFontTargets" class="value">-</span></div>
+        <div class="kv-row"><span class="label">Worker 覆盖</span><span id="workerCoverage" class="value">-</span></div>
+        <div class="kv-row"><span class="label">启用域名</span><span id="configRules" class="value">-</span></div>
       </div>
     </section>
 
     <section class="test-section">
       <h2>配置体检</h2>
-      <div class="test-content">
-        <p class="note">
-          查的是"配置自己跟自己打架"，与伪装得够不够真是两件事：改了字段忘了开开关、
-          请求头和 JS 各说一套、坐标和声明时区不在一个地方。这些在本地就能发现，
-          不必等访问站点才看见。
-        </p>
-        <div id="auditList" class="audit-list"></div>
-      </div>
+      <p class="note">只检查配置本身是否自相矛盾（例如请求头和语言各说一套、时区和出口 IP 不在一处），不访问网页。</p>
+      <div id="auditList" class="audit-list"></div>
     </section>
 
-    <section class="test-section">
-      <h2>探测当前标签页</h2>
-      <div class="test-content">
-        <p class="note">
-          在选中标签页的 MAIN world 里跑一遍真实取值和反检测不变量。标签页必须是你
-          规则里启用的域名，否则看到的自然是原生值。
-        </p>
-        <div class="test-item">
-          <label class="label" for="probeTarget">目标标签页:</label>
-          <select id="probeTarget" class="probe-select"></select>
-        </div>
-        <button id="probeTab" class="btn-primary">探测选中标签页</button>
-        <div id="probeResult" class="probe-result"></div>
-      </div>
-    </section>
+    <details class="test-section advanced">
+      <summary>高级：本页原生基线与手动测试</summary>
+      <p class="note">本页运行在扩展自己的地址下，不会被伪装：这里显示的是浏览器真实值，用于和上面的实测结果对比。</p>
 
-    <section class="test-section">
-      <h2>Geolocation</h2>
-      <div class="test-content">
-        <div class="test-item">
-          <span class="label">navigator.geolocation exists:</span>
-          <span id="geolocationExists" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">getCurrentPosition result:</span>
-          <span id="geolocationResult" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Latitude:</span>
-          <span id="latitude" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Longitude:</span>
-          <span id="longitude" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Accuracy:</span>
-          <span id="accuracy" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Permission status:</span>
-          <span id="geolocationPermission" class="value">-</span>
-        </div>
-        <button id="testGeolocation" class="btn-primary">Test Geolocation</button>
-        <button id="testWatchPosition" class="btn-secondary">Test watchPosition</button>
+      <h3>原生基线</h3>
+      <div class="kv">
+        <div class="kv-row"><span class="label">navigator.language</span><span id="navigatorLanguage" class="value">-</span></div>
+        <div class="kv-row"><span class="label">navigator.languages</span><span id="navigatorLanguages" class="value">-</span></div>
+        <div class="kv-row"><span class="label">Intl 默认 locale</span><span id="intlLocale" class="value">-</span></div>
+        <div class="kv-row"><span class="label">Intl 时区</span><span id="intlTimezone" class="value">-</span></div>
+        <div class="kv-row"><span class="label">getTimezoneOffset()</span><span id="timezoneOffset" class="value">-</span></div>
+        <div class="kv-row"><span class="label">Date.toString()</span><span id="dateToString" class="value">-</span></div>
+        <div class="kv-row"><span class="label">navigator.platform</span><span id="platform" class="value">-</span></div>
+        <div class="kv-row"><span class="label">navigator.userAgent</span><span id="userAgent" class="value">-</span></div>
+        <div class="kv-row"><span class="label">CPU 核数 / 内存</span><span id="hardware" class="value">-</span></div>
+        <div class="kv-row"><span class="label">屏幕 / 像素比</span><span id="screenSize" class="value">-</span></div>
       </div>
-    </section>
 
-    <section class="test-section">
-      <h2>Language</h2>
-      <div class="test-content">
-        <div class="test-item">
-          <span class="label">navigator.language:</span>
-          <span id="navigatorLanguage" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">navigator.languages:</span>
-          <span id="navigatorLanguages" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Intl locale:</span>
-          <span id="intlLocale" class="value">-</span>
-        </div>
+      <h3>定位（本页原生）</h3>
+      <div class="kv">
+        <div class="kv-row"><span class="label">权限</span><span id="geolocationPermission" class="value">-</span></div>
+        <div class="kv-row"><span class="label">结果</span><span id="geolocationResult" class="value">-</span></div>
       </div>
-    </section>
-
-    <section class="test-section">
-      <h2>Timezone</h2>
-      <div class="test-content">
-        <div class="test-item">
-          <span class="label">Intl.DateTimeFormat timezone:</span>
-          <span id="intlTimezone" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">getTimezoneOffset():</span>
-          <span id="timezoneOffset" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Date.toString():</span>
-          <span id="dateToString" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">Date.toLocaleString():</span>
-          <span id="dateToLocaleString" class="value">-</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="test-section">
-      <h2>WebRTC</h2>
-      <div class="test-content">
-        <div class="test-item">
-          <span class="label">RTCPeerConnection exists:</span>
-          <span id="rtcExists" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">ICE candidates:</span>
-          <span id="iceCandidates" class="value">-</span>
-        </div>
-        <button id="testWebRTC" class="btn-primary">Test WebRTC</button>
-        <p class="note">Note: Limited detection without external STUN servers</p>
-      </div>
-    </section>
-
-    <section class="test-section">
-      <h2>Navigator Information</h2>
-      <div class="test-content">
-        <div class="test-item">
-          <span class="label">navigator.platform:</span>
-          <span id="platform" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">navigator.hardwareConcurrency:</span>
-          <span id="hardwareConcurrency" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">navigator.deviceMemory:</span>
-          <span id="deviceMemory" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">navigator.userAgent:</span>
-          <span id="userAgent" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">screen.width × height:</span>
-          <span id="screenSize" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">screen.colorDepth:</span>
-          <span id="colorDepth" class="value">-</span>
-        </div>
-        <div class="test-item">
-          <span class="label">devicePixelRatio:</span>
-          <span id="devicePixelRatio" class="value">-</span>
-        </div>
-      </div>
-    </section>
-
-    <footer>
-      <p class="disclaimer">
-        This page displays information that web pages can access through JavaScript.
-        本页显示的基线来自扩展源；页面生效值请用「探测当前标签页」或直接打开目标站点核对。
-      </p>
-    </footer>
+      <button id="testGeolocation" class="btn-secondary">getCurrentPosition</button>
+      <button id="testWatchPosition" class="btn-secondary">watchPosition</button>
+    </details>
   </div>
 
   <script type="module" src="leak-test.js"></script>
