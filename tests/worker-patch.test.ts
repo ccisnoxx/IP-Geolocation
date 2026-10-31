@@ -475,14 +475,14 @@ test('没有目标字体时 Worker 的绘制原样透传', () => {
   assert.equal(result.draws[0].argc, 3);
 });
 
-// ---------- 8 类 Intl 覆盖 ----------
+// ---------- 9 类 Intl 覆盖 ----------
 
 /**
- * 主线程包了 8 类 Intl 构造器，Worker 只包 2 类的话，页面只要在 Worker 里问一句
+ * 主线程包了 9 类 Intl 构造器，Worker 只包 2 类的话，页面只要在 Worker 里问一句
  * `new Intl.Collator().resolvedOptions().locale` 就能看出"主线程被动过、Worker 没动"。
  * 这里逐类钉住默认 locale —— 少一类就红。
  */
-test('Worker 的 8 类 Intl 构造器都跟着 payload 走', () => {
+test('Worker 的 9 类 Intl 构造器都跟着 payload 走', () => {
   const context = createWorkerContext(TOKYO);
   const expressions: Array<[string, string]> = [
     ['DateTimeFormat', 'new Intl.DateTimeFormat().resolvedOptions().locale'],
@@ -492,9 +492,12 @@ test('Worker 的 8 类 Intl 构造器都跟着 payload 走', () => {
     ['PluralRules', 'new Intl.PluralRules().resolvedOptions().locale'],
     ['ListFormat', 'new Intl.ListFormat().resolvedOptions().locale'],
     ['DisplayNames', 'new Intl.DisplayNames(undefined, { type: "language" }).resolvedOptions().locale'],
-    ['Segmenter', 'new Intl.Segmenter().resolvedOptions().locale']
+    ['Segmenter', 'new Intl.Segmenter().resolvedOptions().locale'],
+    ['DurationFormat', 'new Intl.DurationFormat().resolvedOptions().locale']
   ];
   for (const [name, expression] of expressions) {
+    // DurationFormat 需要较新的 V8（Node 23+ / Chrome 129+）；宿主没有就无从比较
+    if (name === 'DurationFormat' && evaluate(context, `typeof Intl.${name}`) !== 'function') continue;
     assert.equal(evaluate(context, `typeof Intl.${name}`), 'function', `${name} 不存在`);
     assert.match(evaluate(context, expression), /^ja/, `${name} 的默认 locale 没跟着 payload`);
   }
@@ -636,4 +639,62 @@ test('Worker 的 setFullYear 在 Invalid Date 上仍能成功（规范特例）'
   assert.equal(evaluate(context, 'Number.isFinite(new Date(NaN).setFullYear(2026))'), true);
   // 其余 setter 在 Invalid Date 上必须保持 NaN
   assert.equal(evaluate(context, 'Number.isNaN(new Date(NaN).setMonth(0))'), true);
+});
+
+// Worker 里的 Temporal / 默认 locale 入口：vm 上下文没有 Temporal，补丁前放一个记录入参的替身
+const FAKE_TEMPORAL = `
+  globalThis.__calls = [];
+  const record = (key, result) => function (...args) { __calls.push({ key, args }); return result(...args); };
+  const Now = {};
+  for (const key of ['instant', 'timeZoneId', 'plainDateTimeISO', 'zonedDateTimeISO', 'plainDateISO', 'plainTimeISO']) {
+    Object.defineProperty(Now, key, {
+      value: record(key, (zone) => key === 'timeZoneId' ? 'Asia/Shanghai' : key + ':' + String(zone)),
+      writable: true, enumerable: false, configurable: true
+    });
+  }
+  globalThis.Temporal = { Now };
+  for (const name of ['Instant', 'ZonedDateTime', 'Duration']) {
+    const Type = function () {};
+    Object.defineProperty(Type.prototype, 'toLocaleString', {
+      value: record(name, () => name), writable: true, enumerable: false, configurable: true
+    });
+    Temporal[name] = Type;
+  }
+  globalThis.__last = (key) => __calls.filter((call) => call.key === key).pop();
+`;
+
+test('Worker 的 Temporal 跟着目标时区走，Instant 补时区、ZonedDateTime 只补 locale', () => {
+  const context = createWorkerContext({ ...TOKYO, language: 'de-DE', languages: ['de-DE'] }, FAKE_TEMPORAL);
+  assert.equal(evaluate(context, 'Temporal.Now.timeZoneId()'), 'Asia/Tokyo');
+  assert.equal(evaluate(context, 'Temporal.Now.plainDateTimeISO()'), 'plainDateTimeISO:Asia/Tokyo');
+  assert.equal(evaluate(context, 'Temporal.Now.zonedDateTimeISO("UTC")'), 'zonedDateTimeISO:UTC');
+  evaluate(context, 'Temporal.Instant.prototype.toLocaleString.call({})');
+  assert.equal(evaluate(context, '__last("Instant").args[0]'), 'de-DE');
+  assert.equal(evaluate(context, '__last("Instant").args[1].timeZone'), 'Asia/Tokyo');
+  evaluate(context, 'Temporal.ZonedDateTime.prototype.toLocaleString.call({})');
+  assert.equal(evaluate(context, '__last("ZonedDateTime").args[0]'), 'de-DE');
+  assert.equal(evaluate(context, '__last("ZonedDateTime").args[1]'), undefined);
+  assert.equal(evaluate(context, 'Object.getOwnPropertyDescriptor(Temporal.Now, "timeZoneId").enumerable'), false);
+  assert.equal(evaluate(context, 'Function.prototype.toString.call(Temporal.Now.timeZoneId)'), 'function timeZoneId() { [native code] }');
+});
+
+test('Worker 的 Number / String / DurationFormat 默认 locale 跟着目标语言走', () => {
+  const context = createWorkerContext({ ...TOKYO, language: 'de-DE', languages: ['de-DE'] });
+  assert.equal(evaluate(context, '(1234.5).toLocaleString()'), '1.234,5');
+  assert.equal(evaluate(context, '(12345678n).toLocaleString()'), '12.345.678');
+  assert.equal(evaluate(context, '(1234.5).toLocaleString("en-US")'), '1,234.5');
+  if (evaluate(context, 'typeof Intl.DurationFormat') === 'function') {
+    assert.equal(evaluate(context, 'new Intl.DurationFormat().resolvedOptions().locale'), 'de-DE');
+  }
+  const sv = createWorkerContext({ ...TOKYO, language: 'sv-SE', languages: ['sv-SE'] });
+  assert.equal(evaluate(sv, '"ä".localeCompare("z")'), 1);
+  const tr = createWorkerContext({ ...TOKYO, language: 'tr-TR', languages: ['tr-TR'] });
+  assert.equal(evaluate(tr, '"i".toLocaleUpperCase()'), 'İ');
+});
+
+test('Worker 没有配置时 Temporal 与 locale 入口原样交还原生', () => {
+  const context = createWorkerContext({ timezone: null, language: null, languages: null, fontTargets: [] }, FAKE_TEMPORAL);
+  assert.equal(evaluate(context, 'Temporal.Now.timeZoneId()'), 'Asia/Shanghai');
+  assert.equal(evaluate(context, 'Temporal.Now.plainDateTimeISO()'), 'plainDateTimeISO:undefined');
+  assert.equal(evaluate(context, '(1234.5).toLocaleString()'), (1234.5).toLocaleString());
 });

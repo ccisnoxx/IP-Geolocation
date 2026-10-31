@@ -12,16 +12,34 @@ export const ACCEPT_LANGUAGE_RULE_ID_END = 2099;
 /** 烘焙构建里由 manifest 声明的静态规则集（配置改过之后就禁用它，交给动态规则） */
 export const BAKED_RULESET_ID = 'baked-language';
 
-const ACCEPT_LANGUAGE_RESOURCE_TYPES = [
-  'main_frame',
-  'sub_frame',
+/** 页面自己发出的子资源请求：除文档导航外，凡是会带 Accept-Language 的请求类型 */
+const SUBRESOURCE_TYPES = [
   'xmlhttprequest',
   'script',
   'stylesheet',
   'image',
   'font',
+  'media',
+  'websocket',
+  'webtransport',
+  'ping',
+  'csp_report',
+  'object',
   'other'
 ] as chrome.declarativeNetRequest.ResourceType[];
+
+const ACCEPT_LANGUAGE_RESOURCE_TYPES = [
+  'main_frame',
+  'sub_frame',
+  ...SUBRESOURCE_TYPES
+] as chrome.declarativeNetRequest.ResourceType[];
+
+/**
+ * 按发起页面匹配的规则要压过按目标域名匹配的规则（后者优先级 = 域名长度，≤ 253）：
+ * A 站页面向 B 站取资源时，请求头要和发起它的页面 JS 说同一种语言。
+ * 两类规则内部仍按域名长度排序，子域的更具体规则胜出。
+ */
+const INITIATOR_PRIORITY_BASE = 1000;
 
 function languageForRule(config: SiteSpoofConfig, rule: SiteRule): LanguageConfig | null {
   const override = rule.overrides.language;
@@ -72,26 +90,34 @@ export function buildAcceptLanguageRules(
     ])
   ];
 
-  config.rules.filter((rule) => rule.enabled).forEach((rule) => {
-    const language = languageForRule(config, rule);
-    if (!language) return;
-    if (!getEffectiveLanguage(config, rule.domain)) return;
+  const active = config.rules
+    .filter((rule) => rule.enabled)
+    .map((rule) => ({ rule, language: languageForRule(config, rule) }))
+    .filter((entry): entry is { rule: SiteRule; language: LanguageConfig } =>
+      Boolean(entry.language) && Boolean(getEffectiveLanguage(config, entry.rule.domain)));
+
+  const push = (rule: Omit<chrome.declarativeNetRequest.Rule, 'id'>): void => {
     const nextId = ACCEPT_LANGUAGE_RULE_ID_START + rules.length;
     if (nextId > ACCEPT_LANGUAGE_RULE_ID_END) {
       throw new Error('Too many Accept-Language rules');
     }
+    rules.push({ id: nextId, ...rule });
+  };
+  const headerAction = (language: LanguageConfig): chrome.declarativeNetRequest.RuleAction => ({
+    type: 'modifyHeaders' as chrome.declarativeNetRequest.RuleActionType,
+    requestHeaders: [{
+      header: 'Accept-Language',
+      operation: 'set' as chrome.declarativeNetRequest.HeaderOperation,
+      value: language.acceptLanguage
+    }]
+  });
+
+  // 1) 按目标域名：发往该站的请求（含文档导航，文档里的 navigator.language 按它自己的网址解析）
+  for (const { rule, language } of active) {
     const excludedForRule = getExcludedDomainsFor(rule.domain, excludedDomains);
-    rules.push({
-      id: nextId,
+    push({
       priority: Math.max(1, rule.domain.length),
-      action: {
-        type: 'modifyHeaders' as chrome.declarativeNetRequest.RuleActionType,
-        requestHeaders: [{
-          header: 'Accept-Language',
-          operation: 'set' as chrome.declarativeNetRequest.HeaderOperation,
-          value: language.acceptLanguage
-        }]
-      },
+      action: headerAction(language),
       condition: {
         // requestDomains 自动覆盖子域，且不依赖正则 —— Helium（Chromium 156 分支）
         // 上带 regexFilter 的 modifyHeaders 规则会把 main_frame 直接 ERR_ABORTED。
@@ -100,7 +126,23 @@ export function buildAcceptLanguageRules(
         resourceTypes: ACCEPT_LANGUAGE_RESOURCE_TYPES
       }
     });
-  });
+  }
+
+  // 2) 按发起页面：该站页面发往任何域名（CDN、接口、统计）的子资源请求。只按目标域名
+  //    匹配时这些跨站请求带的是真实语言，同一页面的流量里出现两种语言（实测）。
+  //    不含 main_frame / sub_frame：被导航到的文档按自己的网址决定语言。
+  for (const { rule, language } of active) {
+    const excludedForRule = getExcludedDomainsFor(rule.domain, excludedDomains);
+    push({
+      priority: INITIATOR_PRIORITY_BASE + rule.domain.length,
+      action: headerAction(language),
+      condition: {
+        initiatorDomains: [rule.domain],
+        ...(excludedForRule.length ? { excludedInitiatorDomains: excludedForRule } : {}),
+        resourceTypes: SUBRESOURCE_TYPES
+      }
+    });
+  }
 
   return rules;
 }
@@ -120,6 +162,8 @@ function ruleContentSignature(rule: chrome.declarativeNetRequest.Rule): string {
     headers,
     (condition.requestDomains || []).join(','),
     (condition.excludedRequestDomains || []).join(','),
+    (condition.initiatorDomains || []).join(','),
+    (condition.excludedInitiatorDomains || []).join(','),
     (condition.resourceTypes || []).slice().sort().join(',')
   ].join('#');
 }

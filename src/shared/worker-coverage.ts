@@ -32,7 +32,7 @@ export type WorkerCoverageKey =
 export const WORKER_COVERAGE: Record<WorkerCoverageKey, WorkerCoverageEntry> = {
   classicWorker: {
     status: 'supported',
-    detail: 'blob 前缀包装入口；Date / navigator / canvas 与主线程同源，Intl 覆盖与主线程同一组八类构造器。配置活更新：配置变化时向已创建的 Worker 广播一次，关闭补丁广播空配置使其回到原生值（只影响经包装构造器创建并登记过的 Worker）。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口并回报，探测未完成（毫秒级）时也走原生。'
+    detail: 'blob 前缀包装入口；Date / navigator / canvas 与主线程同源，Intl 覆盖与主线程同一组九类构造器，Temporal 与 Number / String 的默认 locale 同步。配置活更新：配置变化时向已创建的 Worker 广播一次，关闭补丁广播空配置使其回到原生值（只影响经包装构造器创建并登记过的 Worker）。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口并回报，探测未完成（毫秒级）时也走原生。'
   },
   moduleWorker: {
     status: 'supported',

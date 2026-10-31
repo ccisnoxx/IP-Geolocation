@@ -62,12 +62,51 @@ test('buildAcceptLanguageRules creates per-domain header rules from effective la
 
   const rules = buildAcceptLanguageRules(config, LOCATION);
 
-  assert.equal(rules.length, 2);
+  // 先是两条按目标域名的规则，再是两条按发起页面的规则
+  assert.equal(rules.length, 4);
   assert.equal(rules[0].id, 1100);
   assert.equal(rules[0].action.requestHeaders?.[0].value, 'en-US,en;q=0.9');
   assert.equal(rules[1].action.requestHeaders?.[0].value, 'ja-JP,ja;q=0.9');
   assert.deepEqual(rules[0].condition.requestDomains, ['example.com']);
   assert.equal(rules[0].condition.regexFilter, undefined);
+  assert.ok(rules[0].condition.resourceTypes?.includes('main_frame' as chrome.declarativeNetRequest.ResourceType));
+  assert.ok(rules[0].condition.resourceTypes?.includes('websocket' as chrome.declarativeNetRequest.ResourceType), 'WebSocket 握手同样带 Accept-Language');
+  assert.ok(rules[0].condition.resourceTypes?.includes('media' as chrome.declarativeNetRequest.ResourceType));
+});
+
+test('页面发往其它域名的子资源请求按发起页面的语言改写，并压过目标域名自己的规则', () => {
+  const config = normalizeConfig({
+    masterEnabled: true,
+    globalProfile: { language: { enabled: true, mode: 'preset', language: 'en-US', languages: ['en-US', 'en'], acceptLanguage: 'en-US,en;q=0.9' } } as any,
+    rules: [
+      { domain: 'example.com', enabled: true },
+      {
+        domain: 'example.org',
+        enabled: true,
+        overrides: { language: { mode: 'override', value: { language: 'ja-JP', languages: ['ja-JP'], acceptLanguage: 'ja-JP,ja;q=0.9' } } }
+      }
+    ]
+  } as any);
+  const rules = buildAcceptLanguageRules(config, null);
+  const byRequest = rules.filter((rule) => rule.condition.requestDomains);
+  const byInitiator = rules.filter((rule) => rule.condition.initiatorDomains);
+  assert.equal(byRequest.length, 2);
+  assert.equal(byInitiator.length, 2);
+
+  const fromCom = byInitiator.find((rule) => rule.condition.initiatorDomains?.[0] === 'example.com')!;
+  assert.equal(fromCom.action.requestHeaders?.[0].value, 'en-US,en;q=0.9');
+  assert.equal(fromCom.condition.requestDomains, undefined, '不限目标域名：CDN / 接口 / 统计都要覆盖');
+  // 文档导航按被导航到的网址决定语言，不能被发起页面改写
+  assert.ok(!fromCom.condition.resourceTypes?.includes('main_frame' as chrome.declarativeNetRequest.ResourceType));
+  assert.ok(!fromCom.condition.resourceTypes?.includes('sub_frame' as chrome.declarativeNetRequest.ResourceType));
+  assert.ok(fromCom.condition.resourceTypes?.includes('xmlhttprequest' as chrome.declarativeNetRequest.ResourceType));
+
+  // example.com 页面请求 example.org 的资源：两条规则同时命中，发起页面那条必须胜出
+  const orgByRequest = byRequest.find((rule) => rule.condition.requestDomains?.[0] === 'example.org')!;
+  assert.ok((fromCom.priority ?? 0) > (orgByRequest.priority ?? 0));
+  // 发起页面规则之间仍按域名长度排序：子域的更具体规则胜出
+  const priorities = byInitiator.map((rule) => rule.priority ?? 0);
+  assert.ok(priorities.every((priority) => priority > 1000));
 });
 
 // ── 静态 ruleset（烘焙构建）────────────────────────────────────────────────
@@ -115,7 +154,7 @@ test('buildStaticAcceptLanguageRules 从 1 开始编号，内容与动态规则�
   const dynamic = buildAcceptLanguageRules(config, LOCATION);
   const statics = buildStaticAcceptLanguageRules(config, LOCATION);
 
-  assert.deepEqual(statics.map((rule) => rule.id), [1]);
+  assert.deepEqual(statics.map((rule) => rule.id), [1, 2]);
   assert.deepEqual(statics[0].condition.requestDomains, dynamic[0].condition.requestDomains);
   assert.deepEqual(statics[0].action, dynamic[0].action);
 });
@@ -171,10 +210,10 @@ test('auto 时区拿不到定位时，Accept-Language 照样发（语言不依�
   // 定位还没回来：时区解析不出来，但语言是确定的 —— 头必须发，否则就会出现
   // 「请求头 zh-CN、页面 en-US」这种一眼可查的矛盾（真机实测踩过）
   const rules = buildAcceptLanguageRules(config, null);
-  assert.equal(rules.length, 1);
+  assert.equal(rules.length, 2);
   assert.equal(rules[0].action.requestHeaders?.[0].value, 'en-US,en;q=0.9');
   assert.deepEqual(rules[0].condition.requestDomains, ['claude.ai']);
-  assert.equal(buildStaticAcceptLanguageRules(config, null).length, 1);
+  assert.equal(buildStaticAcceptLanguageRules(config, null).length, 2);
 
   // 注入侧：语言注入，时区留空（页面不会拿到假的时区）
   const profile = getEffectiveProfile(config, 'claude.ai', null);
@@ -199,7 +238,7 @@ test('auto 时区拿不到定位时，Accept-Language 照样发（语言不依�
     timezoneOffset: -7,
     updateTime: '2026-01-01 00:00:00'
   });
-  assert.equal(located.length, 1);
+  assert.equal(located.length, 2);
   assert.equal(located[0].action.requestHeaders?.[0].value, 'en-US,en;q=0.9');
 
   // 手动时区不受定位影响
@@ -212,7 +251,7 @@ test('auto 时区拿不到定位时，Accept-Language 照样发（语言不依�
     },
     rules: [{ domain: 'claude.ai', enabled: true }]
   } as any);
-  assert.equal(buildAcceptLanguageRules(manual, null).length, 1);
+  assert.equal(buildAcceptLanguageRules(manual, null).length, 2);
 });
 
 test('语言规则覆盖显式排除域，超过 ID 上限时抛错', () => {
@@ -225,8 +264,9 @@ test('语言规则覆盖显式排除域，超过 ID 上限时抛错', () => {
     ]
   } as any);
   const rules = buildAcceptLanguageRules(excluded, null);
-  assert.equal(rules.length, 1);
+  assert.equal(rules.length, 2);
   assert.deepEqual(rules[0].condition.excludedRequestDomains, ['mail.example.com']);
+  assert.deepEqual(rules[1].condition.excludedInitiatorDomains, ['mail.example.com']);
 
   const tooMany = normalizeConfig({
     masterEnabled: true,
