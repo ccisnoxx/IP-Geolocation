@@ -5,7 +5,8 @@
  *   - 默认域名写成 13 个（实际 20 个）
  *   - 预设包写成 singapore / japan / germany / united-states / china（实际只有
  *     DEFAULT_PROFILES 里的三个）
- *   - 安全承诺写成"私有 MessagePort 下发配置"（实际是开放的 P1 桥）
+ *   - 安全承诺写成"私有 MessagePort 下发配置"（当时实际是开放的 P1 桥；2.4.3 修复后
+ *     也只写依赖时序的同步握手与剩余边界，不写"页面无法伪造"这类绝对表述）
  *
  * 这些用例用一份临时产物目录跑真实的 scripts/release-notes.mjs，断言正文里的数字、
  * 包名、承诺全部来自数据：数据一变正文跟着变，数据对不上直接失败。
@@ -93,8 +94,11 @@ test('Release 正文里的数字与包名全部来自产物', () => {
       assert.ok(!body.includes(absent), `正文里出现了不存在的包/时区：${absent}`);
     }
 
-    // 安全承诺：写"开放的 P1 + 权限已分权"，不写"私有 / 页面无法伪造"
-    assert.ok(body.includes('已知缺口（P1）'), '正文必须写出 P1 桥缺口');
+    // 安全承诺：写"P1 已修复 + 依赖时序的前提 + 剩余边界 + 权限已分权"，不写"私有 / 页面无法伪造"
+    assert.ok(body.includes('P1 已修复'), '正文要写出 P1 的当前状态');
+    assert.ok(!body.includes('已知缺口（P1）'), '正文还在写已修复的 P1 缺口');
+    assert.ok(body.includes('不是密码学证明'), '正文要写明同步握手依赖时序，不是密码学证明');
+    assert.ok(body.includes('剩余边界'), '正文要写出剩余边界');
     assert.ok(body.includes('REVIEW-P1-BRIDGE.md'), '正文要指到细节文档');
     assert.ok(body.includes('按来源分权'), '正文要写后台权限边界已加固');
     for (const lie of ['私有 MessagePort', '私有且页面无法伪造', '页面无法伪造', '私有端口']) {

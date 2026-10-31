@@ -169,14 +169,17 @@ ${tableRows}
 后台已按来源分权：内容脚本只能调用 \`getPayloadForUrl\` / \`reportFontLayers\` /
 \`reportWorkerFallback\`，UI 页面只能调用自己那几个 action，任意管理动作不再能从内容桥转发。
 
-**已知缺口（P1）**：MAIN world 消息桥仍缺少可验证的扩展身份 —— 握手的端口由页面可观察的
-\`postMessage\` 递交，构建 nonce 随发行包公开，因此页面可以抢先握手并向 runtime 提交
-伪造 payload，破坏**当前页面**的配置完整性。它拿不到 \`chrome.*\` 特权 API，但
-"页面里的环境值是扩展不可伪造地证明的"这句话不成立。细节见 \`REVIEW-P1-BRIDGE.md\`。
+**MAIN 消息桥（P1 已修复）**：注入层与内容桥在 \`document_start\` 同步握手 —— 桥先挂监听，
+注入层同步派发携带端口的事件，此时页面还没有任何脚本执行过；注入层不监听任何 window 事件，
+后台也不再向已打开的标签页晚注入注入层。这依赖"内容脚本先于页面脚本执行"的浏览器时序
+（已在 Chrome 119 / 156 实测），不是密码学证明；构建 nonce 仍随发行包公开，只作消息标识。
+剩余边界：注入层缺席而桥存在的文档里，页面可以读到本 frame 的 payload 并伪造诊断回报，
+但拿不到注入层的控制入口。细节见 \`REVIEW-P1-BRIDGE.md\`。
 
-Known gap (P1): the MAIN-world message bridge has no verifiable extension identity, so a page
-can race the handshake and submit a forged payload. It cannot reach \`chrome.*\`, but page-side
-values are not cryptographically attested by the extension.
+MAIN-world bridge (P1 fixed): the injection layer and the content bridge now hand over the port
+synchronously at \`document_start\`, before any page script runs, and the injection layer listens
+to no window events. This relies on content-script timing (verified on Chrome 119 / 156), not on
+cryptographic attestation; tabs opened before the extension loaded need a reload.
 
 ### 变更 / Changelog
 

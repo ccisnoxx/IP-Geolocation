@@ -91,7 +91,8 @@ permissions:
 
 Release 正文**不是手写的**。域名条数来自 `src/shared/default-domains.json`，包清单来自
 `release/*.json` 里的真实产物体检（标签、时区、语言、`Accept-Language`、域名覆盖、
-静态规则条数），安全承诺固定成"后台权限已分权 + MAIN 桥 P1 已开放"的表述。任何一处
+静态规则条数），安全承诺固定成"后台权限已分权 + MAIN 桥 P1 已修复（依赖时序的同步握手，
+附剩余边界）"的表述。任何一处
 对不上（旧版本包混进来、summary 少了 zip、包里的域名和默认清单分叉）都直接失败，
 而不是发一段描述着不存在资产的文案。守卫用例：`tests/release-notes.test.ts`、
 `tests/changelog.test.ts`。
