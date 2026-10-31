@@ -7,7 +7,7 @@ import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY } from '../src/background/ip-syn
 /**
  * 这两组不变量是重构后必须一直成立的：
  *
- *  A. 同一个文档里 runtime.js 只执行一次（不管保存几次配置、SW 醒了几回）
+ *  A. 后台从不执行 runtime.js：它只由注册的内容脚本在 document_start 装上
  *  B. 配置变化不触发 IP 定位（fetch 只由 bootstrap 的首次定位 / 手动重试 / alarm 发起）
  *
  * 用假 chrome 跑真实 services，而不是对源码做文本断言 —— 后者只能证明"代码写着"，
@@ -43,7 +43,6 @@ interface Harness {
     /** 每次 updateDynamicRules 写进去的 addRules，用来断言"最后一次写的是什么" */
     dnrWrites: Array<any[]>;
   };
-  setDocumentId(id: string): void;
   storage: Record<string, any>;
   sessionStorage: Record<string, any>;
 }
@@ -58,7 +57,6 @@ function createHarness(options: {
   registeredScripts?: any[];
   registerError?: string;
   sessionError?: boolean;
-  mainInjectError?: boolean;
   reloadError?: boolean;
   geoPayload?: any;
   /** 卡住 IP 接口：用来把"接口还没回来"这段时间腾出来做别的事 */
@@ -91,7 +89,7 @@ function createHarness(options: {
   const local: Record<string, any> = {};
   const session: Record<string, any> = {};
   const frameReceipts = new Map<string, unknown>();
-  let documentId = 'doc-1';
+  const documentId = 'doc-1';
   const tabs = options.tabs || [{ id: 7, url: TAB_URL }];
   const framesForTab = (tabId: number): NonNullable<typeof options.frames> => {
     if (options.frames) return options.frames;
@@ -143,7 +141,6 @@ function createHarness(options: {
       executeScript: async (details: any) => {
         if (details.files) {
           stats.fileInjections += 1;
-          if (options.mainInjectError) throw new Error('main inject failed');
           return [{ documentId, frameId: 0 }];
         }
         // 无文件的脚本包括 documentId、blob 列表和精确父窗口探测。
@@ -265,49 +262,22 @@ function createHarness(options: {
   return {
     services: createBackgroundServices(),
     stats,
-    setDocumentId: (id: string) => { documentId = id; },
     storage: local,
     sessionStorage: session
   };
 }
 
-test('runtime 的脚本注入按 documentId 去重：同一个文档只执行一次', async () => {
+test('后台从不晚注入 runtime：配置应用与标签页同步只投递 payload', async () => {
   const harness = createHarness();
   const config = await harness.services.getSiteConfig();
 
   await harness.services.applyConfig(config);
-  assert.equal(harness.stats.fileInjections, 1, '第一次应用应该装一次 runtime');
-
-  // 配置改一点再应用两次：签名不同会真的重跑，但文档还是同一个
   await harness.services.applyConfig({ ...config, debugMode: true });
-  await harness.services.applyConfig({ ...config, debugMode: false });
-  assert.equal(harness.stats.fileInjections, 1, '同一个 documentId 不允许重复执行 runtime.js');
+  await harness.services.syncTab(7, TAB_URL);
+  // 晚注入时页面脚本已在运行，同步握手不成立，页面可借 runtime 改写或清除伪装；
+  // runtime 只能由注册的内容脚本在 document_start 装上。
+  assert.equal(harness.stats.fileInjections, 0, '后台不允许执行 runtime.js');
   assert.ok(harness.stats.payloadPushes >= 3, 'payload 仍然每次都要投递');
-
-  // 导航到新文档：documentId 变了，才允许再装一次
-  harness.setDocumentId('doc-2');
-  await harness.services.applyConfig({ ...config, debugMode: true });
-  assert.equal(harness.stats.fileInjections, 2, '新文档应该重新注入');
-});
-
-test('内容脚本上报过 documentId 后，冷启动兜底不会再执行脚本', async () => {
-  const harness = createHarness();
-  const config = await harness.services.getSiteConfig();
-
-  await harness.services.noteDocumentInjected('doc-1');
-  await harness.services.applyConfig(config);
-
-  assert.equal(harness.stats.fileInjections, 0, '注册的内容脚本已经装过了，不应再执行一次');
-  assert.equal(harness.stats.payloadPushes, 1, 'payload 仍要投递');
-});
-
-test('拿不到 documentId 时宁可少装一次，也不重复执行', async () => {
-  const harness = createHarness();
-  const config = await harness.services.getSiteConfig();
-  harness.setDocumentId('');
-
-  await harness.services.applyConfig(config);
-  assert.equal(harness.stats.fileInjections, 0);
 });
 
 test('保存配置不触发 IP 定位，重复保存也不重复应用副作用', async () => {
@@ -934,18 +904,6 @@ test('openDiagnosticPage 和 reloadAffectedTabs 的边界', async () => {
   assert.deepEqual(harness.stats.reloads.sort(), [1, 4]);
 });
 
-test('loadInjectedDocuments 会话不可用 / 历史 documentId 去重', async () => {
-  const harness = createHarness({ sessionError: true });
-  const config = await harness.services.getSiteConfig();
-  await harness.services.applyConfig(config);
-  assert.equal(harness.stats.fileInjections, 1, 'session 失败也要能装');
-
-  const harness2 = createHarness();
-  harness2.sessionStorage.injectedDocumentIds = ['doc-1', '', 42];
-  await harness2.services.applyConfig(await harness2.services.getSiteConfig());
-  assert.equal(harness2.stats.fileInjections, 0, '历史 session 已记录文档');
-});
-
 test('reportFontLayers / getFontLayers 的空 URL、非法层和自动平台分支', () => {
   const harness = createHarness();
   harness.services.reportFontLayers('', { count: 1 });
@@ -975,12 +933,6 @@ test('syncTab 跳过非 http、无 webNavigation、frames 报错和不可脚本 
   ] });
   await harness2.services.applyConfig(await harness2.services.getSiteConfig());
   assert.ok(harness2.stats.payloadPushes > 0);
-});
-
-test('runtime 注入失败只记录 warning，不阻断 payload 投递', async () => {
-  const harness = createHarness({ mainInjectError: true });
-  await harness.services.syncTab(7, TAB_URL);
-  assert.ok(harness.stats.payloadPushes > 0);
 });
 
 test('pushPayload 投递失败不抛出，clear 失败也不抛出', async () => {

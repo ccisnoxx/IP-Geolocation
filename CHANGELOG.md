@@ -2,6 +2,16 @@
 
 只记对使用者有影响的变化。格式按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号跟 `manifest.json` 一致。
 
+## 未发布
+
+- 关闭消息桥 P1：注入层与内容桥改为在 `document_start` 同步握手（桥先挂监听，注入层同步派发携带私有端口的事件），
+  注入层不再监听任何 window 消息，页面无法伪造握手、读取 nonce 或推送 / 清除配置
+- 后台不再向已打开的标签页晚注入注入层：扩展装载前已打开的标签页需刷新后生效；
+  此前任何站点（包括不在规则里的站点）都可借晚注入的注入层探测到扩展并改写自身的伪装值
+- 烘焙构建的静态 `content_scripts` 改为桥在前、注入层在后
+- 修复 Chrome 119 上 blob / data 子框架偶发停在原生值：119 的 `tabs.sendMessage` 不按 `documentId` 隔离，
+  同 frame 旧文档的帧凭证会落到新文档，导致后台每次都按身份不符拒绝；桥收到该错误时丢弃旧凭证再重试
+
 ## 2.4.2
 
 - 函数伪装：`Function.prototype.toString` 的替换物改成方法形状 —— 没有自有 `prototype`、

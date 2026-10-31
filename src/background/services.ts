@@ -55,31 +55,6 @@ function frozenBakedConfig(): SiteSpoofConfig | null {
 const MAIN_RUNTIME_FILES = ['injected/runtime.js'];
 const BRIDGE_FILES = ['content/content.js'];
 
-/**
- * 去重账本的持久化位置与容量上限。账本本身在 `createBackgroundServices` 的闭包里
- * （每个实例独立，测试之间不串），这里只放不会变的常量。
- */
-const INJECTED_DOCS_KEY = 'injectedDocumentIds';
-const MAX_INJECTED_DOCS = 500;
-
-/**
- * 读当前主框架的 `documentId` 且不执行任何业务脚本（隔离世界里的空函数，
- * 页面上看不见）。拿不到就返回空串 —— 调用方据此跳过注入，
- * 宁可少装一次，也不重复执行。
- */
-async function currentDocumentId(tabId: number): Promise<string> {
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => 0,
-      world: 'ISOLATED'
-    }) as Array<{ documentId?: string }>;
-    return results?.[0]?.documentId || '';
-  } catch {
-    return '';
-  }
-}
-
 // 出口 IP 接口的解析与请求都搬到了 `geo-api`（自动跟随出口 IP 也要用同一份校验）。
 // 这里保留同名导出，调用方（smoke 脚本 / 测试 / 其它模块）不受影响。
 export { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
@@ -136,13 +111,11 @@ export interface BackgroundServices {
   getExitIpSyncState(): Promise<{ storedIp: string; lastLocation: LastLocation | null }>;
   /** 让「跟随出口 IP」的 alarm 与当前配置对齐；返回对齐后是否应在运行 */
   ensureIpSyncAlarm(): Promise<boolean>;
-  /** 单条注入路径：确保文档里有 runtime，然后投递 payload（两者都幂等） */
+  /** 把 payload 投递给标签页里已由注册内容脚本装好的桥；不注入任何脚本 */
   syncTab(tabId: number, url: string, options?: {
     config?: SiteSpoofConfig;
     lastLocation?: LastLocation | null;
   }): Promise<void>;
-  /** 内容脚本上报自己的 documentId：说明该文档已经由注册的内容脚本装过 runtime */
-  noteDocumentInjected(documentId?: string): Promise<void>;
   getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
   getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
     domain: string;
@@ -167,57 +140,6 @@ export interface BackgroundServices {
 export function createBackgroundServices(): BackgroundServices {
   const frameRules = createFrameRuleResolver();
   const resolveFrameRuleUrl = frameRules.resolve;
-  /**
-   * 已经装过 runtime.js 的文档（`documentId`）。
-   *
-   * 只存在于扩展侧（内存 + `chrome.storage.session`），页面上没有任何痕迹 ——
-   * 这比在 window 上挂一个 marker 更安全：后者 `Object.getOwnPropertySymbols(window)`
-   * 能枚举到，等于主动告诉页面"这里被动过"。
-   *
-   * 放进工厂闭包而不是模块作用域：一是每个实例独立（测试之间不会互相污染），
-   * 二是模块级可变状态在 SW 重启后本来就和内存一起消失，语义上就该属于实例。
-   */
-  const injectedDocuments = new Set<string>();
-  let injectedDocumentsReady: Promise<void> | null = null;
-
-  /** 从 `chrome.storage.session` 捞回上一次 SW 生命周期里的账本 */
-  function loadInjectedDocuments(): Promise<void> {
-    if (!injectedDocumentsReady) {
-      injectedDocumentsReady = (async () => {
-        try {
-          const stored = await chrome.storage.session.get(INJECTED_DOCS_KEY);
-          const ids = stored[INJECTED_DOCS_KEY];
-          if (Array.isArray(ids)) {
-            ids.forEach((id: unknown) => {
-              if (typeof id === 'string' && id) injectedDocuments.add(id);
-            });
-          }
-        } catch {
-          /* 没有 session 区（或测试替身没实现）时退化成纯内存去重 */
-        }
-      })();
-    }
-    return injectedDocumentsReady;
-  }
-
-  async function noteDocumentInjected(documentId?: string): Promise<void> {
-    if (!documentId) return;
-    await loadInjectedDocuments();
-    if (injectedDocuments.has(documentId)) return;
-    injectedDocuments.add(documentId);
-
-    let ids = Array.from(injectedDocuments);
-    if (ids.length > MAX_INJECTED_DOCS) {
-      ids = ids.slice(ids.length - MAX_INJECTED_DOCS);
-      injectedDocuments.clear();
-      ids.forEach((id) => injectedDocuments.add(id));
-    }
-    try {
-      await chrome.storage.session.set({ [INJECTED_DOCS_KEY]: ids });
-    } catch {
-      /* 同上：内存去重已经生效，持久化失败不影响正确性 */
-    }
-  }
 
   /**
    * 内存快照。
@@ -317,7 +239,20 @@ export function createBackgroundServices(): BackgroundServices {
 
     // 已存在时走 updateContentScripts：unregister + register 之间有一个窗口期，
     // 这期间加载的页面不会有任何脚本注入，等于裸奔一次。
+    // 桥排在 runtime 前面：握手要求 ISOLATED 先挂监听（见 content-bridge.ts 的 BRIDGE_EVENT）。
+    // Chrome 119 / 156 实测动态注册时不论注册顺序都先跑 ISOLATED，这里按依赖顺序声明。
     const definitions: chrome.scripting.RegisteredContentScript[] = [
+      {
+        id: BRIDGE_SCRIPT_ID,
+        matches,
+        ...(excludeMatches.length ? { excludeMatches } : {}),
+        js: BRIDGE_FILES,
+        runAt: 'document_start',
+        allFrames: true,
+        matchOriginAsFallback: true,
+        world: 'ISOLATED',
+        persistAcrossSessions: true
+      },
       {
         id: MAIN_RUNTIME_SCRIPT_ID,
         matches,
@@ -331,17 +266,6 @@ export function createBackgroundServices(): BackgroundServices {
         // matchOriginAsFallback 让这类 frame 按其**创建者**的来源参与匹配。
         matchOriginAsFallback: true,
         world: 'MAIN',
-        persistAcrossSessions: true
-      },
-      {
-        id: BRIDGE_SCRIPT_ID,
-        matches,
-        ...(excludeMatches.length ? { excludeMatches } : {}),
-        js: BRIDGE_FILES,
-        runAt: 'document_start',
-        allFrames: true,
-        matchOriginAsFallback: true,
-        world: 'ISOLATED',
         persistAcrossSessions: true
       }
     ];
@@ -612,40 +536,12 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   /**
-   * 确保当前文档里有 runtime —— **唯一的脚本注入入口**。
+   * 推 payload 给指定标签页的所有 frame；没有桥的文档静默落空。
    *
-   * 正常导航由注册的内容脚本在 `document_start` 装上，这里只兜住"文档比注册更早
-   * 存在"的冷标签页（先开页面再加白名单、或刚启用扩展）。是否装过用 `documentId`
-   * 判定，状态只留在扩展侧，页面上没有 marker。
-   */
-  async function ensureRuntimeInDocument(tabId: number, url: string): Promise<void> {
-    if (!isScriptableUrl(url)) return;
-    await loadInjectedDocuments();
-
-    const documentId = await currentDocumentId(tabId);
-    // 拿不到 documentId 就跳过：宁可这一次少装，也不要重复执行一遍 runtime.js
-    if (!documentId || injectedDocuments.has(documentId)) return;
-
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId, allFrames: true },
-        files: MAIN_RUNTIME_FILES,
-        injectImmediately: true,
-        world: 'MAIN'
-      });
-      await noteDocumentInjected(documentId);
-    } catch (error) {
-      console.warn(`VanishGeo could not install runtime in tab ${tabId}:`, error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  /** 只负责投递 payload：runtime 不在就静默落空，绝不重复执行脚本 */
-  /**
-   * 推 payload 给指定标签页的所有 frame。
-   *
-   * 走 `tabs.sendMessage` 交给 ISOLATED 桥，由桥转进 MessagePort。
-   * 端口握手仍可由页面构造，构建 nonce 也不是秘密；后台 sender 分权不会修复
-   * MAIN 端的控制消息认证缺口。这里只描述投递路径，不承诺通道身份或保密性。
+   * 走 `tabs.sendMessage` 交给 ISOLATED 桥，由桥转进 document_start 同步握手得到的
+   * 私有 MessagePort。runtime 只由注册的内容脚本在 document_start 装上：扩展装载前
+   * 已打开的标签页（冷标签页）不再晚注入 —— 晚注入时页面脚本已在运行，同步握手的
+   * 前提不成立，实测页面可借晚注入的 runtime 改写或清除伪装。冷标签页刷新后生效。
    */
   async function pushPayload(tabId: number, payload: unknown | null, frameId?: number, documentId?: string): Promise<void> {
     try {
@@ -723,7 +619,7 @@ export function createBackgroundServices(): BackgroundServices {
     await Promise.all(workers);
   }
 
-  /** 单标签页同步：装（幂等）+ 按 frame 推 payload（幂等） */
+  /** 单标签页同步：按 frame 推 payload（幂等），不注入脚本 */
   async function syncTab(tabId: number, url: string, options?: {
     config?: SiteSpoofConfig;
     lastLocation?: LastLocation | null;
@@ -736,7 +632,6 @@ export function createBackgroundServices(): BackgroundServices {
       ? options?.lastLocation || null
       : await getLastLocation();
 
-    await ensureRuntimeInDocument(tabId, url);
     if (config.masterEnabled === false) {
       // 总关适用于所有文档：119 连脚本枚举也可能漏 blob，不能依赖发现列表清除。
       try { await chrome.tabs.sendMessage(tabId, { action: 'applyPayload', clear: true, globalDisabled: true }); }
@@ -1301,7 +1196,6 @@ export function createBackgroundServices(): BackgroundServices {
     getExitIpSyncState,
     ensureIpSyncAlarm,
     syncTab,
-    noteDocumentInjected,
     getPayloadForUrl,
     getCurrentTabState,
     addDomainRule,

@@ -60,8 +60,6 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
       }
       case 'getPayloadForUrl': {
         if (caller.kind === 'content') {
-          // 已验证文档中的桥正在运行：保留同文档幂等提示，但这不认证 MAIN 安装。
-          await services.noteDocumentInjected(caller.documentId);
           return { status: 'ok', ...(await services.getPayloadForUrl(caller.effectiveUrl)), effectiveUrl: caller.effectiveUrl, ...(caller.frameEvidence ? { frameEvidence: caller.frameEvidence } : {}) };
         }
         return { status: 'ok', ...(await services.getPayloadForUrl(request.url || sender.url || '')) };
