@@ -141,6 +141,20 @@ const pageA = await openPageStable(cdp, pageUrl);
 const pageB = await openPageStable(cdp, pageUrl);
 await sleep(800);
 
+// 嵌套：父 Worker 里用**相对路径**再建子 Worker —— 既验子 Worker 被接管，也验相对路径
+// 按原脚本地址解析（父 Worker 的入口是 blob，按 location 解析会落到 blob: 上）
+const NESTED_PROBE = `new Promise((resolve) => {
+  const worker = new Worker('nested-parent.js');
+  const timer = setTimeout(() => { worker.terminate(); resolve({ status: 'timeout' }); }, 5000);
+  worker.onmessage = (event) => { clearTimeout(timer); worker.terminate(); resolve(event.data); };
+  worker.onerror = (event) => {
+    clearTimeout(timer);
+    worker.terminate();
+    resolve({ status: 'error', error: event && event.message ? event.message : 'nested parent failed' });
+  };
+  worker.postMessage({ childUrl: 'nested-child.js' });
+})`;
+
 const CLASSIC_PROBE = `new Promise((resolve) => {
   const worker = new Worker('worker-classic.js');
   const timer = setTimeout(() => { worker.terminate(); resolve({ status: 'timeout' }); }, 5000);
@@ -202,6 +216,15 @@ check(
   'classic Worker 初始化没有被打断（blob 前缀没有让构造失败）',
   Boolean(classic) && typeof classic.status === 'undefined',
   String(classic && classic.status)
+);
+
+const nested = await evaluate(cdp, pageA.sessionId, NESTED_PROBE, { awaitPromise: true });
+check(
+  '嵌套 Worker 被接管：孙 Worker 的时区/语言跟着规则走',
+  Boolean(nested) && nested.status === 'ok' && nested.result
+    && nested.result.timezone === 'Asia/Tokyo' && nested.result.language === 'ja-JP'
+    && nested.result.numberFormatLocale === 'ja-JP',
+  JSON.stringify(nested)
 );
 
 const sharedA = await evaluate(cdp, pageA.sessionId, SHARED_PROBE('vg-share'), { awaitPromise: true });

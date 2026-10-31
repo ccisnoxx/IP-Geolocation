@@ -55,7 +55,7 @@ export function buildWorkerDiagnosticsSnapshot(input: any) {
     classicWorker: withCoverage('classicWorker', normalized.classicWorker, '', fallback),
     moduleWorker: withCoverage('moduleWorker', normalized.moduleWorker, '', fallback),
     sharedWorker: withCoverage('sharedWorker', normalized.sharedWorker),
-    nestedWorker: withCoverage('nestedWorker', normalized.nestedWorker, 'Nested worker boundary recorded.'),
+    nestedWorker: withCoverage('nestedWorker', normalized.nestedWorker, '', fallback),
     serviceWorker: withCoverage('serviceWorker', normalized.serviceWorker, 'Service worker registration hook is not installed.')
   };
 }

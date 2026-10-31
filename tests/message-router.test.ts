@@ -32,6 +32,7 @@ function createServices(overrides: Record<string, any> = {}) {
     resolveFrameRuleUrl: resolver.resolve,
     resolveFrameRuleContext: resolver.resolveForContent,
     webRtcPolicies: { strict: 'disable_non_proxied_udp' },
+    readWebRtcPolicy: record('readWebRtcPolicy', { value: 'disable_non_proxied_udp', levelOfControl: 'controlled_by_this_extension' }),
     updateGeolocation: record('updateGeolocation', { ok: true }),
     getExtensionState: record('getExtensionState', { enabled: true }),
     setExtensionEnabled: record('setExtensionEnabled', { masterEnabled: true }),
@@ -238,6 +239,18 @@ test('getWebRtcConfig 返回规范化配置和生效策略', async () => {
   const response = await router.respond({ action: 'getWebRtcConfig' }, uiSender());
   assert.equal(response.status, 'ok');
   assert.equal(response.state.effectivePolicy, 'disable_non_proxied_udp');
+  assert.deepEqual(response.state.actual, { value: 'disable_non_proxied_udp', levelOfControl: 'controlled_by_this_extension' });
+});
+
+test('getWebRtcConfig 读回失败时 actual 为 null，不让整个响应失败', async () => {
+  installChrome();
+  const { services } = createServices({
+    getSiteConfig: async () => ({ masterEnabled: true, webRtc: { enabled: true, globalMode: 'strict' } }),
+    readWebRtcPolicy: async () => { throw new Error('privacy API unavailable'); }
+  });
+  const response = await createBackgroundMessageRouter(services).respond({ action: 'getWebRtcConfig' }, uiSender());
+  assert.equal(response.status, 'ok');
+  assert.equal(response.state.actual, null);
 });
 
 test('getCurrentTabState 传 tabId 时按该标签页算，否则取当前活动标签页', async () => {
@@ -316,7 +329,7 @@ test('已知 action 都能路由到对应 service（表驱动，防止新增 act
     setSiteConfig: ['saveSiteConfig'],
     resetSiteConfig: ['saveSiteConfig'],
     setWebRtcGlobalMode: ['setWebRtcGlobalMode'],
-    getWebRtcConfig: ['getSiteConfig'],
+    getWebRtcConfig: ['getSiteConfig', 'readWebRtcPolicy'],
     getPayloadForUrl: ['getPayloadForUrl'],
     reportFontLayers: ['reportFontLayers'],
     reportWorkerFallback: ['reportWorkerFallback'],

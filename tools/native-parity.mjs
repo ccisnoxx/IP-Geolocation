@@ -132,6 +132,22 @@ const PROBE = String.raw`
   add('Date.prototype.setTime', Date.prototype, 'setTime');
   records.push({ path: 'Date.prototype[Symbol.toPrimitive]', descriptor: descriptor(Date.prototype, Symbol.toPrimitive) });
 
+  // 读系统时区 / 默认 locale 的其它入口（Temporal、DurationFormat、Number / String、lastModified）
+  add('Number.prototype.toLocaleString', Number.prototype, 'toLocaleString');
+  add('BigInt.prototype.toLocaleString', BigInt.prototype, 'toLocaleString');
+  add('String.prototype.localeCompare', String.prototype, 'localeCompare');
+  add('String.prototype.toLocaleUpperCase', String.prototype, 'toLocaleUpperCase');
+  add('String.prototype.toLocaleLowerCase', String.prototype, 'toLocaleLowerCase');
+  add('Document.prototype.lastModified', Document.prototype, 'lastModified');
+  add('globalThis.Intl.DurationFormat', Intl, 'DurationFormat');
+  const T = globalThis.Temporal;
+  for (const key of ['timeZoneId', 'plainDateTimeISO', 'zonedDateTimeISO', 'plainDateISO', 'plainTimeISO', 'instant']) {
+    add('Temporal.Now.' + key, T && T.Now, key);
+  }
+  for (const name of ['Instant', 'ZonedDateTime', 'PlainDateTime', 'PlainDate', 'Duration']) {
+    add('Temporal.' + name + '.prototype.toLocaleString', T && T[name] && T[name].prototype, 'toLocaleString');
+  }
+
   add('globalThis.Intl.DateTimeFormat', Intl, 'DateTimeFormat');
   add('Intl.DateTimeFormat.prototype', Intl.DateTimeFormat, 'prototype');
   add('Intl.DateTimeFormat.prototype.constructor', Intl.DateTimeFormat.prototype, 'constructor');

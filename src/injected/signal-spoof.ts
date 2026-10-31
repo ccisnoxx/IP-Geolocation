@@ -65,6 +65,36 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
   const NativeListFormat = IntlRef.ListFormat;
   const NativeDisplayNames = IntlRef.DisplayNames;
   const NativeSegmenter = IntlRef.Segmenter;
+  const NativeDurationFormat = IntlRef.DurationFormat;
+
+  /** 读系统时区 / 默认 locale 的其它入口，同样在任何 patch 之前抓住原生实现 */
+  const captured = (target: any, key: string): { target: any; key: string; fn: any } => {
+    let fn: any = null;
+    try {
+      if (target && typeof target[key] === 'function') fn = target[key];
+    } catch { /* ignore */ }
+    return { target, key, fn };
+  };
+  const TemporalRef: any = scope.Temporal && typeof scope.Temporal === 'object' ? scope.Temporal : null;
+  const temporalNow = TemporalRef ? TemporalRef.Now : null;
+  const temporalProto = (name: string): any => (TemporalRef && TemporalRef[name] ? TemporalRef[name].prototype : null);
+  const nativeTimeZoneId = captured(temporalNow, 'timeZoneId');
+  const nativeNowWithZone = ['plainDateTimeISO', 'zonedDateTimeISO', 'plainDateISO', 'plainTimeISO']
+    .map((key) => captured(temporalNow, key));
+  const nativeInstantToLocaleString = captured(temporalProto('Instant'), 'toLocaleString');
+  const nativeTemporalToLocaleStrings = ['ZonedDateTime', 'PlainDateTime', 'PlainDate', 'PlainTime', 'PlainYearMonth', 'PlainMonthDay', 'Duration']
+    .map((name) => captured(temporalProto(name), 'toLocaleString'));
+  const nativeNumberToLocaleString = captured(scope.Number && scope.Number.prototype, 'toLocaleString');
+  const nativeBigIntToLocaleString = captured(scope.BigInt && scope.BigInt.prototype, 'toLocaleString');
+  const nativeLocaleCompare = captured(scope.String && scope.String.prototype, 'localeCompare');
+  const nativeToLocaleUpperCase = captured(scope.String && scope.String.prototype, 'toLocaleUpperCase');
+  const nativeToLocaleLowerCase = captured(scope.String && scope.String.prototype, 'toLocaleLowerCase');
+  let nativeLastModified: { proto: any; get: any } | null = null;
+  try {
+    const proto = scope.Document && scope.Document.prototype;
+    const descriptor = proto ? Object.getOwnPropertyDescriptor(proto, 'lastModified') : undefined;
+    if (descriptor && typeof descriptor.get === 'function') nativeLastModified = { proto, get: descriptor.get };
+  } catch { /* ignore */ }
 
   // 每个补丁在动手之前记下原描述符；uninstall 按相反顺序放回去。
   // 这是"烘焙包排除站点 / 关总开关后能恢复原生"的基础。
@@ -84,6 +114,28 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
   }
 
   const disguise = deps.disguise;
+
+  /**
+   * 用 `makeImpl(原生函数)` 替换一个已抓住的原生方法，保留原描述符的
+   * writable / enumerable / configurable 与 `length`，并登记还原。原生方法不存在就不动。
+   */
+  function patchMethod(slot: { target: any; key: string; fn: any }, makeImpl: (nativeFn: any) => any): void {
+    if (!slot.target || typeof slot.fn !== 'function') return;
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(slot.target, slot.key);
+    } catch { /* ignore */ }
+    if (!descriptor || !('value' in descriptor)) return;
+    remember(slot.target, slot.key);
+    try {
+      Object.defineProperty(slot.target, slot.key, {
+        value: disguise(makeImpl(slot.fn), slot.key, slot.fn.length),
+        writable: descriptor.writable,
+        enumerable: descriptor.enumerable,
+        configurable: true
+      });
+    } catch { /* ignore */ }
+  }
 
   const native: NativeSnapshot = { timeZone: '', locale: '', language: '', languages: [] };
   try {
@@ -391,6 +443,73 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     define('toLocaleTimeString', disguise(function (this: any, locales?: any, options?: any) {
       return nativeToLocaleTimeString.call(this, effectiveLocale(locales), withZone(options));
     }, 'toLocaleTimeString', 0));
+
+    installTemporal();
+    installLastModified();
+  }
+
+  /**
+   * Temporal 是 Date 之外第二套读系统时区的入口（Chrome 156 默认开启）：
+   * `Temporal.Now.timeZoneId()` 直接返回宿主时区，`plainDateTimeISO()` 等不传时区时
+   * 按宿主时区取墙上时间 —— 不补的话一行就能读到真实时区，还能与 Date 对质。
+   *
+   * 时区只注入给 Now 的默认参数与 `Instant.prototype.toLocaleString`：ZonedDateTime
+   * 自带时区，给它的 toLocaleString 传 timeZone 会抛 TypeError（实测），所以其余类型
+   * 只补默认 locale（`Duration.toLocaleString()` 同样读宿主默认 locale）。
+   */
+  function installTemporal(): void {
+    patchMethod(nativeTimeZoneId, (nativeFn) => function (this: any) {
+      return deps.timezone() || nativeFn.call(this);
+    });
+    for (const slot of nativeNowWithZone) {
+      patchMethod(slot, (nativeFn) => function (this: any, ...args: any[]) {
+        const zone = deps.timezone();
+        if (zone && args[0] === undefined) return nativeFn.call(this, zone);
+        return nativeFn.apply(this, args);
+      });
+    }
+    patchMethod(nativeInstantToLocaleString, (nativeFn) => function (this: any, locales?: any, options?: any) {
+      return nativeFn.call(this, effectiveLocale(locales), withZone(options));
+    });
+    for (const slot of nativeTemporalToLocaleStrings) {
+      patchMethod(slot, (nativeFn) => function (this: any, locales?: any, options?: any) {
+        return nativeFn.call(this, effectiveLocale(locales), options);
+      });
+    }
+  }
+
+  /**
+   * `document.lastModified` 按宿主时区输出 `MM/DD/YYYY HH:MM:SS`，与 Date 对比即可露底。
+   * 原生字符串按宿主本地时间解析回时间戳，再按目标时区以同一格式输出。
+   */
+  function installLastModified(): void {
+    if (!nativeLastModified) return;
+    const { proto, get: nativeGet } = nativeLastModified;
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(proto, 'lastModified');
+    } catch { /* ignore */ }
+    if (!descriptor) return;
+    remember(proto, 'lastModified');
+    try {
+      Object.defineProperty(proto, 'lastModified', {
+        get: disguise(function (this: any) {
+          const text = nativeGet.call(this);
+          const zone = deps.timezone();
+          if (!zone) return text;
+          const time = nativeParse(text);
+          if (!Number.isFinite(time)) return text;
+          try {
+            const parts = partsAt(time, zone);
+            return `${parts.month}/${parts.day}/${parts.year} ${pad(Number(parts.hour) % 24)}:${parts.minute}:${parts.second}`;
+          } catch {
+            return text;
+          }
+        }, 'get lastModified', 0),
+        enumerable: descriptor.enumerable,
+        configurable: true
+      });
+    } catch { /* ignore */ }
   }
 
   const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -500,7 +619,8 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
       ['PluralRules', NativePluralRules, false],
       ['ListFormat', NativeListFormat, false],
       ['DisplayNames', NativeDisplayNames, false],
-      ['Segmenter', NativeSegmenter, false]
+      ['Segmenter', NativeSegmenter, false],
+      ['DurationFormat', NativeDurationFormat, false]
     ];
 
     for (const [name, Native, needsZone] of specs) {
@@ -545,6 +665,22 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
       try {
         IntlRef[name] = spoofed;
       } catch { /* ignore */ }
+    }
+
+    // 不经过 Intl 构造器、直接读宿主默认 locale 的入口。Array / TypedArray 的
+    // toLocaleString 会委托给元素自己的 toLocaleString，补了 Number / Date 即可跟上。
+    const withLocale = (nativeFn: any) => function (this: any, locales?: any, options?: any) {
+      return nativeFn.call(this, effectiveLocale(locales), options);
+    };
+    patchMethod(nativeNumberToLocaleString, withLocale);
+    patchMethod(nativeBigIntToLocaleString, withLocale);
+    patchMethod(nativeLocaleCompare, (nativeFn) => function (this: any, that: any, locales?: any, options?: any) {
+      return nativeFn.call(this, that, effectiveLocale(locales), options);
+    });
+    for (const slot of [nativeToLocaleUpperCase, nativeToLocaleLowerCase]) {
+      patchMethod(slot, (nativeFn) => function (this: any, locales?: any) {
+        return nativeFn.call(this, effectiveLocale(locales));
+      });
     }
   }
 

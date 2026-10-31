@@ -54,7 +54,9 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
           status: 'ok',
           state: {
             config: webRtc,
-            effectivePolicy: services.webRtcPolicies[webRtc.globalMode]
+            effectivePolicy: services.webRtcPolicies[webRtc.globalMode],
+            // 读回实际值：别的扩展接管或策略锁定时，配置写了也不生效
+            actual: await services.readWebRtcPolicy().catch(() => null)
           }
         };
       }
