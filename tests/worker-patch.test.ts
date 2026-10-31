@@ -698,3 +698,95 @@ test('Worker 没有配置时 Temporal 与 locale 入口原样交还原生', () =
   assert.equal(evaluate(context, 'Temporal.Now.plainDateTimeISO()'), 'plainDateTimeISO:undefined');
   assert.equal(evaluate(context, '(1234.5).toLocaleString()'), (1234.5).toLocaleString());
 });
+
+// ---------- 嵌套 Worker ----------
+
+// vm 上下文没有 Worker / Blob / URL：放记录行为的替身。URL 只实现本用例需要的相对解析。
+const NESTED_SETUP = `
+  globalThis.__created = [];
+  globalThis.__blobs = [];
+  globalThis.location = { href: 'blob:https://example.com/parent-entry' };
+  globalThis.URL = function URL(input, base) {
+    const text = String(input);
+    if (/^[a-z]+:/i.test(text)) { this.href = text; return; }
+    if (!base || /^blob:/.test(base)) throw new TypeError('Invalid URL');
+    this.href = String(base).replace(/[^/]*$/, '') + text;
+  };
+  URL.createObjectURL = function (blob) { __blobs.push(blob.text); return 'blob:fake/' + __blobs.length; };
+  globalThis.Blob = function Blob(parts) { this.text = parts.join(''); };
+  globalThis.Worker = function Worker(url, options) {
+    this.url = url;
+    this.options = options;
+    this.posted = [];
+    __created.push(this);
+  };
+  Worker.prototype.postMessage = function (message) { this.posted.push(message); };
+`;
+const NESTED_CONFIG: WorkerPatchConfig = { ...TOKYO, token: 'nest-token', baseUrl: 'https://example.com/w/parent.js' };
+
+test('嵌套 Worker：入口换成带补丁的 blob，相对路径按原脚本地址解析', () => {
+  const context = createWorkerContext(NESTED_CONFIG, NESTED_SETUP);
+  evaluate(context, 'globalThis.__child = new Worker("child.js")');
+  assert.equal(evaluate(context, '__child.url'), 'blob:fake/1');
+  const body = evaluate<string>(context, '__blobs[0]');
+  assert.match(body, /^"use strict";\(function workerPatch\(/, '入口仍是 strict 的具名函数表达式');
+  assert.ok(body.includes('importScripts("https://example.com/w/child.js")'), '按原脚本地址解析，而不是 blob: 上的 location');
+  const config = JSON.parse(body.slice(body.indexOf('})({') + 3, body.lastIndexOf(');\n')));
+  assert.equal(config.timezone, 'Asia/Tokyo');
+  assert.equal(config.language, 'ja-JP');
+  assert.equal(config.token, 'nest-token', '子 Worker 认同一口令，才能收到转发的配置更新');
+  assert.equal(config.baseUrl, 'https://example.com/w/child.js', '再往下一层也按子脚本地址解析');
+
+  evaluate(context, 'new Worker("mod.js", { type: "module" })');
+  assert.ok(evaluate<string>(context, '__blobs[1]').includes('await import("https://example.com/w/mod.js")'));
+});
+
+test('嵌套 Worker 构造器保持原生形状', () => {
+  const context = createWorkerContext(NESTED_CONFIG, NESTED_SETUP);
+  assert.equal(evaluate(context, 'new Worker("child.js") instanceof Worker'), true);
+  assert.equal(evaluate(context, 'Worker.name'), 'Worker');
+  assert.equal(evaluate(context, 'Worker.length'), 1);
+  assert.equal(evaluate(context, 'Worker.prototype.constructor === Worker'), true);
+  assert.equal(evaluate(context, 'Function.prototype.toString.call(Worker)'), 'function Worker() { [native code] }');
+});
+
+test('嵌套 Worker：带口令的配置更新转发给子 Worker，口令不对不转发', () => {
+  const context = createWorkerContext(NESTED_CONFIG, NESTED_SETUP);
+  evaluate(context, 'globalThis.__child = new Worker("child.js")');
+  evaluate(context, '__dispatch({ __vanishGeoWorkerConfig: "guess", config: { disabled: true } })');
+  assert.equal(evaluate(context, '__child.posted.length'), 0);
+  evaluate(context, '__dispatch({ __vanishGeoWorkerConfig: "nest-token", config: { disabled: true } })');
+  assert.equal(evaluate(context, '__child.posted.length'), 1);
+  assert.equal(evaluate(context, '__child.posted[0].config.disabled'), true);
+
+  // 关配置之后再建的子 Worker 直接走原生入口（解析过的绝对地址）
+  evaluate(context, 'globalThis.__plain = new Worker("plain.js")');
+  assert.equal(evaluate(context, '__plain.url'), 'https://example.com/w/plain.js');
+});
+
+test('嵌套 Worker 的入口源码可以独立运行：孙 Worker 拿到伪装值，并能继续往下嵌套', () => {
+  const parent = createWorkerContext(NESTED_CONFIG, NESTED_SETUP);
+  evaluate(parent, 'new Worker("child.js")');
+  const body = evaluate<string>(parent, '__blobs[0]');
+
+  // 新上下文 = 子 Worker 自己的全局：与 createWorkerContext 相同的 navigator / __name / 消息替身
+  const child = vm.createContext({ console });
+  vm.runInContext('globalThis.self = globalThis;', child);
+  vm.runInContext(`
+    globalThis.WorkerNavigator = function WorkerNavigator() {};
+    Object.defineProperty(WorkerNavigator.prototype, 'language', { get() { return 'zh-CN'; }, enumerable: true, configurable: true });
+    Object.defineProperty(WorkerNavigator.prototype, 'languages', { get() { return ['zh-CN']; }, enumerable: true, configurable: true });
+    globalThis.navigator = new WorkerNavigator();
+    globalThis.__name = function (fn, name) { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch (e) {} return fn; };
+    globalThis.addEventListener = function () {};
+    globalThis.__imported = [];
+    globalThis.importScripts = function (url) { __imported.push(url); };
+  `, child);
+  vm.runInContext(NESTED_SETUP, child);
+  vm.runInContext(body, child);
+  assert.equal(vm.runInContext('navigator.language', child), 'ja-JP');
+  assert.equal(vm.runInContext('new Date(0).getTimezoneOffset()', child), -540);
+  assert.deepEqual([...vm.runInContext('__imported', child)], ['https://example.com/w/child.js']);
+  vm.runInContext('new Worker("grandchild.js")', child);
+  assert.ok(vm.runInContext('__blobs[0]', child).includes('importScripts("https://example.com/w/grandchild.js")'));
+});

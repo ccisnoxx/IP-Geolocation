@@ -237,7 +237,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 |---|---|---|
 | classic / module Worker | ✅ 或 ⚠️ | blob 前缀包装入口，Date / navigator / canvas 与主线程同源，Intl 覆盖同一组九类构造器（DateTimeFormat / NumberFormat / Collator / RelativeTimeFormat / PluralRules / ListFormat / DisplayNames / Segmenter / DurationFormat），`Temporal.Now` 的默认时区与 Number / String 的默认 locale 也同步。配置**活更新**：入口里保留的是一份 `live` 快照，配置变化时主线程向已创建的 Worker 广播一次，关闭补丁会广播空配置让 Worker 回到原生值（只影响经由包装构造器创建、且被登记的 Worker）。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口，此时标 ⚠️ 并在弹窗里明说 |
 | SharedWorker | ❌ | **不包装**：身份是 `(resolved URL, name)`，换成 blob URL 会让每个文档各建一个实例，跨文档共享语义消失且无法修回去。它读到的是**原生值** |
-| nested worker | ❌ | 父 Worker 里的 `Worker` 构造器未打补丁，孙 Worker 读到原生值 |
+| nested worker | ✅ 或 ⚠️ | 父 Worker 里的 `Worker` 构造器同样换成带补丁的入口，相对路径按原脚本地址解析，配置更新由父 Worker 逐层转发。父 Worker 回退原生（CSP 拒绝 blob 等）时它也读到原生值，标 ⚠️ |
 | service worker | ❌ | 没有 hook `navigator.serviceWorker.register` |
 
 诊断页（`fixtures/workers/top.html`）与 `buildWorkerDiagnosticsSnapshot` 都按这张表标注：

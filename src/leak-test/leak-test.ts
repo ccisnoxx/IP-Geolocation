@@ -1,8 +1,8 @@
 import './leak-test.css';
-import { SITE_CONFIG_KEY, normalizeConfig } from '../shared/config-model';
-import { auditConfig, sortFindings, type AuditFinding, type AuditSeverity } from '../shared/config-audit';
+import { LAST_LOCATION_KEY, SITE_CONFIG_KEY, normalizeConfig } from '../shared/config-model';
+import { auditConfig, sortFindings, type AuditEnvironment, type AuditFinding, type AuditSeverity } from '../shared/config-audit';
 import { buildWorkerDiagnosticsSnapshot } from '../shared/diagnostic';
-import type { SiteSpoofConfig } from '../shared/types';
+import type { LastLocation, SiteSpoofConfig } from '../shared/types';
 
 // Geolocation elements
 const geolocationExistsEl = document.getElementById('geolocationExists') as HTMLElement;
@@ -230,8 +230,10 @@ async function renderConfig(): Promise<void> {
   };
 
   try {
-    const stored = await chrome.storage.local.get(SITE_CONFIG_KEY);
+    const stored = await chrome.storage.local.get([SITE_CONFIG_KEY, LAST_LOCATION_KEY]);
     const config = normalizeConfig(stored[SITE_CONFIG_KEY] || null);
+    const exit = (stored[LAST_LOCATION_KEY] as LastLocation | undefined) || null;
+    const webRtc = await readWebRtcState();
     const language = config.globalProfile.language;
     const timezone = config.globalProfile.timezone;
     const geolocation = config.globalProfile.geolocation;
@@ -260,9 +262,11 @@ async function renderConfig(): Promise<void> {
     const excluded = config.rules.filter((rule) => !rule.enabled).map((rule) => `!${rule.domain}`);
     setText('configRules', [...enabled, ...excluded].join('、') || '（空）');
 
+    setText('configWebRtc', describeWebRtc(webRtc));
+
     if (config.canvas.enabled) void renderFontUsage();
     void renderWorkerCoverage();
-    renderAudit(config);
+    renderAudit(config, { exit, webRtc });
   } catch (error) {
     setText('configMaster', `读取失败：${error instanceof Error ? error.message : String(error)}`);
   }
@@ -270,13 +274,43 @@ async function renderConfig(): Promise<void> {
 
 const SEVERITY_LABEL: Record<AuditSeverity, string> = { error: '必错', warn: '可疑', info: '取舍' };
 
+/** 后台读回的 WebRTC 策略：期望值来自配置，实际值与控制权来自浏览器 */
+async function readWebRtcState(): Promise<AuditEnvironment['webRtc']> {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getWebRtcConfig' });
+    if (!response || response.status !== 'ok') return null;
+    const actual = response.state && response.state.actual;
+    return {
+      expected: response.state.effectivePolicy || null,
+      value: actual ? actual.value : null,
+      levelOfControl: actual ? actual.levelOfControl : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+function describeWebRtc(state: AuditEnvironment['webRtc']): string {
+  if (!state) return '读取失败';
+  const expected = state.expected || '不接管（default）';
+  if (!state.levelOfControl) return `${expected} / 浏览器未返回实际值`;
+  const owner = state.levelOfControl === 'controlled_by_this_extension'
+    ? '本扩展控制'
+    : state.levelOfControl === 'controlled_by_other_extensions'
+      ? '被其它扩展控制'
+      : state.levelOfControl === 'not_controllable'
+        ? '被浏览器策略锁定'
+        : '可由扩展控制';
+  return `${expected} / ${state.value || '-'}（${owner}）`;
+}
+
 /** 配置体检：把纯逻辑模块的结论渲染成清单，可点的给出修法 */
-function renderAudit(config: SiteSpoofConfig): void {
+function renderAudit(config: SiteSpoofConfig, environment: AuditEnvironment = {}): void {
   const container = document.getElementById('auditList');
   if (!container) return;
   container.textContent = '';
 
-  const findings = sortFindings(auditConfig(config));
+  const findings = sortFindings(auditConfig(config, environment));
   if (!findings.length) {
     const ok = document.createElement('div');
     ok.className = 'audit-ok';

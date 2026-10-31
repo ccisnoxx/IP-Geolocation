@@ -1,4 +1,4 @@
-import type { SiteSpoofConfig } from './types';
+import type { LastLocation, SiteSpoofConfig } from './types';
 
 /**
  * 配置体检。
@@ -16,7 +16,7 @@ import type { SiteSpoofConfig } from './types';
  *   是中文 —— 想装成美国用户时这句会先露，只想去掉时区线索时它就没错。
  *   所以这类只报告、把两面都写出来，让用户自己决定。
  *
- * 纯函数，不碰 chrome API，不读存储：输入配置，输出问题清单与修法。
+ * 纯函数，不碰 chrome API，不读存储：输入配置（以及调用方读好的运行环境），输出问题清单与修法。
  */
 
 export type AuditSeverity = 'error' | 'warn' | 'info';
@@ -36,6 +36,28 @@ export interface AuditFinding {
   title: string;
   detail: string;
   fix?: AuditFix;
+}
+
+/**
+ * 配置之外、由调用方读好的运行环境。缺哪项就跳过哪项检查，不猜。
+ *
+ * - `exit`：出口 IP 的归属地（`lastLocation`），站点能直接看到的那个地方；
+ * - `webRtc`：期望写入的 WebRTC 策略，以及浏览器里实际读回的值和控制权。
+ */
+export interface AuditEnvironment {
+  exit?: LastLocation | null;
+  webRtc?: { expected: string | null; value?: string | null; levelOfControl?: string | null } | null;
+}
+
+/** 手动坐标离出口 IP 归属地超过这个距离才报：IP 归属地本身是城市级，几百公里内的偏差很常见 */
+const EXIT_DISTANCE_LIMIT_KM = 500;
+
+function distanceKm(fromLat: number, fromLon: number, toLat: number, toLon: number): number {
+  const toRad = (value: number): number => (value * Math.PI) / 180;
+  const dLat = toRad(toLat - fromLat);
+  const dLon = toRad(toLon - fromLon);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(fromLat)) * Math.cos(toRad(toLat)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 // ---------- 区域推导 ----------
@@ -128,7 +150,7 @@ function hasCoordinates(config: SiteSpoofConfig): boolean {
 
 // ---------- 体检 ----------
 
-export function auditConfig(config: SiteSpoofConfig): AuditFinding[] {
+export function auditConfig(config: SiteSpoofConfig, environment: AuditEnvironment = {}): AuditFinding[] {
   const findings: AuditFinding[] = [];
   const language = config.globalProfile.language;
   const timezone = config.globalProfile.timezone;
@@ -321,6 +343,9 @@ export function auditConfig(config: SiteSpoofConfig): AuditFinding[] {
     }
   }
 
+  // 阈值保持 4 小时：太阳时与法定时区本来就可能差 2–3 小时（马德里夏令时约 2.25 小时、
+  // 喀什配 Asia/Shanghai 约 3 小时），收得更紧会误报正常配置。"坐标与时区不在一处"这类
+  // 更细的矛盾交给下面与出口 IP 的对比。
   if (timezone.enabled && geolocation.enabled && hasCoordinates(config)) {
     const declared = timezoneOffsetHours(timezone.timezone);
     const solar = longitudeOffsetHours(geolocation.longitude as number);
@@ -332,6 +357,81 @@ export function auditConfig(config: SiteSpoofConfig): AuditFinding[] {
         detail: `坐标 ${geolocation.latitude}, ${geolocation.longitude} 的太阳时约 UTC${solar >= 0 ? '+' : ''}${solar.toFixed(1)}，`
           + `而声明时区 ${timezone.timezone} 是 UTC${declared >= 0 ? '+' : ''}${declared}。`
           + '站点只要把 IP / 坐标 / 时区三者并排看一眼就能发现不是同一个地方。',
+        fix: undefined
+      });
+    }
+  }
+
+  // ---- 与运行环境对比：站点同时看得到 IP 与页面里的值 ----
+
+  const exit = environment.exit;
+  if (config.masterEnabled && exit && timezone.enabled && timezone.mode === 'manual' && timezone.timezone && exit.timezone) {
+    const declared = timezoneOffsetHours(timezone.timezone);
+    const fromExit = timezoneOffsetHours(exit.timezone);
+    if (declared !== null && fromExit !== null && declared !== fromExit) {
+      const exitZone = exit.timezone;
+      findings.push({
+        id: 'exit-ip-timezone',
+        severity: 'warn',
+        title: '声明时区与出口 IP 所在地不一致',
+        detail: `声明时区 ${timezone.timezone}（UTC${declared >= 0 ? '+' : ''}${declared}），`
+          + `出口 IP 在 ${exit.country || '未知地区'}（${exitZone}，UTC${fromExit >= 0 ? '+' : ''}${fromExit}）。`
+          + '站点一侧能直接看到 IP 归属地，与页面里的时区一比就对不上。',
+        fix: {
+          label: `改成出口 IP 的时区 ${exitZone}`,
+          resolves: true,
+          apply: (current) => ({
+            ...current,
+            globalProfile: {
+              ...current.globalProfile,
+              timezone: { ...current.globalProfile.timezone, mode: 'manual', timezone: exitZone }
+            }
+          })
+        }
+      });
+    }
+  }
+
+  if (config.masterEnabled && exit && geolocation.enabled && geolocation.mode === 'manual' && hasCoordinates(config)
+    && Number.isFinite(exit.latitude) && Number.isFinite(exit.longitude)) {
+    const distance = distanceKm(geolocation.latitude as number, geolocation.longitude as number, exit.latitude, exit.longitude);
+    if (distance > EXIT_DISTANCE_LIMIT_KM) {
+      findings.push({
+        id: 'exit-ip-coordinates',
+        severity: 'warn',
+        title: '手动坐标离出口 IP 所在地太远',
+        detail: `坐标 ${geolocation.latitude}, ${geolocation.longitude} 距出口 IP 归属地（${exit.country || '未知地区'}）约 ${Math.round(distance)} 公里。`
+          + 'IP 归属地是城市级的，几百公里内的偏差正常；差到这个程度，站点把定位与 IP 并排看就能发现不是同一个地方。',
+        fix: {
+          label: '改为跟随出口 IP 的坐标',
+          resolves: true,
+          apply: (current) => ({
+            ...current,
+            globalProfile: {
+              ...current.globalProfile,
+              geolocation: { ...current.globalProfile.geolocation, mode: 'auto' }
+            }
+          })
+        }
+      });
+    }
+  }
+
+  const webRtc = environment.webRtc;
+  if (config.masterEnabled && webRtc && webRtc.expected && webRtc.levelOfControl) {
+    const controlled = webRtc.levelOfControl === 'controlled_by_this_extension';
+    if (!controlled || webRtc.value !== webRtc.expected) {
+      const reason = webRtc.levelOfControl === 'controlled_by_other_extensions'
+        ? '另一个扩展接管了这项浏览器设置'
+        : webRtc.levelOfControl === 'not_controllable'
+          ? '浏览器策略锁定了这项设置，扩展无权修改'
+          : `浏览器里实际是 ${webRtc.value || '未知'}`;
+      findings.push({
+        id: 'webrtc-not-applied',
+        severity: 'warn',
+        title: 'WebRTC 策略没有生效',
+        detail: `期望写入 ${webRtc.expected}，但${reason}。界面上的 WebRTC 档位只是配置，`
+          + '页面里的 WebRTC 仍可能暴露本地或真实出口地址。',
         fix: undefined
       });
     }
