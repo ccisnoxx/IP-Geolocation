@@ -538,7 +538,7 @@ test('Worker 热更新：带口令的关配置让所有入口退回原生', () =
   assert.equal(evaluate(context, 'new Intl.Collator().resolvedOptions().locale'), new Intl.Collator().resolvedOptions().locale);
 });
 
-test('Worker 热更新：口令不对的消息被丢弃（页面伪造不了配置）', () => {
+test('Worker 热更新：token 不匹配或缺失的配置消息被丢弃', () => {
   const token = 'live-token-2';
   const context = createWorkerContext({ ...TOKYO, token });
   evaluate(context, `__dispatch({ __vanishGeoWorkerConfig: "guess", config: { disabled: true } })`);

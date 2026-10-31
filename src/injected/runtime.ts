@@ -23,7 +23,8 @@ import type { WorkerFallbackReason } from '../shared/worker-coverage';
  *    这类等式必须继续成立，所以只 patch 原型、不 patch 实例；
  * 4. 首屏一致：payload 在构建期烘焙（`__VANISHGEO_BAKED__`），document_start 同步应用，
  *    不存在"先真值后假值"的窗口；
- * 5. 动态桥仍有未关闭的认证缺口；构建 nonce 仅作消息标识，frozen 构建关闭桥。
+ * 5. 动态桥只在 document_start 同步握手一次，runtime 不监听任何 window 事件；
+ *    构建 nonce 仅作消息标识，frozen 构建关闭桥。
  */
 
 type RuntimePayload = BakedRuntimePayload & {
@@ -51,6 +52,8 @@ const BAKED = typeof __VANISHGEO_BAKED__ === 'object' && __VANISHGEO_BAKED__
   ? (__VANISHGEO_BAKED__ as { config: any; lastLocation: any })
   : null;
 const NONCE = typeof __VANISHGEO_NONCE__ === 'string' ? __VANISHGEO_NONCE__ : '';
+/** 与 content-bridge.ts 的 BRIDGE_EVENT 同值；经典脚本不能共享模块，各写一份 */
+const BRIDGE_EVENT = 'vanishgeo:bridge';
 const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_BRIDGE__ : true;
 
 (function () {
@@ -606,25 +609,25 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     } catch { /* ignore */ }
   }
 
-  // 2) 动态更新：content script 在 document_start 发一条握手，把私有 MessagePort
-  //    递进来，之后 payload 全走端口。
-  //
-  //    已知安全缺口：页面也能构造握手并从 ack 取得 nonce；构建常量随发行包公开。
-  //    当前端口校验不能证明发送者身份，需重新设计隔离侧与 MAIN 的信任边界。
-  //
-  //    握手只收一次；这也意味着伪造的首次握手可能阻断合法桥。
+  // 2) 动态更新：ISOLATED 桥已在 document_start 先挂好监听，这里同步派发一次携带
+  //    私有端口的事件，桥 preventDefault 即配对成功，之后 payload 全走端口。
+  //    派发发生在页面任何脚本之前，页面看不到端口；runtime 自己不监听任何 window
+  //    事件，页面也就没有入口构造握手。没配对上（桥缺席）就关掉端口，只留烘焙值。
+  //    本文件只由注册的内容脚本在 document_start 执行，后台不再晚注入。
   if (BRIDGE_ENABLED && NONCE) {
-    const onHandshake = (event: MessageEvent) => {
-      if (event.source !== window) return;
-      const data: any = event.data;
-      if (!data || typeof data !== 'object' || data.__vanishGeo !== 'handshake') return;
-      const port = event.ports && event.ports[0];
-      if (!port) return;
-      window.removeEventListener('message', onHandshake);
+    const channel = new MessageChannel();
+    let paired = false;
+    try {
+      paired = !window.dispatchEvent(new MessageEvent(BRIDGE_EVENT, { cancelable: true, ports: [channel.port2] }));
+    } catch { /* 派发失败按未配对处理 */ }
+    if (!paired) {
+      channel.port1.close();
+    } else {
+      const port = channel.port1;
       reportPort = port;
       // 回报通道：诊断页要显示"页面实际生效的字体层"。三张字表只存在于这个文件里
       // （注入层必须自包含），所以数字只能由这里给，不能在诊断页另算一份。
-      // 该回报只用于诊断，不能把端口本身当作身份认证依据。
+      // 该回报只用于诊断，后台不据此授予任何能力。
       const report = () => {
         try {
           port.postMessage({
@@ -646,9 +649,6 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
           report();
         } catch { /* ignore */ }
       };
-      port.start();
-      port.postMessage({ __vanishGeo: 'ack', nonce: NONCE });
-    };
-    window.addEventListener('message', onHandshake);
+    }
   }
 })();

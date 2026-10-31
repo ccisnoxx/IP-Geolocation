@@ -1,6 +1,7 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createContentBridge } from '../src/content/content-bridge';
+import { readFileSync } from 'node:fs';
+import { BRIDGE_EVENT, STALE_FRAME_EVIDENCE_ERROR, createContentBridge } from '../src/content/content-bridge';
 
 /**
  * 桥的 frame 归属逻辑：父页 payload 不能覆盖独立子域 iframe；clear 要按
@@ -77,20 +78,35 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
       const list = listeners.get(type) || [];
       const index = list.indexOf(fn);
       if (index >= 0) list.splice(index, 1);
-    },
-    postMessage: (message: any, _target: string, transfer?: MessagePort[]) => {
-      if (!message || message.__vanishGeo !== 'handshake' || !transfer || !transfer[0]) return;
-      const port = transfer[0];
-      handshakes.push(message);
-      ports.push(port);
-      runtimePort = port;
-      port.onmessage = (event: MessageEvent) => { delivered.push(event.data); };
-      port.start();
-      if (options.autoAck === false) return;
-      const send = () => port.postMessage({ __vanishGeo: 'ack', nonce: NONCE });
-      if (options.ackDelayMs) setTimeout(send, options.ackDelayMs);
-      else send();
     }
+  };
+
+  /**
+   * 模拟 runtime 在 document_start 同步派发 BRIDGE_EVENT：runtime 留 port1，port2 随事件交给桥。
+   * 返回桥是否 preventDefault 回执；未回执时 runtime 关掉自己的端口。
+   */
+  const runtimeHandshake = (eventPorts?: MessagePort[]): boolean => {
+    const channel = new MessageChannel();
+    ports.push(channel.port1, channel.port2);
+    let prevented = false;
+    let stopped = false;
+    const event = {
+      ports: eventPorts ?? [channel.port2],
+      preventDefault() { prevented = true; },
+      stopImmediatePropagation() { stopped = true; }
+    };
+    handshakes.push(event);
+    for (const fn of [...(listeners.get(BRIDGE_EVENT) || [])]) {
+      fn(event);
+      if (stopped) break;
+    }
+    if (!prevented) {
+      channel.port1.close();
+      return false;
+    }
+    runtimePort = channel.port1;
+    channel.port1.onmessage = (message: MessageEvent) => { delivered.push(message.data); };
+    return true;
   };
 
   const handle = createContentBridge({
@@ -100,6 +116,10 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
     nonce: NONCE,
     retryDelays: options.retryDelays
   });
+  if (options.autoAck !== false) {
+    if (options.ackDelayMs) setTimeout(() => runtimeHandshake(), options.ackDelayMs);
+    else runtimeHandshake();
+  }
 
   const harness = {
     delivered,
@@ -119,9 +139,7 @@ function createHarness(options: { retryDelays?: number[]; autoAck?: boolean; ack
     get listener() { return listener; },
     get runtimePort() { return runtimePort; },
     setResponse(value: any) { response = value; },
-    sendAck(nonce = NONCE) {
-      runtimePort?.postMessage({ __vanishGeo: 'ack', nonce });
-    },
+    runtimeHandshake,
     stop() {
       handle.stop();
       for (const port of ports) {
@@ -300,27 +318,46 @@ test('握手晚于首屏响应时，payload 先挂起，端口就绪后补发', 
   assert.equal(harness.delivered.at(-1)?.payload.hostname, 'child.localhost');
 });
 
-test('非法 ack 不建立端口，合法 ack 才补发', async () => {
+test('握手只接受带端口的事件；第一个端口建立通道后撤掉监听', async () => {
   const harness = createHarness({ autoAck: false });
-  await waitFor(() => harness.handshakes.length === 1);
-  assert.equal(harness.delivered.length, 0);
+  assert.equal(harness.listenerCount(BRIDGE_EVENT), 1, '桥在 document_start 先挂好握手监听');
 
-  harness.sendAck('wrong-nonce');
+  assert.equal(harness.runtimeHandshake([]), false, '没有端口的事件不回执');
   await sleep(10);
   assert.equal(harness.delivered.length, 0);
+  assert.equal(harness.pulls.length, 0, '端口就绪前不拉配置');
 
-  harness.sendAck();
+  assert.equal(harness.runtimeHandshake(), true, 'preventDefault 是给 runtime 的同步回执');
+  assert.equal(harness.listenerCount(BRIDGE_EVENT), 0, '配对后不再监听，页面没有第二次握手的入口');
   await waitFor(() => harness.delivered.length > 0);
   assert.equal(harness.delivered.at(-1)?.payload.hostname, 'child.localhost');
 });
 
-test('没有 ack 时按退避重试握手，stop 后不再重试', async () => {
+test('握手事件被 stopImmediatePropagation：后续监听者看不到端口', () => {
   const harness = createHarness({ autoAck: false });
-  await waitFor(() => harness.handshakes.length >= 2, 500);
-  const count = harness.handshakes.length;
+  const seen: any[] = [];
+  harness.window.addEventListener(BRIDGE_EVENT, (event: any) => seen.push(event.ports));
+  assert.equal(harness.runtimeHandshake(), true);
+  assert.deepEqual(seen, []);
+});
+
+test('配对后再来的握手不回执，也不替换已建立的端口', async () => {
+  const harness = createHarness();
+  await waitFor(() => harness.delivered.length > 0);
+  const original = harness.runtimePort;
+  // 页面事后伪造握手：桥已撤掉监听，事件没有接收者
+  assert.equal(harness.runtimeHandshake(), false);
+  assert.equal(harness.runtimePort, original);
+  harness.listener?.({ action: 'applyPayload', payload: { hostname: 'child.localhost', domain: 'child.localhost', languageConfig: { language: 'ja-JP' } } });
+  await waitFor(() => harness.delivered.at(-1)?.payload.languageConfig.language === 'ja-JP');
+});
+
+test('未配对时 stop 撤掉握手监听', () => {
+  const harness = createHarness({ autoAck: false });
+  assert.equal(harness.listenerCount(BRIDGE_EVENT), 1);
   harness.stop();
-  await sleep(120);
-  assert.equal(harness.handshakes.length, count);
+  assert.equal(harness.listenerCount(BRIDGE_EVENT), 0);
+  assert.equal(harness.runtimeHandshake(), false);
 });
 
 test('接收端关闭后 applyPayload 不抛错，也不再投递新 payload', async () => {
@@ -338,12 +375,11 @@ test('接收端关闭后 applyPayload 不抛错，也不再投递新 payload', a
 
 test('端口就绪前的 clear 先挂起，端口就绪后补发 clear', async () => {
   const harness = createHarness({ autoAck: false });
-  await waitFor(() => harness.handshakes.length === 1);
   harness.setResponse({ status: 'ok', matched: false, payload: null });
   harness.listener?.({ action: 'applyPayload', clear: true });
   await waitFor(() => harness.pulls.length >= 1);
   assert.equal(harness.delivered.length, 0);
-  harness.sendAck();
+  harness.runtimeHandshake();
   await waitFor(() => harness.delivered.some((message) => message.payload?.clear === true));
 });
 
@@ -392,13 +428,13 @@ test('响应 payload 的 hostname 不匹配时丢弃，不交给 runtime', async
   assert.equal(harness.delivered.length, before);
 });
 
-test('端口就绪后的非 ack 消息被忽略，不再触发第二次握手', async () => {
+test('端口上未知 kind 的回报被忽略，不转发给后台', async () => {
   const harness = createHarness();
   await waitFor(() => harness.delivered.length > 0);
-  const handshakes = harness.handshakes.length;
+  const reports = harness.reports.length;
   harness.runtimePort?.postMessage({ __vanishGeo: NONCE, kind: 'other' });
   await sleep(80);
-  assert.equal(harness.handshakes.length, handshakes);
+  assert.equal(harness.reports.length, reports);
   assert.equal(harness.delivered.at(-1)?.payload.hostname, 'child.localhost');
 });
 
@@ -432,11 +468,12 @@ test('后台广播里的无关消息直接忽略，不触发重拉', async () =>
 });
 
 test('opaque frame 采用可信 runtime effectiveUrl 校验 payload，忽略不同的本地 referrer 和 MAIN 自报域', async () => {
-  const harness = createHarness({ href: 'about:srcdoc', referrer: PARENT_REFERRER });
+  const harness = createHarness({ autoAck: false, href: 'about:srcdoc', referrer: PARENT_REFERRER });
   harness.setResponse({
     status: 'ok', matched: true, effectiveUrl: 'https://proven.example/frame',
     payload: { hostname: 'proven.example', domain: 'proven.example' }
   });
+  harness.runtimeHandshake();
   await waitFor(() => harness.delivered.length > 0);
   assert.equal(harness.delivered.at(-1)?.payload.hostname, 'proven.example');
 
@@ -462,8 +499,9 @@ test('可信 effectiveUrl 仍须与响应 payload hostname 精确一致，旧 re
 });
 
 test('父链暂不可用的 error 响应保留首屏重试，恢复后按可信 effectiveUrl 应用且不提前 clear', async () => {
-  const harness = createHarness({ href: 'data:text/html,hello', referrer: '', retryDelays: [30, 30] });
+  const harness = createHarness({ autoAck: false, href: 'data:text/html,hello', referrer: '', retryDelays: [30, 30] });
   harness.setResponse({ status: 'error', message: 'document chain unavailable' });
+  harness.runtimeHandshake();
   await waitFor(() => harness.pulls.length === 1);
   await sleep(10);
   assert.equal(harness.delivered.length, 0);
@@ -516,7 +554,8 @@ test('blob 父读取只接受本扩展 runtime 查询，未握手时也同步响
     harness.listener?.({ action: 'readBlobParent' }, sender, (result: any) => responses.push(result));
   }
   assert.equal(responses.length, 1);
-  assert.equal(harness.handshakes.length, 1, '只读取父位置，不另造 MAIN 握手');
+  assert.equal(harness.handshakes.length, 0, '只读取父位置，不涉及 MAIN 握手');
+  assert.equal(harness.listenerCount(BRIDGE_EVENT), 1, '仍在等待 runtime 的同步握手');
   harness.stop();
 });
 
@@ -607,7 +646,7 @@ test('成功runtime响应的凭证只留在ISOLATED，端口上报不能替换�
   const receipt = { body: 'browser-only receipt', mac: 'ab'.repeat(32) };
   harness.setResponse({ status: 'ok', matched: true, effectiveUrl: CHILD_URL,
     frameEvidence: receipt, payload: { hostname: 'child.localhost', languageConfig: { language: 'en-US' } } });
-  harness.sendAck();
+  harness.runtimeHandshake();
   await waitFor(() => harness.delivered.length > 0);
   let read: any;
   const readReceipt = () => {
@@ -630,7 +669,7 @@ test('跨clear迟到的成功响应保留文档凭证，但旧payload不能重�
     if (cb) callback = cb;
     return undefined as any;
   };
-  harness.sendAck();
+  harness.runtimeHandshake();
   await waitFor(() => Boolean(callback));
   harness.listener?.({ action: 'applyPayload', clear: true, globalDisabled: true });
   await waitFor(() => harness.delivered.at(-1)?.payload.clear === true);
@@ -643,4 +682,46 @@ test('跨clear迟到的成功响应保留文档凭证，但旧payload不能重�
   assert.deepEqual(stored, receipt);
   assert.equal(harness.delivered.at(-1)?.payload.clear, true);
   harness.stop();
+});
+
+test('身份不符的错误让桥丢掉不属于本文档的凭证，重试后按浏览器快照解析', async () => {
+  // Chrome 119 会把同 frame 旧文档的 storeFrameEvidence 投给新文档：先塞进一份旧凭证
+  const harness = createHarness({ autoAck: false, retryDelays: [20, 20] });
+  const stale = { body: 'receipt of the replaced about:blank document', mac: 'ef'.repeat(32) };
+  const query = (message: any) => {
+    let value: any;
+    harness.listener?.(message, { id: 'test-extension' }, (result: any) => { value = result; });
+    return value;
+  };
+  assert.deepEqual(query({ action: 'storeFrameEvidence', frameEvidence: stale }), { stored: true });
+  harness.setResponse({ status: 'error', message: STALE_FRAME_EVIDENCE_ERROR });
+  harness.runtimeHandshake();
+  await waitFor(() => harness.pulls.length >= 1);
+  await sleep(5);
+  assert.deepEqual(query({ action: 'readFrameEvidence' }), { frameEvidence: null }, '旧凭证必须被丢掉，否则每次重试都身份不符');
+
+  harness.setResponse({ status: 'ok', matched: true, payload: { hostname: 'child.localhost', languageConfig: { language: 'en-US' } } });
+  await waitFor(() => harness.delivered.length > 0);
+  assert.equal(harness.pulls.length, 2);
+  assert.equal(harness.delivered.at(-1)?.payload.hostname, 'child.localhost');
+});
+
+test('其他拉取错误保留文档凭证（SW 恢复仍要用它）', async () => {
+  const harness = createHarness({ autoAck: false, retryDelays: [20] });
+  const receipt = { body: 'own receipt', mac: 'aa'.repeat(32) };
+  let read: any;
+  harness.listener?.({ action: 'storeFrameEvidence', frameEvidence: receipt }, { id: 'test-extension' }, () => undefined);
+  harness.setResponse({ status: 'error', message: 'content parent document chain is unavailable' });
+  harness.runtimeHandshake();
+  await waitFor(() => harness.pulls.length >= 2);
+  harness.listener?.({ action: 'readFrameEvidence' }, { id: 'test-extension' }, (value: any) => { read = value; });
+  assert.deepEqual(read, { frameEvidence: receipt });
+  harness.stop();
+});
+
+test('桥识别的身份不符文案与后台 frame-receipts 实际抛出的一致', async () => {
+  const { createFrameReceiptCodec } = await import('../src/background/frame-receipts');
+  const source = readFileSync('src/background/frame-receipts.ts', 'utf8');
+  assert.ok(source.includes(`'${STALE_FRAME_EVIDENCE_ERROR}'`), 'frame-receipts.ts 必须抛出同一文案');
+  assert.equal(typeof createFrameReceiptCodec, 'function');
 });

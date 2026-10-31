@@ -8,11 +8,13 @@
  * 页面只要 `window.addEventListener('message', e => e.data)` 就能读到 nonce 和
  * 整份 payload，之后想推什么就推什么 —— 共享秘密一旦上了公开频道就不再是秘密。
  *
- * 现在通过携带 MessagePort 的 window 握手建立通道，后续 payload 走端口。
- * 已知安全缺口：postMessage 异步派发，晚注入时页面可能先监听或构造握手；
- * runtime 的 ack 还会回传构建 nonce，因此端口和 nonce 检查并不构成身份认证。
- * 构建常量也随发行包公开，不能直接当作共享密钥。需要重新设计信任边界，
- * 不能把这里的功能接线测试视为安全验收。
+ * 第二版用 `window.postMessage` 递 MessagePort 握手，仍是异步派发：页面的 message
+ * 监听器能拿到端口，晚注入时还能抢先构造握手、从 ack 读出 nonce 后任意驱动 runtime。
+ *
+ * 现在的握手在 document_start 同步完成（见 content-bridge.ts）：
+ * 桥先挂监听，runtime 同步派发携带私有端口的事件，页面脚本还没执行过；runtime 不再
+ * 监听任何 window 事件，也不再被晚注入。安全性只依赖派发时机，构建 nonce 仍只是
+ * 消息标识，不是秘密。
  *
  * `--no-bridge` / `--frozen` 构建里 `__VANISHGEO_BRIDGE__` 为 false，这个文件整体空转：
  * 配置已经烘焙进 runtime.js 且不再接受运行时更新，完全不需要通道。普通 persona
