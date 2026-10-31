@@ -523,6 +523,8 @@ function renderBaseline(): void {
   setText('hardware', `${navigator.hardwareConcurrency || 'N/A'} 核 / ${memory ? `${memory} GB` : 'N/A'}`);
   setText('screenSize', `${screen.width} × ${screen.height} · ${window.devicePixelRatio}`);
 
+  // 只读权限状态：扩展页没有 geolocation 权限，调用 getCurrentPosition 只会报错并在扩展错误页留下
+  // "Is the 'geolocation' permission appropriate?"；网页上的定位由「站点实测」检测
   if (navigator.permissions) {
     navigator.permissions.query({ name: 'geolocation' as PermissionName })
       .then((result) => setText('geolocationPermission', result.state))
@@ -530,49 +532,10 @@ function renderBaseline(): void {
   }
 }
 
-function testGeolocation(): void {
-  if (!navigator.geolocation) {
-    setText('geolocationResult', '浏览器不支持');
-    return;
-  }
-  setText('geolocationResult', '读取中…');
-  navigator.geolocation.getCurrentPosition(
-    (position) => setText('geolocationResult', `${position.coords.latitude}, ${position.coords.longitude} ±${position.coords.accuracy}m`),
-    (error) => setText('geolocationResult', `错误：${error.message}`)
-  );
-}
-
-let watchId: number | null = null;
-
-function testWatchPosition(): void {
-  const button = document.getElementById('testWatchPosition');
-  if (!navigator.geolocation) {
-    setText('geolocationResult', '浏览器不支持');
-    return;
-  }
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-    if (button) button.textContent = 'watchPosition';
-    return;
-  }
-  let count = 0;
-  watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      count += 1;
-      setText('geolocationResult', `第 ${count} 次回调：${position.coords.latitude}, ${position.coords.longitude} ±${position.coords.accuracy}m`);
-    },
-    (error) => setText('geolocationResult', `错误：${error.message}`)
-  );
-  if (button) button.textContent = '停止 watchPosition';
-}
-
 // ---------- 启动 ----------
 
 document.getElementById('probeTab')?.addEventListener('click', () => { void probeSelectedTab(); });
 document.getElementById('probeTarget')?.addEventListener('change', () => { void probeSelectedTab(); });
-document.getElementById('testGeolocation')?.addEventListener('click', testGeolocation);
-document.getElementById('testWatchPosition')?.addEventListener('click', testWatchPosition);
 
 renderBaseline();
 void renderConfig();

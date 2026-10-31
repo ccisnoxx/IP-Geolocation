@@ -114,25 +114,6 @@ h2 {
   background: #3d8b40;
 }
 
-.btn-secondary {
-  background: #333;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-.btn-secondary:hover {
-  background: #444;
-}
-
-.btn-secondary:active {
-  background: #222;
-}
-
 h3 {
   font-size: 14px;
   font-weight: 600;
@@ -281,11 +262,6 @@ h3 {
 
 .advanced[open] > summary {
   margin-bottom: 12px;
-}
-
-.advanced .btn-secondary {
-  margin-top: 10px;
-  margin-right: 8px;
 }
 
 /* 配置体检 */
