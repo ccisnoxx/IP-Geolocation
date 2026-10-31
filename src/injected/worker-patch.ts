@@ -27,8 +27,11 @@ export interface WorkerPatchConfig {
  *   Date        构造器（多参数按目标时区解释）、getTimezoneOffset、get* 全家、
  *               **set* 全家**、toLocale* 全家、toString/toDateString/toTimeString
  *   Intl        DateTimeFormat / NumberFormat / Collator / RelativeTimeFormat /
- *               PluralRules / ListFormat / DisplayNames / Segmenter 的默认 locale
- *               （DateTimeFormat 还带默认 timeZone）—— 与主线程的 8 类覆盖一致
+ *               PluralRules / ListFormat / DisplayNames / Segmenter / DurationFormat
+ *               的默认 locale（DateTimeFormat 还带默认 timeZone）—— 与主线程的 9 类覆盖一致
+ *   Temporal    Now.timeZoneId / Now.*ISO() 的默认时区；各类型 toLocaleString 的默认 locale
+ *               （Instant 还带默认 timeZone）
+ *   默认 locale Number / BigInt.toLocaleString、String.localeCompare / toLocale*Case
  *   Canvas      OffscreenCanvasRenderingContext2D.measureText / fillText / strokeText
  *
  * set* 家族是最容易被漏掉的一环：只改 getter 的话，`d.setHours(0,0,0,0)` 仍然按
@@ -538,7 +541,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
   // ---------- Intl ----------
 
-  // 覆盖必须和主线程的 8 类完全一致。早先这里只有 DateTimeFormat / NumberFormat，
+  // 覆盖必须和主线程的 9 类完全一致。早先这里只有 DateTimeFormat / NumberFormat，
   // 页面在 Worker 里问一句 `new Intl.Collator().resolvedOptions().locale` 就能看出
   // 主线程被改过、Worker 没改 —— 而 Worker 恰恰是最容易被忽略的执行上下文。
   {
@@ -550,7 +553,8 @@ export function workerPatch(config: WorkerPatchConfig): void {
       ['PluralRules', IntlRef.PluralRules, false],
       ['ListFormat', IntlRef.ListFormat, false],
       ['DisplayNames', IntlRef.DisplayNames, false],
-      ['Segmenter', IntlRef.Segmenter, false]
+      ['Segmenter', IntlRef.Segmenter, false],
+      ['DurationFormat', IntlRef.DurationFormat, false]
     ];
     for (let index = 0; index < specs.length; index += 1) {
       const name = specs[index][0];
@@ -583,6 +587,61 @@ export function workerPatch(config: WorkerPatchConfig): void {
         });
       } catch { /* ignore */ }
       try { IntlRef[name] = spoofed; } catch { /* ignore */ }
+    }
+  }
+
+  // ---------- Temporal 与默认 locale 的其它入口（与主线程 signal-spoof 同步） ----------
+  //
+  // Temporal.Now.timeZoneId() 直接返回宿主时区；Now 的 *ISO() 不传时区时按宿主时区取值。
+  // ZonedDateTime 自带时区，给它的 toLocaleString 传 timeZone 会抛错，所以时区只补给
+  // Instant，其余 Temporal 类型与 Number / BigInt / String 只补默认 locale。
+  {
+    const replaceMethod = (target: any, key: string, makeImpl: (nativeFn: any) => any): void => {
+      if (!target) return;
+      let descriptor: PropertyDescriptor | undefined;
+      try { descriptor = Object.getOwnPropertyDescriptor(target, key); } catch { /* ignore */ }
+      if (!descriptor || typeof descriptor.value !== 'function') return;
+      const nativeFn = descriptor.value;
+      putValue(target, key, wrap(makeImpl(nativeFn), key, nativeFn.length), descriptor.writable !== false);
+    };
+    const localeOnly = (nativeFn: any) => function (this: any, locales?: any, options?: any) {
+      return nativeFn.call(this, spoofLocale(locales), options);
+    };
+    const TemporalRef: any = scope.Temporal && typeof scope.Temporal === 'object' ? scope.Temporal : null;
+    if (TemporalRef && TemporalRef.Now) {
+      replaceMethod(TemporalRef.Now, 'timeZoneId', (nativeFn) => function (this: any) {
+        return live.zone || nativeFn.call(this);
+      });
+      const nowKeys = ['plainDateTimeISO', 'zonedDateTimeISO', 'plainDateISO', 'plainTimeISO'];
+      for (let index = 0; index < nowKeys.length; index += 1) {
+        replaceMethod(TemporalRef.Now, nowKeys[index], (nativeFn) => function (this: any, ...args: any[]) {
+          if (live.zone && args[0] === undefined) return nativeFn.call(this, live.zone);
+          return nativeFn.apply(this, args);
+        });
+      }
+      if (TemporalRef.Instant) {
+        replaceMethod(TemporalRef.Instant.prototype, 'toLocaleString', (nativeFn) => function (this: any, locales?: any, options?: any) {
+          return nativeFn.call(this, spoofLocale(locales), withZone(options));
+        });
+      }
+      const localeTypes = ['ZonedDateTime', 'PlainDateTime', 'PlainDate', 'PlainTime', 'PlainYearMonth', 'PlainMonthDay', 'Duration'];
+      for (let index = 0; index < localeTypes.length; index += 1) {
+        const Type = TemporalRef[localeTypes[index]];
+        if (Type) replaceMethod(Type.prototype, 'toLocaleString', localeOnly);
+      }
+    }
+    if (scope.Number) replaceMethod(scope.Number.prototype, 'toLocaleString', localeOnly);
+    if (scope.BigInt) replaceMethod(scope.BigInt.prototype, 'toLocaleString', localeOnly);
+    if (scope.String) {
+      replaceMethod(scope.String.prototype, 'localeCompare', (nativeFn) => function (this: any, that: any, locales?: any, options?: any) {
+        return nativeFn.call(this, that, spoofLocale(locales), options);
+      });
+      const caseKeys = ['toLocaleUpperCase', 'toLocaleLowerCase'];
+      for (let index = 0; index < caseKeys.length; index += 1) {
+        replaceMethod(scope.String.prototype, caseKeys[index], (nativeFn) => function (this: any, locales?: any) {
+          return nativeFn.call(this, spoofLocale(locales));
+        });
+      }
     }
   }
 
