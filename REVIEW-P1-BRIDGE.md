@@ -1,5 +1,7 @@
 # 消息桥信任边界审查
 
+> **当前状态（2026-10-31）**：MAIN 消息桥 P1 已按“document_start 同步握手 + 删除晚注入”修复，见文末「同步握手与晚注入删除（2026-10-31）」。下文更早的各节是当时的阶段记录，其中“P1 保持未关闭”“保留 `noteDocumentInjected`”等结论已被该节取代。
+
 2026-10-30。原 MAIN 消息桥 P1 保持未关闭。用户在方案研究和独立设计审查后选择：保留当前功能合同，先加固后台消息分权；不采用刷新式快照，不改变 Chrome 119 基线，不增加权限。
 
 ## 缺陷与范围
@@ -330,3 +332,45 @@ Chrome119/155 的 `webNavigation.getFrame(documentId)` 与 `getAllFrames` 共用
 4. 首次建立会话 key 就遇到其他数据占满配额时仍明确失败；扩展 reload/update/禁用或浏览器重启清空 key 后，旧凭证无效。未持有已 ACK 凭证且浏览器父边已缺失的文档仍可能无法恢复；普通重拉失败可能保留旧值，总关 clear 合同保留。
 5. ACK 前精确冻结/导航交错未强制在真实浏览器命中；延迟 ACK、关闭与保守失败由已有测试保护。505 次导航和真实配额压力是所测场景，不能证明无限历史、所有并发交错或所有资源压力下均可恢复。
 6. 本次仅为两个精确版本、隔离 profile 的普通功能回归。临时 bridge/frozen 包只重跑清除合同；前文 Chrome119 可变烘焙包完整 opaque 33/33 是此前阶段结果，不计入本次 168 项。未验证真实日常 profile、跨版本升级、全部 Chrome119 API 合同或发布验收。
+
+## 同步握手与晚注入删除（2026-10-31）
+
+### 实测缺陷
+
+- 正常导航：桥用 `window.postMessage` 递端口，异步派发，页面 `message` 监听器能拿到 `event.ports[0]` 并覆盖 runtime 的 `onmessage`。
+- 晚注入：`updateAllTabs → syncTab → ensureRuntimeInDocument` 在判断规则命中之前，就对**所有**可脚本化标签页执行 `runtime.js`，但这些文档没有桥。Chrome 156 实测：扩展装载前已打开、不在任何规则内的标签页，页面伪造一次握手即从 ack 取得 nonce，随后推送 payload 把自身时区改成 `Pacific/Kiritimati`。同一路径可以发送 clear 读回真实值，也可以让任意站点探测到扩展存在。普通构建里 `__VANISHGEO_BAKED__` 为 `null`，晚注入的 runtime 没有任何合法对端，只剩攻击面。
+
+### 方案与前提验证
+
+- 桥（ISOLATED）先挂 `vanishgeo:bridge` 捕获监听；runtime（MAIN）同步 `dispatchEvent(new MessageEvent(..., { cancelable: true, ports: [port2] }))`。桥 `preventDefault` 作为同步回执，同时 `stopImmediatePropagation` 并撤掉监听；未回执时 runtime 关闭端口，只保留烘焙值。runtime 不监听任何 window 事件，ack 和 nonce 回传一并删除。
+- 删除 `ensureRuntimeInDocument`，以及只服务于它的 `noteDocumentInjected`、`injectedDocuments`、`currentDocumentId`。扩展装载前已打开的标签页需要刷新后生效。
+- 动态注册和烘焙静态清单都改为桥在前。事件名在两个经典脚本入口各定义一份（共享模块会产生带 import 的 chunk），由接线测试校验一致。
+- 最小 PoC 扩展在 Chrome 119 和 156 上的结果一致：跨世界可读 `MessageEvent.ports`，`preventDefault` 可作为同步回执；静态清单按声明顺序执行，动态注册无论注册顺序都先执行 ISOLATED；页面第一个脚本总在两者之后执行。about:blank、srcdoc、blob、静态 data 子框架、脚本创建后再导航到 data/blob 的子框架（20/20），以及 `window.open('')` / `window.open('about:blank')` 弹窗，内容脚本都在父页面或 opener 挂监听之前同步执行完，未出现截获。ISOLATED 的微任务早于 MAIN 执行，所以桥的监听无法用微任务限时，只能保持到配对为止。
+- 修复后用同一个攻击 PoC 复测：两个版本的页面握手都收不到应答。
+
+### 发现并修复的回归（Chrome 119）
+
+首轮浏览器审计中，119 的 opaque SW / 淘汰恢复项需重试 1 次才通过；单独运行时 2/2 失败，而 main 基线 2/2 通过。data 或 blob 子框架会持续停在原生值。DOM 属性记录（不额外发 IPC，以免改变时序）显示，这些文档每次拉取都返回 `invalid frame evidence identity`。
+
+最小 PoC 证实根因：**Chrome 119 的 `tabs.sendMessage` 指定已被导航替换的旧 `documentId` 时，消息会投给同一 frame 的新文档**（6/6）；Chrome 156 则正确返回 “Receiving end does not exist”。同步握手让 iframe 的初始 about:blank 文档也能立即拉取，它的 `storeFrameEvidence` 因此落到导航后的新文档；之后后台每次读取都会身份不符，解析失败又不会写入新凭证，形成死锁。旧握手速度慢，几乎触发不到，但这个隐患在 main 上同样存在。
+
+修复：桥拉取得到该错误时丢弃自己持有的凭证再重试，后台转而按浏览器快照解析。后台校验没有放宽，其他错误不丢弃凭证。新增单测：去掉修复后会失败；错误文案与 `frame-receipts.ts` 的一致性由测试校验。定向复测：119 opaque 恢复冒烟 3/3 通过。
+
+### 验证
+
+| 检查 | 结果 |
+| --- | --- |
+| lint、类型检查、单测 | 673/673 通过 |
+| 核心逐文件分支覆盖率（≥85%） | 通过；`content-bridge.ts` 分支 92.68% |
+| 安全模块覆盖率门禁 | 6/6 达标 |
+| Chrome 156 + Chrome 119 浏览器审计（`--retries=0`，覆盖 options、failclosed、frames、opaque、opaque 恢复、baked fail-closed、baked clear/frozen、cold start、popup） | 286/286、18/18 组，一次通过 |
+| 独立只读复核 | 无阻断问题；所提 popup 路径已实测排除，文档矛盾与过时注释已修正 |
+
+### 剩余边界
+
+1. runtime 缺席而桥存在的文档（runtime 在握手前抛错，或静态与动态脚本同时命中且顺序意外）里，桥的监听会一直挂着。页面可以塞入自己的端口，读到本 frame 的 payload 并伪造两类诊断回报，但拿不到 runtime 的控制入口。
+2. runtime 一侧“未回执即关闭端口”和“不监听 window 事件”目前只有产物级接线断言加真浏览器 PoC，没有在单测里实际执行 runtime。
+3. 握手的安全性依赖 Chrome 内容脚本“document_start 先于页面脚本”的时序；已验证的只是 Chrome 119 和 156 两个版本及上述 frame 类型。`document.open()`、扩展更新后的孤儿脚本、日常 profile 都未做浏览器实测。
+4. 冷标签页不再晚注入，扩展装载前已打开的标签页需要刷新。普通构建中晚注入原本就没有生效，这不是功能回退；烘焙且带桥的构建里，这类标签页失去了“装载后即带烘焙值”的效果。
+5. PoC 脚本与审计日志在本地 `tools/out/`（已被 gitignore），没有归档进 `docs/audits/`。
+

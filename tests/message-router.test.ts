@@ -53,7 +53,6 @@ function createServices(overrides: Record<string, any> = {}) {
     }),
     getExitIpSyncState: record('getExitIpSyncState', { storedIp: '', lastLocation: null }),
     getPayloadForUrl: record('getPayloadForUrl', { matched: true, payload: { hostname: 'example.com' }, errors: [] }),
-    noteDocumentInjected: record('noteDocumentInjected'),
     reportFontLayers: (...args: any[]) => { calls.push({ name: 'reportFontLayers', args }); },
     reportWorkerFallback: (...args: any[]) => { calls.push({ name: 'reportWorkerFallback', args }); },
     getWorkerFallbacks: (...args: any[]) => { calls.push({ name: 'getWorkerFallbacks', args }); return []; },
@@ -128,9 +127,8 @@ test('getPayloadForUrl 仅按浏览器 sender URL 解析并保留同文档记账
 
   assert.equal(response.status, 'ok');
   assert.equal(response.payload.hostname, 'example.com');
-  assert.deepEqual(calls.map((call) => call.name).slice(0, 2), ['noteDocumentInjected', 'getPayloadForUrl']);
-  assert.deepEqual(calls[0].args, ['doc-9']);
-  assert.deepEqual(calls[1].args, ['https://child.example.com/frame']);
+  assert.deepEqual(calls.map((call) => call.name).slice(0, 1), ['getPayloadForUrl']);
+  assert.deepEqual(calls[0].args, ['https://child.example.com/frame']);
 });
 
 test('reportFontLayers 始终按 sender URL 归属，忽略消息自报地址', async () => {
@@ -144,7 +142,6 @@ test('reportFontLayers 始终按 sender URL 归属，忽略消息自报地址', 
   const reports = calls.filter((call) => call.name === 'reportFontLayers');
   assert.deepEqual(reports[0].args, ['https://sender.example/', ['canvas']]);
   assert.deepEqual(reports[1].args, ['https://sender.example/', ['platform']]);
-  assert.equal(calls.some((call) => call.name === 'noteDocumentInjected'), false);
 });
 
 test('setSiteConfig 把空对象交给保存层，applyProfile 先读再写', async () => {
@@ -451,7 +448,6 @@ test('content 的三种动作只按 sender URL 归属，只有 payload 拉取按
   await router.respond({ action: 'reportFontLayers', url: 'https://forged.example/', layers: ['canvas'] }, sender);
   await router.respond({ action: 'reportWorkerFallback', url: 'https://forged.example/', reason: 'csp-blocked', script: 'worker.js', message: 'blocked' }, sender);
   assert.deepEqual(calls, [
-    { name: 'noteDocumentInjected', args: ['doc-9'] },
     { name: 'getPayloadForUrl', args: ['https://sender.example/frame'] },
     { name: 'reportFontLayers', args: ['https://sender.example/frame', ['canvas']] },
     { name: 'reportWorkerFallback', args: ['https://sender.example/frame', { reason: 'csp-blocked', script: 'worker.js', message: 'blocked' }] }
@@ -491,12 +487,11 @@ test('opaque 文档逐级证明父 documentId 并继承最近 HTTP 父规则，�
     assert.equal(response.effectiveUrl, 'https://nearest.example/path');
     assert.deepEqual(queries, [{ tabId: 7 }]);
     assert.deepEqual(calls.slice(before), [
-      { name: 'noteDocumentInjected', args: ['child'] },
       { name: 'getPayloadForUrl', args: ['https://nearest.example/path'] }
     ]);
     await router.respond({ action: 'reportFontLayers', layers: ['canvas'] }, sender);
     await router.respond({ action: 'reportWorkerFallback', reason: 'blob-failed' }, sender);
-    assert.deepEqual(calls.slice(before + 2), [
+    assert.deepEqual(calls.slice(before + 1), [
       { name: 'reportFontLayers', args: ['https://nearest.example/path', ['canvas']] },
       { name: 'reportWorkerFallback', args: ['https://nearest.example/path', { reason: 'blob-failed', script: undefined, message: undefined }] }
     ]);
@@ -571,7 +566,6 @@ test('Chrome 缺失 blob 导航快照时，blob sender 与 data 子文档均按�
 
     assert.equal(response.effectiveUrl, parentUrl);
     assert.deepEqual(calls, [
-      { name: 'noteDocumentInjected', args: [sender.documentId] },
       { name: 'getPayloadForUrl', args: [parentUrl] },
       { name: 'reportFontLayers', args: [parentUrl, ['canvas']] },
       { name: 'reportWorkerFallback', args: [parentUrl, { reason: 'blob-failed', script: undefined, message: undefined }] }
@@ -659,7 +653,6 @@ test('BFCache 仅剩顶层快照时，同 frame/document 的已证实 data 父�
   const restored = await router.respond({ action: 'getPayloadForUrl', referrer: top.url }, sender);
   assert.equal(restored.effectiveUrl, 'https://nearest.example/restored');
   assert.deepEqual(calls, [
-    { name: 'noteDocumentInjected', args: ['data-doc'] },
     { name: 'getPayloadForUrl', args: ['https://nearest.example/restored'] }
   ]);
   assert.equal(probes.length, 1, '缓存父边仍需重新读取 blob 的当前可访问 HTTP 祖先');
@@ -675,7 +668,6 @@ test('BFCache 仅剩顶层快照时，同 frame/document 的已证实 data 父�
   const restarted = createServices();
   assert.equal((await createBackgroundMessageRouter(restarted.services).respond({ action: 'getPayloadForUrl' }, sender)).effectiveUrl, 'https://nearest.example/restored');
   assert.deepEqual(restarted.calls, [
-    { name: 'noteDocumentInjected', args: ['data-doc'] },
     { name: 'getPayloadForUrl', args: ['https://nearest.example/restored'] }
   ]);
   assert.equal(probes.length, 2, '新 services 从目标文档恢复 receipt 后仍需精确重读 blob');
@@ -762,7 +754,6 @@ test('Chrome119 合法 blob 端点为三种 content 动作提供父证据，消�
 
     assert.equal(response.effectiveUrl, parentUrl);
     assert.deepEqual(calls, [
-      { name: 'noteDocumentInjected', args: [sender.documentId] },
       { name: 'getPayloadForUrl', args: [parentUrl] },
       { name: 'reportFontLayers', args: [parentUrl, ['canvas']] },
       { name: 'reportWorkerFallback', args: [parentUrl, { reason: 'blob-failed', script: undefined, message: undefined }] }
@@ -885,7 +876,6 @@ test('Chrome119 已证实 data 父边可在快照缺失后恢复，但每次重�
   response = { url: blobUrl, parentUrl: 'https://nearest.example/restored' };
   assert.equal((await router.respond({ action: 'getPayloadForUrl', parentUrl: top.url }, sender)).effectiveUrl, response.parentUrl);
   assert.deepEqual(calls, [
-    { name: 'noteDocumentInjected', args: ['data-doc'] },
     { name: 'getPayloadForUrl', args: ['https://nearest.example/restored'] }
   ]);
   calls.length = 0;
@@ -900,7 +890,6 @@ test('Chrome119 已证实 data 父边可在快照缺失后恢复，但每次重�
   const restarted = createServices();
   assert.equal((await createBackgroundMessageRouter(restarted.services).respond({ action: 'getPayloadForUrl' }, sender)).effectiveUrl, response.parentUrl);
   assert.deepEqual(restarted.calls, [
-    { name: 'noteDocumentInjected', args: ['data-doc'] },
     { name: 'getPayloadForUrl', args: ['https://nearest.example/restarted'] }
   ]);
   assert.equal(queries.length, 6, '重启后从目标文档 receipt 恢复 data 父边也必须重读 blob');
@@ -959,7 +948,6 @@ test('新 services 从文档私有 receipt 恢复 root 与嵌套 data 后，三�
     await router.respond({ action: 'reportFontLayers', ...forged, layers: ['canvas'] }, sender);
     await router.respond({ action: 'reportWorkerFallback', ...forged, reason: 'worker-failed' }, sender);
     assert.deepEqual(restarted.calls, [
-      { name: 'noteDocumentInjected', args: [frame.documentId] },
       { name: 'getPayloadForUrl', args: [top.url] },
       { name: 'reportFontLayers', args: [top.url, ['canvas']] },
       { name: 'reportWorkerFallback', args: [top.url, { reason: 'worker-failed', script: undefined, message: undefined }] }
@@ -1149,7 +1137,6 @@ test('getPayloadForUrl 必须等待目标文档确认 receipt，响应只带相�
     assert.equal(JSON.stringify(response).includes(forbidden), false, forbidden);
   }
   assert.deepEqual(calls, [
-    { name: 'noteDocumentInjected', args: ['data'] },
     { name: 'getPayloadForUrl', args: [top.url] }
   ]);
 });

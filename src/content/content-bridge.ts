@@ -1,6 +1,17 @@
 import { resolvePayloadHostname, resolvePayloadUrl } from '../shared/frame-url';
 
 /**
+ * runtime（MAIN）与桥（ISOLATED）握手用的 window 事件名，runtime.ts 里有同值常量。
+ * 两个入口都是经典脚本，共享模块会被拆成带 import 的公共 chunk，所以各写一份，
+ * 由 tests/extension-wiring.test.ts 校验两份产物一致。事件名随发行包公开，
+ * 安全性不依赖它保密，只依赖 document_start 同步派发的时机。
+ */
+export const BRIDGE_EVENT = 'vanishgeo:bridge';
+
+/** 后台 frame-receipts.ts 校验凭证身份失败时的错误文案；content.js 不能 import 后台模块，由测试校验一致 */
+export const STALE_FRAME_EVIDENCE_ERROR = 'invalid frame evidence identity';
+
+/**
  * ISOLATED world 桥的实现。content.ts 只负责读构建期常量并调用这里，
  * 这样桥的 frame 归属 / payload 校验 / 重拉逻辑可以在 Node 里直接单测。
  */
@@ -33,9 +44,6 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   let frameEvidence: unknown = null;
   /** 端口还没就绪时暂存最后一份 payload，就绪后补发 */
   let pendingPayload: unknown = null;
-  let handshakes = 0;
-
-  const HANDSHAKE_RETRY = [60, 200, 600, 1500, 4000];
 
   /**
    * 保留给旧后台的地址提示；当前后台只采用浏览器 sender URL 和可证明的父文档链。
@@ -66,7 +74,6 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
 
   let pullSeq = 0;
   let pullTimer: ReturnType<typeof setTimeout> | null = null;
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let pullRetryTimer: ReturnType<typeof setTimeout> | null = null;
   /**
    * 收到 clear 后如果后台一直叫不醒，最终必须自己 clear；否则排除站点/关总开关
@@ -89,8 +96,6 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
 
   // 后台说"这个站点现在不该有伪装"时下发的指令。runtime 收到后逐项还原原型/构造器。
   const CLEAR_PAYLOAD = { clear: true } as const;
-  /** 还没收到 ack 的入站端口；stop 时必须关掉，否则 MessagePort 会吊住事件循环 */
-  const pendingInboxes = new Set<MessagePort>();
 
   const deliver = (payload: unknown): boolean => {
     if (!payload) return false;
@@ -120,6 +125,11 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
     const seq = ++pullSeq;
     environment.chrome.runtime.sendMessage({ action: 'getPayloadForUrl', url: payloadUrl() }, (response: any) => {
       if (!environment.chrome.runtime.lastError && response?.status === 'ok' && response.frameEvidence) frameEvidence = response.frameEvidence;
+      // Chrome 119 的 tabs.sendMessage 不按 documentId 隔离（实测会投给同 frame 的新文档）：
+      // 已被导航替换的旧文档的 storeFrameEvidence 可能落到这里，留下不属于本文档的凭证，
+      // 后台每次读取都按身份不符拒绝，解析失败又不会写入新凭证。丢掉它，重试时后台
+      // 改用浏览器快照解析；后台校验不放宽，丢弃最坏只是回到失败关闭。
+      if (response?.status === 'error' && response.message === STALE_FRAME_EVIDENCE_ERROR) frameEvidence = null;
       if (seq !== pullSeq) return; // 更新的拉取已经发出，别用旧响应覆盖
       const failed = environment.chrome.runtime.lastError || !response || response.status === 'error';
       if (failed) {
@@ -158,62 +168,46 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
     pullPayload();
   };
 
-  const handshake = (): void => {
-    if (port) return;
-    handshakes += 1;
-    // 旧通道不 close：ack 可能还在队列里。关掉它等于把已经成功的握手扔掉，
-    // 而 runtime 收下第一个端口后就不再监听 —— 那样就再也握不上手了。
-    const channel = new MessageChannel();
-    const inbox = channel.port1;
-    pendingInboxes.add(inbox);
-    inbox.onmessage = (event) => {
-      const data: any = event.data;
-      // runtime 报上来的"实际生效字体层"：转给后台存一份，诊断页要用。
-      // 数字只有 runtime 知道（字表就编在它里面），这里只做搬运。
-      //
-      // 这一支必须排在 `if (port) return` 前面 —— 握手完成后这个端口就常开了，
-      // 回报是在 payload 应用之后才来的，被那句提前返回挡掉过一次。
-      if (data && data.__vanishGeo === NONCE && data.kind === 'fontLayers') {
-        environment.chrome.runtime.sendMessage({ action: 'reportFontLayers', url: payloadUrl(), layers: data.layers })
-          ?.catch(() => undefined);
-        return;
-      }
-      // 包装失败的上报：同样只搬运，判定与聚合都在后台。
-      // 放在 `if (port) return` 之前 —— 端口常开后回报仍会继续来。
-      if (data && data.__vanishGeo === NONCE && data.kind === 'workerFallback') {
-        environment.chrome.runtime.sendMessage({
-          action: 'reportWorkerFallback',
-          url: payloadUrl(),
-          reason: data.reason,
-          script: data.script,
-          message: data.message
-        })?.catch(() => undefined);
-        return;
-      }
-      if (port) return;
-      // 只匹配本构建的 ack；nonce 在握手中可见，不能据此证明对端身份。
-      if (!data || data.__vanishGeo !== 'ack' || data.nonce !== NONCE) return;
-      pendingInboxes.delete(inbox);
-      onPortReady(inbox);
-    };
-    inbox.start();
-    // postMessage 异步派发；页面可能观察到消息及端口，不能依靠发送时机保密。
-    environment.window.postMessage({ __vanishGeo: 'handshake' }, '*', [channel.port2]);
+  /** runtime 的诊断回报：字体层与 Worker 包装失败。只搬运给后台，判定与聚合都在后台。 */
+  const onRuntimeReport = (event: MessageEvent): void => {
+    const data: any = event.data;
+    if (!data || data.__vanishGeo !== NONCE) return;
+    if (data.kind === 'fontLayers') {
+      environment.chrome.runtime.sendMessage({ action: 'reportFontLayers', url: payloadUrl(), layers: data.layers })
+        ?.catch(() => undefined);
+      return;
+    }
+    if (data.kind === 'workerFallback') {
+      environment.chrome.runtime.sendMessage({
+        action: 'reportWorkerFallback',
+        url: payloadUrl(),
+        reason: data.reason,
+        script: data.script,
+        message: data.message
+      })?.catch(() => undefined);
+    }
   };
 
-  handshake();
-
-  const scheduleRetry = (): void => {
-    if (port || handshakes > HANDSHAKE_RETRY.length) return;
-    // runtime 走动态注入时可能晚一步，这里补几次握手；安全限制见 content.ts。
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      if (port) return;
-      handshake();
-      scheduleRetry();
-    }, HANDSHAKE_RETRY[handshakes - 1]);
+  /**
+   * 同步握手。桥在 document_start 先于 runtime 执行（动态注册时 Chrome 先跑 ISOLATED；
+   * 静态清单按声明顺序，构建时把桥排在前面），在这里挂好监听；runtime 随后同步派发
+   * 携带私有端口的 BRIDGE_EVENT，此时页面还没有任何脚本执行过，端口不经过页面可见的
+   * 通道。preventDefault 是给 runtime 的同步回执，未回执时 runtime 关掉端口只留烘焙值。
+   *
+   * 只收第一个端口。剩余边界：runtime 缺席的文档里这个监听会一直挂着，页面可以塞进
+   * 自己的端口，从而读到本 frame 的 payload 并伪造两类诊断回报；它拿不到 runtime 的
+   * 控制入口（runtime 不监听任何 window 事件）。
+   */
+  const onBridgeEvent = (event: any): void => {
+    const inbox: MessagePort | undefined = event && event.ports && event.ports[0];
+    if (port || !inbox) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    environment.window.removeEventListener(BRIDGE_EVENT, onBridgeEvent, true);
+    inbox.onmessage = onRuntimeReport;
+    onPortReady(inbox);
   };
-  scheduleRetry();
+  environment.window.addEventListener(BRIDGE_EVENT, onBridgeEvent, true);
 
   /**
    * BFCache 恢复：内容脚本不会重新注入，payload 也不会自己再来一遍。
@@ -297,17 +291,12 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   return {
     stop(): void {
       try { environment.window.removeEventListener?.('pageshow', onPageShow); } catch { /* ignore */ }
-      if (retryTimer) clearTimeout(retryTimer);
-      retryTimer = null;
+      try { environment.window.removeEventListener?.(BRIDGE_EVENT, onBridgeEvent, true); } catch { /* ignore */ }
       if (pullTimer) clearTimeout(pullTimer);
       pullTimer = null;
       clearPullRetry();
       try { port?.close(); } catch { /* ignore */ }
       port = null;
-      for (const inbox of pendingInboxes) {
-        try { inbox.close(); } catch { /* ignore */ }
-      }
-      pendingInboxes.clear();
       pendingPayload = null;
       frameEvidence = null;
     }
