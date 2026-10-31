@@ -252,10 +252,11 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     };
   }
 
-  function currentWorkerPatchSource(): string {
+  /** `baseUrl` 是原脚本地址：Worker 里再建的嵌套 Worker 按它解析相对路径（入口本身是 blob） */
+  function currentWorkerPatchSource(baseUrl: string): string {
     const config = currentWorkerConfig();
     if (!config.timezone && !config.language && !config.fontTargets.length) return '';
-    return buildWorkerPatch(config);
+    return buildWorkerPatch({ ...config, baseUrl });
   }
 
   /**
@@ -325,10 +326,10 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
 
     /** 生成带补丁前缀的 blob URL；没有可补丁的目标时返回 null，调用方走原生路径 */
     const makeWorkerUrl = (scriptURL: string | URL, options?: WorkerOptions): string | null => {
-      const patchSource = currentWorkerPatchSource();
+      const sourceUrl = new URL(String(scriptURL), location.href).href;
+      const patchSource = currentWorkerPatchSource(sourceUrl);
       if (!patchSource) return null;
 
-      const sourceUrl = new URL(String(scriptURL), location.href).href;
       const isModule = options && typeof options === 'object' && options.type === 'module';
       const body = isModule
         ? `${patchSource}\nawait import(${JSON.stringify(sourceUrl)});`
@@ -434,6 +435,7 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     languages: string[] | null;
     fontTargets: string[];
     token: string;
+    baseUrl: string;
   }): string {
     // 前导 `"use strict"`：blob 是独立经典脚本，Worker 里每个函数都得是 strict ——
     // sloppy 的函数对象会多出自有 `arguments`/`caller`，页面在 Worker 里跑一遍

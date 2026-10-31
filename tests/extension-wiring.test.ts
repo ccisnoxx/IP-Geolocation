@@ -86,8 +86,8 @@ test('Worker 补丁在每次创建时按当前状态生成，而不是冻结在�
   const runtime = read('src/injected/runtime.ts');
   const install = runtime.slice(runtime.indexOf('function installWorker'));
 
-  // 补丁源码必须现算：makeWorkerUrl 里调用 currentWorkerPatchSource()
-  assert.match(install, /const patchSource = currentWorkerPatchSource\(\)/);
+  // 补丁源码必须现算：makeWorkerUrl 里调用 currentWorkerPatchSource(原脚本地址)
+  assert.match(install, /const patchSource = currentWorkerPatchSource\(sourceUrl\)/);
   assert.doesNotMatch(install, /const patchSource = buildWorkerPatch\(/);
   // 没有可补丁目标时要回落到原生构造，不能造一个空补丁的 blob
   assert.match(install, /if \(!patchedUrl\) return new NativeWorker\(scriptURL, options\)/);

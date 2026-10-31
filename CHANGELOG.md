@@ -2,6 +2,22 @@
 
 只记对使用者有影响的变化。格式按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号跟 `manifest.json` 一致。
 
+## 未发布
+
+- 时区一致性补齐：`Temporal.Now.timeZoneId()` 与不带时区的 `Temporal.Now.*ISO()` 按目标时区返回
+  （Chrome 156 默认开启 Temporal，此前一行代码就能读到真实时区并与 `Date` 对质）；`Temporal.Instant` 的
+  `toLocaleString` 带目标时区；`document.lastModified` 按目标时区输出
+- 默认 locale 补齐：`Intl.DurationFormat`、`Number` / `BigInt.prototype.toLocaleString`、
+  `String.prototype.localeCompare` / `toLocaleUpperCase` / `toLocaleLowerCase` 与各 Temporal 类型的
+  `toLocaleString` 跟随目标语言；Worker 内同步
+- 请求头：启用站点的页面发往**其它域名**（CDN、接口、统计）的子资源请求也改写 `Accept-Language`，
+  此前这些请求带真实语言；同时补上 media / websocket / ping 等资源类型
+- 嵌套 Worker：Worker 里再创建的 Worker 同样换成带补丁的入口（相对路径按原脚本地址解析），
+  配置更新由父 Worker 逐层转发；此前孙 Worker 读到真实时区与语言
+- 配置体检：新增「声明时区与出口 IP 所在地不一致」「手动坐标离出口 IP 超过 500 公里」两条
+  （各带一键修复），以及「WebRTC 策略没有生效」（被其它扩展接管或被策略锁定）；诊断页显示
+  WebRTC 的期望值与浏览器实际值
+
 ## 2.4.3
 
 - **升级提醒**：扩展装载（安装 / 更新 / 重新启用）之前就已打开的标签页不会再被补注入，

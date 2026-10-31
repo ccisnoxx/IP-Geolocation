@@ -23,8 +23,8 @@ persona 在进程环境、请求头、页面 JS 三层同时成立，改不到�
 
 ### ✨ 做了什么
 
-- 🕐 **时区** - `getTimezoneOffset` / `get*` / `set*` / `toString` / `Intl` 全套跟着走，`new Date(str)` 的本地时间语义一并处理
-- 🌐 **语言** - `navigator.language` / `languages`（冻结数组）/ `Intl` 默认 locale，请求头 `Accept-Language` 由 DNR 在首个请求前改写
+- 🕐 **时区** - `getTimezoneOffset` / `get*` / `set*` / `toString` / `Intl` 全套跟着走，`new Date(str)` 的本地时间语义一并处理；`Temporal.Now`（`timeZoneId()` 与不带时区的 `*ISO()`）和 `document.lastModified` 同样按目标时区输出
+- 🌐 **语言** - `navigator.language` / `languages`（冻结数组）/ `Intl`（含 `DurationFormat`）与 `Number` / `BigInt` / `String` 的默认 locale；请求头 `Accept-Language` 由 DNR 在首个请求前改写，既覆盖发往该站的请求，也覆盖该站页面发往 CDN / 接口等其它域名的子资源请求
 - 🌍 **定位** - 坐标、精度、可选随机偏移（Rayleigh 分布、会话内固定，不会每 3 秒瞬移；上报精度覆盖实际偏移）；`watchPosition` 首帧即时、间隔 2.5–4.2s 逐帧重摇、坐标一变立刻推帧；`Position` / `Coordinates` 按 WebIDL 形状重建；静止读数自洽（`speed` 跟平台走：桌面 `null`、移动端 `0`；`heading: null`；不编 `altitude`）
 - 🖋 **canvas 字体** - 三层结构：**平台层**（按本机真实平台判定，隐藏另外两个平台的字体）、**中文层**（中文与国产厂商字体）、**手动层**；覆盖 `<canvas>`、`OffscreenCanvas` 和 `window.queryLocalFonts()`（直接枚举本机字体那条路，实测 667 → 632 条），名字匹配含本地化别名（`苹方-简`、`微软雅黑`）
 - 🔒 **WebRTC** - `strict` / `compatible` / `default` 三档，对应不同的 `contentSettings` 策略
@@ -235,9 +235,9 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 
 | 上下文 | 覆盖 | 说明 |
 |---|---|---|
-| classic / module Worker | ✅ 或 ⚠️ | blob 前缀包装入口，Date / navigator / canvas 与主线程同源，Intl 覆盖同一组八类构造器（DateTimeFormat / NumberFormat / Collator / RelativeTimeFormat / PluralRules / ListFormat / DisplayNames / Segmenter）。配置**活更新**：入口里保留的是一份 `live` 快照，配置变化时主线程向已创建的 Worker 广播一次，关闭补丁会广播空配置让 Worker 回到原生值（只影响经由包装构造器创建、且被登记的 Worker）。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口，此时标 ⚠️ 并在弹窗里明说 |
+| classic / module Worker | ✅ 或 ⚠️ | blob 前缀包装入口，Date / navigator / canvas 与主线程同源，Intl 覆盖同一组九类构造器（DateTimeFormat / NumberFormat / Collator / RelativeTimeFormat / PluralRules / ListFormat / DisplayNames / Segmenter / DurationFormat），`Temporal.Now` 的默认时区与 Number / String 的默认 locale 也同步。配置**活更新**：入口里保留的是一份 `live` 快照，配置变化时主线程向已创建的 Worker 广播一次，关闭补丁会广播空配置让 Worker 回到原生值（只影响经由包装构造器创建、且被登记的 Worker）。每个文档先探一次 blob 是否被 CSP 放行：被拒时全部走原生入口，此时标 ⚠️ 并在弹窗里明说 |
 | SharedWorker | ❌ | **不包装**：身份是 `(resolved URL, name)`，换成 blob URL 会让每个文档各建一个实例，跨文档共享语义消失且无法修回去。它读到的是**原生值** |
-| nested worker | ❌ | 父 Worker 里的 `Worker` 构造器未打补丁，孙 Worker 读到原生值 |
+| nested worker | ✅ 或 ⚠️ | 父 Worker 里的 `Worker` 构造器同样换成带补丁的入口，相对路径按原脚本地址解析，配置更新由父 Worker 逐层转发。父 Worker 回退原生（CSP 拒绝 blob 等）时它也读到原生值，标 ⚠️ |
 | service worker | ❌ | 没有 hook `navigator.serviceWorker.register` |
 
 诊断页（`fixtures/workers/top.html`）与 `buildWorkerDiagnosticsSnapshot` 都按这张表标注：
@@ -308,8 +308,8 @@ is patched.
 
 ### ✨ What it does
 
-- 🕐 **Timezone** - `getTimezoneOffset`, `get*`, `set*`, `toString` and `Intl` move together, including the local-time semantics of `new Date(string)`
-- 🌐 **Language** - `navigator.language`, `languages` (a frozen array) and the default `Intl` locale; `Accept-Language` is rewritten by DNR before the first request
+- 🕐 **Timezone** - `getTimezoneOffset`, `get*`, `set*`, `toString` and `Intl` move together, including the local-time semantics of `new Date(string)`; `Temporal.Now` (`timeZoneId()` and zone-less `*ISO()`) and `document.lastModified` follow the target zone too
+- 🌐 **Language** - `navigator.language`, `languages` (a frozen array) and the default locale of `Intl` (including `DurationFormat`), `Number`, `BigInt` and `String`; `Accept-Language` is rewritten by DNR before the first request, both for requests to the site and for the site's own subresource requests to CDNs, APIs and other domains
 - 🌍 **Geolocation** - coordinates, accuracy and an optional random offset (fixed for the session, no teleporting every 3 s); `Position` / `Coordinates` are rebuilt with WebIDL shape; a still device reports what its platform really reports (`speed: null` on desktop, `0` on mobile)
 - 🖋 **Canvas fonts** - three layers: **claimed platform** (mac / windows / linux, hides the other platforms' fonts), **CJK layer** (Chinese + vendor fonts) and a **manual list**; patches both `<canvas>` and `OffscreenCanvas`, with alias-aware name matching (`苹方-简`, `微软雅黑`)
 - 🔒 **WebRTC** - `strict` / `compatible` / `default`, each mapping to a `contentSettings` policy

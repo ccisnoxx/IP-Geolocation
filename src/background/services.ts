@@ -3,7 +3,7 @@ import { createFrameRuleResolver, discoverOpaqueDocuments, type FrameRuleResolve
 import { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
 import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, lookupExitIp, planExitIpApply, runExitIpSync } from './ip-sync';
 import type { ExitIpApplyOutcome, ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
-import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy } from './webrtc';
+import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, readWebRTCPolicy } from './webrtc';
 import { registerSpoofContentScripts } from './content-scripts';
 import { createDiagnosticReports } from './diagnostic-reports';
 import {
@@ -75,6 +75,8 @@ export interface BackgroundServices {
   /** 「跟随出口 IP」的 alarm 名（service-worker 按名字分派） */
   ipSyncAlarmName: string;
   webRtcPolicies: typeof WEBRTC_POLICY_VALUES;
+  /** 浏览器里 WebRTC 策略的实际值与控制权（写入不一定生效） */
+  readWebRtcPolicy(): Promise<{ value: string; levelOfControl: string } | null>;
   getSiteConfig(): Promise<SiteSpoofConfig>;
   saveSiteConfig(config: Partial<SiteSpoofConfig>): Promise<SiteSpoofConfig>;
   /** 让内存快照失效（storage.onChanged 里调用） */
@@ -1015,6 +1017,7 @@ export function createBackgroundServices(): BackgroundServices {
     alarmName: ALARM_NAME,
     ipSyncAlarmName: IP_SYNC_ALARM_NAME,
     webRtcPolicies: WEBRTC_POLICY_VALUES,
+    readWebRtcPolicy: readWebRTCPolicy,
     getSiteConfig,
     saveSiteConfig,
     invalidateStorageCache,

@@ -65,9 +65,12 @@ test('排除项也会从 Accept-Language 规则里挖掉', () => {
   ]);
 
   const rules = buildAcceptLanguageRules(cfg);
-  assert.equal(rules.length, 1);
+  assert.equal(rules.length, 2, '按目标域名、按发起页面各一条');
   assert.deepEqual(rules[0].condition.requestDomains, ['google.com']);
   assert.deepEqual(rules[0].condition.excludedRequestDomains, ['mail.google.com']);
+  // 被排除站点的页面自己发出的请求同样不能改写（它的 navigator.language 是原生的）
+  assert.deepEqual(rules[1].condition.initiatorDomains, ['google.com']);
+  assert.deepEqual(rules[1].condition.excludedInitiatorDomains, ['mail.google.com']);
 });
 
 test('三层结构：内容脚本靠 payload 兜底，但 carve-out 必须认出中间那一层', () => {
@@ -103,8 +106,13 @@ test('DNR 父规则挖掉被禁用的中间子域，孙域靠自己的规则重�
 
   const rules = buildAcceptLanguageRules(cfg);
   const byDomain = new Map(
-    rules.map((rule) => [rule.condition!.requestDomains![0], rule])
+    rules.filter((rule) => rule.condition!.requestDomains).map((rule) => [rule.condition!.requestDomains![0], rule])
   );
+  const byInitiator = new Map(
+    rules.filter((rule) => rule.condition!.initiatorDomains).map((rule) => [rule.condition!.initiatorDomains![0], rule])
+  );
+  assert.deepEqual(byInitiator.get('google.com')?.condition!.excludedInitiatorDomains, ['mail.google.com']);
+  assert.ok(byInitiator.has('inbox.mail.google.com'), '孙域页面发起的请求也要有自己的规则');
 
   const parent = byDomain.get('google.com');
   assert.ok(parent, '父域仍要有头规则');
@@ -160,8 +168,9 @@ test('启用但语言不生效的后代也要被父规则挖掉', () => {
   } as any);
 
   const rules = buildAcceptLanguageRules(cfg);
-  assert.equal(rules.length, 1, '只有父域生成头规则');
+  assert.equal(rules.length, 2, '只有父域生成头规则（按目标域名、按发起页面各一条）');
   assert.deepEqual(rules[0].condition!.excludedRequestDomains, ['mail.google.com']);
+  assert.deepEqual(rules[1].condition!.excludedInitiatorDomains, ['mail.google.com']);
 });
 
 test('carve-out 在 masterEnabled 关闭时为空', () => {
