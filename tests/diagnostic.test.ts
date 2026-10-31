@@ -23,12 +23,13 @@ test('SharedWorker 探测成功也要标 UNSUPPORTED（能返回值 ≠ 被覆�
   assert.equal(worker.sharedWorker.result.timezone, 'Asia/Shanghai', '观测值仍要保留，供排查用');
   assert.match(worker.sharedWorker.note, /原生值|不在覆盖/);
 
-  // nested / service worker 同理：不覆盖就不能显示成 ok
+  // service worker 同理：不覆盖就不能显示成 ok；nested worker 已被接管，探测成功就是 ok
   const others = buildWorkerDiagnosticsSnapshot({
     nestedWorker: { status: 'ok' },
     serviceWorker: { status: 'ok' }
   });
-  assert.equal(others.nestedWorker.status, 'unsupported');
+  assert.equal(others.nestedWorker.status, 'ok');
+  assert.equal(others.nestedWorker.coverage, 'supported');
   assert.equal(others.serviceWorker.status, 'unsupported');
 });
 

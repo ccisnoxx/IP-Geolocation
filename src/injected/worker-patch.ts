@@ -12,6 +12,11 @@ export interface WorkerPatchConfig {
   token?: string | null;
   /** true = 这次下发的是关配置，所有补丁入口退回原生语义 */
   disabled?: boolean | null;
+  /**
+   * 原脚本地址。入口是 blob，Worker 里的 `location` 指向 blob URL；嵌套 Worker 的相对
+   * 路径要按原脚本解析，否则 `new Worker('sub.js')` 会落到 blob: 上。
+   */
+  baseUrl?: string | null;
 }
 
 /**
@@ -32,6 +37,7 @@ export interface WorkerPatchConfig {
  *   Temporal    Now.timeZoneId / Now.*ISO() 的默认时区；各类型 toLocaleString 的默认 locale
  *               （Instant 还带默认 timeZone）
  *   默认 locale Number / BigInt.toLocaleString、String.localeCompare / toLocale*Case
+ *   Worker      嵌套 Worker 换成同样带补丁的入口，配置更新逐层转发
  *   Canvas      OffscreenCanvasRenderingContext2D.measureText / fillText / strokeText
  *
  * set* 家族是最容易被漏掉的一环：只改 getter 的话，`d.setHours(0,0,0,0)` 仍然按
@@ -758,6 +764,73 @@ export function workerPatch(config: WorkerPatchConfig): void {
     // 真机永远不会出现的信号 —— 检测方只需要问一句 check('12px Helvetica')。
   }
 
+  // ---------- 嵌套 Worker ----------
+  //
+  // 父 Worker 里的 `new Worker()` 原样走原生时，孙 Worker 读到的是真实 Date / Intl /
+  // navigator：页面在 Worker 里再开一层就能看出主线程被动过。这里用与主线程相同的
+  // 办法换入口（补丁源码 + importScripts / import 原脚本），并把收到的配置更新转发
+  // 给自己创建的子 Worker，热更新与关闭能一路传到底。
+  //
+  // 自身源码取自具名函数表达式 `workerPatch`（入口是 `(function workerPatch(...) {...})(...)`），
+  // 不经任何全局变量；生产构建改名时函数体内的引用随之改名。
+  // 不另做 blob CSP 探测：Worker 只在主线程探测确认 blob 可用后才被换过入口，
+  // 子 Worker 继承创建者的 CSP，构造失败时回退原生。
+  const nestedChildren: any[] = [];
+  {
+    const NativeWorker: any = scope.Worker;
+    const baseUrl = typeof initial.baseUrl === 'string' && initial.baseUrl ? initial.baseUrl : '';
+    // 原脚本在补丁之后才加载：先抓住原生 Blob / createObjectURL，页面改写它们也读不到入口源码里的口令
+    const NativeBlob: any = scope.Blob;
+    const URLRef: any = scope.URL;
+    const nativeCreateObjectURL: any = URLRef && URLRef.createObjectURL;
+    if (typeof NativeWorker === 'function') {
+      const resolve = (scriptURL: any): any => {
+        try {
+          return new URL(String(scriptURL), baseUrl || String(scope.location && scope.location.href)).href;
+        } catch {
+          return scriptURL;
+        }
+      };
+      const spoofed: any = wrap(function (scriptURL: any, options?: any) {
+        const target = resolve(scriptURL);
+        if (!live.zone && !live.language && !live.fontTargets.length) return new NativeWorker(target, options);
+        let entry = '';
+        try {
+          const childConfig: WorkerPatchConfig = {
+            timezone: live.zone || null,
+            language: live.language || null,
+            languages: live.languages.slice(),
+            fontTargets: live.fontTargets.slice(),
+            token: initial.token || null,
+            baseUrl: target
+          };
+          const isModule = options && typeof options === 'object' && options.type === 'module';
+          const body = `"use strict";(${workerPatch.toString()})(${JSON.stringify(childConfig)});\n`
+            + (isModule ? `await import(${JSON.stringify(target)});` : `importScripts(${JSON.stringify(target)});`);
+          entry = nativeCreateObjectURL.call(URLRef, new NativeBlob([body], { type: 'text/javascript' }));
+        } catch {
+          return new NativeWorker(target, options);
+        }
+        let child: any;
+        try {
+          child = new NativeWorker(entry, options);
+        } catch {
+          return new NativeWorker(target, options);
+        }
+        nestedChildren.push(child);
+        if (nestedChildren.length > 64) nestedChildren.shift();
+        return child;
+      }, 'Worker', 1, { construct: true });
+      try { Object.defineProperty(spoofed, 'prototype', { value: NativeWorker.prototype, writable: false }); } catch { /* ignore */ }
+      try {
+        Object.defineProperty(NativeWorker.prototype, 'constructor', {
+          value: spoofed, writable: true, enumerable: false, configurable: true
+        });
+      } catch { /* ignore */ }
+      putValue(scope, 'Worker', spoofed, true);
+    }
+  }
+
   // ---------- 配置热更新 ----------
 
   /**
@@ -794,6 +867,14 @@ export function workerPatch(config: WorkerPatchConfig): void {
       // 命中即认领：别让页面挂的监听器顺带看到配置内容
       if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
       applyLiveConfig(data.config || null);
+      // 转发给自己创建的子 Worker：它们只认同一口令，主线程直接够不到它们
+      for (let index = nestedChildren.length - 1; index >= 0; index -= 1) {
+        try {
+          nestedChildren[index].postMessage(data);
+        } catch {
+          nestedChildren.splice(index, 1);
+        }
+      }
     });
   }
 }

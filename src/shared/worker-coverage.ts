@@ -11,8 +11,8 @@
  *     代价是相对 URL 基准和 CSP 语义可能变（取决于站点），失败时静默回落原生。
  *   - SharedWorker：**不包装**。身份是 (resolved URL, name)，换成 blob URL 会让
  *     每个文档各建一个实例，跨文档共享语义消失，且无法在 JS 层修回去。
- *   - nested worker：父 Worker 里的 `Worker` 构造器没有打补丁，孙 Worker 拿到的是
- *     原生值 —— 属于"看起来被覆盖、实际没有"的那类，按 UNSUPPORTED 记。
+ *   - nested worker：父 Worker 里的 `Worker` 构造器同样换成带补丁的入口，配置更新
+ *     由父 Worker 逐层转发；父 Worker 本身回退原生（CSP 拒绝 blob 等）时它也跟着回退。
  *   - service worker：没有任何 hook。
  */
 export type WorkerCoverageStatus = 'supported' | 'unsupported';
@@ -43,8 +43,8 @@ export const WORKER_COVERAGE: Record<WorkerCoverageKey, WorkerCoverageEntry> = {
     detail: '不包装：换成 blob URL 会改变 (URL, name) 身份，跨文档共享实例的语义无法保留。读到原生值。'
   },
   nestedWorker: {
-    status: 'unsupported',
-    detail: '父 Worker 内的 Worker 构造器未打补丁，孙 Worker 读到原生值。'
+    status: 'supported',
+    detail: '父 Worker 内的 Worker 构造器换成同样带补丁的入口（相对路径按原脚本地址解析），配置更新由父 Worker 逐层转发。父 Worker 回退原生时它也读到原生值。'
   },
   serviceWorker: {
     status: 'unsupported',

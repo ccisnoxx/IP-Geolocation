@@ -181,8 +181,7 @@
               resolve({
                 status: payload.status || 'error',
                 result: payload.result || null,
-                error: payload.error || '',
-                note: '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+                error: payload.error || ''
               });
             };
             worker.onerror = function(event) {
@@ -191,7 +190,7 @@
               resolve({
                 status: 'error',
                 error: event && event.message ? event.message : 'nested parent worker failed',
-                note: '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+                note: 'nested worker 未能创建或运行。'
               });
             };
             worker.postMessage({ childUrl: childUrl });
@@ -199,7 +198,7 @@
             resolve({
               status: 'error',
               error: error && error.message ? error.message : String(error),
-              note: '第一轮只记录 nested worker 边界，不承诺当前已覆盖。'
+              note: 'nested worker 未能创建或运行。'
             });
           }
         });

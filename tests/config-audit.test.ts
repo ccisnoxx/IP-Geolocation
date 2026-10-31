@@ -210,3 +210,79 @@ test('排序：error 在前，info 在后', () => {
   ]);
   assert.deepEqual(sorted.map((item) => item.id), ['b', 'c', 'a']);
 });
+
+// ---------- 与运行环境对比 ----------
+
+const LA_EXIT = { latitude: 34.05, longitude: -118.24, country: 'US', timezone: 'America/Los_Angeles' };
+const TOKYO_EXIT = { latitude: 35.68, longitude: 139.69, country: 'JP', timezone: 'Asia/Tokyo' };
+const envIds = (config: SiteSpoofConfig, environment: Parameters<typeof auditConfig>[1]) =>
+  auditConfig(config, environment).map((finding) => finding.id);
+
+test('出口 IP 与人设同处：不报；不传运行环境时也不猜', () => {
+  const clean = base({ globalProfile: usProfile as any });
+  assert.deepEqual(envIds(clean, { exit: LA_EXIT }), []);
+  assert.deepEqual(envIds(clean, {}), []);
+  assert.deepEqual(envIds(clean, { exit: null, webRtc: null }), []);
+});
+
+test('手动时区与出口 IP 所在时区偏移不同 → warn，修法改成出口时区后消失', () => {
+  const config = base({ globalProfile: usProfile as any });
+  const findings = auditConfig(config, { exit: TOKYO_EXIT });
+  const finding = findings.find((item) => item.id === 'exit-ip-timezone');
+  assert.ok(finding, '东京出口配洛杉矶时区必须报');
+  assert.equal(finding!.severity, 'warn');
+  assert.match(finding!.detail, /Asia\/Tokyo/);
+  const fixed = normalizeConfig(finding!.fix!.apply(config));
+  assert.equal(fixed.globalProfile.timezone.timezone, 'Asia/Tokyo');
+  assert.ok(!envIds(fixed, { exit: TOKYO_EXIT }).includes('exit-ip-timezone'));
+});
+
+test('偏移相同的不同时区名不报；auto 时区本来就跟随出口，不报', () => {
+  const vancouver = base({ globalProfile: { ...usProfile, timezone: { enabled: true, mode: 'manual', timezone: 'America/Vancouver' } } as any });
+  assert.ok(!envIds(vancouver, { exit: LA_EXIT }).includes('exit-ip-timezone'), '温哥华与洛杉矶同一偏移');
+  const auto = base({ globalProfile: { ...usProfile, timezone: { enabled: true, mode: 'auto', timezone: '' } } as any });
+  assert.ok(!envIds(auto, { exit: TOKYO_EXIT }).includes('exit-ip-timezone'));
+});
+
+test('手动坐标离出口 IP 超过 500 公里 → warn，修法改为跟随出口坐标；几百公里内不报', () => {
+  const config = base({ globalProfile: usProfile as any });
+  // 圣地亚哥距洛杉矶约 180 公里：城市级 IP 归属地的正常误差
+  assert.ok(!envIds(config, { exit: { ...LA_EXIT, latitude: 32.72, longitude: -117.16 } }).includes('exit-ip-coordinates'));
+
+  const finding = auditConfig(config, { exit: { ...TOKYO_EXIT, timezone: 'America/Los_Angeles' } })
+    .find((item) => item.id === 'exit-ip-coordinates');
+  assert.ok(finding, '洛杉矶坐标配东京出口必须报');
+  assert.match(finding!.detail, /公里/);
+  const fixed = normalizeConfig(finding!.fix!.apply(config));
+  assert.equal(fixed.globalProfile.geolocation.mode, 'auto');
+  assert.ok(!envIds(fixed, { exit: TOKYO_EXIT }).includes('exit-ip-coordinates'));
+});
+
+test('WebRTC 策略被别的扩展接管、被策略锁定或实际值不符 → warn；本扩展控制且一致不报', () => {
+  const config = base({ globalProfile: usProfile as any });
+  const expected = 'disable_non_proxied_udp';
+  assert.ok(!envIds(config, { webRtc: { expected, value: expected, levelOfControl: 'controlled_by_this_extension' } }).includes('webrtc-not-applied'));
+
+  const other = auditConfig(config, { webRtc: { expected, value: 'default', levelOfControl: 'controlled_by_other_extensions' } })
+    .find((item) => item.id === 'webrtc-not-applied');
+  assert.ok(other);
+  assert.match(other!.detail, /另一个扩展/);
+  assert.equal(other!.fix, undefined, '控制权不在本扩展手里，没有能机械修的办法');
+
+  const locked = auditConfig(config, { webRtc: { expected, value: 'default', levelOfControl: 'not_controllable' } })
+    .find((item) => item.id === 'webrtc-not-applied');
+  assert.match(locked!.detail, /策略锁定/);
+
+  assert.ok(envIds(config, { webRtc: { expected, value: 'default', levelOfControl: 'controlled_by_this_extension' } }).includes('webrtc-not-applied'));
+  // 不接管 WebRTC（default 档）时没有"期望值"，不报
+  assert.ok(!envIds(config, { webRtc: { expected: null, value: 'default', levelOfControl: 'controllable_by_this_extension' } }).includes('webrtc-not-applied'));
+});
+
+test('总开关关着时不做运行环境对比', () => {
+  const off = base({ masterEnabled: false, globalProfile: usProfile as any });
+  const found = envIds(off, {
+    exit: TOKYO_EXIT,
+    webRtc: { expected: 'disable_non_proxied_udp', value: 'default', levelOfControl: 'controlled_by_other_extensions' }
+  });
+  assert.ok(!found.some((id) => id.startsWith('exit-ip') || id === 'webrtc-not-applied'));
+});
