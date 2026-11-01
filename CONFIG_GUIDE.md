@@ -292,25 +292,39 @@ browserscan.net、deviceinfo.me、whoer.net、ipinfo.io、iprisk.top）。检测
 `{ id, severity, title, detail, fix? }[]`。所以它既能给诊断页用，也能在测试里
 直接断言「修完之后这条必须消失」。
 
-## 十、首屏窗口：为什么开发构建有、烘焙构建没有
+## 十、首屏窗口：三种模式
 
-配置进到页面有两条路，区别只在**什么时候**生效：
+配置进到页面有三条路，区别只在**什么时候**生效：
 
-| 构建 | 配置来源 | 生效时刻 | 页面首个内联脚本读到 |
+| 模式 | 配置来源 | 生效时刻 | 页面首个内联脚本读到 |
 |---|---|---|---|
-| `npm run build`（开发） | `chrome.storage.local`，经 `sendMessage` 取回 | 异步，一次 IPC 往返 | **原生值** |
-| `build:persona` / `--config`（烘焙） | 编译进 `injected/runtime.js` 的常量 | `document_start` 同步 | 目标值 |
+| 普通（Release 通用包、`npm run build`） | `chrome.storage.local`，经桥异步送达 | 异步，一次 IPC 往返 | **原生值** |
+| 用户脚本（普通包 + 「允许用户脚本」） | 保存配置时注册的用户脚本里的快照 | `document_start` 同步 | 目标值 |
+| 烘焙（`release` / `build:persona`） | 编译进 `injected/runtime.js` 的常量 | `document_start` 同步 | 目标值 |
 
 实测（本机 Helium，出口 Las Vegas，目标 `America/Los_Angeles` / `en-US`）：
 
 ```
-开发构建  __first = { tz: "Asia/Shanghai", lang: "zh-CN", offset: -480 }   ← 窗口
+普通模式  __first = { tz: "Asia/Shanghai", lang: "zh-CN", offset: -480 }   ← 窗口
 烘焙构建  __first = { tz: "America/Los_Angeles", lang: "en-US", offset: 420 }
 ```
 
 原因是硬性的：`document_start` 注入的脚本确实在页面脚本之前跑，但配置要经
 `chrome.runtime.sendMessage` 或 `chrome.storage` 才拿到，**任何异步 API 都输给解析器**——
-HTML 已经缓冲好时，首个内联脚本紧接着就执行。所以开发构建的窗口关不掉，只能换路径。
+HTML 已经缓冲好时，首个内联脚本紧接着就执行。所以普通模式的窗口关不掉，只能换路径。
+
+### 推荐：打开「允许用户脚本」
+
+不用本地构建、改配置也不用重新出包，Chrome / Helium 120+ 可用：
+
+1. `chrome://extensions/` → VanishGeo「详情」→ 打开「允许用户脚本」
+   （Chrome 138 起是每个扩展单独的开关；更早的版本是扩展管理页右上角的「开发者模式」）
+2. 刷新网页。弹窗里的首屏提示消失即表示已进入用户脚本模式
+
+之后每次保存配置，扩展把"配置 + 注入层"重新注册为用户脚本。开关关掉时自动回到普通模式，不会没有伪装。
+about:blank / srcdoc / blob / data 子框架用户脚本注入不到，仍按普通方式处理。
+
+需要彻底不依赖浏览器开关、或者要把配置冻结进包，用下面的烘焙构建。
 
 ### 发布流水线：一条命令出包
 
@@ -334,7 +348,7 @@ vanishgeo-1.3.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 
 
 三道闸，任一不过就不出包（**检查的是产物内容，不是退出码**）：
 
-1. `injected/runtime.js` 里必须真的出现目标时区与语言 —— 否则说明拿到的是开发构建，
+1. `injected/runtime.js` 里必须真的出现目标时区与语言 —— 否则说明拿到的是普通构建，
    首屏窗口原样发出去了，而且从外面看不出来
 2. `runtime.js` 里不能出现 `import`（MAIN world 是经典脚本）也不能残留
    `__VANISHGEO_BAKED__` 占位符（define 没生效）
@@ -343,7 +357,7 @@ vanishgeo-1.3.1-singapore.json       同名清单：sha256 / git sha / 坐标 / 
 ### 校验已出的包：真开浏览器量首屏
 
 上面的闸只能证明"产物里写着目标时区"，证明不了"页面的第一个内联脚本已经看到了它"。
-这两件事在开发构建里恰好会分叉，所以要单独量：
+这两件事在普通构建里恰好会分叉，所以要单独量：
 
 ```bash
 npm run verify:release -- --zip=release/vanishgeo-1.3.1-united-states.zip
@@ -377,13 +391,14 @@ npm run build:persona -- --config=~/Downloads/vanishgeo-bake.json --out=dist-bak
 
 ### 什么时候可以不管这个窗口
 
-检测脚本通常在 `DOMContentLoaded` 之后才跑，那时 payload 早已落地，开发构建也一致。
+检测脚本通常在 `DOMContentLoaded` 之后才跑，那时 payload 早已落地，普通模式也一致。
 只有"在 `<head>` 里同步读 `Intl` / `new Date()` 并把结果立刻上报"的站点才能看到差异。
 
 ## 十一、验证
 
-1. 右键扩展图标 →「Open diagnostic page」
-2. 「当前配置」区域对照期望值
-3. 探针里那几行**不该变红**：`languages` 冻结、`setHours.toString()` 原生签名、
-   `Coordinates` 自有属性数为 0、`new Date()` 自有属性数为 0
+1. 打开一个启用了规则的网页，再右键扩展图标 →「Open diagnostic page」
+2. 「站点实测」会自动检测本窗口最近用过的网页：先给结论（N 项一致 / M 项不一致），
+   再按时区、语言、定位、WebRTC 列出"期望 / 网页实际"
+3. 有不一致的项先看「配置体检」：多数是配置自相矛盾，能机械修的直接给按钮
+4. 反检测检查（原生签名、自有属性等）折叠成一行汇总，有失败项时自动展开
 4. 到 <https://browserleaks.com/> 与 <https://ipleak.net/> 各看一遍时区、语言、WebRTC

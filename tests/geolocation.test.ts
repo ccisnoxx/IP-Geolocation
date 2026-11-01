@@ -323,8 +323,8 @@ test('随机偏移按会话固定：连续两次调用给出同一个点', async
   assert.equal(second.latitude, first.latitude, '同一会话内坐标必须一致');
   assert.equal(second.longitude, first.longitude);
 
-  // 仍然落在半径内（包括未随机时为 0）
-  assert.ok(distanceMeters({ latitude: 35.6762, longitude: 139.6503 }, first) <= 1000);
+  // 仍然落在半径内（包括未随机时为 0）。偏移截断在半径上时，换一套公式回量会有浮点误差，留 1 米
+  assert.ok(distanceMeters({ latitude: 35.6762, longitude: 139.6503 }, first) <= 1000 + 1);
 });
 
 test('payload 换了坐标就重新摇一次，不会一直用旧点', async () => {
@@ -335,7 +335,7 @@ test('payload 换了坐标就重新摇一次，不会一直用旧点', async () 
   const paris = (await request()).position.coords;
 
   assert.ok(distanceMeters({ latitude: 35.6762, longitude: 139.6503 }, paris) > 100000, '必须换到新坐标附近');
-  assert.ok(distanceMeters({ latitude: 48.8566, longitude: 2.3522 }, paris) <= 1000);
+  assert.ok(distanceMeters({ latitude: 48.8566, longitude: 2.3522 }, paris) <= 1000 + 1);
   assert.notEqual(paris.latitude, tokyo.latitude);
 });
 

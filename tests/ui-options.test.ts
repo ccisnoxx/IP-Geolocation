@@ -52,7 +52,7 @@ function createChrome(calls: RuntimeCall[]) {
           switch (message.action) {
             case 'getSiteConfig':
               // 桩要真的记住写进去的东西：恒返回 DEFAULT_CONFIG 时，任何"保存后
-              // 再读"的断言都只是在测渲染函数对一份固定输入的输出（见 REVIEW-P2 第 22 条）
+              // 再读"的断言都只是在测渲染函数对一份固定输入的输出（见 docs/reviews/REVIEW-P2.md 第 22 条）
               return { status: 'ok', config: structuredClone(siteConfig) };
             case 'setSiteConfig':
               siteConfig = structuredClone(message.config);
