@@ -2,43 +2,16 @@
 
 从仓库到 GitHub Release 的完整流程。安装与使用见 [INSTALL.md](INSTALL.md)。
 
-## 0. 前置：仓库名与品牌
+## 0. 仓库与署名
 
-产品名统一为 **VanishGeo**（`manifest.json`、`package.json`、界面、文档都是这个名字）。
-本文档里的 GitHub 链接按 `ccisnoxx/VanishGeo` 写。remote 与文档不一致时先对齐：
+产品名统一为 **VanishGeo**（`manifest.json`、`package.json`、界面、文档都是这个名字），
+GitHub 仓库是 `ccisnoxx/VanishGeo`，本地远端名为 `mine`。项目不再同步上游。
 
-```bash
-git remote set-url origin https://github.com/ccisnoxx/VanishGeo.git
-```
+2026-11-01 改写过一次历史：上游的 49 个提交压成一个根提交「初始导入」（来源与署名见 NOTICE），
+之后的提交全部保留，v2.2.0 / v2.4.x 的 tag 改指到新提交，Release 与下载包不受影响。
+改写前的完整备份是一个 git bundle，留在维护者本机。
 
-否则文档里的 Releases / Actions 链接会 404。
-
-### 作者信息
-
-`package.json` 的 `author` / `repository` / `homepage` / `bugs` 都指向个人仓
-`ccisnoxx/VanishGeo`，README 的安装命令也按这个地址写。
-
-GitHub 侧栏的 **Contributors** 从提交作者生成，所以它会同时列出 `ccisnoxx` 与
-上游原作者 `XiNian-dada`（历史里有 49 个提交属于后者）。要让它只显示一个人，
-就得改写全部历史 —— 这会让所有 commit SHA 变化，已发布的 tag 与 Release 指向的
-提交将不再存在于新历史里，因此**这是一次不可逆的操作**：
-
-```bash
-# 先备份（整仓 + 所有 ref），再在副本上操作
-git clone --mirror https://github.com/ccisnoxx/VanishGeo.git vanishgeo.git
-pip install git-filter-repo
-cd vanishgeo.git
-git filter-repo \
-  --mailmap <(printf 'ccisnoxx <50921099+ccisnoxx@users.noreply.github.com> XiNian-dada <yszan968@gmail.com>\n') \
-  --force
-git push --force --all && git push --force --tags
-```
-
-改写后要顺手核对三件事：tag 是否重新打好（`git tag -l`）、GitHub Releases 是否
-还挂着（必要时按第 5 节重发）、CI 徽章里的提交链接是否仍然可达。
-
-**不要动** [NOTICE](NOTICE) 与 [LICENSE](LICENSE)：MIT 要求保留上游署名，
-"作者列表里只有一个名字"和"保留许可署名"是两件事，前者可改、后者不能。
+**不要动** [NOTICE](NOTICE) 与 [LICENSE](LICENSE)：MIT 要求衍生作品保留原版权声明与许可原文。
 
 ## 1. CI：只手动触发
 
@@ -146,11 +119,11 @@ npm run smoke:ipfollow                               # 跟随出口 IP：不换�
 # 3) 提交并推送
 git add -A
 git commit -m "release: v1.1.1"
-git push origin main
+git push mine main
 
 # 4) 打 tag 并推送（这一步才会触发发布）
 git tag v1.1.1
-git push origin v1.1.1
+git push mine v1.1.1
 ```
 
 版本号规则（语义化版本）：
@@ -195,7 +168,7 @@ npm run preflight -- --skip=audit    # 赶时间跳审计（约 5 分钟），�
 ```bash
 # 删除本地/远程 tag 后重打（tag 已触发过发布会留下一条记录，需要手动清理 Release）
 git tag -d v1.1.1
-git push origin :refs/tags/v1.1.1
+git push mine :refs/tags/v1.1.1
 
 # 修改已发布的 Release 内容：GitHub → Releases → Edit
 # 删除 Release：GitHub → Releases → Delete，再删 tag
@@ -211,13 +184,14 @@ node scripts/release-notes.mjs --version=2.4.2 --release-dir=release --out=relea
                          # 从产物生成 Release 正文（先自己在本地看一眼再打 tag）
 npm run verify:release   # 真开浏览器量首屏，证明零窗口成立
 npm run test:coverage:security  # 安全模块分支门禁（改过 message-policy / disguise / patch-needs 时必跑）
-npm run audit            # 静态检查 + 三引擎 E2E（Chrome 155 / 119 / Helium）
-# GitHub Actions nightly 每天自动安装 Chrome 119 并跑可自动化的浏览器矩阵
+npm run audit            # 静态检查 + 三引擎 E2E（Chrome / Chrome 119 / Helium）
+# GitHub Actions 的 nightly 工作流（手动触发）会安装 Chrome 119 并跑可自动化的浏览器矩阵
 npm run smoke:options    # 选项页写入路径的端到端冒烟
 npm run smoke:failclosed # fail-closed 行为
 npm run smoke:fingerprint# 主线程 / iframe / Worker 跨上下文一致性
 npm run smoke:ipchange   # 出口变化后是否跟随
 npm run smoke:presets    # 三个 preset 的浏览器 E2E
+npm run smoke:userscripts # 用户脚本首屏模式
 npm run smoke:cold-start # 冷启动 + clear
 npm run smoke:popup      # popup 交互
 npm run smoke:real-site  # 真实站点核对

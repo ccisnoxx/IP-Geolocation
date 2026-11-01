@@ -266,7 +266,7 @@ Chrome119/155 的 `webNavigation.getFrame(documentId)` 与 `getAllFrames` 共用
 
 ### 独立审查与最终差异复核
 
-独立只读审查由 `/root/cleanup_contract_review`（`critical_reviewer`）完成，以清理前快照到实际候选的八文件差异为对象，不用包含前轮成果的 HEAD 总差异替代本轮范围。审查重建删除前引用，核对保留断言、端口的两个不同场景、referrer 测试范围及未改变的后台信任边界，未发现本轮新增的可行动缺陷。[原始最终报告](docs/audits/2026-10-30-p1-bridge-cleanup/review/independent-review.txt)已从对应会话消息逐字提取；[来源记录](docs/audits/2026-10-30-p1-bridge-cleanup/review/provenance.json)保留时间、消息 ID、来源行号与摘要。
+独立只读审查由 `/root/cleanup_contract_review`（`critical_reviewer`）完成，以清理前快照到实际候选的八文件差异为对象，不用包含前轮成果的 HEAD 总差异替代本轮范围。审查重建删除前引用，核对保留断言、端口的两个不同场景、referrer 测试范围及未改变的后台信任边界，未发现本轮新增的可行动缺陷。[原始最终报告](../audits/2026-10-30-p1-bridge-cleanup/review/independent-review.txt)已从对应会话消息逐字提取；[来源记录](../audits/2026-10-30-p1-bridge-cleanup/review/provenance.json)保留时间、消息 ID、来源行号与摘要。
 
 审查者另行核对 205 个基线路径：只有约定的 8 文件变化，其余 197 个路径的内容与存在状态一致，并查阅主代理执行的定向、lint、构建与核心覆盖率日志；审查者没有自行运行浏览器攻击验证，也没有重新审计未改变的凭证协议。该结论仅覆盖清理差异及其直接影响，不能关闭原 MAIN P1。
 
@@ -307,16 +307,16 @@ Chrome119/155 的 `webNavigation.getFrame(documentId)` 与 `getAllFrames` 共用
 
 ### 证据定位与剩余边界
 
-本轮证据已持久保存于仓库目录 `docs/audits/2026-10-30-p1-bridge-cleanup/`，以[归档索引](docs/audits/2026-10-30-p1-bridge-cleanup/README.md)、[逐文件来源与摘要](docs/audits/2026-10-30-p1-bridge-cleanup/manifest.json)及 [SHA256SUMS](docs/audits/2026-10-30-p1-bridge-cleanup/SHA256SUMS)为入口。共 62 个文件，其中 55 个文件逐字节复制且与来源一致；独立审查正文从原始会话消息完整提取，未根据摘要重写。
+本轮证据已持久保存于仓库目录 `docs/audits/2026-10-30-p1-bridge-cleanup/`，以[归档索引](../audits/2026-10-30-p1-bridge-cleanup/README.md)、[逐文件来源与摘要](../audits/2026-10-30-p1-bridge-cleanup/manifest.json)及 [SHA256SUMS](../audits/2026-10-30-p1-bridge-cleanup/SHA256SUMS)为入口。共 62 个文件，其中 55 个文件逐字节复制且与来源一致；独立审查正文从原始会话消息完整提取，未根据摘要重写。
 
 | 证据 | 持久引用与范围 |
 | --- | --- |
-| 删除前引用与实际清理差异 | [deletion-evidence.txt](docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/deletion-evidence.txt)、[cleanup-only.patch](docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/cleanup-only.patch)，同目录保存八个删除前文件与 205 路径基线 |
-| 清理后快照与保留范围 | `cleanup/after/` 保存八文件的当前快照，每个均与补跑前哈希一致；[structure-verification.txt](docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/structure-verification.txt)、[preservation-final.json](docs/audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/preservation-final.json)保存 AST 与范围核对 |
-| 独立审查原始正文与出处 | [independent-review.txt](docs/audits/2026-10-30-p1-bridge-cleanup/review/independent-review.txt)、[message-excerpt.json](docs/audits/2026-10-30-p1-bridge-cleanup/review/message-excerpt.json)、[provenance.json](docs/audits/2026-10-30-p1-bridge-cleanup/review/provenance.json)；仅省略应用内部 passthrough 元数据，正文不改写 |
-| 清理阶段原始检查 | [定向日志](docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-targeted.log)、[lint](docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-lint.log)、[构建](docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-build.log)、[完整核心覆盖率](docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-coverage.log)、[文档检查](docs/audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-closeout-docs.log) |
-| Chrome119/155 原始回归 | [119 opaque JSON](docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-119.json)、[155 opaque JSON](docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-155.json)，同目录保留 `opaque-recovery-{119,155}.log`、`frames-{119,155}.log`、`bfcache-{119,155}.log`、`baked-clear-{119,155}.log` 等原始文件 |
-| 浏览器结果、构建指纹与前次文档复核 | [verification-summary.json](docs/audits/2026-10-30-p1-bridge-cleanup/browser/verification-summary.json)、[opaque-evidence-summary.json](docs/audits/2026-10-30-p1-bridge-cleanup/browser/opaque-evidence-summary.json)、[普通构建指纹](docs/audits/2026-10-30-p1-bridge-cleanup/browser/tested-dist-hashes.json)、[烘焙包指纹](docs/audits/2026-10-30-p1-bridge-cleanup/browser/baked-dist-hashes.json)及同目录文档复核记录；临时包本体此前已删除，没有重建后冒充原件 |
+| 删除前引用与实际清理差异 | [deletion-evidence.txt](../audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/deletion-evidence.txt)、[cleanup-only.patch](../audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/cleanup-only.patch)，同目录保存八个删除前文件与 205 路径基线 |
+| 清理后快照与保留范围 | `cleanup/after/` 保存八文件的当前快照，每个均与补跑前哈希一致；[structure-verification.txt](../audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/structure-verification.txt)、[preservation-final.json](../audits/2026-10-30-p1-bridge-cleanup/cleanup/baseline/preservation-final.json)保存 AST 与范围核对 |
+| 独立审查原始正文与出处 | [independent-review.txt](../audits/2026-10-30-p1-bridge-cleanup/review/independent-review.txt)、[message-excerpt.json](../audits/2026-10-30-p1-bridge-cleanup/review/message-excerpt.json)、[provenance.json](../audits/2026-10-30-p1-bridge-cleanup/review/provenance.json)；仅省略应用内部 passthrough 元数据，正文不改写 |
+| 清理阶段原始检查 | [定向日志](../audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-targeted.log)、[lint](../audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-lint.log)、[构建](../audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-build.log)、[完整核心覆盖率](../audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-coverage.log)、[文档检查](../audits/2026-10-30-p1-bridge-cleanup/checks/vanishgeo-cleanup-closeout-docs.log) |
+| Chrome119/155 原始回归 | [119 opaque JSON](../audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-119.json)、[155 opaque JSON](../audits/2026-10-30-p1-bridge-cleanup/browser/opaque-recovery-155.json)，同目录保留 `opaque-recovery-{119,155}.log`、`frames-{119,155}.log`、`bfcache-{119,155}.log`、`baked-clear-{119,155}.log` 等原始文件 |
+| 浏览器结果、构建指纹与前次文档复核 | [verification-summary.json](../audits/2026-10-30-p1-bridge-cleanup/browser/verification-summary.json)、[opaque-evidence-summary.json](../audits/2026-10-30-p1-bridge-cleanup/browser/opaque-evidence-summary.json)、[普通构建指纹](../audits/2026-10-30-p1-bridge-cleanup/browser/tested-dist-hashes.json)、[烘焙包指纹](../audits/2026-10-30-p1-bridge-cleanup/browser/baked-dist-hashes.json)及同目录文档复核记录；临时包本体此前已删除，没有重建后冒充原件 |
 
 标准校验从归档目录运行 `shasum -a 256 -c SHA256SUMS`，61/61 通过。`manifest.json` 列出 60 个证据载荷及来源，`SHA256SUMS` 覆盖它们和 manifest 本身，不循环校验自身。归档目录的局部 `.gitignore` 仅允许原始 `*.log`，已确认全部 62 个文件可被 Git 纳入；没有修改根目录忽略规则。
 

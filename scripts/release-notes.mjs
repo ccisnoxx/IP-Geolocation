@@ -174,7 +174,7 @@ ${tableRows}
 后台也不再向已打开的标签页晚注入注入层。这依赖"内容脚本先于页面脚本执行"的浏览器时序
 （已在 Chrome 119 / 156 实测），不是密码学证明；构建 nonce 仍随发行包公开，只作消息标识。
 剩余边界：注入层缺席而桥存在的文档里，页面可以读到本 frame 的 payload 并伪造诊断回报，
-但拿不到注入层的控制入口。细节见 \`REVIEW-P1-BRIDGE.md\`。
+但拿不到注入层的控制入口。细节见 \`docs/reviews/REVIEW-P1-BRIDGE.md\`。
 
 MAIN-world bridge (P1 fixed): the injection layer and the content bridge now hand over the port
 synchronously at \`document_start\`, before any page script runs, and the injection layer listens

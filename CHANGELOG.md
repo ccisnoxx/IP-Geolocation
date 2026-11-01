@@ -59,7 +59,7 @@
 - `disguise()` 改为惰性安装：原生值已经等于目标值时不碰 `Function.prototype.toString`
 - 注入层与 Worker blob 显式 `"use strict"`：sloppy 代码里的函数会多出自有 `arguments` / `caller`，
   那是页面一行就能看出来的残差
-- 后台消息按来源分权：内容脚本只能调用三个只读 action，任意管理动作不再能从内容桥转发（P1 桥缺口仍开放，见 `REVIEW-P1-BRIDGE.md`）
+- 后台消息按来源分权：内容脚本只能调用三个只读 action，任意管理动作不再能从内容桥转发（P1 桥缺口仍开放，见 `docs/reviews/REVIEW-P1-BRIDGE.md`）
 - opaque frame 的文档身份与父链证据独立建模，补上 frames / opaque-frames / opaque-recovery 冒烟
 - 新增 `test:coverage:security` 覆盖率门禁（消息来源策略、opaque frame 证据、补丁开关、函数伪装逐文件阈值）
 - `native-parity` 增加函数对象自身的 own keys / own symbols / descriptors / IsConstructor 比对

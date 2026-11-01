@@ -22,7 +22,7 @@ function exists(relativePath: string): boolean {
   return fs.existsSync(path.join(projectRoot, relativePath));
 }
 
-const DOC_FILES = ['README.md', 'INSTALL.md', 'CONFIG_GUIDE.md', 'RELEASE.md'];
+const DOC_FILES = ['README.md', 'INSTALL.md', 'CONFIG_GUIDE.md', 'RELEASE.md', 'docs/ARCHITECTURE.md', 'docs/DEVELOPMENT.md'];
 
 test('文档里没有真实 IP 和个人绝对路径', () => {
   for (const file of DOC_FILES) {
@@ -66,7 +66,8 @@ test('文档里引用的本地文件都存在', () => {
     for (const link of links) {
       const target = link.split('#')[0].trim();
       if (!target || /^[a-z]+:\/\//i.test(target) || target.startsWith('mailto:')) continue;
-      assert.equal(exists(target), true, `${file} 引用了不存在的文件：${target}`);
+      // 相对链接按文档所在目录解析，与 GitHub 渲染一致
+      assert.equal(exists(path.join(path.dirname(file), target)), true, `${file} 引用了不存在的文件：${target}`);
     }
   }
 });
