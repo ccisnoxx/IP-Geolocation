@@ -23,7 +23,7 @@ const config = (patch: Record<string, unknown> = {}) => normalizeConfig({
   ...patch
 } as any);
 
-function installChrome(options: { userScripts?: 'missing' | 'disabled' | 'enabled'; existing?: string[] } = {}) {
+function installChrome(options: { userScripts?: 'missing' | 'disabled' | 'enabled'; existing?: string[]; duplicateOnRegister?: boolean } = {}) {
   const calls: Array<{ name: string; args: unknown[] }> = [];
   const store: Record<string, unknown> = {};
   const userScripts = {
@@ -32,7 +32,10 @@ function installChrome(options: { userScripts?: 'missing' | 'disabled' | 'enable
       calls.push({ name: 'getScripts', args: [filter] });
       return Promise.resolve((options.existing || []).map((id) => ({ id })));
     },
-    register: async (scripts: unknown[]) => { calls.push({ name: 'register', args: [scripts] }); },
+    register: async (scripts: unknown[]) => {
+      calls.push({ name: 'register', args: [scripts] });
+      if (options.duplicateOnRegister) throw new Error(`Duplicate script ID '${USER_SCRIPT_ID}'`);
+    },
     update: async (scripts: unknown[]) => { calls.push({ name: 'update', args: [scripts] }); },
     unregister: async (filter: unknown) => { calls.push({ name: 'unregister', args: [filter] }); }
   };
@@ -99,8 +102,27 @@ test('开关已开：首次注册、之后更新；脚本在 MAIN world 的 docu
   assert.ok(script.js[0].code.includes(JSON.stringify(token)));
 
   const second = installChrome({ userScripts: 'enabled', existing: [USER_SCRIPT_ID] });
-  assert.equal(await syncUserScript(config(), null, []), true);
+  assert.equal(await syncUserScript(config({ rules: [{ id: 'r', domain: 'example.org', enabled: true }] }), null, []), true);
   assert.ok(second.calls.some((call) => call.name === 'update'), '已存在时更新而不是重复注册');
+});
+
+test('内容没变且脚本还在：只确认存在，不整段重写；脚本不见了就重新注册', async () => {
+  installChrome({ userScripts: 'enabled' });
+  assert.equal(await syncUserScript(config({ rules: [{ id: 'r', domain: 'same.example', enabled: true }] }), null, []), true);
+
+  const unchanged = installChrome({ userScripts: 'enabled', existing: [USER_SCRIPT_ID] });
+  assert.equal(await syncUserScript(config({ rules: [{ id: 'r', domain: 'same.example', enabled: true }] }), null, []), true);
+  assert.ok(!unchanged.calls.some((call) => call.name === 'register' || call.name === 'update'), '同样内容不重写');
+
+  const gone = installChrome({ userScripts: 'enabled' });
+  assert.equal(await syncUserScript(config({ rules: [{ id: 'r', domain: 'same.example', enabled: true }] }), null, []), true);
+  assert.ok(gone.calls.some((call) => call.name === 'register'), '脚本被清掉（如扩展更新）后照常注册');
+});
+
+test('查询后被别处抢先注册（Duplicate script ID）：改为更新，不当成失败', async () => {
+  const raced = installChrome({ userScripts: 'enabled', duplicateOnRegister: true });
+  assert.equal(await syncUserScript(config({ rules: [{ id: 'r', domain: 'race.example', enabled: true }] }), null, []), true);
+  assert.deepEqual(raced.calls.filter((call) => call.name !== 'getScripts').map((call) => call.name), ['register', 'update']);
 });
 
 test('开关没开、总开关关、烘焙构建、没有命中域名：不处于用户脚本模式', async () => {

@@ -131,7 +131,7 @@ iprisk.top）—— 装上就能直接打开自测，不用手动加域名。
 ```bash
 npm run typecheck     # 类型（含 tests/）
 npm run lint          # ESLint
-npm run verify        # lint + typecheck + test
+npm run verify        # lint + build（含 typecheck）+ test
 npm test              # 单测（全部 tests/）
 npm run test:coverage # 单测 + Node 覆盖率报告
 npm run test:coverage:core # 核心文件分支覆盖率门禁（每文件 ≥ 85%）
@@ -423,7 +423,7 @@ Command line:
 ```bash
 npm run typecheck     # types (tests included)
 npm run lint          # ESLint
-npm run verify        # lint + typecheck + test
+npm run verify        # lint + build（含 typecheck）+ test
 npm test              # unit tests (everything under tests/)
 npm run test:coverage # unit tests + Node coverage report
 npm run test:coverage:core # core-file branch gate (per file >= 85%)

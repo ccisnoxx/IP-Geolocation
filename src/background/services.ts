@@ -129,7 +129,8 @@ export interface BackgroundServices {
   bootstrap(): Promise<void>;
   /** 配置变化：只重算副作用，不触发 IP 定位 */
   applyConfig(config?: SiteSpoofConfig): Promise<void>;
-  refreshActionBadge(): Promise<void>;
+  /** 传 tabId 只刷新该标签页（标签页事件）；不传则刷新全部（配置 / 定位变化） */
+  refreshActionBadge(tabId?: number): Promise<void>;
 }
 
 /**
@@ -220,11 +221,24 @@ export function createBackgroundServices(): BackgroundServices {
   }
 
   /**
+   * 用户脚本的对齐排成一条队：应用配置、定位变化、定时任务、弹窗查询都会走到这里。
+   * 并发时两边可能同时判定"还没注册"而各注册一次，或者先读到旧配置的一方最后写入，
+   * 把新快照盖回旧的。不复用 applyChain：弹窗查询不该等一整轮标签页推送。
+   */
+  let firstScreenChain: Promise<void> = Promise.resolve();
+
+  function enqueueFirstScreen(task: () => Promise<void>): Promise<void> {
+    const next = firstScreenChain.then(task, task);
+    firstScreenChain = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  /**
    * 用户脚本里嵌着配置与出口坐标，两者任一变化都要重新注册。失败时撤掉旧脚本：
    * 留着旧快照的脚本会让新打开的页面首屏先用旧配置。内容脚本那份注入层始终在，
    * 撤掉后自动回到普通模式。
    */
-  async function syncFirstScreen(config: SiteSpoofConfig, location: LastLocation | null): Promise<void> {
+  async function alignUserScript(config: SiteSpoofConfig, location: LastLocation | null): Promise<void> {
     try {
       userScriptMode = await syncUserScript(config, location, bakedContentScriptDomains());
     } catch (error) {
@@ -232,6 +246,10 @@ export function createBackgroundServices(): BackgroundServices {
       console.warn('VanishGeo could not register the first-screen user script:', error instanceof Error ? error.message : String(error));
       await removeUserScript().catch(() => undefined);
     }
+  }
+
+  function syncFirstScreen(config: SiteSpoofConfig, location: LastLocation | null): Promise<void> {
+    return enqueueFirstScreen(() => alignUserScript(config, location));
   }
 
   /**
@@ -244,8 +262,11 @@ export function createBackgroundServices(): BackgroundServices {
       userScriptMode = false;
       return;
     }
-    const config = frozenBakedConfig() || normalizeConfig(await getSiteConfig());
-    await syncFirstScreen(config, await getLastLocation());
+    // 排到队里再读配置：排队期间完成的保存不会被这次对齐用旧配置盖回去
+    await enqueueFirstScreen(async () => {
+      const config = frozenBakedConfig() || normalizeConfig(await getSiteConfig());
+      await alignUserScript(config, await getLastLocation());
+    });
   }
 
   /**
@@ -883,15 +904,15 @@ export function createBackgroundServices(): BackgroundServices {
    * 图标上挂一个「!」：白名单里但没生效（定位拿不到 → fail-closed）时必须可见，
    * 否则用户以为自己在受保护状态下操作。
    */
-  async function refreshActionBadge(): Promise<void> {
+  async function refreshActionBadge(tabId?: number): Promise<void> {
     const action = chrome.action;
     if (!action || !action.setBadgeText) return;
     try {
-      // 覆盖所有标签页，而不是只覆盖"当前活动标签"：配置或定位变化之后，
-      // 后台开着的那些页面上的角标同样会过期。
+      // 不传 tabId 时覆盖所有标签页：配置或定位变化之后，后台开着的那些页面上的角标同样会过期。
+      // 标签页加载完成 / 切换只影响它自己，逐个刷新全部标签页是白费的 IPC。
       const config = await getSiteConfig();
       const lastLocation = await getLastLocation();
-      const tabs = await chrome.tabs.query({});
+      const tabs = typeof tabId === 'number' ? [await chrome.tabs.get(tabId)] : await chrome.tabs.query({});
       for (const tab of tabs) {
         if (typeof tab.id !== 'number' || !tab.url) continue;
         const domain = normalizeDomain(tab.url);

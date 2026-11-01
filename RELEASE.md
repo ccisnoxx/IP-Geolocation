@@ -60,7 +60,7 @@ Node 版本：CI 矩阵跑 **22 / 24**（`package.json` 的 `engines` 下限是 
 
 CI 跑的内容与本地 `npm run verify` 基本重复，等它全绿只是耗时。合并 PR 按下面的方式：
 
-1. 本地 `npm run build && npm run verify` 通过（先重建，`dist/` 可能是别的分支的产物）；
+1. 本地 `npm run verify` 通过（它会先重建 `dist/`，避免测试读到别的分支的产物）；
    改到注入层、桥或权限时，再跑一次相关的 `npm run smoke:*`。
 2. 推送后直接合并（普通合并，保留 merge commit），不轮询 CI；解决冲突产生的合并提交同样如此。
 3. CI 照常在后台跑，只有失败时才回头处理。

@@ -95,7 +95,14 @@ async function runtimeSource(): Promise<string> {
   return runtimeSourceCache;
 }
 
+/**
+ * 上次成功注册 / 更新的脚本内容。定时任务与弹窗每次都会对齐一遍，内容没变时只确认脚本还在，
+ * 不再整段重写（约 110 KB）。Service Worker 重启后为空，第一次对齐照常写入。
+ */
+let registeredSignature: string | null = null;
+
 export async function removeUserScript(): Promise<void> {
+  registeredSignature = null;
   const userScripts = api();
   if (!userScripts || !userScriptsAvailable()) return;
   await userScripts.unregister({ ids: [USER_SCRIPT_ID] }).catch(() => undefined);
@@ -130,8 +137,21 @@ export async function syncUserScript(
     allFrames: true,
     world: 'MAIN'
   };
+  const signature = JSON.stringify(script);
   const existing = await userScripts.getScripts({ ids: [USER_SCRIPT_ID] }).catch(() => []);
-  if (existing.length) await userScripts.update([script]);
-  else await userScripts.register([script]);
+  if (existing.length && signature === registeredSignature) return true;
+  registeredSignature = null;
+  if (existing.length) {
+    await userScripts.update([script]);
+  } else {
+    try {
+      await userScripts.register([script]);
+    } catch (error) {
+      // 与内容脚本注册同样的兜底：查询之后、注册之前被别处注册了，改为更新
+      if (!/Duplicate script ID/i.test(String((error as Error)?.message ?? error))) throw error;
+      await userScripts.update([script]);
+    }
+  }
+  registeredSignature = signature;
   return true;
 }

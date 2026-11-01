@@ -238,8 +238,9 @@ test('手动时区与出口 IP 所在时区偏移不同 → warn，修法改成�
 });
 
 test('偏移相同的不同时区名不报；auto 时区本来就跟随出口，不报', () => {
-  const vancouver = base({ globalProfile: { ...usProfile, timezone: { enabled: true, mode: 'manual', timezone: 'America/Vancouver' } } as any });
-  assert.ok(!envIds(vancouver, { exit: LA_EXIT }).includes('exit-ip-timezone'), '温哥华与洛杉矶同一偏移');
+  // 蒂华纳与洛杉矶全年同步夏令时（温哥华自 2026-11 起常年 UTC-7，不能再当"同偏移"样本）
+  const tijuana = base({ globalProfile: { ...usProfile, timezone: { enabled: true, mode: 'manual', timezone: 'America/Tijuana' } } as any });
+  assert.ok(!envIds(tijuana, { exit: LA_EXIT }).includes('exit-ip-timezone'), '蒂华纳与洛杉矶同一偏移');
   const auto = base({ globalProfile: { ...usProfile, timezone: { enabled: true, mode: 'auto', timezone: '' } } as any });
   assert.ok(!envIds(auto, { exit: TOKYO_EXIT }).includes('exit-ip-timezone'));
 });
