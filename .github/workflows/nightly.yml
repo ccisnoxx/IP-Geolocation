@@ -1,9 +1,7 @@
 name: Nightly browser audit
 
+# 只手动触发：不再每晚定时跑，需要 Chrome 119 回归时在 Actions 页面 Run workflow
 on:
-  schedule:
-    # 02:00 Asia/Shanghai（GitHub cron 是 UTC）
-    - cron: '0 18 * * *'
   workflow_dispatch:
 
 permissions:

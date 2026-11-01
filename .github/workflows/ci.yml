@@ -1,9 +1,8 @@
 name: CI
 
+# 只手动触发（Actions 页面 Run workflow）：日常以本地 npm run verify 为准，见 RELEASE.md 第 1 节
 on:
-  push:
-    branches: ['**']
-  pull_request:
+  workflow_dispatch:
 
 # 只读权限：跑校验不需要写任何东西
 permissions:
