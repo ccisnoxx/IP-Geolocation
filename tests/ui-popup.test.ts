@@ -29,8 +29,11 @@ function createChrome(calls: RuntimeCall[]) {
       language: 'en-US'
     } as any
   };
+  const createdTabs: string[] = [];
   return {
     state,
+    createdTabs,
+    tabs: { create: async (details: { url: string }) => { createdTabs.push(details.url); return { id: 1 }; } },
     runtime: {
       lastError: undefined,
       sendMessage(message: any, callback?: (response: any) => void) {
@@ -69,6 +72,9 @@ function createChrome(calls: RuntimeCall[]) {
               };
               return { status: 'ok', outcome, config: structuredClone(state.config), lastLocation: state.lastLocation };
             }
+            case 'getFirstScreenStatus':
+              // 「允许用户脚本」没开、Chrome 156：首屏保护未开启
+              return { status: 'ok', state: { mode: 'contentScripts', chromeMajor: 156, extensionId: 'ext-id' } };
             case 'getExitIpSyncState':
               return { status: 'ok', ipSync: state.config.ipSync, storedIp: '', lastLocation: state.lastLocation };
             case 'manualUpdate':
@@ -345,4 +351,14 @@ test('「完全不调用系统定位」与「伪装权限」互相牵制，并�
   await waitFor(() => calls.some((call) => call.action === 'setSiteConfig'
     && call.config?.globalProfile?.geolocation?.noNativeCall === true
     && call.config?.globalProfile?.geolocation?.spoofPermission === true));
+});
+
+test('首屏保护未开启：提示去扩展详情页打开「允许用户脚本」，按钮直达本扩展详情页', async () => {
+  await waitFor(() => el('firstScreen').hidden === false);
+  assert.equal(el('firstScreenText').textContent, '首屏保护未开启');
+  assert.match(el('firstScreenHint').textContent || '', /允许用户脚本/);
+  assert.equal(el('firstScreenOpen').hidden, false);
+  el<HTMLButtonElement>('firstScreenOpen').click();
+  await waitFor(() => chrome.createdTabs.length > 0);
+  assert.deepEqual(chrome.createdTabs, ['chrome://extensions/?id=ext-id']);
 });

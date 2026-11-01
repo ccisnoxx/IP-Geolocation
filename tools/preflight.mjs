@@ -56,7 +56,7 @@ function stage(id, label, cmd, args, { summary, timeoutMs = 600_000, deps = [] }
 
 const SMOKES = [
   'presets', 'frames', 'opaque-frames', 'opaque-recovery', 'workers', 'bfcache', 'cold-start', 'cold-save',
-  'baked-clear', 'baked-failclosed', 'ip-apply', 'theme', 'options', 'popup'
+  'baked-clear', 'baked-failclosed', 'ip-apply', 'theme', 'options', 'popup', 'userscripts'
 ];
 
 const STAGES = [
@@ -82,7 +82,7 @@ const STAGES = [
       timeoutMs: 300_000,
       // UI 冒烟用 persona，其余读取 dist 的冒烟需要当前源码的普通构建。
       deps: /^(options|popup)$/.test(name) ? ['persona']
-        : /^(frames|opaque-frames|opaque-recovery|workers|bfcache|cold-save|baked-failclosed|ip-apply|theme)$/.test(name) ? ['build'] : []
+        : /^(frames|opaque-frames|opaque-recovery|workers|bfcache|cold-save|baked-failclosed|ip-apply|theme|userscripts)$/.test(name) ? ['build'] : []
     })),
   // 三引擎审计是唯一能覆盖 Helium 的一关，也是唯一会真开浏览器跑真实站点的一关
   stage('audit', '三引擎审计', 'npm', ['run', 'audit'], {

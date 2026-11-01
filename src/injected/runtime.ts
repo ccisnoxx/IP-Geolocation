@@ -48,9 +48,16 @@ interface RuntimeState {
   installedWorker: boolean;
 }
 
-const BAKED = typeof __VANISHGEO_BAKED__ === 'object' && __VANISHGEO_BAKED__
-  ? (__VANISHGEO_BAKED__ as { config: any; lastLocation: any })
+/** 用户脚本模式下由包裹函数传入的配置快照与认领口令；作为内容脚本执行时不存在 */
+const DYNAMIC = typeof __VANISHGEO_DYNAMIC__ === 'object' && __VANISHGEO_DYNAMIC__
+  ? (__VANISHGEO_DYNAMIC__ as { config: any; lastLocation: any; token: string })
   : null;
+/** 两份注入层（内容脚本 / 用户脚本）在 MAIN world 交接用的认领事件 */
+const CLAIM_EVENT = 'vanishgeo:runtime-claim';
+const BAKED = DYNAMIC || (typeof __VANISHGEO_BAKED__ === 'object' && __VANISHGEO_BAKED__
+  ? (__VANISHGEO_BAKED__ as { config: any; lastLocation: any })
+  : null);
+
 const NONCE = typeof __VANISHGEO_NONCE__ === 'string' ? __VANISHGEO_NONCE__ : '';
 /** 与 content-bridge.ts 的 BRIDGE_EVENT 同值；经典脚本不能共享模块，各写一份 */
 const BRIDGE_EVENT = 'vanishgeo:bridge';
@@ -662,46 +669,116 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     } catch { /* ignore */ }
   }
 
+  /**
+   * 接上游端口：从它收配置（applySpoof），并把诊断回报发给它。
+   *
+   * 回报通道：诊断页要显示"页面实际生效的字体层"。三张字表只存在于这个文件里
+   * （注入层必须自包含），所以数字只能由这里给，不能在诊断页另算一份。
+   * 该回报只用于诊断，后台不据此授予任何能力。
+   */
+  function attachUpstream(port: MessagePort): void {
+    reportPort = port;
+    const report = () => {
+      try {
+        port.postMessage({
+          __vanishGeo: NONCE,
+          kind: 'fontLayers',
+          layers: {
+            count: state.canvasTargetFonts ? state.canvasTargetFonts.length : 0,
+            platform: (state.canvasConfig && state.canvasConfig.platform) || 'auto',
+            hideCjkFonts: Boolean(state.canvasConfig && state.canvasConfig.hideCjkFonts)
+          }
+        });
+      } catch { /* 端口已关闭 */ }
+    };
+    port.onmessage = (message: MessageEvent) => {
+      const payload: any = message.data;
+      if (!payload || typeof payload !== 'object' || payload.__vanishGeo !== NONCE) return;
+      try {
+        applySpoof(payload.payload);
+        report();
+      } catch { /* ignore */ }
+    };
+  }
+
   // 2) 动态更新：ISOLATED 桥已在 document_start 先挂好监听，这里同步派发一次携带
   //    私有端口的事件，桥 preventDefault 即配对成功，之后 payload 全走端口。
   //    派发发生在页面任何脚本之前，页面看不到端口；runtime 自己不监听任何 window
   //    事件，页面也就没有入口构造握手。没配对上（桥缺席）就关掉端口，只留烘焙值。
-  //    本文件只由注册的内容脚本在 document_start 执行，后台不再晚注入。
+  //
+  //    用户脚本模式（见 background/user-scripts.ts）下同一文档里有两份注入层，执行顺序是
+  //    桥 → 内容脚本这份 → 用户脚本那份 → 页面脚本：
+  //    - 用户脚本那份（DYNAMIC）首屏已按快照装好补丁，同步派发"认领"：带上口令与私有端口。
+  //      此时页面还没有任何脚本。随后它也试着和桥握手：正常顺序下桥已与内容脚本这份配对、
+  //      这次没人回执；万一浏览器先跑了用户脚本，认领没人收，它就直接和桥配对 —— 内容脚本这份
+  //      随后握手失败、又没有烘焙值，什么都不装。两种顺序下页面里都只有一份补丁。
+  //    - 内容脚本这份照常握手，只收**第一条**认领（真的那条一定早于页面脚本），收到即撤监听；
+  //      收到第一份可信配置（经桥与私有端口送达、带着后台给的口令）时一次性决定：口令对得上就
+  //      休眠、把配置转发过去；对不上（开关关了、浏览器不支持、不透明子框架、页面伪造）就自己
+  //      应用 —— 与普通模式完全相同。不匹配的端口只丢掉引用、不主动关闭，免得页面借端口的关闭
+  //      事件探测到扩展。
   if (BRIDGE_ENABLED && NONCE) {
-    const channel = new MessageChannel();
-    let paired = false;
-    try {
-      paired = !window.dispatchEvent(new MessageEvent(BRIDGE_EVENT, { cancelable: true, ports: [channel.port2] }));
-    } catch { /* 派发失败按未配对处理 */ }
-    if (!paired) {
-      channel.port1.close();
+    if (DYNAMIC) {
+      const claim = new MessageChannel();
+      try {
+        window.dispatchEvent(new MessageEvent(CLAIM_EVENT, { data: { token: DYNAMIC.token }, ports: [claim.port2] }));
+      } catch { /* 派发失败：下面直接与桥握手 */ }
+      const bridge = new MessageChannel();
+      let paired = false;
+      try {
+        paired = !window.dispatchEvent(new MessageEvent(BRIDGE_EVENT, { cancelable: true, ports: [bridge.port2] }));
+      } catch { /* 派发失败按未配对处理 */ }
+      if (paired) {
+        attachUpstream(bridge.port1);
+      } else {
+        bridge.port1.close();
+        attachUpstream(claim.port1);
+      }
     } else {
-      const port = channel.port1;
-      reportPort = port;
-      // 回报通道：诊断页要显示"页面实际生效的字体层"。三张字表只存在于这个文件里
-      // （注入层必须自包含），所以数字只能由这里给，不能在诊断页另算一份。
-      // 该回报只用于诊断，后台不据此授予任何能力。
-      const report = () => {
-        try {
-          port.postMessage({
-            __vanishGeo: NONCE,
-            kind: 'fontLayers',
-            layers: {
-              count: state.canvasTargetFonts ? state.canvasTargetFonts.length : 0,
-              platform: (state.canvasConfig && state.canvasConfig.platform) || 'auto',
-              hideCjkFonts: Boolean(state.canvasConfig && state.canvasConfig.hideCjkFonts)
+      const channel = new MessageChannel();
+      let paired = false;
+      try {
+        paired = !window.dispatchEvent(new MessageEvent(BRIDGE_EVENT, { cancelable: true, ports: [channel.port2] }));
+      } catch { /* 派发失败按未配对处理 */ }
+      if (!paired) {
+        channel.port1.close();
+      } else {
+        const bridgePort = channel.port1;
+        let claim: { token: unknown; port: MessagePort } | null = null;
+        const onClaim = (event: any) => {
+          const port: MessagePort | undefined = event && event.ports && event.ports[0];
+          if (!port) return;
+          claim = { token: event.data && event.data.token, port };
+          window.removeEventListener(CLAIM_EVENT, onClaim, true);
+        };
+        window.addEventListener(CLAIM_EVENT, onClaim, true);
+        /** undefined = 还没决定；null = 自己应用；MessagePort = 转发给用户脚本那份 */
+        let delegate: MessagePort | null | undefined;
+        attachUpstream(bridgePort);
+        const applyOwn = bridgePort.onmessage;
+        bridgePort.onmessage = (message: MessageEvent) => {
+          const data: any = message.data;
+          if (!data || typeof data !== 'object' || data.__vanishGeo !== NONCE) return;
+          if (delegate === undefined) {
+            const token = data.userScriptToken;
+            const received = claim as { token: unknown; port: MessagePort } | null;
+            delegate = received && typeof token === 'string' && token && received.token === token ? received.port : null;
+            window.removeEventListener(CLAIM_EVENT, onClaim, true);
+            claim = null;
+            if (delegate) {
+              // 用户脚本那份的诊断回报原样转给桥
+              delegate.onmessage = (event: MessageEvent) => {
+                try { bridgePort.postMessage(event.data); } catch { /* 端口已关闭 */ }
+              };
             }
-          });
-        } catch { /* 端口已关闭 */ }
-      };
-      port.onmessage = (message: MessageEvent) => {
-        const payload: any = message.data;
-        if (!payload || typeof payload !== 'object' || payload.__vanishGeo !== NONCE) return;
-        try {
-          applySpoof(payload.payload);
-          report();
-        } catch { /* ignore */ }
-      };
+          }
+          if (delegate) {
+            try { delegate.postMessage({ __vanishGeo: NONCE, payload: data.payload }); } catch { /* 端口已关闭 */ }
+            return;
+          }
+          if (applyOwn) applyOwn.call(bridgePort, message);
+        };
+      }
     }
   }
 })();

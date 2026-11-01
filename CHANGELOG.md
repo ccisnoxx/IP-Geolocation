@@ -18,6 +18,10 @@
 - 注入层脚本末尾加 `//# sourceURL=<anonymous>`：补丁函数出现在调用栈里时不再报出 `chrome-extension://<扩展ID>`
 - Worklet 覆盖：AudioWorklet / PaintWorklet / AnimationWorklet 的 `addModule` 换成「补丁模块 + 原模块」的入口，
   此前 Worklet 里读到真实时区；CSP 拒绝 blob 时回退原生并回报。Worklet 拿到的是创建时的配置快照
+- **首屏即生效（用户脚本模式）**：在扩展详情页打开「允许用户脚本」后，保存配置时把"配置 + 注入层"注册为
+  MAIN world 的用户脚本，普通构建（Release 里的通用包、`dist/`）页面最前面的脚本也读到目标值，不用本地构建；
+  开关没开时弹窗提示并直达扩展详情页。about:blank / srcdoc / blob / data 子框架用户脚本注入不到，仍按原方式处理；
+  开关关掉时自动回到普通模式（不会没有伪装）。新增 `userScripts` 权限（Chrome 无安装警告；Chrome 119 会忽略这项权限）
 
 ## 2.4.4
 

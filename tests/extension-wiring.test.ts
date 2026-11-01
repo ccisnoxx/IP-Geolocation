@@ -120,7 +120,8 @@ test('payload 经 MessagePort 投递，端口只在 document_start 同步握手�
   const services = read('src/background/services.ts');
 
   // 旧模型：nonce 和 payload 一起 postMessage 出去，页面的 message 监听器能读到两者
-  assert.doesNotMatch(runtime, /postMessage\(\s*\{[^}]*__vanishGeo[^}]*payload/s);
+  // （私有 MessagePort 上的转发不算：用户脚本模式下内容脚本那份经端口把配置转给用户脚本那份）
+  assert.doesNotMatch(runtime, /\b(window|parent|top|self|globalThis)\.postMessage\(\s*\{[^}]*__vanishGeo[^}]*payload/s);
   // 第二版用 window.postMessage 递端口：异步派发，页面监听器能截走端口
   assert.doesNotMatch(content, /window\.postMessage\(/);
   assert.doesNotMatch(runtime, /window\.postMessage\(/);

@@ -28,6 +28,10 @@ const siteOkEl = document.getElementById('siteOk') as HTMLElement;
 const workerFallbackEl = document.getElementById('workerFallback') as HTMLElement;
 const workerFallbackTextEl = document.getElementById('workerFallbackText') as HTMLElement;
 const workerFallbackHintEl = document.getElementById('workerFallbackHint') as HTMLElement;
+const firstScreenEl = document.getElementById('firstScreen') as HTMLElement;
+const firstScreenTextEl = document.getElementById('firstScreenText') as HTMLElement;
+const firstScreenHintEl = document.getElementById('firstScreenHint') as HTMLElement;
+const firstScreenOpenEl = document.getElementById('firstScreenOpen') as HTMLButtonElement;
 const retryLocationBtn = document.getElementById('retryLocation') as HTMLButtonElement;
 const enableSiteBtn = document.getElementById('enableSite') as HTMLButtonElement;
 const disableSiteBtn = document.getElementById('disableSite') as HTMLButtonElement;
@@ -336,6 +340,41 @@ function renderWorkerFallback(state: any): void {
     : '报告称已回退原生入口，尚未独立验证；Date / Intl 可能暴露本机值。';
 }
 
+/**
+ * 首屏保护提示：「允许用户脚本」没开时，网页最前面的脚本会先读到真实值（配置异步送到）。
+ * 后台收不到开关变化的通知，这里每次打开弹窗都问一次（后台会顺手对齐注册状态）。
+ * Chrome 138 起开关在扩展详情页，之前是扩展管理页的开发者模式。
+ */
+async function renderFirstScreen(): Promise<void> {
+  let status: { mode: string; chromeMajor: number | null; extensionId: string } | undefined;
+  try {
+    status = (await sendRuntimeMessage<{ state: typeof status }>({ action: 'getFirstScreenStatus' })).state;
+  } catch {
+    status = undefined;
+  }
+  // 读不到状态（后台出错、旧版后台）就不提示：宁可少一条提示，也不报出不确定的结论
+  if (!status || status.mode === 'userScripts' || status.mode === 'baked') {
+    firstScreenEl.hidden = true;
+    return;
+  }
+  firstScreenEl.hidden = false;
+  if (status.mode === 'unsupported') {
+    firstScreenTextEl.textContent = '浏览器版本过低，首屏保护不可用';
+    firstScreenHintEl.textContent = '需要 Chrome 120 及以上。网页最前面的脚本会先读到真实值；需要首屏即生效请改用烘焙构建。';
+    firstScreenOpenEl.hidden = true;
+    return;
+  }
+  const perExtension = status.chromeMajor === null || status.chromeMajor >= 138;
+  firstScreenTextEl.textContent = '首屏保护未开启';
+  firstScreenHintEl.textContent = perExtension
+    ? '网页最前面的脚本会先读到真实值。在扩展详情页打开「允许用户脚本」，再刷新网页即可首屏生效。'
+    : '网页最前面的脚本会先读到真实值。在扩展管理页右上角打开「开发者模式」，再刷新网页即可首屏生效。';
+  firstScreenOpenEl.hidden = false;
+  firstScreenOpenEl.onclick = () => {
+    void chrome.tabs.create({ url: perExtension ? `chrome://extensions/?id=${status.extensionId}` : 'chrome://extensions/' });
+  };
+}
+
 async function loadConfig(): Promise<void> {
   const response = await sendRuntimeMessage<{ state: any }>({ action: 'getCurrentTabState' });
   currentConfig = normalizeConfig(response.state.config);
@@ -345,6 +384,7 @@ async function loadConfig(): Promise<void> {
   currentSiteSitesEl.textContent = currentHostname || 'N/A';
   renderSiteStatus(response.state);
   renderWorkerFallback(response.state);
+  void renderFirstScreen();
   populateForm(currentConfig);
   // 首屏渲染完成标记：冒烟脚本和截图工具靠它判断"面板已经画完"。
   // 之前靠 sleep 或"storage 读到了"来判断，慢引擎（Helium）上会读到半成品 ——

@@ -47,6 +47,11 @@ npm run build        # 内含 typecheck；产物在 dist/
 
 `dist/` 就是要加载的扩展目录。逐步说明见 [INSTALL.md](INSTALL.md)。
 
+**首屏即生效（推荐，Chrome / Helium 120+）**：在扩展详情页打开「允许用户脚本」（Chrome 138 起是每个扩展单独的开关，
+之前的版本是扩展管理页的「开发者模式」），再刷新网页。之后保存配置时，扩展会把"配置 + 注入层"注册成用户脚本，
+页面最前面的脚本读到的就是目标值 —— 不用本地构建、改配置也不用重新出包。没打开时弹窗会提示并给出直达按钮；
+不打开也能用，只是网页最前面的脚本会先读到真实值（配置在页面开始运行后才异步送到）。
+
 ### 📖 使用
 
 打开弹窗：
@@ -335,6 +340,13 @@ npm run build        # runs typecheck too; output lands in dist/
 ```
 
 `dist/` is the folder to load. Step-by-step notes in [INSTALL.md](INSTALL.md).
+
+**Correct from the first script (recommended, Chrome / Helium 120+)**: turn on "Allow User Scripts" on the extension's
+details page (a per-extension toggle since Chrome 138; Developer mode before that) and reload the page. From then on,
+saving the configuration registers "configuration + injection layer" as a user script, so the page's very first script
+already sees the target values — no local build, no re-packaging after edits. The popup shows a hint with a direct link
+while the toggle is off; without it the extension still works, but the page's earliest scripts see real values before
+the configuration arrives asynchronously.
 
 ### 📖 Usage
 

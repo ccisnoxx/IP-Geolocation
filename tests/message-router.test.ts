@@ -242,6 +242,15 @@ test('getWebRtcConfig 返回规范化配置和生效策略', async () => {
   assert.deepEqual(response.state.actual, { value: 'disable_non_proxied_udp', levelOfControl: 'controlled_by_this_extension' });
 });
 
+test('getFirstScreenStatus 只读转发后台的首屏注入状态', async () => {
+  installChrome();
+  const status = { mode: 'userScripts', chromeMajor: 156, extensionId: 'ext' };
+  const { services } = createServices({ getFirstScreenStatus: async () => status });
+  const response = await createBackgroundMessageRouter(services).respond({ action: 'getFirstScreenStatus' }, uiSender());
+  assert.equal(response.status, 'ok');
+  assert.deepEqual(response.state, status);
+});
+
 test('getWebRtcConfig 读回失败时 actual 为 null，不让整个响应失败', async () => {
   installChrome();
   const { services } = createServices({
