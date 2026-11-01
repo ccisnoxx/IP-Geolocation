@@ -40,13 +40,14 @@ git push --force --all && git push --force --tags
 **不要动** [NOTICE](NOTICE) 与 [LICENSE](LICENSE)：MIT 要求保留上游署名，
 "作者列表里只有一个名字"和"保留许可署名"是两件事，前者可改、后者不能。
 
-## 1. CI：每个提交都跑
+## 1. CI：只手动触发
 
 Node 版本：CI 矩阵跑 **22 / 24**（`package.json` 的 `engines` 下限是 22）。Node 20
 跑不动这套用例 —— `navigator`、`MessageChannel` 等全局在 20 里缺失，有 4 条"还原 /
 重新注入"用例会直接 `ReferenceError`，所以不要把 `node-version` 调回 20。
 
-`.github/workflows/ci.yml`，触发条件为所有分支的 push 与 PR，权限 `contents: read`：
+`.github/workflows/ci.yml` 只手动触发（GitHub 的 Actions 页面 → CI → Run workflow），push 与 PR 不再自动跑；
+`nightly.yml`（Chrome 119 浏览器审计）同样改为只手动触发。权限 `contents: read`。CI 的步骤：
 
 | 步骤 | 命令 | 失败含义 |
 | --- | --- | --- |
@@ -56,14 +57,14 @@ Node 版本：CI 矩阵跑 **22 / 24**（`package.json` 的 `engines` 下限是 
 | Build | `npm run build` | 构建失败 |
 | Verify output | `test -f dist/...` | 产物缺文件 / manifest 不是 V3 |
 
-### 合并 PR 不等 CI
+### 合并 PR 以本地检查为准
 
-CI 跑的内容与本地 `npm run verify` 基本重复，等它全绿只是耗时。合并 PR 按下面的方式：
+CI 跑的内容与本地 `npm run verify` 基本重复，自动跑只是耗时，所以改成了手动触发。合并 PR 按下面的方式：
 
 1. 本地 `npm run verify` 通过（它会先重建 `dist/`，避免测试读到别的分支的产物）；
    改到注入层、桥或权限时，再跑一次相关的 `npm run smoke:*`。
 2. 推送后直接合并（普通合并，保留 merge commit），不轮询 CI；解决冲突产生的合并提交同样如此。
-3. CI 照常在后台跑，只有失败时才回头处理。
+3. 想在干净环境里多确认一次（比如改了依赖或 Node 版本相关的代码）时，再手动触发 CI。
 
 发版不在此列：推 tag 前仍按第 3、4 节走完本地门禁，Release 流水线自带的检查也照常生效。
 
