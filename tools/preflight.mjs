@@ -63,7 +63,7 @@ const STAGES = [
   stage('version', '版本与产物一致', null, null, { timeoutMs: 30_000 }),
   // 单测和覆盖率会读取 dist，完整执行和 --only 都必须先生成当前源码的产物。
   stage('build', '构建 dist', 'npm', ['run', 'build'], { timeoutMs: 300_000 }),
-  stage('verify', 'lint + typecheck + 单测', 'npm', ['run', 'verify'], {
+  stage('verify', 'lint + 构建 + 单测', 'npm', ['run', 'verify'], {
     summary: (out) => match(out, /ℹ pass (\d+)/, (m) => `${m[1]} pass`),
     deps: ['build']
   }),
