@@ -8,11 +8,11 @@ const router = createBackgroundMessageRouter(services);
 /** 出口坐标的刷新周期。改太短只会把 IP 归属地接口打到限流，而失败就是 fail-closed。 */
 const LOCATION_ALARM_MINUTES = 5;
 
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   // runtime 由注册的内容脚本在 document_start 装上，这里不再注入任何脚本，
   // 只负责刷新角标与标题。
   if (changeInfo.status === 'complete') {
-    void services.refreshActionBadge();
+    void services.refreshActionBadge(tabId);
   }
 });
 
@@ -22,8 +22,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-chrome.tabs.onActivated.addListener(() => {
-  void services.refreshActionBadge();
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void services.refreshActionBadge(tabId);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {

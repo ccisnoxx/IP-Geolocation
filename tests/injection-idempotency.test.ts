@@ -42,6 +42,9 @@ interface Harness {
     badgeTexts: Array<{ text: string; tabId?: number }>;
     /** 每次 updateDynamicRules 写进去的 addRules，用来断言"最后一次写的是什么" */
     dnrWrites: Array<any[]>;
+    userScriptOps: string[];
+    userScriptMaxConcurrent: number;
+    userScriptCode: string;
   };
   storage: Record<string, any>;
   sessionStorage: Record<string, any>;
@@ -63,6 +66,8 @@ function createHarness(options: {
   fetchGate?: Promise<void>;
   /** 让 contentSettings.clear 抛错：验证"清不掉就不许改账本" */
   permissionClearError?: string;
+  /** 「允许用户脚本」已开：提供带延迟的 chrome.userScripts 替身，重复注册按真机抛错 */
+  userScripts?: boolean;
 } = {}): Harness {
   const stats = {
     fileInjections: 0,
@@ -83,9 +88,26 @@ function createHarness(options: {
     unregistered: 0,
     tabCreates: 0,
     badgeTexts: [] as Array<{ text: string; tabId?: number }>,
-    dnrWrites: [] as Array<any[]>
+    dnrWrites: [] as Array<any[]>,
+    userScriptOps: [] as string[],
+    userScriptMaxConcurrent: 0,
+    userScriptCode: ''
   };
   let activeSends = 0;
+  let activeUserScriptOps = 0;
+  const userScriptRegistry = new Map<string, any>();
+  // 每个调用都让出若干轮事件循环：两条对齐若没排队，就会在这里交错
+  const userScriptOp = async <T>(name: string, run: () => T): Promise<T> => {
+    activeUserScriptOps += 1;
+    stats.userScriptMaxConcurrent = Math.max(stats.userScriptMaxConcurrent, activeUserScriptOps);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      stats.userScriptOps.push(name);
+      return run();
+    } finally {
+      activeUserScriptOps -= 1;
+    }
+  };
   const local: Record<string, any> = {};
   const session: Record<string, any> = {};
   const frameReceipts = new Map<string, unknown>();
@@ -247,7 +269,32 @@ function createHarness(options: {
     privacy: {
       network: { webRTCIPHandlingPolicy: { set: async () => undefined, clear: async () => undefined } }
     },
-    runtime: { getURL: (path: string) => `chrome-extension://test/${path}` }
+    runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
+    ...(options.userScripts ? {
+      userScripts: {
+        // 不带参数的调用是开关探测（只读、不等结果），不计入交错统计
+        getScripts: (filter?: { ids?: string[] }) => {
+          const list = () => [...userScriptRegistry.values()].filter((script) => !filter?.ids || filter.ids.includes(script.id));
+          return filter ? userScriptOp('getScripts', list) : Promise.resolve(list());
+        },
+        register: (scripts: any[]) => userScriptOp('register', () => {
+          for (const script of scripts) {
+            if (userScriptRegistry.has(script.id)) throw new Error(`Duplicate script ID '${script.id}'`);
+            userScriptRegistry.set(script.id, script);
+            stats.userScriptCode = script.js[0].code;
+          }
+        }),
+        update: (scripts: any[]) => userScriptOp('update', () => {
+          for (const script of scripts) {
+            userScriptRegistry.set(script.id, script);
+            stats.userScriptCode = script.js[0].code;
+          }
+        }),
+        unregister: (filter?: { ids?: string[] }) => userScriptOp('unregister', () => {
+          for (const id of filter?.ids || [...userScriptRegistry.keys()]) userScriptRegistry.delete(id);
+        })
+      }
+    } : {})
   };
 
   (globalThis as any).chrome = fake;
@@ -256,7 +303,7 @@ function createHarness(options: {
     stats.fetches += 1;
     // 闸门在计数之后等：调用方可以"看到了 fetches 增加"再决定放不放行
     if (options.fetchGate) await options.fetchGate;
-    return { ok: true, json: async () => geoPayload } as any;
+    return { ok: true, json: async () => geoPayload, text: async () => '/* runtime */' } as any;
   };
 
   return {
@@ -886,6 +933,11 @@ test('refreshActionBadge 覆盖 broken / active / 非白名单标签页', async 
   });
   await harness.services.refreshActionBadge();
   assert.ok(harness.stats.badgeTexts.some((item) => item.text === '!'));
+
+  // 标签页事件只刷新那一个标签页
+  harness.stats.badgeTexts.length = 0;
+  await harness.services.refreshActionBadge(2);
+  assert.deepEqual(harness.stats.badgeTexts.map((item) => item.tabId), [2]);
 });
 
 test('openDiagnosticPage 和 reloadAffectedTabs 的边界', async () => {
@@ -1751,4 +1803,32 @@ test('SW 新 services 无发现缓存时仍通知 opaque 自拉，文档凭证�
   assert.equal(Object.keys(harness.sessionStorage).some(key => key.startsWith('vanishgeo.frame-evidence.v1:')), false);
   assert.ok(harness.sessionStorage['vanishgeo.frame-receipt-key.v1'], '关 tab 不能删除其他文档依赖的会话密钥');
   await assert.rejects(() => restarted.resolveFrameRuleUrl(7, 6, 'session-data', 'data:text/html,private-content'), /tab has closed/);
+});
+
+test('用户脚本对齐排队执行：应用配置、定时任务、弹窗查询撞在一起时不交错、不误删，最终是最新配置', async () => {
+  const harness = createHarness({ userScripts: true });
+  const config = await harness.services.getSiteConfig();
+  const first = { ...config, masterEnabled: true, rules: [{ ...config.rules[0], id: 'a', domain: 'first.example', enabled: true }] } as any;
+  const latest = { ...first, rules: [{ ...first.rules[0], domain: 'latest.example' }] };
+  await harness.services.saveSiteConfig(first);
+  harness.stats.userScriptOps.length = 0;
+
+  // 定时任务、弹窗查询正在对齐时，用户保存了新配置
+  await Promise.all([
+    harness.services.refreshFirstScreen(),
+    harness.services.getFirstScreenStatus(),
+    harness.services.saveSiteConfig(latest),
+    harness.services.refreshFirstScreen()
+  ]);
+
+  assert.equal(harness.stats.userScriptMaxConcurrent, 1, '同一时刻只有一个 userScripts 调用在进行');
+  assert.ok(!harness.stats.userScriptOps.includes('unregister'), '并发不会导致脚本被撤掉');
+  assert.ok(!harness.stats.userScriptOps.includes('register'), '已注册的脚本只更新，不重复注册');
+  assert.match(harness.stats.userScriptCode, /latest\.example/, '排队的对齐现读配置，最终是刚保存的配置');
+
+  // 内容不变的再次对齐只确认脚本还在，不整段重写
+  const writes = harness.stats.userScriptOps.filter((op) => op === 'register' || op === 'update').length;
+  await harness.services.refreshFirstScreen();
+  assert.equal(harness.stats.userScriptOps.filter((op) => op === 'register' || op === 'update').length, writes);
+  assert.equal((await harness.services.getFirstScreenStatus()).mode, 'userScripts');
 });
