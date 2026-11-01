@@ -158,7 +158,7 @@ jobs:
           # 停在第一条等于每修一次只能看到一条问题
           failed=""
           for script in presets frames opaque-frames opaque-recovery workers bfcache cold-start cold-save \
-                        baked-clear baked-failclosed ip-apply theme options popup; do
+                        baked-clear baked-failclosed ip-apply theme options popup userscripts; do
             extra=""
             case "$script" in
               options|popup) extra="--extension=$RUNNER_TEMP/vg-persona" ;;

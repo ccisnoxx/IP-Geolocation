@@ -11,6 +11,11 @@ const MAIN_RUNTIME_SCRIPT_ID = 'vanishgeo-main-runtime';
 const BRIDGE_SCRIPT_ID = 'vanishgeo-bridge';
 const CONTENT_SCRIPT_IDS = [MAIN_RUNTIME_SCRIPT_ID, BRIDGE_SCRIPT_ID];
 const MAIN_RUNTIME_FILES = ['injected/runtime.js'];
+
+/** 烘焙进 manifest 的域名，供用户脚本模式判断是否为烘焙构建 */
+export function bakedContentScriptDomains(): string[] {
+  return bakedScriptDomains();
+}
 const BRIDGE_FILES = ['content/content.js'];
 
 /** 构建期烘焙进 manifest 的域名（普通构建为空数组） */
