@@ -208,7 +208,11 @@ export default defineConfig({
         // `arguments` / `caller`（`Object.getOwnPropertyNames(fn)` 直接可见），原生内建
         // 函数没有这两样，等于给整层补丁盖了个"非原生"的章。
         banner: (chunk) => (chunk.name === 'injected/runtime' ? '(function () {\n"use strict";' : ''),
-        footer: (chunk) => (chunk.name === 'injected/runtime' ? '})();' : ''),
+        //
+        // 末尾的 `//# sourceURL=<anonymous>`：补丁里的函数一旦出现在调用栈上（页面用错误的 this
+        // 调用、被 Error.stack 采集），帧里显示的脚本名默认是 chrome-extension://<扩展ID>/injected/runtime.js，
+        // 等于报出扩展身份。换成 <anonymous> 后只剩行列号；多出来的帧本身仍可见，这是 JS 层补丁的上限。
+        footer: (chunk) => (chunk.name === 'injected/runtime' ? '})();\n//# sourceURL=<anonymous>' : ''),
         assetFileNames: (assetInfo) => {
           const name = assetInfo.name || '';
           if (name.endsWith('.css')) {

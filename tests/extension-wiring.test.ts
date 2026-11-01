@@ -96,6 +96,13 @@ test('Worker 补丁在每次创建时按当前状态生成，而不是冻结在�
   assert.equal(exists('src/injected/worker-patch.ts'), true);
 });
 
+test('注入层产物把调用栈里的脚本名换成 <anonymous>，不报出扩展身份', () => {
+  if (!exists('dist/injected/runtime.js')) return;
+  const bundle = read('dist/injected/runtime.js');
+  assert.match(bundle, /\}\)\(\);\n\/\/# sourceURL=<anonymous>\s*$/, 'runtime.js 末尾必须是 sourceURL 指令');
+  assert.doesNotMatch(bundle, /chrome-extension:\/\//, '产物里不能出现扩展地址');
+});
+
 test('注入层补丁必须自包含：产物里不能出现打包器注入的模块级 helper', () => {
   if (!exists('dist/injected/runtime.js')) return;
   const bundle = read('dist/injected/runtime.js');

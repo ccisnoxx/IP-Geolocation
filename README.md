@@ -239,6 +239,7 @@ node tools/chrome-env.mjs --persona=us-la-1 --url=https://claude.ai
 | SharedWorker | ❌ | **不包装**：身份是 `(resolved URL, name)`，换成 blob URL 会让每个文档各建一个实例，跨文档共享语义消失且无法修回去。它读到的是**原生值** |
 | nested worker | ✅ 或 ⚠️ | 父 Worker 里的 `Worker` 构造器同样换成带补丁的入口，相对路径按原脚本地址解析，配置更新由父 Worker 逐层转发。父 Worker 回退原生（CSP 拒绝 blob 等）时它也读到原生值，标 ⚠️ |
 | service worker | ❌ | 没有 hook `navigator.serviceWorker.register` |
+| worklet（Audio / Paint / Animation） | ✅ 或 ⚠️ | `addModule` 换成「补丁模块 + 原模块」的入口（Worklet 禁止动态 `import()`，靠模块依赖按顺序先执行保证补丁在前）；没有消息通道，拿到的是创建时的配置快照。CSP 拒绝 blob 时回退原生并标 ⚠️；SharedStorage worklet 不包装 |
 
 诊断页（`fixtures/workers/top.html`）与 `buildWorkerDiagnosticsSnapshot` 都按这张表标注：
 UNSUPPORTED 的上下文即使探测"成功"也不显示成通过 —— 探测能返回值不代表被伪装。
