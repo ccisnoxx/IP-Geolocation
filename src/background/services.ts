@@ -4,7 +4,8 @@ import { GEO_API_URLS, fetchJson, parseGeoApiResponse } from './geo-api';
 import { IP_SYNC_ALARM_NAME, LAST_SYNCED_IP_KEY, ensureIpSyncAlarmFor, isIpSyncEnabled, lookupExitIp, planExitIpApply, runExitIpSync } from './ip-sync';
 import type { ExitIpApplyOutcome, ExitIpSyncOutcome, IpSyncAlarmGateway } from './ip-sync';
 import { WEBRTC_POLICY_VALUES, applyWebRTCPolicy, readWebRTCPolicy } from './webrtc';
-import { registerSpoofContentScripts } from './content-scripts';
+import { bakedContentScriptDomains, registerSpoofContentScripts } from './content-scripts';
+import { chromeMajorVersion, removeUserScript, syncUserScript, userScriptToken as userScriptToken_, userScriptsAvailable } from './user-scripts';
 import { createDiagnosticReports } from './diagnostic-reports';
 import {
   LAST_LOCATION_KEY,
@@ -106,7 +107,11 @@ export interface BackgroundServices {
     config?: SiteSpoofConfig;
     lastLocation?: LastLocation | null;
   }): Promise<void>;
-  getPayloadForUrl(url: string): Promise<EffectiveProfileResult>;
+  getPayloadForUrl(url: string): Promise<EffectiveProfileResult & { userScriptToken?: string | null }>;
+  /** 首屏注入方式（界面提示用）：先按当前开关状态重新对齐一次，再报告 */
+  getFirstScreenStatus(): Promise<FirstScreenStatus>;
+  /** 按当前开关状态注册 / 更新 / 撤销用户脚本（定时任务调用，不推标签页） */
+  refreshFirstScreen(): Promise<void>;
   getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
     domain: string;
     config: SiteSpoofConfig;
@@ -125,6 +130,19 @@ export interface BackgroundServices {
   /** 配置变化：只重算副作用，不触发 IP 定位 */
   applyConfig(config?: SiteSpoofConfig): Promise<void>;
   refreshActionBadge(): Promise<void>;
+}
+
+/**
+ * 首屏注入方式：
+ * - baked：烘焙构建，配置编进注入层，本来就首屏生效
+ * - userScripts：用户脚本承载配置，首屏生效（见 user-scripts.ts）
+ * - contentScripts：「允许用户脚本」没开，配置在页面开始运行后异步送到
+ * - unsupported：浏览器低于 Chrome 120，没有 userScripts
+ */
+export interface FirstScreenStatus {
+  mode: 'baked' | 'userScripts' | 'contentScripts' | 'unsupported';
+  chromeMajor: number | null;
+  extensionId: string;
 }
 
 export function createBackgroundServices(): BackgroundServices {
@@ -193,6 +211,55 @@ export function createBackgroundServices(): BackgroundServices {
 
   /** 上一次真正应用过的配置签名：保存路径与 storage 事件都会走到 applyConfig */
   let lastAppliedSignature = '';
+  /** 当前是否注册了带配置的用户脚本（见 syncFirstScreen） */
+  let userScriptMode = false;
+
+  /** 应用签名：「允许用户脚本」开关的变化由 refreshFirstScreen 单独对齐，不进签名，免得触发整轮应用 */
+  function signatureOf(config: SiteSpoofConfig): string {
+    return JSON.stringify(config);
+  }
+
+  /**
+   * 用户脚本里嵌着配置与出口坐标，两者任一变化都要重新注册。失败时撤掉旧脚本：
+   * 留着旧快照的脚本会让新打开的页面首屏先用旧配置。内容脚本那份注入层始终在，
+   * 撤掉后自动回到普通模式。
+   */
+  async function syncFirstScreen(config: SiteSpoofConfig, location: LastLocation | null): Promise<void> {
+    try {
+      userScriptMode = await syncUserScript(config, location, bakedContentScriptDomains());
+    } catch (error) {
+      userScriptMode = false;
+      console.warn('VanishGeo could not register the first-screen user script:', error instanceof Error ? error.message : String(error));
+      await removeUserScript().catch(() => undefined);
+    }
+  }
+
+  /**
+   * 「允许用户脚本」开关变化时后台收不到通知：定时任务与弹窗查询时调这里，只按当前配置
+   * 注册 / 更新 / 撤销用户脚本，不推标签页、不写 DNR —— 开着时顺便把关着期间改过的配置补进去。
+   * 开关关着时什么都做不了（API 不可用），旧脚本保留，打开后的第一次对齐会更新它。
+   */
+  async function refreshFirstScreen(): Promise<void> {
+    if (!userScriptsAvailable()) {
+      userScriptMode = false;
+      return;
+    }
+    const config = frozenBakedConfig() || normalizeConfig(await getSiteConfig());
+    await syncFirstScreen(config, await getLastLocation());
+  }
+
+  /**
+   * 认领口令只能用在"即使带不上也不会出错"的地方：总开关关闭的清除必须送达，带不上口令时
+   * 内容脚本那份自己处理（没有补丁可清）。payload 下发不用它 —— 那里读不到口令就报错重试，
+   * 带着空口令下发会让内容脚本那份误判"没有用户脚本"而与之各打一份补丁。
+   */
+  async function tokenForPage(): Promise<string | null> {
+    try {
+      return await userScriptToken_();
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * 上一次应用时的「跟随出口 IP」开关状态。
@@ -312,6 +379,7 @@ export function createBackgroundServices(): BackgroundServices {
 
   async function applyRuntimeSideEffects(config: SiteSpoofConfig): Promise<void> {
     await registerSpoofContentScripts(config);
+    await syncFirstScreen(config, await getLastLocation());
     // 语言与定位独立，头规则只消费语言配置。
     await updateAcceptLanguageRules(config);
     await applyWebRTCPolicy(config);
@@ -383,9 +451,11 @@ export function createBackgroundServices(): BackgroundServices {
    */
   async function pushPayload(tabId: number, payload: unknown | null, frameId?: number, documentId?: string): Promise<void> {
     try {
+      // 读不到口令就不推：桥会自己拉取，拉取路径读不到口令会报错重试
+      const userScriptToken = await userScriptToken_();
       const message = payload === null
-        ? { action: 'applyPayload', clear: true }
-        : { action: 'applyPayload', payload };
+        ? { action: 'applyPayload', clear: true, userScriptToken }
+        : { action: 'applyPayload', payload, userScriptToken };
       if (frameId === undefined) {
         await chrome.tabs.sendMessage(tabId, message);
       } else {
@@ -472,7 +542,7 @@ export function createBackgroundServices(): BackgroundServices {
 
     if (config.masterEnabled === false) {
       // 总关适用于所有文档：119 连脚本枚举也可能漏 blob，不能依赖发现列表清除。
-      try { await chrome.tabs.sendMessage(tabId, { action: 'applyPayload', clear: true, globalDisabled: true }); }
+      try { await chrome.tabs.sendMessage(tabId, { action: 'applyPayload', clear: true, globalDisabled: true, userScriptToken: await tokenForPage() }); }
       catch { /* 没有内容脚本的标签页无需清除。 */ }
       return;
     }
@@ -775,8 +845,21 @@ export function createBackgroundServices(): BackgroundServices {
     return ensureIpSyncAlarmFor(await getSiteConfig(), ipSyncAlarms);
   }
 
-  async function getPayloadForUrl(url: string): Promise<EffectiveProfileResult> {
-    return buildPayloadForUrl(url);
+  async function getPayloadForUrl(url: string): Promise<EffectiveProfileResult & { userScriptToken?: string | null }> {
+    return { ...(await buildPayloadForUrl(url)), userScriptToken: await userScriptToken_() };
+  }
+
+  async function getFirstScreenStatus(): Promise<FirstScreenStatus> {
+    // 后台收不到开关变化的通知：用户回到弹窗时顺手对齐一次
+    await refreshFirstScreen();
+    const chromeMajor = chromeMajorVersion();
+    const baked = bakedContentScriptDomains().length > 0 || (typeof __VANISHGEO_BRIDGE__ === 'boolean' && !__VANISHGEO_BRIDGE__);
+    const mode: FirstScreenStatus['mode'] = baked
+      ? 'baked'
+      : chromeMajor !== null && chromeMajor < 120
+        ? 'unsupported'
+        : userScriptMode ? 'userScripts' : 'contentScripts';
+    return { mode, chromeMajor, extensionId: chrome.runtime.id };
   }
 
   async function getCurrentTabState(tab?: chrome.tabs.Tab): Promise<EffectiveProfileResult & {
@@ -971,12 +1054,13 @@ export function createBackgroundServices(): BackgroundServices {
     const run = async () => {
       const config = frozenBakedConfig() || normalizeConfig(await getSiteConfig());
       const location = await getLastLocation();
+      await syncFirstScreen(config, location);
       await applyGeolocationPermissions(config);
       await updateAcceptLanguageRules(config);
       await updateAllTabs(config, location);
       // 这一次也算"应用过完整状态"：不同步去重基准，下一次同配置的 applyConfig
       // 会以为还没应用过，白白再写一遍 DNR（写一次就驱逐一次 BFCache）
-      lastAppliedSignature = JSON.stringify(config);
+      lastAppliedSignature = signatureOf(config);
     };
     const next = applyChain.then(run, run);
     applyChain = next.then(() => undefined, () => undefined);
@@ -985,7 +1069,7 @@ export function createBackgroundServices(): BackgroundServices {
 
   async function applyConfigNow(configOverride?: SiteSpoofConfig): Promise<void> {
     const config = frozenBakedConfig() || normalizeConfig(configOverride || await getSiteConfig());
-    const signature = JSON.stringify(config);
+    const signature = signatureOf(config);
     if (signature === lastAppliedSignature) return;
 
     await applyRuntimeSideEffects(config);
@@ -1033,6 +1117,8 @@ export function createBackgroundServices(): BackgroundServices {
     ensureIpSyncAlarm,
     syncTab,
     getPayloadForUrl,
+    getFirstScreenStatus,
+    refreshFirstScreen,
     getCurrentTabState,
     addDomainRule,
     setDomainRuleEnabled,

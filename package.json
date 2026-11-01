@@ -29,6 +29,7 @@
     "smoke:release": "node tools/smoke-release.mjs",
     "smoke:cold-start": "node tools/smoke-cold-start.mjs",
     "smoke:cold-save": "node tools/smoke-cold-save.mjs",
+    "smoke:userscripts": "node tools/smoke-userscripts.mjs",
     "smoke:popup": "node tools/smoke-popup.mjs",
     "smoke:real-site": "node tools/smoke-real-site.mjs",
     "audit": "node tools/audit.mjs",

@@ -29,6 +29,8 @@ chrome.tabs.onActivated.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === services.alarmName) {
     void services.updateGeolocation();
+    // 「允许用户脚本」开关变化时后台收不到通知：顺手对齐一次用户脚本（不推标签页、不写 DNR）
+    void services.refreshFirstScreen();
     return;
   }
   // 「跟随出口 IP」：出口换了才改配置，同 IP 直接跳过（见 ip-sync 的 planExitIpSync）。
