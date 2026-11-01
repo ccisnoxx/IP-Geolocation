@@ -165,6 +165,22 @@ export function workerPatch(config: WorkerPatchConfig): void {
   const NativeNF: any = IntlRef.NumberFormat;
   const dateProto: any = NativeDate.prototype;
   const nativeGetTimezoneOffset = dateProto.getTimezoneOffset;
+  // 读接收者的时间戳走原生 getTime：非 Date 接收者抛原生错误，页面改写 getTime 也影响不到
+  const nativeGetTime = dateProto.getTime;
+  // 接收者不是 Date 时让对应的原生方法自己抛错（getter / setter / toString 的措辞各不相同）
+  const timeFor = (receiver: any, nativeFn: any): number => {
+    try {
+      return nativeGetTime.call(receiver);
+    } catch (error) {
+      nativeFn.call(receiver);
+      throw error;
+    }
+  };
+  // 内部换算用到的 UTC 读写与 formatToParts 同样走原生：页面改写它们时原生 getHours / setHours 不受影响
+  const nativeUTC: any = {};
+  const utcKeys = ['getUTCFullYear', 'getUTCMonth', 'getUTCDate', 'getUTCDay', 'getUTCHours', 'getUTCMinutes', 'getUTCSeconds', 'getUTCMilliseconds', 'setUTCFullYear', 'setUTCMonth', 'setUTCDate', 'setUTCHours', 'setUTCMinutes', 'setUTCSeconds', 'setUTCMilliseconds', 'setTime'];
+  for (let index = 0; index < utcKeys.length; index += 1) nativeUTC[utcKeys[index]] = dateProto[utcKeys[index]];
+  const nativeFormatToParts = NativeDTF.prototype.formatToParts;
   const nativeToLocaleString = dateProto.toLocaleString;
   const nativeToLocaleDateString = dateProto.toLocaleDateString;
   const nativeToLocaleTimeString = dateProto.toLocaleTimeString;
@@ -250,10 +266,15 @@ export function workerPatch(config: WorkerPatchConfig): void {
       return frozenLanguages;
     };
 
-    putGetter(navProto, 'language', function () {
+    // 先让原生 getter 校验接收者：传错对象时抛出原生的 "Illegal invocation"
+    putGetter(navProto, 'language', function (this: any) {
+      if (nativeLanguageDescriptor && typeof nativeLanguageDescriptor.get === 'function') nativeLanguageDescriptor.get.call(this);
       return live.language || nativeLanguageValue();
     });
-    putGetter(navProto, 'languages', currentLanguages);
+    putGetter(navProto, 'languages', function (this: any) {
+      if (nativeLanguagesDescriptor && typeof nativeLanguagesDescriptor.get === 'function') nativeLanguagesDescriptor.get.call(this);
+      return currentLanguages();
+    });
   }
 
   // ---------- Date ----------
@@ -278,7 +299,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
       formatterZone = live.zone;
     }
     const out: any = {};
-    const parts = formatter.formatToParts(time);
+    const parts = nativeFormatToParts.call(formatter, time);
     for (let index = 0; index < parts.length; index += 1) {
       const part = parts[index];
       if (part.type !== 'literal') out[part.type] = part.value;
@@ -387,22 +408,22 @@ export function workerPatch(config: WorkerPatchConfig): void {
   // 语义与"从没打过补丁"完全一致（这也是关闭补丁后能真正还原的原因）。
   {
     const getters: Array<[string, (wall: any) => number]> = [
-      ['getFullYear', (selfWall) => selfWall.getUTCFullYear()],
-      ['getYear', (selfWall) => selfWall.getUTCFullYear() - 1900],
-      ['getMonth', (selfWall) => selfWall.getUTCMonth()],
-      ['getDate', (selfWall) => selfWall.getUTCDate()],
-      ['getDay', (selfWall) => selfWall.getUTCDay()],
-      ['getHours', (selfWall) => selfWall.getUTCHours()],
-      ['getMinutes', (selfWall) => selfWall.getUTCMinutes()],
-      ['getSeconds', (selfWall) => selfWall.getUTCSeconds()],
-      ['getMilliseconds', (selfWall) => selfWall.getUTCMilliseconds()]
+      ['getFullYear', (selfWall) => nativeUTC.getUTCFullYear.call(selfWall)],
+      ['getYear', (selfWall) => nativeUTC.getUTCFullYear.call(selfWall) - 1900],
+      ['getMonth', (selfWall) => nativeUTC.getUTCMonth.call(selfWall)],
+      ['getDate', (selfWall) => nativeUTC.getUTCDate.call(selfWall)],
+      ['getDay', (selfWall) => nativeUTC.getUTCDay.call(selfWall)],
+      ['getHours', (selfWall) => nativeUTC.getUTCHours.call(selfWall)],
+      ['getMinutes', (selfWall) => nativeUTC.getUTCMinutes.call(selfWall)],
+      ['getSeconds', (selfWall) => nativeUTC.getUTCSeconds.call(selfWall)],
+      ['getMilliseconds', (selfWall) => nativeUTC.getUTCMilliseconds.call(selfWall)]
     ];
     for (let index = 0; index < getters.length; index += 1) {
       const name = getters[index][0];
       const pick = getters[index][1];
       const impl = function (this: any) {
         if (!live.zone) return nativeGetters[name].call(this);
-        const time = this.getTime();
+        const time = timeFor(this, nativeGetters[name]);
         if (time !== time) return NaN;
         return pick(wall(time));
       };
@@ -411,7 +432,7 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
     putValue(dateProto, 'getTimezoneOffset', wrap(function (this: any) {
       if (!live.zone) return nativeGetTimezoneOffset.call(this);
-      const time = this.getTime();
+      const time = timeFor(this, nativeGetTimezoneOffset);
       if (time !== time) return NaN;
       return offsetAt(time);
     }, 'getTimezoneOffset', 0), true);
@@ -434,14 +455,14 @@ export function workerPatch(config: WorkerPatchConfig): void {
       const arity = setters[index][2];
       const impl = function (this: any, ...args: any[]) {
         if (!live.zone) return nativeSetters[name].apply(this, args);
-        const time = this.getTime();
+        const time = timeFor(this, nativeSetters[name]);
         // setFullYear 在 Invalid Date 上仍然成功（规范把 t 归成 +0），其余 setter 必须 NaN
         const base = time === time ? time : (utcName === 'setUTCFullYear' ? 0 : NaN);
         if (base !== base) return NaN;
         const shifted = wall(base);
-        (shifted as any)[utcName].apply(shifted, args);
-        const next = resolveWall(shifted.getTime());
-        this.setTime(next);
+        nativeUTC[utcName].apply(shifted, args);
+        const next = resolveWall(nativeGetTime.call(shifted));
+        nativeUTC.setTime.call(this, next);
         return next;
       };
       putValue(dateProto, name, wrap(impl, name, arity), true);
@@ -449,22 +470,22 @@ export function workerPatch(config: WorkerPatchConfig): void {
 
     putValue(dateProto, 'toDateString', wrap(function (this: any) {
       if (!live.zone) return nativeToDateString.call(this);
-      if (this.getTime() !== this.getTime()) return 'Invalid Date';
-      return formatDate(this.getTime());
+      if (timeFor(this, nativeToDateString) !== nativeGetTime.call(this)) return 'Invalid Date';
+      return formatDate(nativeGetTime.call(this));
     }, 'toDateString'), true);
 
     putValue(dateProto, 'toTimeString', wrap(function (this: any) {
       if (!live.zone) return nativeToTimeString.call(this);
-      if (this.getTime() !== this.getTime()) return 'Invalid Date';
-      return formatTime(this.getTime());
+      if (timeFor(this, nativeToTimeString) !== nativeGetTime.call(this)) return 'Invalid Date';
+      return formatTime(nativeGetTime.call(this));
     }, 'toTimeString'), true);
 
     putValue(dateProto, 'toString', wrap(function (this: any) {
       if (!live.zone) return nativeToString.call(this);
       // 非法日期必须整体返回 'Invalid Date'；拼两个子串会得到
       // "Invalid Date Invalid Date"，真机不会这么输出。
-      if (this.getTime() !== this.getTime()) return 'Invalid Date';
-      return `${formatDate(this.getTime())} ${formatTime(this.getTime())}`;
+      if (timeFor(this, nativeToString) !== nativeGetTime.call(this)) return 'Invalid Date';
+      return `${formatDate(nativeGetTime.call(this))} ${formatTime(nativeGetTime.call(this))}`;
     }, 'toString'), true);
 
     // toLocale* 一族同时受语言与时区影响，两样都空时原样透传
@@ -568,12 +589,15 @@ export function workerPatch(config: WorkerPatchConfig): void {
       const needsZone = specs[index][2];
       if (typeof Native !== 'function') continue;
 
-      const spoofed: any = wrap(function (locales?: any, options?: any) {
+      const spoofed: any = wrap(function (this: any, locales?: any, options?: any) {
         // 配置为空：原样交还原生，连参数都不碰
-        if (!live.zone && !live.language) return new (Native as any)(locales, options);
-        const nextLocales = spoofLocale(locales);
-        const nextOptions = needsZone ? withZone(options) : options;
-        return new (Native as any)(nextLocales, nextOptions);
+        const off = !live.zone && !live.language;
+        const nextLocales = off ? locales : spoofLocale(locales);
+        const nextOptions = off || !needsZone ? options : withZone(options);
+        // new 调用保留 new.target（子类原型）；普通调用交给原生决定返回实例还是抛 "requires 'new'"
+        return new.target
+          ? Reflect.construct(Native, [nextLocales, nextOptions], new.target)
+          : Reflect.apply(Native, this, [nextLocales, nextOptions]);
       }, name, 0, { construct: true });
 
       try { Object.defineProperty(spoofed, 'prototype', { value: Native.prototype, writable: false }); } catch { /* ignore */ }

@@ -417,6 +417,57 @@ const BRIDGE_ENABLED = typeof __VANISHGEO_BRIDGE__ === 'boolean' ? __VANISHGEO_B
     // 所以这里保留原生构造器：SharedWorker 读到的是**真实的** Date / Intl /
     // navigator，不是"一半伪装"的矛盾值。覆盖面见 shared/worker-coverage.ts，
     // 诊断页与文档都按 UNSUPPORTED 标注，不宣称覆盖。
+
+    // Worklet（AudioWorklet / PaintWorklet / AnimationWorklet）：同样换入口。
+    //
+    // Worklet 只认 ES 模块且禁止动态 import()，不能照搬 Worker 的 `await import(原脚本)`；
+    // 静态 import 又会被提升到模块体之前执行。所以把补丁单独做成一个 blob 模块，入口写成
+    // `import 补丁; import 原脚本;` —— 模块依赖按 import 顺序先执行，补丁一定在原脚本之前。
+    // Worklet 没有消息通道，拿到的是创建时的配置快照，之后的配置变更不会推进去。
+    // SharedStorage worklet 只能 addModule 一次（失败后没有重试机会），直接走原生。
+    const WorkletRef = (globalThis as any).Worklet;
+    const workletProto = WorkletRef && WorkletRef.prototype;
+    const nativeAddModule = workletProto && workletProto.addModule;
+    if (typeof nativeAddModule === 'function') {
+      const SharedStorageWorkletRef = (globalThis as any).SharedStorageWorklet;
+      const NativeBlob = Blob;
+      const nativeCreateObjectURL = URL.createObjectURL;
+      const makeWorkletEntry = (moduleURL: any): string | null => {
+        const source = new URL(String(moduleURL), document.baseURI).href;
+        const patchSource = currentWorkerPatchSource(source);
+        if (!patchSource) return null;
+        const blob = (code: string) => nativeCreateObjectURL.call(URL, new NativeBlob([code], { type: 'text/javascript' }));
+        const patchUrl = blob(patchSource);
+        // 写在一行里：模板里的换行会被打包成真实换行，产物出现以 import 开头的行会被经典脚本守卫拦下
+        return blob(`import ${JSON.stringify(patchUrl)}; import ${JSON.stringify(source)};`);
+      };
+      const wrappedAddModule = disguise(function (this: any, moduleURL: any, options?: any) {
+        if (typeof SharedStorageWorkletRef === 'function' && this instanceof SharedStorageWorkletRef) {
+          return nativeAddModule.call(this, moduleURL, options);
+        }
+        let entry: string | null = null;
+        try {
+          entry = makeWorkletEntry(moduleURL);
+        } catch (error) {
+          reportWorkerFallback(moduleURL, 'blob-failed', error);
+        }
+        if (!entry) return nativeAddModule.call(this, moduleURL, options);
+        // 换入口失败（CSP 拒绝 blob 等）：回退原生入口并说出来，页面自己的 worklet 不能被弄坏
+        return nativeAddModule.call(this, entry, options).catch((error: any) => {
+          reportWorkerFallback(moduleURL, classifyWorkerFailure(error), error);
+          return nativeAddModule.call(this, moduleURL, options);
+        });
+      }, 'addModule', nativeAddModule.length);
+      let descriptor: PropertyDescriptor | undefined;
+      try { descriptor = Object.getOwnPropertyDescriptor(workletProto, 'addModule'); } catch { /* ignore */ }
+      define(workletProto, 'addModule', wrappedAddModule);
+      undo.push(() => {
+        try {
+          if (descriptor) Object.defineProperty(workletProto, 'addModule', descriptor);
+        } catch { /* ignore */ }
+      });
+    }
+
     if (!undo.length) return null;
     state.installedWorker = true;
     return () => {

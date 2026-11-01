@@ -40,7 +40,8 @@ test('覆盖面声明与诊断条目同源：每个 key 都带 coverage，且与
     moduleWorker: { status: 'ok' },
     sharedWorker: { status: 'ok' },
     nestedWorker: { status: 'ok' },
-    serviceWorker: { status: 'ok' }
+    serviceWorker: { status: 'ok' },
+    worklet: { status: 'ok' }
   });
 
   const keys = Object.keys(WORKER_COVERAGE) as Array<keyof typeof WORKER_COVERAGE>;

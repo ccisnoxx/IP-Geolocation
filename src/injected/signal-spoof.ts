@@ -42,6 +42,38 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
 
   // 一切原生实现都要在任何 patch 之前抓住
   const nativeGetTimezoneOffset = dateProto.getTimezoneOffset;
+  /**
+   * 读接收者的时间戳一律走原生 getTime：接收者不是 Date 时抛出与原生一致的
+   * "this is not a Date object."；页面改写 Date.prototype.getTime 也影响不到我们的 getter。
+   */
+  const nativeGetTime = dateProto.getTime;
+  const timeOf = (receiver: any): number => nativeGetTime.call(receiver);
+  /**
+   * 读接收者的时间戳；接收者不是 Date 时让**对应的原生方法**自己抛错。各方法措辞不同：
+   * getter 是 "this is not a Date object."，setter / toString 是 "Method Date.prototype.xxx called
+   * on incompatible receiver"。原生方法都先校验 this、再读参数，这里不传参数也不会有副作用。
+   */
+  const timeFor = (receiver: any, nativeFn: any): number => {
+    try {
+      return timeOf(receiver);
+    } catch (error) {
+      nativeFn.call(receiver);
+      throw error;
+    }
+  };
+  /**
+   * 内部换算用到的 UTC 读写同样走原生：页面改写 Date.prototype.getUTCHours / setTime 或
+   * Intl.DateTimeFormat.prototype.formatToParts 时，原生 getHours / setHours 不受影响，我们也不能受影响。
+   */
+  const nativeUTC: Record<string, any> = {};
+  for (const key of ['getUTCFullYear', 'getUTCMonth', 'getUTCDate', 'getUTCDay', 'getUTCHours', 'getUTCMinutes', 'getUTCSeconds', 'getUTCMilliseconds', 'setUTCFullYear', 'setUTCMonth', 'setUTCDate', 'setUTCHours', 'setUTCMinutes', 'setUTCSeconds', 'setUTCMilliseconds', 'setTime']) nativeUTC[key] = dateProto[key];
+  const utc = (date: any, key: string, ...args: any[]): number => nativeUTC[key].apply(date, args);
+  const nativeGetYear = dateProto.getYear;
+  const nativeLocalSetters: Record<string, any> = {};
+  for (const key of ['setFullYear', 'setMonth', 'setDate', 'setHours', 'setMinutes', 'setSeconds', 'setMilliseconds']) {
+    nativeLocalSetters[key] = dateProto[key];
+  }
+  const nativeGetDay = dateProto.getDay;
   const nativeGetFullYear = dateProto.getFullYear;
   const nativeGetMonth = dateProto.getMonth;
   const nativeGetDate = dateProto.getDate;
@@ -66,6 +98,7 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
   const NativeDisplayNames = IntlRef.DisplayNames;
   const NativeSegmenter = IntlRef.Segmenter;
   const NativeDurationFormat = IntlRef.DurationFormat;
+  const nativeFormatToParts = NativeDateTimeFormat.prototype.formatToParts;
 
   /** 读系统时区 / 默认 locale 的其它入口，同样在任何 patch 之前抓住原生实现 */
   const captured = (target: any, key: string): { target: any; key: string; fn: any } => {
@@ -184,7 +217,7 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
       };
     }
     const out: Record<string, string> = {};
-    for (const part of formatterCache.formatter.formatToParts(new NativeDate(time))) {
+    for (const part of nativeFormatToParts.call(formatterCache.formatter, new NativeDate(time))) {
       if (part.type !== 'literal') out[part.type] = part.value;
     }
     return out;
@@ -283,22 +316,22 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
 
   function wallNumber(receiver: any, pick: (date: any) => number, fallback: (this: any) => number): number {
     if (!deps.timezone()) return fallback.call(receiver);
-    const time = receiver.getTime();
+    const time = timeFor(receiver, fallback);
     if (!Number.isFinite(time)) return fallback.call(receiver);
     return pick(wallDate(time));
   }
 
   function formatDateString(date: any): string {
-    const wall = wallDate(date.getTime());
-    const month = MONTHS[Math.max(0, Math.min(11, wall.getUTCMonth()))];
-    const weekday = WEEKDAYS[wall.getUTCDay()];
-    return `${weekday} ${month} ${pad(wall.getUTCDate())} ${wall.getUTCFullYear()}`;
+    const wall = wallDate(timeOf(date));
+    const month = MONTHS[Math.max(0, Math.min(11, utc(wall, 'getUTCMonth')))];
+    const weekday = WEEKDAYS[utc(wall, 'getUTCDay')];
+    return `${weekday} ${month} ${pad(utc(wall, 'getUTCDate'))} ${utc(wall, 'getUTCFullYear')}`;
   }
 
   function formatTimeString(date: any): string {
-    const time = date.getTime();
+    const time = timeOf(date);
     const wall = wallDate(time);
-    return `${pad(wall.getUTCHours())}:${pad(wall.getUTCMinutes())}:${pad(wall.getUTCSeconds())} GMT${offsetText(time)} (${zoneLabel(time)})`;
+    return `${pad(utc(wall, 'getUTCHours'))}:${pad(utc(wall, 'getUTCMinutes'))}:${pad(utc(wall, 'getUTCSeconds'))} GMT${offsetText(time)} (${zoneLabel(time)})`;
   }
 
   /** 调用方没显式传 locale 时才用伪装值，显式传了就尊重调用方 */
@@ -364,19 +397,19 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     };
 
     define('getTimezoneOffset', disguise(function (this: any) {
-      return offsetAt(this.getTime());
+      return offsetAt(timeFor(this, nativeGetTimezoneOffset));
     }, 'getTimezoneOffset', 0));
 
     const getters: Array<[string, (wall: any) => number, (this: any) => number]> = [
-      ['getFullYear', (wall) => wall.getUTCFullYear(), nativeGetFullYear],
-      ['getYear', (wall) => wall.getUTCFullYear() - 1900, function (this: any) { return this.getFullYear() - 1900; }],
-      ['getMonth', (wall) => wall.getUTCMonth(), nativeGetMonth],
-      ['getDate', (wall) => wall.getUTCDate(), nativeGetDate],
-      ['getDay', (wall) => wall.getUTCDay(), dateProto.getDay],
-      ['getHours', (wall) => wall.getUTCHours(), nativeGetHours],
-      ['getMinutes', (wall) => wall.getUTCMinutes(), nativeGetMinutes],
-      ['getSeconds', (wall) => wall.getUTCSeconds(), nativeGetSeconds],
-      ['getMilliseconds', (wall) => wall.getUTCMilliseconds(), nativeGetMilliseconds]
+      ['getFullYear', (wall) => utc(wall, 'getUTCFullYear'), nativeGetFullYear],
+      ['getYear', (wall) => utc(wall, 'getUTCFullYear') - 1900, nativeGetYear],
+      ['getMonth', (wall) => utc(wall, 'getUTCMonth'), nativeGetMonth],
+      ['getDate', (wall) => utc(wall, 'getUTCDate'), nativeGetDate],
+      ['getDay', (wall) => utc(wall, 'getUTCDay'), nativeGetDay],
+      ['getHours', (wall) => utc(wall, 'getUTCHours'), nativeGetHours],
+      ['getMinutes', (wall) => utc(wall, 'getUTCMinutes'), nativeGetMinutes],
+      ['getSeconds', (wall) => utc(wall, 'getUTCSeconds'), nativeGetSeconds],
+      ['getMilliseconds', (wall) => utc(wall, 'getUTCMilliseconds'), nativeGetMilliseconds]
     ];
     for (const [key, pick, fallback] of getters) {
       define(key, disguise(function (this: any) {
@@ -397,7 +430,7 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     ];
     for (const [key, utcKey, arity] of setters) {
       define(key, disguise(function (this: any, ...args: any[]) {
-        const time = this.getTime();
+        const time = timeFor(this, nativeLocalSetters[key]);
         // setFullYear 是**唯一**在 Invalid Date 上仍然成功的 setter：规范先把 t 归成
         // +0 再落点；setMonth / setDate / setHours 这一族必须返回 NaN。
         // 早先所有 setter 共用一句 `return NaN`，于是
@@ -405,9 +438,9 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
         const base = Number.isFinite(time) ? time : (utcKey === 'setUTCFullYear' ? 0 : NaN);
         if (!Number.isFinite(base)) return NaN;
         const wall = wallDate(base);
-        wall[utcKey](...args);
-        const next = resolveWallTime(wall.getTime(), base);
-        this.setTime(next);
+        utc(wall, utcKey, ...args);
+        const next = resolveWallTime(timeOf(wall), base);
+        utc(this, 'setTime', next);
         return next;
       }, key, arity));
     }
@@ -416,19 +449,19 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     // "Invalid Date 00:00:00 GMT+0900 (…)" 这种不存在的字符串。
     define('toString', disguise(function (this: any) {
       if (!deps.timezone()) return nativeToString.call(this);
-      if (!Number.isFinite(this.getTime())) return 'Invalid Date';
+      if (!Number.isFinite(timeFor(this, nativeToString))) return 'Invalid Date';
       return `${formatDateString(this)} ${formatTimeString(this)}`;
     }, 'toString', 0));
 
     define('toDateString', disguise(function (this: any) {
       if (!deps.timezone()) return nativeToDateString.call(this);
-      if (!Number.isFinite(this.getTime())) return 'Invalid Date';
+      if (!Number.isFinite(timeFor(this, nativeToDateString))) return 'Invalid Date';
       return formatDateString(this);
     }, 'toDateString', 0));
 
     define('toTimeString', disguise(function (this: any) {
       if (!deps.timezone()) return nativeToTimeString.call(this);
-      if (!Number.isFinite(this.getTime())) return 'Invalid Date';
+      if (!Number.isFinite(timeFor(this, nativeToTimeString))) return 'Invalid Date';
       return formatTimeString(this);
     }, 'toTimeString', 0));
 
@@ -639,7 +672,11 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
             nextOptions = cloneWithTimeZone(nextOptions, zone);
           }
         }
-        return new Native(nextLocales, nextOptions);
+        // new 调用：保留 new.target（子类原型）；普通调用交给原生决定 —— DateTimeFormat /
+        // NumberFormat / Collator 返回实例，Segmenter 等抛出原生的 "requires 'new'"
+        return new.target
+          ? Reflect.construct(Native, [nextLocales, nextOptions], new.target)
+          : Reflect.apply(Native, this, [nextLocales, nextOptions]);
       };
 
       const spoofed = disguise(impl, name, Native.length, { construct: true });
@@ -727,7 +764,9 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     remember(navProto, 'language');
     try {
       Object.defineProperty(navProto, 'language', {
-        get: disguise(function () {
+        get: disguise(function (this: any) {
+          // 先让原生 getter 校验接收者：传错对象时抛出原生的 "Illegal invocation"
+          if (languageDesc && typeof languageDesc.get === 'function') languageDesc.get.call(this);
           return deps.language() || nativeLanguage;
         }, 'get language', 0),
         enumerable: languageDesc ? languageDesc.enumerable : true,
@@ -738,7 +777,8 @@ export function createSignalSpoof(deps: SignalSpoofDeps): SignalSpoof {
     remember(navProto, 'languages');
     try {
       Object.defineProperty(navProto, 'languages', {
-        get: disguise(function () {
+        get: disguise(function (this: any) {
+          if (languagesDesc && typeof languagesDesc.get === 'function') languagesDesc.get.call(this);
           return currentLanguages();
         }, 'get languages', 0),
         enumerable: languagesDesc ? languagesDesc.enumerable : true,
