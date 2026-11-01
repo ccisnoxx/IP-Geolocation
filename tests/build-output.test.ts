@@ -198,7 +198,8 @@ test('注入层产物是 IIFE 且显式 strict —— sloppy 会给每个函数�
   // sloppy 下 `Object.getOwnPropertyNames(fn)` 会多出 arguments / caller，
   // 原生内建函数没有这两样 —— 等于给整层补丁盖了个"非原生"的章。
   assert.match(output.banner({ name: 'injected/runtime' }), /^\(function \(\) \{\n"use strict";$/);
-  assert.equal(output.footer({ name: 'injected/runtime' }), '})();');
+  // 末尾跟一行 sourceURL：调用栈里不报出 chrome-extension://<扩展ID>
+  assert.equal(output.footer({ name: 'injected/runtime' }), '})();\n//# sourceURL=<anonymous>');
   // 其它入口是正常模块产物，不能被包一层
   assert.equal(output.banner({ name: 'content/content' }), '');
   assert.equal(output.footer({ name: 'content/content' }), '');

@@ -14,6 +14,8 @@
  *   - nested worker：父 Worker 里的 `Worker` 构造器同样换成带补丁的入口，配置更新
  *     由父 Worker 逐层转发；父 Worker 本身回退原生（CSP 拒绝 blob 等）时它也跟着回退。
  *   - service worker：没有任何 hook。
+ *   - worklet（Audio / Paint / Animation）：addModule 换成「补丁模块 + 原模块」的入口；
+ *     没有消息通道，拿到的是创建时的配置快照。SharedStorage worklet 不包装。
  */
 export type WorkerCoverageStatus = 'supported' | 'unsupported';
 
@@ -27,7 +29,8 @@ export type WorkerCoverageKey =
   | 'moduleWorker'
   | 'sharedWorker'
   | 'nestedWorker'
-  | 'serviceWorker';
+  | 'serviceWorker'
+  | 'worklet';
 
 export const WORKER_COVERAGE: Record<WorkerCoverageKey, WorkerCoverageEntry> = {
   classicWorker: {
@@ -49,6 +52,10 @@ export const WORKER_COVERAGE: Record<WorkerCoverageKey, WorkerCoverageEntry> = {
   serviceWorker: {
     status: 'unsupported',
     detail: '没有 hook navigator.serviceWorker.register。'
+  },
+  worklet: {
+    status: 'supported',
+    detail: 'AudioWorklet / PaintWorklet / AnimationWorklet 的 addModule 换成「补丁模块 + 原模块」的入口；没有消息通道，拿到的是创建时的配置快照，之后的配置变更不会推进去。CSP 拒绝时回退原生并回报。SharedStorage worklet 不包装。'
   }
 };
 

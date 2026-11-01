@@ -2,6 +2,17 @@
 
 只记对使用者有影响的变化。格式按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号跟 `manifest.json` 一致。
 
+## 未发布
+
+- 补丁在非正常调用下与原生同形：用错误的 this 调用 `navigator.language` / `languages` 的 getter 抛出原生的
+  `Illegal invocation`（此前直接返回伪装值）；`Date` 的 get / set / toString 系列对非 Date 接收者抛出与各自原生方法
+  一致的错误；页面改写 `Date.prototype.getUTC*` / `setTime` / `getTime` 或 `Intl.DateTimeFormat.prototype.formatToParts`
+  不再带偏补丁版的 `getHours` / `setHours`
+- `Intl` 构造器：非 new 调用按原生语义（`Intl.Segmenter()` 抛原生错误），子类保留自己的原型；Worker 内同步
+- 注入层脚本末尾加 `//# sourceURL=<anonymous>`：补丁函数出现在调用栈里时不再报出 `chrome-extension://<扩展ID>`
+- Worklet 覆盖：AudioWorklet / PaintWorklet / AnimationWorklet 的 `addModule` 换成「补丁模块 + 原模块」的入口，
+  此前 Worklet 里读到真实时区；CSP 拒绝 blob 时回退原生并回报。Worklet 拿到的是创建时的配置快照
+
 ## 2.4.4
 
 - 时区一致性补齐：`Temporal.Now.timeZoneId()` 与不带时区的 `Temporal.Now.*ISO()` 按目标时区返回
