@@ -1662,9 +1662,11 @@ test('从未证实的 opaque 文档只收到精确 refresh，无配置；总开�
   outgoing.length = 0;
   await harness.services.syncTab(7, tabUrl, { config: { ...config, masterEnabled: false }, lastLocation: null });
   // Chrome119 的枚举可完全漏掉 blob；总关必须广播到这些仍有内容桥的文档。
-  assert.deepEqual(outgoing, [
-    { tabId: 7, message: { action: 'applyPayload', clear: true, globalDisabled: true }, options: undefined }
-  ]);
+  // 清除消息同样带上用户脚本认领口令：内容脚本那份注入层收到的第一条消息可能就是它
+  assert.equal(outgoing.length, 1);
+  const { userScriptToken, ...clearMessage } = outgoing[0].message as any;
+  assert.deepEqual({ ...outgoing[0], message: clearMessage }, { tabId: 7, message: { action: 'applyPayload', clear: true, globalDisabled: true }, options: undefined });
+  assert.equal(typeof userScriptToken, 'string');
 });
 
 test('119 BFCache 发现 API 仅列顶层时，成功解析过的 blob/data 均按精确文档更新；切换顶层不遍历冻结身份', async () => {

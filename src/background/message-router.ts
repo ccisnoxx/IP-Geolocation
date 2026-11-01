@@ -47,6 +47,8 @@ export function createBackgroundMessageRouter(services: BackgroundServices) {
           ...(await services.getExitIpSyncState())
         };
       }
+      case 'getFirstScreenStatus':
+        return { status: 'ok', state: await services.getFirstScreenStatus() };
       case 'getWebRtcConfig': {
         const config = await services.getSiteConfig();
         const webRtc = normalizeWebRtc(config.webRtc);

@@ -44,6 +44,15 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
   let frameEvidence: unknown = null;
   /** 端口还没就绪时暂存最后一份 payload，就绪后补发 */
   let pendingPayload: unknown = null;
+  /**
+   * 后台给的用户脚本认领口令（见 background/user-scripts.ts），随每条 payload 交给注入层：
+   * 内容脚本那份注入层据此判断同一文档里的用户脚本那份是否真的在，决定休眠转发还是自己应用。
+   * 只取自扩展后台的响应 / 消息，不经页面。
+   */
+  let userScriptToken: string | null = null;
+  const rememberToken = (source: any): void => {
+    if (source && typeof source.userScriptToken === 'string' && source.userScriptToken) userScriptToken = source.userScriptToken;
+  };
 
   /**
    * 保留给旧后台的地址提示；当前后台只采用浏览器 sender URL 和可证明的父文档链。
@@ -105,7 +114,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
       return true;
     }
     try {
-      port.postMessage({ __vanishGeo: NONCE, payload });
+      port.postMessage({ __vanishGeo: NONCE, payload, userScriptToken });
       return true;
     } catch {
       return false;
@@ -125,6 +134,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
     const seq = ++pullSeq;
     environment.chrome.runtime.sendMessage({ action: 'getPayloadForUrl', url: payloadUrl() }, (response: any) => {
       if (!environment.chrome.runtime.lastError && response?.status === 'ok' && response.frameEvidence) frameEvidence = response.frameEvidence;
+      if (!environment.chrome.runtime.lastError && response?.status === 'ok') rememberToken(response);
       // Chrome 119 的 tabs.sendMessage 不按 documentId 隔离（实测会投给同 frame 的新文档）：
       // 已被导航替换的旧文档的 storeFrameEvidence 可能落到这里，留下不属于本文档的凭证，
       // 后台每次读取都按身份不符拒绝，解析失败又不会写入新凭证。丢掉它，重试时后台
@@ -268,6 +278,7 @@ export function createContentBridge(environment: ContentBridgeEnvironment): Cont
       return;
     }
     if (!message || message.action !== 'applyPayload') return;
+    rememberToken(message);
     if (message.clear) {
       // 总开关关闭对所有文档都成立，不依赖此时是否还能查询到父链。
       if (message.globalDisabled === true) {
