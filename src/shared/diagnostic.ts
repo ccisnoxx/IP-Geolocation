@@ -56,6 +56,7 @@ export function buildWorkerDiagnosticsSnapshot(input: any) {
     moduleWorker: withCoverage('moduleWorker', normalized.moduleWorker, '', fallback),
     sharedWorker: withCoverage('sharedWorker', normalized.sharedWorker),
     nestedWorker: withCoverage('nestedWorker', normalized.nestedWorker, '', fallback),
-    serviceWorker: withCoverage('serviceWorker', normalized.serviceWorker, 'Service worker registration hook is not installed.')
+    serviceWorker: withCoverage('serviceWorker', normalized.serviceWorker, 'Service worker registration hook is not installed.'),
+    worklet: withCoverage('worklet', normalized.worklet, '', fallback)
   };
 }

@@ -790,3 +790,63 @@ test('嵌套 Worker 的入口源码可以独立运行：孙 Worker 拿到伪装�
   vm.runInContext('new Worker("grandchild.js")', child);
   assert.ok(vm.runInContext('__blobs[0]', child).includes('importScripts("https://example.com/w/grandchild.js")'));
 });
+
+// ---------- 非正常调用下与原生同形 ----------
+
+const THROWING_NAVIGATOR = `
+  // 与浏览器 WebIDL 同形：接收者不是 WorkerNavigator 实例时抛 "Illegal invocation"
+  for (const key of ['language', 'languages']) {
+    const value = key === 'language' ? 'zh-CN' : ['zh-CN', 'zh'];
+    Object.defineProperty(WorkerNavigator.prototype, key, {
+      get() { if (!(this instanceof WorkerNavigator)) throw new TypeError('Illegal invocation'); return value; },
+      enumerable: true, configurable: true
+    });
+  }
+`;
+const WRONG_RECEIVER = [
+  'Date.prototype.getHours.call({})',
+  'Date.prototype.getTimezoneOffset.call({})',
+  'Date.prototype.setHours.call({}, 1)',
+  'Date.prototype.toString.call({})',
+  'Date.prototype.toDateString.call({})',
+  'Date.prototype.toLocaleString.call({})',
+  'Object.getOwnPropertyDescriptor(WorkerNavigator.prototype, "language").get.call({})',
+  'Object.getOwnPropertyDescriptor(WorkerNavigator.prototype, "languages").get.call({})',
+  'Intl.Segmenter()'
+];
+const outcomeIn = (context: vm.Context, code: string) => evaluate(context, `(() => {
+  try { return JSON.stringify({ threw: false, value: ${code} }); }
+  catch (e) { return JSON.stringify({ threw: true, name: e.constructor.name, message: e.message }); }
+})()`);
+
+test('Worker：错误接收者与非 new 调用抛出的错误与原生完全一致', () => {
+  const native = vm.createContext({ console });
+  vm.runInContext(`globalThis.WorkerNavigator = function WorkerNavigator() {}; ${THROWING_NAVIGATOR}`, native);
+  const patched = createWorkerContext(TOKYO, THROWING_NAVIGATOR);
+  for (const code of WRONG_RECEIVER) {
+    const expected = outcomeIn(native, code);
+    assert.match(expected, /"threw":true/, `${code} 原生应当抛错`);
+    assert.equal(outcomeIn(patched, code), expected, code);
+  }
+  assert.equal(evaluate(patched, 'navigator.language'), 'ja-JP', '正常读取不受影响');
+});
+
+test('Worker：页面改写原型上的其它 Date 方法，补丁版 get / set 不被带偏；Intl 子类保留原型', () => {
+  const context = createWorkerContext(TOKYO);
+  evaluate(context, `
+    globalThis.__d = new Date(Date.UTC(2026, 0, 1));
+    Date.prototype.getUTCHours = () => 99;
+    Date.prototype.setUTCHours = () => NaN;
+    Date.prototype.setTime = () => NaN;
+    Date.prototype.getTime = () => 0;
+    Intl.DateTimeFormat.prototype.formatToParts = () => [];
+  `);
+  assert.equal(evaluate(context, '__d.getHours()'), 9);
+  assert.equal(evaluate(context, '__d.getTimezoneOffset()'), -540);
+  assert.equal(evaluate(context, '__d.setHours(15, 0, 0, 0)'), Date.UTC(2026, 0, 1, 6));
+  assert.equal(evaluate(context, '__d.valueOf()'), Date.UTC(2026, 0, 1, 6));
+
+  const fresh = createWorkerContext(TOKYO);
+  assert.equal(evaluate(fresh, 'class F extends Intl.DateTimeFormat { hi() { return 1; } }; const f = new F(); f instanceof F && f.hi() === 1 && f.resolvedOptions().timeZone'), 'Asia/Tokyo');
+  assert.equal(evaluate(fresh, 'Intl.DateTimeFormat().resolvedOptions().timeZone'), 'Asia/Tokyo');
+});
